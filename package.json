@@ -1,0 +1,22 @@
+{
+  "name": "git-nexus",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "GitNexus - gerenciador Git desktop portátil com governança de Conventional Commits e merge 3-way",
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @git-nexus/studio dev",
+    "build": "pnpm --filter @git-nexus/studio build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "dist": "pnpm --filter @git-nexus/studio dist"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

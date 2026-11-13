@@ -1,0 +1,49 @@
+appId: dev.gitnexus.studio
+productName: GitNexus
+copyright: GitNexus
+directories:
+  output: release
+files:
+  - dist/**
+  - "!dist/**/*.map"
+  - package.json
+asar: true
+npmRebuild: false # sem módulos nativos
+compression: normal
+publish: null # a publicação é feita pelo workflow do GitHub (gh release), não pelo electron-builder
+
+# Nome dos artefatos: GitNexus-<versão>-<sistema>-<arquitetura>[-tipo].<ext>
+# O CI compila uma arquitetura por job (--x64 / --arm64) para gerar pacotes separados.
+
+win:
+  signAndEditExecutable: false # sem certificado; também evita baixar winCodeSign
+  target:
+    - nsis      # instalador
+    - portable  # executável único, sem instalar
+    - zip
+  artifactName: GitNexus-${version}-win-${arch}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false # instala por usuário (sem pedir administrador)
+  allowToChangeInstallationDirectory: true
+  artifactName: GitNexus-${version}-win-${arch}-setup.${ext}
+portable:
+  artifactName: GitNexus-${version}-win-${arch}-portable.${ext}
+  requestExecutionLevel: user
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - dmg
+    - zip
+  artifactName: GitNexus-${version}-mac-${arch}.${ext}
+
+linux:
+  category: Development
+  maintainer: GitNexus <noreply@users.noreply.github.com>
+  target:
+    - AppImage
+    - deb
+    - rpm
+    - tar.gz
+  artifactName: GitNexus-${version}-linux-${arch}.${ext}

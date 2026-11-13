@@ -1,0 +1,39 @@
+:root {
+  --gn-bg: #17181b;
+  --gn-surface: #1f2023;
+  --gn-surface-2: #2a2c31;
+  --gn-border: #34363c;
+  --gn-text: #e3e5e8;
+  --gn-muted: #9097a1;
+  --gn-accent: #4f86f7;
+  --gn-accent-hover: #6a9aff;
+  --gn-danger: #ef6a62;
+  --gn-success: #4fb56a;
+  --gn-warn: #e0a93b;
+  --gn-radius: 6px;
+  --gn-mono: ui-monospace, 'Cascadia Code', Consolas, 'Courier New', monospace;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #app { height: 100%; margin: 0; }
+
+body {
+  background: var(--gn-bg);
+  color: var(--gn-text);
+  font: 13px/1.45 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+input, textarea, select {
+  background: var(--gn-bg);
+  color: var(--gn-text);
+  border: 1px solid var(--gn-border);
+  border-radius: var(--gn-radius);
+  padding: 6px 9px;
+  font: inherit;
+  &:focus { outline: none; border-color: var(--gn-accent); }
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--gn-surface-2); border-radius: 5px; }
