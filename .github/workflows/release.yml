@@ -1,0 +1,172 @@
+name: Release
+
+# A cada merge (push) na main: calcula a versão, compila para Windows/macOS/Linux
+# e publica uma Release no GitHub com as notas geradas a partir dos commits.
+# Para pular uma release, inclua [skip release] na mensagem do commit.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Tipo de incremento de versão (auto = calculado pelos Conventional Commits)
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+
+# Uma release por vez: um segundo merge espera o anterior terminar (e herda os commits não lançados).
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # 1) Descobre a próxima versão a partir da última tag vX.Y.Z + commits desde então.
+  version:
+    name: Calcular versão
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip release]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+      tag: ${{ steps.next.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Próxima versão
+        id: next
+        env:
+          BUMP: ${{ inputs.bump || 'auto' }}
+        run: node scripts/release-info.mjs next --bump "$BUMP"
+
+  # 2) Barreira de qualidade: não publica se typecheck ou testes falharem.
+  quality:
+    name: Typecheck e testes
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip release]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  # 3) Compila um pacote por sistema/arquitetura, em paralelo.
+  build:
+    name: Build ${{ matrix.name }}
+    needs: [version, quality]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { id: win-x64, name: Windows x64, os: windows-latest, args: --win --x64 }
+          - { id: win-arm64, name: Windows ARM64, os: windows-latest, args: --win --arm64 }
+          - { id: mac-x64, name: macOS Intel, os: macos-latest, args: --mac --x64 }
+          - { id: mac-arm64, name: macOS Apple Silicon, os: macos-latest, args: --mac --arm64 }
+          - { id: linux-x64, name: Linux x64, os: ubuntu-latest, args: --linux --x64 }
+          - { id: linux-arm64, name: Linux ARM64, os: ubuntu-latest, args: --linux --arm64 }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Dependências de empacotamento (rpm)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
+      - name: Compilar (esbuild + vite)
+        run: pnpm --filter @git-nexus/studio build
+
+      - name: Empacotar (electron-builder)
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: pnpm --filter @git-nexus/studio exec electron-builder ${{ matrix.args }} --publish never "-c.extraMetadata.version=$VERSION"
+
+      - name: Verificar que o app é somente 64 bits
+        run: node scripts/verify-arch.mjs apps/studio/release ${{ contains(matrix.id, 'arm64') && 'arm64' || 'x64' }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist-${{ matrix.id }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            apps/studio/release/*.exe
+            apps/studio/release/*.zip
+            apps/studio/release/*.dmg
+            apps/studio/release/*.AppImage
+            apps/studio/release/*.deb
+            apps/studio/release/*.rpm
+            apps/studio/release/*.tar.gz
+
+  # 4) Reúne os pacotes, gera checksums + notas e publica a Release.
+  release:
+    name: Publicar Release
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.version.outputs.tag }}
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+
+      - name: Checksums SHA-256
+        working-directory: dist
+        run: |
+          ls -lh
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Gerar notas da release
+        run: |
+          node scripts/release-info.mjs notes --version "$VERSION" --repo "$GITHUB_REPOSITORY" --assets dist --out RELEASE_NOTES.md
+          cat RELEASE_NOTES.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publicar
+        run: |
+          # Reexecução: descarta um rascunho deixado por uma tentativa anterior (nunca mexe em release publicada).
+          if [ "$(gh release view "$TAG" --json isDraft -q .isDraft 2>/dev/null)" = "true" ]; then
+            gh release delete "$TAG" --yes
+          fi
+          # Cria como rascunho, envia tudo e só então publica: ninguém vê uma release pela metade.
+          gh release create "$TAG" dist/* \
+            --draft \
+            --title "GitNexus $TAG" \
+            --notes-file RELEASE_NOTES.md \
+            --target "$GITHUB_SHA"
+          gh release edit "$TAG" --draft=false --latest

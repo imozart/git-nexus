@@ -1,0 +1,10 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# pnpm bloqueia scripts de build por padrão; liberamos só o necessário.
+allowBuilds:
+  esbuild: true
+  electron: true
+  electron-winstaller: false
+  "@parcel/watcher": false
