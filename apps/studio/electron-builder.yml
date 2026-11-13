@@ -40,6 +40,7 @@ mac:
 linux:
   category: Development
   maintainer: GitNexus <noreply@users.noreply.github.com>
+  executableName: gitnexus # sem isto usa o "name" do package.json (@git-nexus/studio), inválido p/ nome de arquivo
   target:
     - AppImage
     - deb
