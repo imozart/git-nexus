@@ -6,6 +6,7 @@
   "productName": "GitNexus",
   "description": "GitNexus - gerenciador Git desktop portátil",
   "homepage": "https://github.com/imozart/git-nexus",
+  "desktopName": "gitnexus.desktop",
   "author": "GitNexus <noreply@users.noreply.github.com>",
   "main": "dist/main.cjs",
   "scripts": {
