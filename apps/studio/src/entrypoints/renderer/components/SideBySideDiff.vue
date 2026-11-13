@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { applyDiscard, blockRows, diffLines, splitLines, type DiffRow } from '@git-nexus/git-core/pure';
 
 const props = defineProps<{
@@ -15,6 +15,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'discard', p: { content: string; what: 'linha' | 'bloco' }): void;
   (e: 'stats', p: { blocks: number; added: number; removed: number }): void;
+  /** Índice (0-based) da diferença atual; -1 se não há diferenças. */
+  (e: 'current', index: number): void;
 }>();
 
 const CONTEXT = 3;
@@ -76,15 +78,31 @@ const isFirstOfBlock = (idx: number) => rows.value[idx]!.block >= 0 && (idx === 
 
 // --- navegação entre diferenças ----------------------------------------------------------
 const body = ref<HTMLDivElement>();
-const cur = ref(-1);
-function go(delta: number) {
+const cur = ref(blocks.value.length ? 0 : -1);
+
+async function goTo(index: number, scroll = true) {
   const n = blocks.value.length;
   if (!n) return;
-  cur.value = (cur.value + delta + n) % n;
+  cur.value = index < 0 ? n - 1 : Math.min(index, n - 1);
+  if (!scroll) return;
+  await nextTick();
   body.value?.querySelector(`[data-first="${blocks.value[cur.value]}"]`)?.scrollIntoView({ block: 'center' });
 }
-watch(() => [props.oldText, props.newText], () => (cur.value = -1));
-defineExpose({ go });
+
+/** Anda uma diferença. Devolve false nas bordas (sem dar a volta), para o chamador cruzar para outro arquivo. */
+function go(delta: number): boolean {
+  const target = cur.value + delta;
+  if (!blocks.value.length || target < 0 || target >= blocks.value.length) return false;
+  void goTo(target);
+  return true;
+}
+
+// conteúdo mudou (ex.: após descartar): mantém a posição, sem rolar
+watch(blocks, (b) => {
+  cur.value = b.length ? Math.min(Math.max(cur.value, 0), b.length - 1) : -1;
+});
+watch(cur, (c) => emit('current', c), { immediate: true });
+defineExpose({ go, goTo });
 
 // --- descarte ----------------------------------------------------------------------------
 function discard(indices: number[], what: 'linha' | 'bloco') {
@@ -119,7 +137,7 @@ const KIND_CLASS: Record<DiffRow['kind'], string> = { eq: '', change: 'row--chan
         <div
           v-else
           class="row"
-          :class="KIND_CLASS[it.row.kind]"
+          :class="[KIND_CLASS[it.row.kind], { 'row--cur': it.row.block === cur && it.row.block >= 0 }]"
           :data-first="isFirstOfBlock(it.idx) ? it.row.block : undefined"
         >
           <span class="no">{{ it.row.oldNo }}</span>
@@ -199,6 +217,9 @@ const KIND_CLASS: Record<DiffRow['kind'], string> = { eq: '', change: 'row--chan
     &--block { color: var(--gn-accent); }
   }
 }
+// diferença atual (navegação ↑/↓)
+.row--cur .no, .row--cur .ctrl { background: rgba(79, 134, 247, 0.35); }
+.row--cur .code:not(.code--empty) { box-shadow: inset 0 1px 0 rgba(79, 134, 247, 0.6), inset 0 -1px 0 rgba(79, 134, 247, 0.6); }
 // cores (IntelliJ): alterada = azul, adicionada = verde, removida = vermelho/cinza
 .row--change .code { background: rgba(79, 134, 247, 0.2); }
 .row--add .code:not(.code--empty) { background: rgba(79, 181, 106, 0.22); }
@@ -220,6 +241,4 @@ const KIND_CLASS: Record<DiffRow['kind'], string> = { eq: '', change: 'row--chan
 }
 .muted { color: var(--gn-muted); font-size: 12px; }
 .empty { padding: 16px; text-align: center; }
-.spacer { flex: 1; }
-.stat { font-family: var(--gn-mono); font-size: 12px; &--add { color: var(--gn-success); } &--del { color: var(--gn-danger); } }
 </style>

@@ -1,12 +1,12 @@
 name: Release
 
-# A cada merge (push) na master: calcula a versão, compila para Windows/macOS/Linux
+# A cada merge (push) na main: calcula a versão, compila para Windows/macOS/Linux
 # e publica uma Release no GitHub com as notas geradas a partir dos commits.
 # Para pular uma release, inclua [skip release] na mensagem do commit.
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   workflow_dispatch:
     inputs:
       bump:
@@ -100,6 +100,9 @@ jobs:
         env:
           VERSION: ${{ needs.version.outputs.version }}
         run: pnpm --filter @git-nexus/studio exec electron-builder ${{ matrix.args }} --publish never "-c.extraMetadata.version=$VERSION"
+
+      - name: Verificar que o app é somente 64 bits
+        run: node scripts/verify-arch.mjs apps/studio/release ${{ contains(matrix.id, 'arm64') && 'arm64' || 'x64' }}
 
       - uses: actions/upload-artifact@v7
         with:

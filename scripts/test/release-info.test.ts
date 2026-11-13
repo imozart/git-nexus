@@ -46,7 +46,7 @@ describe('versão', () => {
 describe('notas', () => {
   const assets = [
     { name: 'GitNexus-1.1.0-win-x64-setup.exe', size: 90_000_000 },
-    { name: 'GitNexus-1.1.0-win-x64-portable.exe', size: 105_000_000 },
+    { name: 'GitNexus-1.1.0-win-x64.zip', size: 105_000_000 },
     { name: 'GitNexus-1.1.0-mac-arm64.dmg', size: 120_000_000 },
     { name: 'GitNexus-1.1.0-linux-amd64.deb', size: 80_000_000 },
     { name: 'GitNexus-1.1.0-linux-x86_64.rpm', size: 80_000_000 },
@@ -81,7 +81,7 @@ describe('notas', () => {
   it('tabela de downloads classifica por sistema e ignora arquivos auxiliares', () => {
     const t = renderDownloads({ assets, repo: 'o/r', tag: 'v1.1.0' });
     expect(t).toContain('| Windows | Instalador | x64 |');
-    expect(t).toContain('| Windows | Portátil (sem instalar) | x64 |');
+    expect(t).toContain('| Windows | ZIP (portátil, sem instalar) | x64 |');
     expect(t).toContain('| macOS | DMG | ARM64 |');
     expect(t).toContain('| Linux | Debian/Ubuntu (.deb) | x64 |');
     expect(t).toContain('| Linux | Fedora/RHEL (.rpm) | x64 |');

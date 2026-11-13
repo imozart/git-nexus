@@ -25,7 +25,7 @@ export interface ScanOptions {
   signal?: AbortSignal;
 }
 
-export function repoIdFromPath(path: string): string {
+function repoIdFromPath(path: string): string {
   return createHash('sha1').update(path.toLowerCase()).digest('hex').slice(0, 16);
 }
 

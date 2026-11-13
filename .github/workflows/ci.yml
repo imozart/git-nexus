@@ -1,10 +1,10 @@
 name: CI
 
-# Valida pull requests para a master (a release só acontece depois do merge).
+# Valida pull requests para a main (a release só acontece depois do merge).
 
 on:
   pull_request:
-    branches: [master]
+    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}

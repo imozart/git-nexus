@@ -1,37 +1,65 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 
 const props = defineProps<{ diff: string }>();
+const emit = defineEmits<{
+  /** Índice (0-based) do bloco atual; -1 se não há blocos. */
+  (e: 'current', index: number): void;
+}>();
 const root = ref<HTMLElement>();
-const cur = ref(-1);
+const cur = ref(0);
 
-/** Navega entre os blocos (@@) do diff unificado. */
-function go(delta: number) {
-  const hunks = root.value?.querySelectorAll('.hunk');
-  if (!hunks?.length) return;
-  cur.value = (cur.value + delta + hunks.length) % hunks.length;
-  hunks[cur.value]!.scrollIntoView({ block: 'start' });
+const lines = computed(() => {
+  let hunk = -1;
+  return props.diff.split('\n').map((text) => {
+    const cls =
+      text.startsWith('+++') || text.startsWith('---') || text.startsWith('diff ') || text.startsWith('index ')
+        ? 'meta'
+        : text.startsWith('@@')
+          ? 'hunk'
+          : text.startsWith('+')
+            ? 'add'
+            : text.startsWith('-')
+              ? 'del'
+              : '';
+    if (cls === 'hunk') hunk++;
+    return { text, cls, hunk: cls === 'hunk' ? hunk : -1 };
+  });
+});
+const hunkCount = computed(() => lines.value.filter((l) => l.cls === 'hunk').length);
+
+async function goTo(index: number, scroll = true) {
+  const n = hunkCount.value;
+  if (!n) return;
+  cur.value = index < 0 ? n - 1 : Math.min(index, n - 1);
+  if (!scroll) return;
+  await nextTick();
+  root.value?.querySelectorAll('.hunk')[cur.value]?.scrollIntoView({ block: 'start' });
 }
-defineExpose({ go });
 
-const lines = computed(() =>
-  props.diff.split('\n').map((text) => ({
-    text,
-    cls: text.startsWith('+++') || text.startsWith('---') || text.startsWith('diff ') || text.startsWith('index ')
-      ? 'meta'
-      : text.startsWith('@@')
-        ? 'hunk'
-        : text.startsWith('+')
-          ? 'add'
-          : text.startsWith('-')
-            ? 'del'
-            : '',
-  })),
+/** Anda um bloco (@@). Devolve false nas bordas, para o chamador cruzar para outro arquivo. */
+function go(delta: number): boolean {
+  const target = cur.value + delta;
+  if (!hunkCount.value || target < 0 || target >= hunkCount.value) return false;
+  void goTo(target);
+  return true;
+}
+
+watch(
+  () => props.diff,
+  () => (cur.value = 0),
 );
+watch([cur, hunkCount], () => emit('current', hunkCount.value ? cur.value : -1), { immediate: true });
+defineExpose({ go, goTo });
 </script>
 
 <template>
-  <div ref="root" class="diff"><span v-for="(l, i) in lines" :key="i" class="diff__l" :class="l.cls">{{ l.text }}</span></div>
+  <div ref="root" class="diff"><span
+      v-for="(l, i) in lines"
+      :key="i"
+      class="diff__l"
+      :class="[l.cls, { 'hunk--cur': l.hunk >= 0 && l.hunk === cur }]"
+    >{{ l.text }}</span></div>
 </template>
 
 <style scoped lang="scss">
@@ -44,6 +72,7 @@ const lines = computed(() =>
   .add { background: rgba(79, 181, 106, 0.14); color: #8fd7a1; }
   .del { background: rgba(239, 106, 98, 0.14); color: #f0a09a; }
   .hunk { color: var(--gn-accent); background: rgba(79, 134, 247, 0.08); }
+  .hunk--cur { background: rgba(79, 134, 247, 0.35); font-weight: 700; }
   .meta { color: var(--gn-muted); }
 }
 </style>

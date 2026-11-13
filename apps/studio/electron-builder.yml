@@ -12,24 +12,23 @@ npmRebuild: false # sem módulos nativos
 compression: normal
 publish: null # a publicação é feita pelo workflow do GitHub (gh release), não pelo electron-builder
 
+# Somente 64 bits (x64 e arm64). O CI compila uma arquitetura por job (--x64 / --arm64) e
+# scripts/verify-arch.mjs reprova o build se houver qualquer binário 32 bits no app empacotado.
 # Nome dos artefatos: GitNexus-<versão>-<sistema>-<arquitetura>[-tipo].<ext>
-# O CI compila uma arquitetura por job (--x64 / --arm64) para gerar pacotes separados.
 
 win:
-  signAndEditExecutable: false # sem certificado; também evita baixar winCodeSign
+  signExecutable: false # sem certificado de assinatura; mantém os metadados (descrição, produto) no .exe
   target:
-    - nsis      # instalador
-    - portable  # executável único, sem instalar
-    - zip
+    - nsis # instalador (por usuário)
+    - zip  # portátil: extrair e executar (dados em GitNexusData/ ao lado do .exe)
   artifactName: GitNexus-${version}-win-${arch}.${ext}
+  # (não há alvo "portable" do NSIS: o launcher dele é um processo de 32 bits)
 nsis:
   oneClick: false
   perMachine: false # instala por usuário (sem pedir administrador)
   allowToChangeInstallationDirectory: true
+  packElevateHelper: false # elevate.exe é um helper de 32 bits, só necessário p/ instalação por máquina + auto-update
   artifactName: GitNexus-${version}-win-${arch}-setup.${ext}
-portable:
-  artifactName: GitNexus-${version}-win-${arch}-portable.${ext}
-  requestExecutionLevel: user
 
 mac:
   category: public.app-category.developer-tools

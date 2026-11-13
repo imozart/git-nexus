@@ -5,7 +5,7 @@
 //   node scripts/release-info.mjs next  [--bump auto|major|minor|patch]
 //   node scripts/release-info.mjs notes --version 1.2.3 [--repo dono/repo] [--assets pasta] [--out notas.md]
 //
-// Regras de versão (a cada merge na master sai uma release):
+// Regras de versão (a cada merge na main sai uma release):
 //   breaking (`!` ou "BREAKING CHANGE:")  -> major
 //   feat                                  -> minor
 //   qualquer outra coisa                  -> patch
@@ -109,8 +109,7 @@ const fmtSize = (bytes) => (bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} 
 
 const DOWNLOAD_ROWS = [
   { os: 'Windows', kind: 'Instalador', re: /-win-(x64|arm64)-setup\.exe$/ },
-  { os: 'Windows', kind: 'Portátil (sem instalar)', re: /-win-(x64|arm64)-portable\.exe$/ },
-  { os: 'Windows', kind: 'ZIP', re: /-win-(x64|arm64)\.zip$/ },
+  { os: 'Windows', kind: 'ZIP (portátil, sem instalar)', re: /-win-(x64|arm64)\.zip$/ },
   { os: 'macOS', kind: 'DMG', re: /-mac-(x64|arm64)\.dmg$/ },
   { os: 'macOS', kind: 'ZIP', re: /-mac-(x64|arm64)\.zip$/ },
   { os: 'Linux', kind: 'AppImage (portátil)', re: /-linux-(x64|arm64)\.AppImage$/ },
@@ -173,7 +172,7 @@ export function renderNotes({ version, previous, commits, repo, assets = [], sta
     '',
     '## ℹ️ Observações de instalação',
     '',
-    '- **Windows:** os executáveis não têm assinatura de código; o SmartScreen pode avisar ("Mais informações" → "Executar assim mesmo"). O pacote *Portátil* não instala nada e guarda os dados em `GitNexusData/` ao lado do `.exe`.',
+    '- **Windows:** os executáveis não têm assinatura de código; o SmartScreen pode avisar ("Mais informações" → "Executar assim mesmo"). O pacote *ZIP* é portátil: extraia, execute `GitNexus.exe` e os dados ficam em `GitNexusData/` ao lado dele. Todos os binários são de 64 bits (x64 ou ARM64).',
     '- **macOS:** os apps não são assinados/notarizados. Se o sistema disser que o app está "danificado", rode `xattr -cr /Applications/GitNexus.app` e abra novamente.',
     '- **Linux:** no AppImage, `chmod +x GitNexus-*.AppImage` antes de executar; os dados ficam em `GitNexusData/` ao lado do arquivo.',
     '',

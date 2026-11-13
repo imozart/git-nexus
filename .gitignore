@@ -9,3 +9,6 @@ release/
 # dados portáteis gerados em desenvolvimento
 apps/studio/.dev-data/
 *.tgz
+# dados de runtime gerados ao executar o app/harness
+GitNexusData/
+.harness-data/

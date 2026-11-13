@@ -79,7 +79,7 @@ export function findConflictRegions(text: string): ConflictRegion[] {
 }
 
 /** Texto que substitui o bloco de conflito conforme a escolha. */
-export function choiceText(region: ConflictRegion, choice: ConflictChoice): string {
+function choiceText(region: ConflictRegion, choice: ConflictChoice): string {
   switch (choice) {
     case 'ours':
       return region.ours;

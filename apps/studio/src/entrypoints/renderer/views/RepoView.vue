@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { GnBadge, GnButton } from '@git-nexus/ui-kit';
 import type { FileEntry, FileSides, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
@@ -104,24 +104,72 @@ async function loadDiff(): Promise<void> {
   }
 }
 
-function open(path: string): void {
+type Landing = 'first' | 'last';
+
+/** Abre o arquivo no diff e posiciona na primeira (ou última) diferença. */
+async function open(path: string, landing: Landing = 'first'): Promise<void> {
   active.value = path;
-  void loadDiff();
+  await loadDiff();
+  await nextTick();
+  await nextTick();
+  const idx = landing === 'last' ? -1 : 0;
+  if (showSplit.value) await splitRef.value?.goTo(idx);
+  else await unifiedRef.value?.goTo(idx);
 }
 
-// --- navegação (barra superior do diff) ----------------------------------------------------
-function goDiff(delta: number): void {
-  if (showSplit.value) splitRef.value?.go(delta);
-  else unifiedRef.value?.go(delta);
+// --- navegação entre diferenças (cruza para o arquivo vizinho nas bordas) ----------------------
+/** Posição da diferença atual dentro do arquivo aberto. */
+const curDiff = ref(-1);
+
+/** Há algo para navegar no arquivo aberto? (binário/grande/pasta contam como "um item", sem passos internos.) */
+const hasSteps = () => (showSplit.value ? stats.value.blocks > 0 : diffCount.value > 0);
+
+let navigating = false;
+async function goDiff(delta: number): Promise<void> {
+  if (navigating || !ordered.value.length) return;
+  navigating = true;
+  try {
+    // Sem arquivo aberto: começa do primeiro (→) ou do último (←) arquivo pendente, sem precisar clicar.
+    if (!active.value) {
+      await open(ordered.value[delta > 0 ? 0 : ordered.value.length - 1]!, delta > 0 ? 'first' : 'last');
+      if (hasSteps()) return;
+    } else {
+      const moved = showSplit.value ? splitRef.value?.go(delta) : unifiedRef.value?.go(delta);
+      if (moved) return;
+    }
+    // Borda do arquivo: segue para o vizinho que tenha diferenças.
+    let i = activeIndex.value;
+    for (;;) {
+      i += delta;
+      const next = ordered.value[i];
+      if (!next) {
+        showNotice(delta > 0 ? 'Última diferença: não há mais arquivos à frente.' : 'Primeira diferença: não há arquivos anteriores.');
+        return;
+      }
+      await open(next, delta > 0 ? 'first' : 'last');
+      if (hasSteps() || !(showSplit.value || diffText.value.includes('@@'))) return;
+    }
+  } finally {
+    navigating = false;
+  }
 }
 function goFile(delta: number): void {
   const next = ordered.value[activeIndex.value + delta];
-  if (next) open(next);
+  if (next) void open(next);
 }
-const nav = computed(() => ({
-  prevFile: activeIndex.value > 0,
-  nextFile: activeIndex.value >= 0 && activeIndex.value < ordered.value.length - 1,
-}));
+const nav = computed(() => {
+  const total = diffCount.value;
+  const cur = curDiff.value;
+  const hasPrev = activeIndex.value > 0;
+  const hasNext = activeIndex.value >= 0 && activeIndex.value < ordered.value.length - 1;
+  return {
+    prevFile: hasPrev,
+    nextFile: hasNext,
+    // sem arquivo aberto, qualquer lado começa a navegação; com arquivo, vale a diferença ou o arquivo vizinho
+    prevDiff: ordered.value.length > 0 && (!active.value || cur > 0 || hasPrev),
+    nextDiff: ordered.value.length > 0 && (!active.value || (total > 0 && cur < total - 1) || hasNext),
+  };
+});
 
 function onKeydown(ev: KeyboardEvent): void {
   if (!rootEl.value || rootEl.value.offsetParent === null) return; // aba oculta
@@ -390,15 +438,15 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
 
       <main class="rv__diff">
         <div class="rv__toolbar">
-          <GnButton size="sm" :disabled="!diffCount" title="Diferença anterior (Shift+F7)" aria-label="Diferença anterior" @click="goDiff(-1)">↑</GnButton>
-          <GnButton size="sm" :disabled="!diffCount" title="Próxima diferença (F7)" aria-label="Próxima diferença" @click="goDiff(1)">↓</GnButton>
+          <GnButton size="sm" :disabled="!nav.prevDiff" title="Diferença anterior (Shift+F7)" aria-label="Diferença anterior" @click="goDiff(-1)">↑</GnButton>
+          <GnButton size="sm" :disabled="!nav.nextDiff" title="Próxima diferença (F7)" aria-label="Próxima diferença" @click="goDiff(1)">↓</GnButton>
           <span class="sepv" />
           <GnButton size="sm" :disabled="!nav.prevFile" title="Comparar arquivo anterior (Alt+←)" aria-label="Comparar arquivo anterior" @click="goFile(-1)">←</GnButton>
           <GnButton size="sm" :disabled="!nav.nextFile" title="Comparar próximo arquivo (Alt+→)" aria-label="Comparar próximo arquivo" @click="goFile(1)">→</GnButton>
           <span v-if="active" class="muted">arquivo {{ activeIndex + 1 }} de {{ ordered.length }}</span>
           <template v-if="active">
             <span class="sepv" />
-            <span class="muted">{{ diffCount }} {{ diffCount === 1 ? 'diferença' : 'diferenças' }}</span>
+            <span class="muted">{{ curDiff >= 0 ? `diferença ${curDiff + 1} de ${diffCount}` : `${diffCount} diferenças` }}</span>
             <template v-if="showSplit">
               <span class="stat stat--add">+{{ stats.added }}</span>
               <span class="stat stat--del">−{{ stats.removed }}</span>
@@ -436,8 +484,9 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
               new-label="Working tree (atual)"
               @discard="onDiscardLines"
               @stats="stats = $event"
+              @current="curDiff = $event"
             />
-            <DiffView v-else ref="unifiedRef" :diff="diffText || '(sem diferenças a exibir)'" />
+            <DiffView v-else ref="unifiedRef" :diff="diffText || '(sem diferenças a exibir)'" @current="curDiff = $event" />
           </div>
         </template>
       </main>

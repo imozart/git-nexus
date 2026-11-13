@@ -4,8 +4,6 @@ import type { MergeConflictBlock } from './types/ipc.js';
 import { hasConflictMarkers } from './conflict-markers.js';
 import { runGit } from './runner.js';
 
-export { hasConflictMarkers };
-
 async function stage(repoPath: string, n: 1 | 2 | 3, file: string): Promise<string> {
   // Estágios do índice: 1 = base (ancestral), 2 = ours, 3 = theirs. Ausente => add/delete.
   const r = await runGit(repoPath, ['show', `:${n}:${file}`], { check: false });

@@ -13,8 +13,8 @@
     "build": "pnpm build:node && pnpm build:renderer",
     "dev": "node scripts/dev.mjs",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
-    "pack": "pnpm build && electron-builder --dir",
-    "dist": "pnpm build && electron-builder --win"
+    "dist": "pnpm build && electron-builder --win",
+    "pack:dir": "pnpm build && electron-builder --dir"
   },
   "devDependencies": {
     "@codemirror/commands": "^6.11.1",
@@ -36,7 +36,6 @@
     "@git-nexus/ui-kit": "workspace:*",
     "@types/node": "^24.9.0",
     "@vitejs/plugin-vue": "^6.0.11",
-    "codemirror": "^6.0.2",
     "electron": "^45.3.1",
     "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",

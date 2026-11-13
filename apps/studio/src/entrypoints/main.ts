@@ -5,7 +5,7 @@ import { BrowserWindow, app, clipboard, dialog, ipcMain, shell, utilityProcess, 
 import { WORKER_METHODS, channel, type UtilityRequest, type UtilityResponse } from '../shared/channels';
 
 // --- Portabilidade: dados ao lado do executável, nada no registro/AppData ---------------
-// Modo portátil: .exe portátil, AppImage e ZIP/tar.gz (descompactados em pasta gravável).
+// Modo portátil: AppImage e ZIP/tar.gz (descompactados em pasta gravável).
 // Versões instaladas (instalador NSIS, .deb/.rpm, .app em /Applications) usam o diretório padrão do SO.
 function isWritable(dir: string): boolean {
   try {
@@ -18,7 +18,6 @@ function isWritable(dir: string): boolean {
 
 function resolveDataDir(): string | null {
   if (process.env.GITNEXUS_DATA_DIR) return process.env.GITNEXUS_DATA_DIR; // override explícito
-  if (process.env.PORTABLE_EXECUTABLE_DIR) return join(process.env.PORTABLE_EXECUTABLE_DIR, 'GitNexusData'); // portable (win)
   if (!app.isPackaged) return join(__dirname, '..', '.dev-data'); // desenvolvimento
   if (process.env.APPIMAGE) {
     const dir = dirname(process.env.APPIMAGE);
