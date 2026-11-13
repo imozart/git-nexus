@@ -70,6 +70,9 @@ jobs:
     needs: [version, quality]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash # no Windows o padrão é PowerShell, onde "$VERSION" não lê variável de ambiente
     strategy:
       fail-fast: true
       matrix:
