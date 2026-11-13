@@ -74,7 +74,7 @@ jobs:
       run:
         shell: bash # no Windows o padrão é PowerShell, onde "$VERSION" não lê variável de ambiente
     strategy:
-      fail-fast: false # uma plataforma falhando não cancela as outras (mostra todos os erros de uma vez)
+      fail-fast: true # se um build falhar, os demais são cancelados e nenhuma release é publicada
       matrix:
         include:
           - { id: win-x64, name: Windows x64, os: windows-latest, args: --win --x64 }
@@ -173,3 +173,49 @@ jobs:
             --notes-file RELEASE_NOTES.md \
             --target "$GITHUB_SHA"
           gh release edit "$TAG" --draft=false --latest
+
+  # 5) Se qualquer etapa falhar, envia um e-mail com os detalhes (job, passo e trecho do log com o erro).
+  # Requer: secrets MAIL_USERNAME e MAIL_PASSWORD (Gmail: senha de app) e a variável NOTIFY_EMAIL. Sem eles, só avisa no log.
+  notify-failure:
+    name: Notificar falha por e-mail
+    needs: [version, quality, build, release]
+    if: ${{ always() && contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read # ler jobs e logs da execução
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+      MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+      NOTIFY_EMAIL: ${{ vars.NOTIFY_EMAIL }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Montar relatório da falha
+        run: node scripts/failure-report.mjs --repo "$GITHUB_REPOSITORY" --run "$GITHUB_RUN_ID" --out "$RUNNER_TEMP/failure.txt"
+
+      - name: Resumo na página da execução
+        run: cat "$RUNNER_TEMP/failure.txt" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enviar e-mail
+        if: ${{ env.MAIL_USERNAME != '' && env.MAIL_PASSWORD != '' && env.NOTIFY_EMAIL != '' }}
+        uses: dawidd6/action-send-mail@v24
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ env.MAIL_USERNAME }}
+          password: ${{ env.MAIL_PASSWORD }}
+          from: GitNexus CI <${{ env.MAIL_USERNAME }}>
+          to: ${{ env.NOTIFY_EMAIL }}
+          subject: "[GitNexus] Falha na release - ${{ github.repository }}@${{ github.ref_name }} (execução #${{ github.run_number }})"
+          body: file://${{ runner.temp }}/failure.txt
+
+      - name: Aviso quando o e-mail não está configurado
+        if: ${{ env.MAIL_USERNAME == '' || env.MAIL_PASSWORD == '' || env.NOTIFY_EMAIL == '' }}
+        run: echo "::warning::E-mail não enviado - configure os secrets MAIL_USERNAME e MAIL_PASSWORD e a variável NOTIFY_EMAIL."
