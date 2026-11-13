@@ -74,7 +74,7 @@ jobs:
       run:
         shell: bash # no Windows o padrão é PowerShell, onde "$VERSION" não lê variável de ambiente
     strategy:
-      fail-fast: true
+      fail-fast: false # uma plataforma falhando não cancela as outras (mostra todos os erros de uma vez)
       matrix:
         include:
           - { id: win-x64, name: Windows x64, os: windows-latest, args: --win --x64 }
