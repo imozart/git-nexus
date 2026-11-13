@@ -93,6 +93,12 @@ ipcMain.handle(channel('openPath'), (_e, repoPath: string, file: string) =>
 );
 
 // --- Janela ---------------------------------------------------------------------------
+/** Ícone da janela (barra de tarefas no Linux e execução em desenvolvimento). No Windows/macOS o do executável já vale. */
+function windowIcon(): string | undefined {
+  const file = app.isPackaged ? join(process.resourcesPath, 'icon.png') : join(__dirname, '..', 'build', 'icon.png');
+  return existsSync(file) ? file : undefined;
+}
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1360,
@@ -101,6 +107,7 @@ function createWindow(): void {
     minHeight: 600,
     title: 'GitNexus',
     backgroundColor: '#17181b',
+    icon: windowIcon(),
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, 'preload.cjs'),

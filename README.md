@@ -94,4 +94,4 @@ Detalhes:
 | 6 | `electron-builder` (Windows ZIP portátil + instalador, 64 bits) | feito e testado localmente |
 | 7 | Releases multiplataforma via GitHub Actions | workflows escritos e validados (sintaxe + script de versão/notas testado); **ainda não executados no GitHub**. Builds macOS/Linux só rodam no CI |
 
-Pendências conhecidas: ícone do app (usa o padrão do Electron), assinatura de código (sem certificado), suporte WSL2 testado só por unidade (parse de caminho), não em distro real.
+Pendências conhecidas: assinatura de código (sem certificado), suporte WSL2 testado só por unidade (parse de caminho), não em distro real.

@@ -9,6 +9,8 @@ files:
   - package.json
 asar: true
 npmRebuild: false # sem módulos nativos
+extraResources:
+  - { from: build/icon.png, to: icon.png } # ícone da janela em tempo de execução (Linux)
 compression: normal
 publish: null # a publicação é feita pelo workflow do GitHub (gh release), não pelo electron-builder
 
@@ -40,7 +42,8 @@ mac:
 linux:
   category: Development
   maintainer: GitNexus <noreply@users.noreply.github.com>
-  executableName: gitnexus # sem isto usa o "name" do package.json (@git-nexus/studio), inválido p/ nome de arquivo
+  syncDesktopName: true # grava o desktopName do package.json (liga a janela ao atalho .desktop)
+  executableName: gitnexus #sem isto usa o "name" do package.json (@git-nexus/studio), inválido p/ nome de arquivo
   target:
     - AppImage
     - deb
