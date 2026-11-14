@@ -59,6 +59,18 @@ A tela inicial mostra, para cada repositório catalogado: **branch**, **↑ comm
 - **Buscar / Pull** individuais em cada linha (o pull recusa quando a branch divergiu e explica o motivo).
 - **Só com pendências:** esconde os repositórios em dia.
 
+## Instalar por gerenciador de pacote
+
+A cada release o pipeline gera os manifestos de **winget**, **Scoop** e **Homebrew** (artefato `packaging-manifests` da execução). Veja [`docs/PACKAGING.md`](docs/PACKAGING.md) para publicá-los. Depois de publicados:
+
+```powershell
+winget install Imozart.GitNexus        # Windows (instalador por usuário)
+scoop bucket add gitnexus https://github.com/imozart/scoop-gitnexus && scoop install gitnexus   # Windows (portátil)
+```
+```bash
+brew install --cask imozart/gitnexus/gitnexus   # macOS
+```
+
 ## Atualizações
 
 O app avisa quando existe uma versão nova: **8 segundos depois de abrir** (para não atrasar a abertura) e depois **a cada 12 horas**, ele consulta a última release pública do GitHub e, se for maior que a versão em uso, mostra uma faixa no topo: *Nova versão X disponível (você usa Y)*, com **Baixar**, **Ver novidades**, **Depois** (volta a avisar na próxima abertura) e **Ignorar esta versão**.

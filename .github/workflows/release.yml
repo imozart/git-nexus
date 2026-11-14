@@ -230,6 +230,20 @@ jobs:
             --target "$GITHUB_SHA"
           gh release edit "$TAG" --draft=false --latest
 
+      # Manifestos de winget/Scoop/Homebrew com os links e SHA-256 desta release (veja docs/PACKAGING.md).
+      # Depois da publicação e sem bloquear: um problema aqui não desfaz a release.
+      - name: Gerar manifestos dos gerenciadores de pacote
+        continue-on-error: true
+        run: node scripts/gen-packaging.mjs --version "$VERSION" --repo "$GITHUB_REPOSITORY" --sums dist/SHA256SUMS.txt --out packaging-out
+
+      - name: Guardar os manifestos
+        if: ${{ hashFiles('packaging-out/**') != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: packaging-manifests
+          path: packaging-out
+          retention-days: 30
+
   # 5) Se qualquer etapa falhar, envia um e-mail com os detalhes (job, passo e trecho do log com o erro).
   # Requer: secrets MAIL_USERNAME e MAIL_PASSWORD (Gmail: senha de app) e a variável NOTIFY_EMAIL. Sem eles, só avisa no log.
   notify-failure:
