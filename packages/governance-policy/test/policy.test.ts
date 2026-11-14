@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { ConventionalCommitInput } from '@git-nexus/git-core/pure';
-import { DEFAULT_POLICY, formatCommitMessage, validateCommitMessage } from '../src/index.js';
+import {
+  DEFAULT_POLICY,
+  formatCommitMessage,
+  mergePolicy,
+  parseRepoConfig,
+  ticketFromBranch,
+  typeFromBranch,
+  validateCommitMessage,
+} from '../src/index.js';
 
 const ok: ConventionalCommitInput = { type: 'feat', scope: 'auth', ticketNumber: 'ABC-123', subject: 'adiciona login' };
 
@@ -47,5 +55,59 @@ describe('formatCommitMessage', () => {
 
   it('omite partes vazias', () => {
     expect(formatCommitMessage({ type: 'fix', subject: 'corrige' })).toBe('fix: corrige\n');
+  });
+});
+
+describe('política do time (.gitnexus.json)', () => {
+  const base = { type: 'feat', subject: 'algo', ticketNumber: 'PROJ-1' } as const;
+
+  it('restringe tipos e escopos', () => {
+    const p = { ...DEFAULT_POLICY, types: ['feat', 'fix'], scopes: ['auth', 'ui'] } as typeof DEFAULT_POLICY;
+    expect(validateCommitMessage({ ...base, scope: 'auth' }, p).isValid).toBe(true);
+    expect(validateCommitMessage({ ...base, type: 'chore' }, p).errors[0]).toContain('não é permitido');
+    expect(validateCommitMessage({ ...base, scope: 'db' }, p).errors[0]).toContain('não permitido');
+  });
+
+  it('parseRepoConfig lê o arquivo e relata problemas sem lançar', () => {
+    const ok = parseRepoConfig(
+      JSON.stringify({
+        commit: { types: ['feat', 'fix'], scopes: ['auth'], ticketPattern: 'PROJ-\\d+', ticketFromBranch: true, maxSubjectLength: 72 },
+        secrets: { mode: 'block', ignorePaths: ['x/**'] },
+      }),
+    );
+    expect(ok.errors).toEqual([]);
+    expect(ok.commit).toMatchObject({ types: ['feat', 'fix'], scopes: ['auth'], ticketFromBranch: true, maxSubjectLength: 72 });
+    expect(ok.secrets).toMatchObject({ mode: 'block', ignorePaths: ['x/**'], maxFileSizeMb: 5 });
+
+    expect(parseRepoConfig('{ invalido').errors[0]).toContain('JSON inválido');
+    const bad = parseRepoConfig(
+      JSON.stringify({ commit: { types: ['feat', 'xyz'], ticketPattern: '(', maxSubjectLength: 5 }, secrets: { mode: 'x' }, extra: 1 }),
+    );
+    const msgs = bad.errors.join('|');
+    expect(msgs).toMatch(/desconhecidos: xyz/);
+    expect(msgs).toMatch(/ticketPattern/);
+    expect(msgs).toMatch(/maxSubjectLength/);
+    expect(msgs).toMatch(/secrets\.mode/);
+    expect(msgs).toMatch(/Campo desconhecido: "extra"/);
+    expect(bad.commit.types).toEqual(['feat']); // o válido é mantido
+  });
+
+  it('mergePolicy: a política do time sobrepõe a local', () => {
+    expect(mergePolicy(DEFAULT_POLICY, { maxSubjectLength: 72, ticketRequired: false })).toMatchObject({
+      maxSubjectLength: 72,
+      ticketRequired: false,
+      scopeRequired: false,
+    });
+  });
+
+  it('ticket e tipo a partir da branch', () => {
+    expect(ticketFromBranch('feat/PROJ-123-login', 'PROJ-\\d+')).toBe('PROJ-123');
+    expect(ticketFromBranch('feature/proj-45_ajuste', '[A-Z]+-\\d+')).toBe('PROJ-45');
+    expect(ticketFromBranch('main', '[A-Z]+-\\d+')).toBeNull();
+    expect(ticketFromBranch('x/ABC-1', '(')).toBeNull();
+    expect(typeFromBranch('feature/PROJ-1-x')).toBe('feat');
+    expect(typeFromBranch('hotfix/crash')).toBe('fix');
+    expect(typeFromBranch('main')).toBeNull();
+    expect(typeFromBranch('minha/coisa')).toBeNull();
   });
 });

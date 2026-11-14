@@ -492,7 +492,7 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
       </main>
 
       <aside v-show="showCommit" class="rv__commit">
-        <CommitForm :repo-path="repo.path" :staged-count="stagedCount" @committed="onCommitted" />
+        <CommitForm :repo-path="repo.path" :branch="branch" :staged-count="stagedCount" @committed="onCommitted" />
       </aside>
     </div>
 

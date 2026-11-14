@@ -8,3 +8,4 @@ export * from './commit.js';
 export * from './history.js';
 export * from './staging.js';
 export * from './file-ops.js';
+export * from './secrets.js';

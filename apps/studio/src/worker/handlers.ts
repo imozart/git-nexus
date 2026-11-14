@@ -17,16 +17,40 @@ import {
   resolveConflictFile,
   runGit,
   scanDirectories,
+  scanStagedSecrets,
   stageFiles,
   toRepositoryMeta,
   unstageFiles,
   type CommitPolicy,
   type DiscardScope,
   type ConventionalCommitInput,
+  type RepoConfig,
+  type RepoPolicyInfo,
   type RepositoryMeta,
+  type SecretScanResult,
 } from '@git-nexus/git-core';
-import { formatCommitMessage, validateCommitMessage } from '@git-nexus/governance-policy';
+import {
+  DEFAULT_POLICY,
+  DEFAULT_SECRETS,
+  REPO_CONFIG_FILE,
+  formatCommitMessage,
+  mergePolicy,
+  parseRepoConfig,
+  validateCommitMessage,
+} from '@git-nexus/governance-policy';
 import { HOOK_REJECTED_PREFIX, type WorkerMethod } from '../shared/channels';
+
+/** Lê o `.gitnexus.json` da raiz do repositório (ausente = sem política do time). */
+export async function readRepoPolicy(repoPath: string): Promise<RepoPolicyInfo> {
+  let text: string;
+  try {
+    text = await readFile(join(repoPath, REPO_CONFIG_FILE), 'utf8');
+  } catch {
+    return { found: false, commit: {}, secrets: { ...DEFAULT_SECRETS, ignorePaths: [] }, errors: [] };
+  }
+  const p = parseRepoConfig(text.replace(/^﻿/, ''));
+  return { found: true, commit: p.commit, secrets: p.secrets, errors: p.errors };
+}
 
 export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: any[]) => Promise<unknown>> {
   const storeFile = join(dataDir, 'repositories.json');
@@ -96,7 +120,22 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
       discardFile(repoPath, file, scope, join(dataDir, 'discarded', new Date().toISOString().replace(/[:.]/g, '-'))),
     restoreBackup: (repoPath: string, file: string, backup: string) => restoreBackup(repoPath, file, backup),
     addToGitignore: (repoPath: string, pattern: string) => addToGitignore(repoPath, pattern),
-    executeCommit: async (repoPath: string, input: ConventionalCommitInput, policy?: CommitPolicy) => {
+    getRepoPolicy: (repoPath: string) => readRepoPolicy(repoPath),
+    saveRepoConfig: async (repoPath: string, config: RepoConfig) => {
+      // Só grava campos conhecidos e já validados; o arquivo é pensado para ser versionado pelo time.
+      const clean = parseRepoConfig(JSON.stringify(config));
+      if (clean.errors.length) throw new Error(clean.errors.join('\n'));
+      const body = { commit: config.commit ?? {}, ...(config.secrets && Object.keys(config.secrets).length ? { secrets: config.secrets } : {}) };
+      await writeFile(join(repoPath, REPO_CONFIG_FILE), JSON.stringify(body, null, 2) + '\n', 'utf8');
+    },
+    scanStagedSecrets: async (repoPath: string): Promise<SecretScanResult> => {
+      const { secrets } = await readRepoPolicy(repoPath);
+      return { mode: secrets.mode, findings: await scanStagedSecrets(repoPath, secrets) };
+    },
+    executeCommit: async (repoPath: string, input: ConventionalCommitInput, localPolicy?: CommitPolicy) => {
+      // A política do time (.gitnexus.json) é obrigatória: sobrepõe o que a interface enviou.
+      const team = (await readRepoPolicy(repoPath)).commit;
+      const policy = mergePolicy(localPolicy ?? DEFAULT_POLICY, team);
       const v = validateCommitMessage(input, policy);
       if (!v.isValid) throw new Error(v.errors.join('\n'));
       try {
