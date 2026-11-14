@@ -47,6 +47,7 @@ import {
   toRepositoryMeta,
   undoOperation,
   unstageFiles,
+  type BumpChoice,
   type CommitPolicy,
   type CreateStashInput,
   type HistorySearch,
@@ -68,6 +69,7 @@ import {
   validateCommitMessage,
 } from '@git-nexus/governance-policy';
 import { HOOK_REJECTED_PREFIX, type WorkerMethod } from '../shared/channels';
+import { createReleaseTag, getReleaseInfo, writeChangelog } from './release';
 
 /** Lê o `.gitnexus.json` da raiz do repositório (ausente = sem política do time). */
 export async function readRepoPolicy(repoPath: string): Promise<RepoPolicyInfo> {
@@ -150,6 +152,9 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
       discardFile(repoPath, file, scope, join(dataDir, 'discarded', new Date().toISOString().replace(/[:.]/g, '-'))),
     restoreBackup: (repoPath: string, file: string, backup: string) => restoreBackup(repoPath, file, backup),
     addToGitignore: (repoPath: string, pattern: string) => addToGitignore(repoPath, pattern),
+    getReleaseInfo: (repoPath: string, bump?: BumpChoice) => getReleaseInfo(repoPath, bump),
+    createReleaseTag: (repoPath: string, version: string, notes?: string) => createReleaseTag(repoPath, version, notes),
+    writeChangelog: (repoPath: string, version: string, markdown: string) => writeChangelog(repoPath, version, markdown),
     getRebasePlan: (repoPath: string, base: string) => getRebasePlan(repoPath, base),
     getRebaseState: (repoPath: string) => getRebaseState(repoPath),
     startRebase: (repoPath: string, base: string, items: RebaseItem[]) => startRebase(repoPath, base, items.map((i) => ({ ...i }))),
