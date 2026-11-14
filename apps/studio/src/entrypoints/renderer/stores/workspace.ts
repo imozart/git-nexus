@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import type { RepositoryMeta } from '@git-nexus/git-core/pure';
 
-export type TabKind = 'home' | 'repo' | 'graph' | 'merge';
+export type TabKind = 'home' | 'repo' | 'graph' | 'merge' | 'tools';
 
 export interface WorkspaceTab {
   id: string;

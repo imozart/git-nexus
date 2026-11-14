@@ -6,10 +6,11 @@ import ConnectionInterface from './views/ConnectionInterface.vue';
 import RepoView from './views/RepoView.vue';
 import GraphView from './views/GraphView.vue';
 import MergeView from './views/MergeView.vue';
+import ToolsView from './views/ToolsView.vue';
 
 const ws = useWorkspaceStore();
 
-const LABEL = { repo: 'Staging', graph: 'Grafo', merge: 'Conflitos' } as const;
+const LABEL = { repo: 'Staging', graph: 'Grafo', merge: 'Conflitos', tools: 'Ferramentas' } as const;
 
 const tabs = computed<GnTab[]>(() =>
   ws.tabs.map((t) =>
@@ -30,6 +31,7 @@ const tabs = computed<GnTab[]>(() =>
         <RepoView v-else-if="t.kind === 'repo' && t.repo" :repo="t.repo" />
         <GraphView v-else-if="t.kind === 'graph' && t.repo" :repo="t.repo" />
         <MergeView v-else-if="t.kind === 'merge' && t.repo" :repo="t.repo" />
+        <ToolsView v-else-if="t.kind === 'tools' && t.repo" :repo="t.repo" />
       </section>
     </div>
   </div>

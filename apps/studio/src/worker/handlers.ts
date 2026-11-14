@@ -13,6 +13,7 @@ import {
   getGitStatus,
   getHistory,
   getMergeConflicts,
+  getOperations,
   isWslPath,
   resolveConflictFile,
   runGit,
@@ -20,6 +21,7 @@ import {
   scanStagedSecrets,
   stageFiles,
   toRepositoryMeta,
+  undoOperation,
   unstageFiles,
   type CommitPolicy,
   type DiscardScope,
@@ -120,6 +122,8 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
       discardFile(repoPath, file, scope, join(dataDir, 'discarded', new Date().toISOString().replace(/[:.]/g, '-'))),
     restoreBackup: (repoPath: string, file: string, backup: string) => restoreBackup(repoPath, file, backup),
     addToGitignore: (repoPath: string, pattern: string) => addToGitignore(repoPath, pattern),
+    getOperations: (repoPath: string, limit?: number) => getOperations(repoPath, limit),
+    undoOperation: (repoPath: string, id: string) => undoOperation(repoPath, id),
     getRepoPolicy: (repoPath: string) => readRepoPolicy(repoPath),
     saveRepoConfig: async (repoPath: string, config: RepoConfig) => {
       // Só grava campos conhecidos e já validados; o arquivo é pensado para ser versionado pelo time.

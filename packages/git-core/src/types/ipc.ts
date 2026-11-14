@@ -99,6 +99,32 @@ export interface RepoPolicyInfo {
   errors: string[];
 }
 
+export type OperationKind = 'commit' | 'amend' | 'checkout' | 'merge' | 'pull' | 'reset' | 'rebase' | 'cherry-pick' | 'revert' | 'other';
+
+/** Uma operação do histórico (reflog do HEAD), da mais nova para a mais antiga. */
+export interface GitOperation {
+  /** Identificador (posição no reflog + hash + hora): o hash sozinho se repete, ex.: checkout logo após um commit. */
+  id: string;
+  /** Hash do HEAD DEPOIS da operação. */
+  hash: string;
+  shortHash: string;
+  /** epoch em segundos */
+  date: number;
+  kind: OperationKind;
+  summary: string;
+  /** Hash do HEAD imediatamente ANTES da operação. */
+  prevHash?: string;
+  /** Em trocas de branch: de onde se veio. */
+  fromBranch?: string;
+  undoable: boolean;
+  /** Por que não dá para desfazer (quando `undoable` é false). */
+  undoReason?: string;
+}
+
+export interface UndoResult {
+  message: string;
+}
+
 export type SecretFindingKind = 'secret' | 'sensitive-file' | 'large-file';
 
 export interface SecretFinding {
@@ -214,6 +240,11 @@ export interface GitNexusApi extends GitNexusIPC {
   saveRepoConfig(repoPath: string, config: RepoConfig): Promise<void>;
   /** Examina o que está em stage (linhas adicionadas, nomes e tamanhos de arquivo). */
   scanStagedSecrets(repoPath: string): Promise<SecretScanResult>;
+
+  // Histórico de operações (reflog) com desfazer
+  getOperations(repoPath: string, limit?: number): Promise<GitOperation[]>;
+  /** Volta ao estado anterior à operação `id` (e às mais novas). */
+  undoOperation(repoPath: string, id: string): Promise<UndoResult>;
 
   // Integração com o sistema (processo principal)
   copyText(text: string): Promise<void>;

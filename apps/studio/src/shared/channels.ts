@@ -18,6 +18,8 @@ export const WORKER_METHODS = [
   'restoreBackup',
   'addToGitignore',
   'executeCommit',
+  'getOperations',
+  'undoOperation',
   'getRepoPolicy',
   'saveRepoConfig',
   'scanStagedSecrets',
