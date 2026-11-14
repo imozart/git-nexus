@@ -4,11 +4,13 @@ import CoreInterface from './CoreInterface.vue';
 import CommandPalette from './components/CommandPalette.vue';
 import { useCommandsStore, type Command } from './stores/commands';
 import { useRepositoriesStore } from './stores/repositories';
+import { useUpdateStore } from './stores/update';
 import { HOME_TAB, useWorkspaceStore } from './stores/workspace';
 
 const cmds = useCommandsStore();
 const ws = useWorkspaceStore();
 const repos = useRepositoriesStore();
+const upd = useUpdateStore();
 
 const inRepo = () => !!ws.active?.repo;
 
@@ -25,6 +27,13 @@ function globalCommands(): Command[] {
       shortcut: 'Alt+W',
       when: () => ws.activeId !== HOME_TAB,
       run: () => ws.close(ws.activeId),
+    },
+    { id: 'app.update', title: 'Verificar atualizações do GitNexus', group: 'Aplicativo', keywords: 'nova versão upgrade', run: () => upd.check(true) },
+    {
+      id: 'app.updateToggle',
+      title: upd.enabled ? 'Desligar a verificação automática de atualizações' : 'Ligar a verificação automática de atualizações',
+      group: 'Aplicativo',
+      run: () => upd.setEnabled(!upd.enabled),
     },
     { id: 'repo.add', title: 'Adicionar repositório…', group: 'Repositórios', keywords: 'novo pasta', run: () => repos.addRepository() },
     { id: 'repo.scan', title: 'Varrer pasta raiz…', group: 'Repositórios', keywords: 'scanner catalogar', run: () => repos.scanRoots() },
@@ -104,12 +113,18 @@ function onKeydown(ev: KeyboardEvent): void {
 }
 
 let off: (() => void) | undefined;
+let updTimers: ReturnType<typeof setTimeout>[] = [];
 onMounted(() => {
   off = cmds.register(globalCommands);
+  // atualização: 8 s depois de abrir (não atrasa a abertura) e a cada 12 h
+  updTimers = [setTimeout(() => void upd.check(), 8000)];
+  const iv = setInterval(() => void upd.check(), 12 * 3600 * 1000);
+  updTimers.push(iv as unknown as ReturnType<typeof setTimeout>);
   window.addEventListener('keydown', onKeydown);
 });
 onBeforeUnmount(() => {
   off?.();
+  updTimers.forEach((t) => clearTimeout(t));
   window.removeEventListener('keydown', onKeydown);
 });
 </script>

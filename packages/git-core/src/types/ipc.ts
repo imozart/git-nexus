@@ -300,6 +300,25 @@ export interface ReleaseInfo {
   markdown: string;
 }
 
+/** Resultado da verificação de atualização (consulta às releases públicas do GitHub). */
+export interface UpdateInfo {
+  status: 'up-to-date' | 'available' | 'unavailable';
+  /** Versão em uso. */
+  current: string;
+  /** Última versão publicada (sem o "v"). */
+  latest?: string;
+  /** Página da release. */
+  url?: string;
+  /** Pacote sugerido para este sistema (instalador, ZIP portátil, DMG ou AppImage) e seu nome. */
+  downloadUrl?: string;
+  assetName?: string;
+  /** Notas da release (Markdown). */
+  notes?: string;
+  publishedAt?: string;
+  /** Motivo, quando `unavailable`. */
+  message?: string;
+}
+
 export type SecretFindingKind = 'secret' | 'sensitive-file' | 'large-file';
 
 export interface SecretFinding {
@@ -463,6 +482,11 @@ export interface GitNexusApi extends GitNexusIPC {
   restoreStashFiles(repoPath: string, ref: string, files: string[], overwrite?: boolean): Promise<void>;
   dropStash(repoPath: string, ref: string): Promise<void>;
   renameStash(repoPath: string, ref: string, message: string): Promise<void>;
+
+  // Atualização: consulta a última release e abre o download no navegador
+  checkForUpdate(): Promise<UpdateInfo>;
+  /** Abre uma página/arquivo da release no navegador (só endereços do GitHub do projeto). */
+  openExternal(url: string): Promise<void>;
 
   // Integração com o sistema (processo principal)
   copyText(text: string): Promise<void>;
