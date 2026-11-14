@@ -409,6 +409,7 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
       <div class="rv__btns">
         <GnButton size="sm" :disabled="loading" @click="refresh()">Atualizar</GnButton>
         <GnButton size="sm" @click="ws.open('graph', repo)">Grafo / Histórico</GnButton>
+        <GnButton size="sm" @click="ws.open('tools', repo)">Ferramentas</GnButton>
         <GnButton size="sm" :variant="conflicted.length ? 'primary' : 'ghost'" @click="ws.open('merge', repo)">
           Conflitos{{ conflicted.length ? ` (${conflicted.length})` : '' }}
         </GnButton>
