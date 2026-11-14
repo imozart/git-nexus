@@ -2,6 +2,7 @@
   "name": "git-nexus",
   "version": "1.0.0",
   "private": true,
+  "license": "GPL-3.0-only",
   "type": "module",
   "description": "GitNexus - gerenciador Git desktop portátil com governança de Conventional Commits e merge 3-way",
   "packageManager": "pnpm@12.18.0",

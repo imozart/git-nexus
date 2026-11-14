@@ -59,6 +59,12 @@ A tela inicial mostra, para cada repositório catalogado: **branch**, **↑ comm
 - **Buscar / Pull** individuais em cada linha (o pull recusa quando a branch divergiu e explica o motivo).
 - **Só com pendências:** esconde os repositórios em dia.
 
+## Licença
+
+GitNexus é software livre, distribuído sob a **GNU General Public License v3.0 (somente a versão 3)**. Veja o arquivo [`LICENSE`](LICENSE). Você pode usar, estudar, modificar e redistribuir, inclusive comercialmente, desde que mantenha a mesma licença nas versões distribuídas e disponibilize o código-fonte delas.
+
+Copyright (C) 2026 contribuidores do GitNexus.
+
 ## Aba de Staging (referência: IntelliJ)
 
 - **Lista de arquivos** em dois grupos — *Alterações* (rastreados) e *Arquivos não versionados* — com checkbox: marcado = no commit (stage), parcial = parte no stage, vazio = pendente. O resumo no topo mostra quantos estão no commit e quantos pendentes. Cores/letras por status (M, A, D, R, novo).

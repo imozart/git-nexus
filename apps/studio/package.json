@@ -2,6 +2,7 @@
   "name": "@git-nexus/studio",
   "version": "1.0.0",
   "private": true,
+  "license": "GPL-3.0-only",
   "type": "module",
   "productName": "GitNexus",
   "description": "GitNexus - gerenciador Git desktop portátil",
