@@ -213,7 +213,7 @@ async function saveTeamPolicy(): Promise<void> {
 </script>
 
 <template>
-  <form class="cf" @submit.prevent="submit">
+  <form class="cf" @submit.prevent="submit" @keydown.ctrl.enter.prevent="submit" @keydown.meta.enter.prevent="submit">
     <div class="cf__title">
       <h3>Novo commit</h3>
       <GnButton size="sm" type="button" @click="showPolicy = !showPolicy">Política</GnButton>
@@ -339,7 +339,7 @@ async function saveTeamPolicy(): Promise<void> {
       </div>
     </div>
 
-    <GnButton variant="primary" type="submit" :disabled="!canCommit">
+    <GnButton variant="primary" type="submit" :disabled="!canCommit" title="Ctrl+Enter">
       {{ committing ? 'Verificando e executando commit…' : `Commit (${stagedCount} arquivo(s))` }}
     </GnButton>
     <small v-if="stagedCount === 0" class="muted">Faça stage de ao menos um arquivo.</small>

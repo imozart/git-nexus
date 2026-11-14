@@ -4,6 +4,7 @@ import { GnBadge, GnButton } from '@git-nexus/ui-kit';
 import type { FileEntry, FileSides, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { STATUS_LABEL, checkState, groupEntries, hasStaged, isUntracked, statusLetter } from '../changes';
+import { useCommandsStore, type Command } from '../stores/commands';
 import { useWorkspaceStore } from '../stores/workspace';
 import ChangesTree from '../components/ChangesTree.vue';
 import CommitForm from '../components/CommitForm.vue';
@@ -14,6 +15,7 @@ import SideBySideDiff from '../components/SideBySideDiff.vue';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
 const ws = useWorkspaceStore();
+const cmds = useCommandsStore();
 
 const branch = ref('');
 const entries = ref<FileEntry[]>([]);
@@ -195,15 +197,72 @@ const nav = computed(() => {
   };
 });
 
-function onKeydown(ev: KeyboardEvent): void {
-  if (!rootEl.value || rootEl.value.offsetParent === null) return; // aba oculta
-  const t = ev.target as HTMLElement;
-  if (t.closest('input, textarea, [contenteditable="true"], .cm-editor')) return;
-  if (ev.key === 'F7') goDiff(ev.shiftKey ? -1 : 1);
-  else if (ev.altKey && ev.key === 'ArrowRight') goFile(1);
-  else if (ev.altKey && ev.key === 'ArrowLeft') goFile(-1);
-  else return;
-  ev.preventDefault();
+// --- comandos / atalhos (paleta Ctrl+K) -----------------------------------------------------------
+/** Só vale na aba ativa deste repositório (as abas ficam montadas com v-show). */
+const isActiveTab = () => ws.activeId === `repo:${props.repo.id}`;
+
+function repoCommands(): Command[] {
+  const when = isActiveTab;
+  const withFile = () => isActiveTab() && !!active.value;
+  const notIn = () => entries.value.filter((e) => checkState(e) !== 'checked').map((e) => e.path);
+  const inCommit = () => entries.value.filter(hasStaged).map((e) => e.path);
+  return [
+    { id: 'rv.refresh', title: 'Atualizar status do repositório', group: 'Staging', shortcut: 'F5', when, run: () => refresh() },
+    {
+      id: 'rv.stageAll',
+      title: 'Incluir tudo no commit (stage)',
+      group: 'Staging',
+      shortcut: 'Mod+Shift+A',
+      keywords: 'add todos',
+      when: () => isActiveTab() && notIn().length > 0,
+      run: () => onToggle(notIn(), true),
+    },
+    {
+      id: 'rv.unstageAll',
+      title: 'Remover tudo do commit (unstage)',
+      group: 'Staging',
+      shortcut: 'Mod+Shift+U',
+      keywords: 'reset todos',
+      when: () => isActiveTab() && inCommit().length > 0,
+      run: () => onToggle(inCommit(), false),
+    },
+    {
+      id: 'rv.focusCommit',
+      title: 'Ir para o título do commit',
+      group: 'Staging',
+      shortcut: 'Mod+Shift+C',
+      keywords: 'mensagem escrever',
+      when,
+      run: async () => {
+        showCommit.value = true;
+        await nextTick();
+        rootEl.value?.querySelector<HTMLInputElement>('.rv__commit input[placeholder^="resumo"]')?.focus();
+      },
+    },
+    { id: 'rv.toggleCommit', title: 'Mostrar/ocultar painel de commit', group: 'Staging', shortcut: 'Mod+Shift+B', when, run: () => (showCommit.value = !showCommit.value) },
+    { id: 'rv.fetch', title: 'Buscar (fetch) deste repositório', group: 'Repositório', keywords: 'remoto', when, run: () => syncThis('fetch') },
+    { id: 'rv.pull', title: 'Atualizar (pull fast-forward) este repositório', group: 'Repositório', keywords: 'remoto', when, run: () => syncThis('pull') },
+    { id: 'rv.nextDiff', title: 'Próxima diferença', group: 'Diff', shortcut: 'F7', when, run: () => goDiff(1) },
+    { id: 'rv.prevDiff', title: 'Diferença anterior', group: 'Diff', shortcut: 'Shift+F7', when, run: () => goDiff(-1) },
+    { id: 'rv.nextFile', title: 'Comparar próximo arquivo', group: 'Diff', shortcut: 'Alt+ArrowRight', when, run: () => goFile(1) },
+    { id: 'rv.prevFile', title: 'Comparar arquivo anterior', group: 'Diff', shortcut: 'Alt+ArrowLeft', when, run: () => goFile(-1) },
+    { id: 'rv.src.head', title: 'Diff: mostrar tudo (último commit x disco)', group: 'Diff', when, run: () => (source.value = 'head') },
+    { id: 'rv.src.index', title: 'Diff: mostrar pendente (permite incluir linhas no commit)', group: 'Diff', keywords: 'stage linha', when, run: () => (source.value = 'index') },
+    { id: 'rv.src.staged', title: 'Diff: mostrar o que vai no commit', group: 'Diff', keywords: 'unstage linha', when, run: () => (source.value = 'staged') },
+    { id: 'rv.view.split', title: 'Diff: lado a lado', group: 'Diff', when, run: () => (viewMode.value = 'split') },
+    { id: 'rv.view.unified', title: 'Diff: unificado', group: 'Diff', when, run: () => (viewMode.value = 'unified') },
+    { id: 'rv.collapse', title: 'Diff: recolher/expandir trechos inalterados', group: 'Diff', when, run: () => (collapse.value = !collapse.value) },
+    { id: 'rv.discard', title: 'Descartar alterações do arquivo aberto…', group: 'Arquivo', keywords: 'reverter', when: withFile, run: () => askDiscard([active.value!]) },
+    { id: 'rv.copyPath', title: 'Copiar caminho do arquivo aberto', group: 'Arquivo', when: withFile, run: () => api.copyText(active.value!) },
+    { id: 'rv.fileHistory', title: 'Histórico do arquivo aberto', group: 'Arquivo', when: withFile, run: () => ws.openTools(props.repo, 'file', active.value!, 'history') },
+    { id: 'rv.blame', title: 'Anotar (blame) o arquivo aberto', group: 'Arquivo', keywords: 'autoria', when: withFile, run: () => ws.openTools(props.repo, 'file', active.value!, 'blame') },
+  ];
+}
+
+async function syncThis(kind: 'fetch' | 'pull'): Promise<void> {
+  const r = kind === 'fetch' ? await api.fetchRepo(props.repo.path) : await api.pullRepo(props.repo.path);
+  showNotice(`${kind === 'fetch' ? 'Buscar' : 'Pull'}: ${r.message}`);
+  if (r.ok) ws.bump(props.repo.id);
 }
 
 // --- incluir / remover do commit (stage) ---------------------------------------------------
@@ -426,15 +485,16 @@ async function onMenu(id: string): Promise<void> {
 }
 
 const onFocus = () => void refresh();
+let offCommands: (() => void) | undefined;
 
 onMounted(() => {
   void refresh();
   window.addEventListener('focus', onFocus);
-  window.addEventListener('keydown', onKeydown);
+  offCommands = cmds.register(repoCommands);
 });
 onBeforeUnmount(() => {
   window.removeEventListener('focus', onFocus);
-  window.removeEventListener('keydown', onKeydown);
+  offCommands?.();
   clearTimeout(noticeTimer);
 });
 watch(() => ws.versions[props.repo.id], () => void refresh());

@@ -1,7 +1,7 @@
 import { accessSync, constants, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { BrowserWindow, app, clipboard, dialog, ipcMain, shell, utilityProcess, type UtilityProcess } from 'electron';
+import { BrowserWindow, Menu, app, clipboard, dialog, ipcMain, shell, utilityProcess, type UtilityProcess } from 'electron';
 import { WORKER_METHODS, channel, type UtilityRequest, type UtilityResponse } from '../shared/channels';
 
 // --- Portabilidade: dados ao lado do executável, nada no registro/AppData ---------------
@@ -100,6 +100,9 @@ function windowIcon(): string | undefined {
 }
 
 function createWindow(): void {
+  // Sem o menu padrão (Windows/Linux, app empacotado): ele reservaria Ctrl+W, Ctrl+R e o DevTools, que colidem com os atalhos do app.
+  // No macOS o menu é mantido (precisa dele para copiar/colar e sair).
+  if (app.isPackaged && process.platform !== 'darwin') Menu.setApplicationMenu(null);
   const win = new BrowserWindow({
     width: 1360,
     height: 860,
