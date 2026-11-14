@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import { applyDiscard, blockRows, diffLines, splitLines, type DiffRow } from '@git-nexus/git-core/pure';
+import { applyDiscard, applyStage, blockRows, diffLines, splitLines, type DiffRow } from '@git-nexus/git-core/pure';
 
 const props = defineProps<{
   oldText: string;
@@ -11,9 +11,16 @@ const props = defineProps<{
   newLabel: string;
   /** Recolhe trechos inalterados (mostra só o contexto ao redor das diferenças). */
   collapse: boolean;
+  /**
+   * Botões de stage por linha/bloco: `stage` (diff índice x disco: inclui no commit) ou `unstage`
+   * (diff HEAD x índice: tira do commit). `null` = sem esses botões.
+   */
+  stageAction?: 'stage' | 'unstage' | null;
 }>();
 const emit = defineEmits<{
   (e: 'discard', p: { content: string; what: 'linha' | 'bloco' }): void;
+  /** Novo conteúdo do ÍNDICE depois de incluir/remover do commit as linhas escolhidas. */
+  (e: 'stageLines', p: { content: string; what: 'linha' | 'bloco'; direction: 'stage' | 'unstage' }): void;
   (e: 'stats', p: { blocks: number; added: number; removed: number }): void;
   /** Índice (0-based) da diferença atual; -1 se não há diferenças. */
   (e: 'current', index: number): void;
@@ -114,6 +121,25 @@ function discard(indices: number[], what: 'linha' | 'bloco') {
   });
   emit('discard', { content, what });
 }
+/** Inclui (stage) ou remove (unstage) do commit as linhas escolhidas, calculando o novo conteúdo do índice. */
+function stageIndices(indices: number[], what: 'linha' | 'bloco') {
+  const direction = props.stageAction;
+  if (!direction) return;
+  const set = new Set(indices);
+  let content: string;
+  if (direction === 'stage') {
+    // rows = diff(índice, disco): o índice é a base e recebe só as linhas escolhidas
+    const base = props.oldText === '' ? newSplit.value : oldSplit.value;
+    content = applyStage(rows.value, set, { eol: base.eol, endsWithNewline: base.endsWithNewline });
+  } else {
+    // rows = diff(HEAD, índice): o índice é a versão nova; reverte para o HEAD as linhas escolhidas
+    const base = props.newText === '' ? oldSplit.value : newSplit.value;
+    content = applyDiscard(rows.value, set, { eol: base.eol, endsWithNewline: base.endsWithNewline });
+  }
+  emit('stageLines', { content, what, direction });
+}
+const stageRow = (idx: number) => stageIndices([idx], 'linha');
+const stageBlock = (block: number) => stageIndices(blockRows(rows.value, block), 'bloco');
 const discardRow = (idx: number) => discard([idx], 'linha');
 const discardBlock = (block: number) => discard(blockRows(rows.value, block), 'bloco');
 
@@ -143,6 +169,25 @@ const KIND_CLASS: Record<DiffRow['kind'], string> = { eq: '', change: 'row--chan
           <span class="no">{{ it.row.oldNo }}</span>
           <span class="code" :class="{ 'code--empty': it.row.oldText === undefined }">{{ it.row.oldText }}</span>
           <span class="ctrl">
+            <template v-if="stageAction && it.row.kind !== 'eq'">
+              <button
+                v-if="isFirstOfBlock(it.idx)"
+                class="ctrl__btn ctrl__btn--stage ctrl__btn--block"
+                type="button"
+                :title="stageAction === 'stage' ? 'Incluir o bloco inteiro no commit' : 'Tirar o bloco inteiro do commit'"
+                @click="stageBlock(it.row.block)"
+              >
+                {{ stageAction === 'stage' ? '⊕' : '⊖' }}
+              </button>
+              <button
+                class="ctrl__btn ctrl__btn--stage"
+                type="button"
+                :title="stageAction === 'stage' ? 'Incluir esta linha no commit' : 'Tirar esta linha do commit'"
+                @click="stageRow(it.idx)"
+              >
+                {{ stageAction === 'stage' ? '+' : '−' }}
+              </button>
+            </template>
             <template v-if="canDiscard && it.row.kind !== 'eq'">
               <button
                 v-if="isFirstOfBlock(it.idx)"
@@ -171,7 +216,7 @@ const KIND_CLASS: Record<DiffRow['kind'], string> = { eq: '', change: 'row--chan
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  &__head, .row { grid-template-columns: 50px minmax(0, 1fr) 62px 50px minmax(0, 1fr); }
+  &__head, .row { grid-template-columns: 50px minmax(0, 1fr) 86px 50px minmax(0, 1fr); }
   &__head {
     display: grid;
     border-bottom: 1px solid var(--gn-border);
@@ -215,6 +260,7 @@ const KIND_CLASS: Record<DiffRow['kind'], string> = { eq: '', change: 'row--chan
     cursor: pointer;
     &:hover { color: #fff; background: var(--gn-danger); }
     &--block { color: var(--gn-accent); }
+    &--stage { color: var(--gn-success); &:hover { color: #fff; background: var(--gn-success); } }
   }
 }
 // diferença atual (navegação ↑/↓)
