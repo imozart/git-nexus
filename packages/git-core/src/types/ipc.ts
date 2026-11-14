@@ -319,6 +319,86 @@ export interface UpdateInfo {
   message?: string;
 }
 
+export type ProviderKind = 'github' | 'gitlab';
+export type ChangeRequestState = 'open' | 'merged' | 'closed';
+
+/** Pull request (GitHub) ou merge request (GitLab). */
+export interface ChangeRequest {
+  number: number;
+  title: string;
+  author: string;
+  state: ChangeRequestState;
+  draft: boolean;
+  sourceBranch: string;
+  targetBranch: string;
+  /** Commit mais recente da branch de origem (para consultar o CI). */
+  sha: string;
+  url: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CiState = 'success' | 'failure' | 'pending' | 'none';
+
+export interface CiCheck {
+  name: string;
+  state: CiState;
+  url?: string;
+}
+
+export interface CiStatus {
+  state: CiState;
+  checks: CiCheck[];
+}
+
+/** O que o app sabe sobre o remoto do repositório (provedor, conta e branches). */
+export interface HostingInfo {
+  supported: boolean;
+  /** Por que não é suportado (sem remoto, provedor desconhecido…). */
+  reason?: string;
+  kind?: ProviderKind;
+  host?: string;
+  projectPath?: string;
+  webUrl?: string;
+  /** O host não é github.com nem parece GitLab: a pessoa precisa dizer qual é o provedor. */
+  needsKind: boolean;
+  /** Há token guardado para este host (o token nunca volta para a interface). */
+  hasToken: boolean;
+  /** O token fica criptografado pelo sistema (DPAPI/Keychain/libsecret). `false` = só na memória, até fechar o app. */
+  secureStorage: boolean;
+  remote?: string;
+  currentBranch: string;
+  defaultBranch: string;
+  branches: string[];
+}
+
+export interface ChangeRequestSuggestion {
+  title: string;
+  /** Descrição em Markdown montada dos Conventional Commits. */
+  body: string;
+  head: string;
+  base: string;
+  commits: Array<{ short: string; subject: string }>;
+  /** A branch de origem já existe no remoto. */
+  headPublished: boolean;
+}
+
+export interface CreateChangeRequestInput {
+  title: string;
+  body: string;
+  base: string;
+  head: string;
+  draft?: boolean;
+  /** Envia a branch (push -u) antes de criar. */
+  push?: boolean;
+}
+
+export interface CreatedChangeRequest {
+  url: string;
+  number: number;
+  pushed: boolean;
+}
+
 export type SecretFindingKind = 'secret' | 'sensitive-file' | 'large-file';
 
 export interface SecretFinding {
@@ -482,6 +562,18 @@ export interface GitNexusApi extends GitNexusIPC {
   restoreStashFiles(repoPath: string, ref: string, files: string[], overwrite?: boolean): Promise<void>;
   dropStash(repoPath: string, ref: string): Promise<void>;
   renameStash(repoPath: string, ref: string, message: string): Promise<void>;
+
+  // GitHub / GitLab (inclusive instâncias próprias): PRs/MRs, status de CI e criação a partir dos commits
+  hostingInfo(repoPath: string): Promise<HostingInfo>;
+  /** Valida o token no provedor e o guarda criptografado (`kind` só é necessário para hosts não reconhecidos). */
+  hostingSaveToken(repoPath: string, token: string, kind?: ProviderKind): Promise<{ login: string }>;
+  hostingRemoveToken(repoPath: string): Promise<void>;
+  listChangeRequests(repoPath: string, state: ChangeRequestState): Promise<ChangeRequest[]>;
+  getCiStatus(repoPath: string, sha: string): Promise<CiStatus>;
+  suggestChangeRequest(repoPath: string, base: string): Promise<ChangeRequestSuggestion>;
+  createChangeRequest(repoPath: string, input: CreateChangeRequestInput): Promise<CreatedChangeRequest>;
+  /** Abre no navegador uma página do mesmo host do remoto (PR, MR, pipeline). */
+  hostingOpen(repoPath: string, url: string): Promise<void>;
 
   // Atualização: consulta a última release e abre o download no navegador
   checkForUpdate(): Promise<UpdateInfo>;

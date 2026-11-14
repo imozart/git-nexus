@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { GnBadge, GnButton } from '@git-nexus/ui-kit';
-import { buildGraph, type CommitDetail, type CommitInfo, type HistorySearchMode, type RepositoryMeta } from '@git-nexus/git-core/pure';
+import { buildGraph, type CiStatus, type CommitDetail, type CommitInfo, type HistorySearchMode, type RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { useWorkspaceStore } from '../stores/workspace';
 
@@ -48,9 +48,18 @@ function clearSearch(): void {
 
 // --- detalhe do commit: mensagem completa, arquivos e diff ---------------------------------------
 const detail = ref<CommitDetail | null>(null);
+/** Status de CI do commit selecionado (só aparece com uma conta GitHub/GitLab conectada em Ferramentas). */
+const ci = ref<CiStatus | null>(null);
+const CI_TEXT = { success: 'CI ok', failure: 'CI falhou', pending: 'CI rodando', none: 'sem CI' } as const;
+const CI_TONE = { success: 'success', failure: 'danger', pending: 'warn', none: 'neutral' } as const;
+let hostingReady: Promise<boolean> | null = null;
+const canCi = () => (hostingReady ??= api.hostingInfo(props.repo.path).then((i) => i.supported && i.hasToken).catch(() => false));
+const failUrl = computed(() => ci.value?.checks.find((c) => c.state === 'failure')?.url);
 const diffFile = ref('');
 const diffText = ref('');
 watch(selectedHash, async (h) => {
+  ci.value = null;
+  if (h && (await canCi())) api.getCiStatus(props.repo.path, h).then((s) => h === selectedHash.value && (ci.value = s)).catch(() => undefined);
   detail.value = null;
   diffFile.value = '';
   diffText.value = '';
@@ -178,6 +187,10 @@ watch(() => ws.versions[props.repo.id], load);
           <dt>Data</dt><dd>{{ fmtDate(selected.date) }}</dd>
           <dt>Pais</dt><dd class="mono">{{ selected.parents.map((p) => p.slice(0, 7)).join(', ') || '—' }}</dd>
         </dl>
+        <div v-if="ci" class="gv__ci">
+          <GnBadge :tone="CI_TONE[ci.state]" :title="ci.checks.map((c) => `${c.name}: ${c.state}`).join('\n')">{{ CI_TEXT[ci.state] }}</GnBadge>
+          <GnButton v-if="failUrl" size="sm" @click="api.hostingOpen(repo.path, failUrl!)">Ver falha</GnButton>
+        </div>
         <GnButton size="sm" class="gv__rb" title="Reescrever os commits depois deste (reordenar, juntar, editar mensagem, descartar)" @click="ws.openTools(repo, 'rebase', selected.hash)">
           Rebase interativo a partir daqui
         </GnButton>
@@ -207,6 +220,7 @@ watch(() => ws.versions[props.repo.id], load);
   &__search { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 14px; border-bottom: 1px solid var(--gn-border); input, select { min-width: 0; } }
   &__q { flex: 1; min-width: 160px; }
   &__rb { margin-top: 10px; }
+  &__ci { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
   &__msg { white-space: pre-wrap; font-family: var(--gn-mono); font-size: 12px; background: var(--gn-bg); padding: 8px 10px; border-radius: var(--gn-radius); margin: 10px 0 0; }
   &__files { list-style: none; margin: 6px 0 0; padding: 0; li { display: flex; align-items: center; gap: 6px; padding: 3px 4px; cursor: pointer; font-size: 12px; border-radius: 4px; &:hover, &.on { background: var(--gn-surface-2); } } }
   &__fpath { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--gn-mono); }

@@ -5,6 +5,8 @@ import { BrowserWindow, Menu, app, clipboard, dialog, ipcMain, shell, utilityPro
 import { WORKER_METHODS, channel, type UtilityRequest, type UtilityResponse } from '../shared/channels';
 import { isAllowedUpdateUrl } from '../shared/update';
 import { checkForUpdate } from './update';
+import { HostingService } from '../worker/hosting-service';
+import { SecureTokenStore } from './hosting-store';
 
 // --- Portabilidade: dados ao lado do executável, nada no registro/AppData ---------------
 // Modo portátil: AppImage e ZIP/tar.gz (descompactados em pasta gravável).
@@ -87,6 +89,26 @@ ipcMain.handle(channel('pickDirectories'), async (e) => {
   const opts = { title: 'Selecionar pastas', properties: ['openDirectory', 'multiSelections'] as ('openDirectory' | 'multiSelections')[] };
   const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
   return r.canceled ? [] : r.filePaths;
+});
+
+// --- GitHub / GitLab: tokens criptografados pelo sistema (safeStorage); as chamadas à API acontecem aqui, nunca no renderer ---
+const hosting = new HostingService(new SecureTokenStore(join(dataDir, 'hosting.json')));
+ipcMain.handle(channel('hostingInfo'), (_e, repoPath: string) => hosting.hostingInfo(String(repoPath)));
+ipcMain.handle(channel('hostingSaveToken'), (_e, repoPath: string, token: string, kind?: 'github' | 'gitlab') =>
+  hosting.saveToken(String(repoPath), String(token), kind === 'github' || kind === 'gitlab' ? kind : undefined),
+);
+ipcMain.handle(channel('hostingRemoveToken'), (_e, repoPath: string) => hosting.removeToken(String(repoPath)));
+ipcMain.handle(channel('listChangeRequests'), (_e, repoPath: string, state: 'open' | 'merged' | 'closed') =>
+  hosting.listChangeRequests(String(repoPath), state === 'merged' || state === 'closed' ? state : 'open'),
+);
+ipcMain.handle(channel('getCiStatus'), (_e, repoPath: string, sha: string) => hosting.getCiStatus(String(repoPath), String(sha)));
+ipcMain.handle(channel('suggestChangeRequest'), (_e, repoPath: string, base: string) => hosting.suggestChangeRequest(String(repoPath), String(base)));
+ipcMain.handle(channel('createChangeRequest'), (_e, repoPath: string, input: Parameters<HostingService['createChangeRequest']>[1]) =>
+  hosting.createChangeRequest(String(repoPath), input),
+);
+ipcMain.handle(channel('hostingOpen'), async (_e, repoPath: string, url: string) => {
+  if (!(await hosting.isAllowedUrl(String(repoPath), String(url)))) throw new Error('Endereço não permitido.');
+  await shell.openExternal(String(url));
 });
 
 ipcMain.handle(channel('checkForUpdate'), () => {

@@ -81,6 +81,7 @@ function globalCommands(): Command[] {
       { id: 'view.merge', title: 'Abrir Conflitos', group: 'Navegação', keywords: 'merge resolver', when: inRepo, run: () => ws.open('merge', repo) },
       { id: 'tools.ops', title: 'Ferramentas: histórico de operações (desfazer)', group: 'Ferramentas', keywords: 'undo reflog', when: inRepo, run: () => ws.openTools(repo, 'ops') },
       { id: 'tools.stash', title: 'Ferramentas: stash', group: 'Ferramentas', keywords: 'guardar shelf', when: inRepo, run: () => ws.openTools(repo, 'stash') },
+      { id: 'tools.hosting', title: 'Ferramentas: pull requests / merge requests e CI', group: 'Ferramentas', keywords: 'github gitlab pr mr pipeline criar', when: inRepo, run: () => ws.openTools(repo, 'hosting') },
       { id: 'tools.version', title: 'Ferramentas: versão e changelog', group: 'Ferramentas', keywords: 'release tag semver notas próxima', when: inRepo, run: () => ws.openTools(repo, 'version') },
       { id: 'tools.rebase', title: 'Ferramentas: rebase interativo', group: 'Ferramentas', keywords: 'squash reordenar reword fixup drop reescrever', when: inRepo, run: () => ws.openTools(repo, 'rebase') },
       { id: 'tools.file', title: 'Ferramentas: histórico de arquivo e blame', group: 'Ferramentas', keywords: 'autoria anotar', when: inRepo, run: () => ws.openTools(repo, 'file') },
