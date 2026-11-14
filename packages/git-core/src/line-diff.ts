@@ -168,6 +168,38 @@ export function applyDiscard(
   return out.join(opts.eol) + (opts.endsWithNewline ? opts.eol : '');
 }
 
+/**
+ * Texto final depois de ACEITAR (levar para a versão nova) apenas as linhas `accept`; as demais ficam como na
+ * versão antiga. É o inverso de `applyDiscard` e serve para o stage por linha: `rows` = diff(índice, working tree),
+ * e o resultado é o novo conteúdo do índice.
+ */
+export function applyStage(
+  rows: DiffRow[],
+  accept: ReadonlySet<number>,
+  opts: { eol: '\n' | '\r\n'; endsWithNewline: boolean },
+): string {
+  const out: string[] = [];
+  rows.forEach((r, idx) => {
+    const take = accept.has(idx);
+    switch (r.kind) {
+      case 'eq':
+        out.push(r.oldText!);
+        break;
+      case 'change':
+        out.push(take ? r.newText! : r.oldText!);
+        break;
+      case 'del':
+        if (!take) out.push(r.oldText!);
+        break;
+      case 'add':
+        if (take) out.push(r.newText!);
+        break;
+    }
+  });
+  if (out.length === 0) return '';
+  return out.join(opts.eol) + (opts.endsWithNewline ? opts.eol : '');
+}
+
 /** Índices das linhas de um bloco. */
 export function blockRows(rows: DiffRow[], block: number): number[] {
   const idx: number[] = [];

@@ -14,6 +14,7 @@ export const WORKER_METHODS = [
   'getHistory',
   'getFileSides',
   'writeWorkingFile',
+  'writeIndexContent',
   'discardFile',
   'restoreBackup',
   'addToGitignore',

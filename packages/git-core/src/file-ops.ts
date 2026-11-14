@@ -66,6 +66,23 @@ export async function getFileSides(repoPath: string, file: string, modeArg: Diff
   return empty({ oldText: o, newText: n, isNew: oldText === null, isDeleted: newText === null });
 }
 
+/**
+ * Grava `content` como a versão do arquivo no ÍNDICE (stage), sem tocar no disco: base do stage por linha/trecho.
+ * Preserva o modo do arquivo (executável etc.). Conteúdo vazio de um arquivo que não existe no HEAD remove a entrada.
+ */
+export async function writeIndexContent(repoPath: string, file: string, content: string): Promise<void> {
+  resolveInsideRepo(repoPath, file); // valida o caminho
+  const inHead = await exists(repoPath, ['cat-file', '-e', `HEAD:${file}`]);
+  const ls = await runGit(repoPath, ['ls-files', '-s', '--', file], { check: false });
+  const mode = /^(\d{6}) /.exec(ls.stdout)?.[1] ?? '100644';
+  if (content === '' && !inHead) {
+    if (ls.stdout.trim()) await runGit(repoPath, ['rm', '--cached', '-f', '-q', '--', file]);
+    return;
+  }
+  const h = await runGit(repoPath, ['hash-object', '-w', '--no-filters', '--stdin'], { stdin: content });
+  await runGit(repoPath, ['update-index', '--add', '--cacheinfo', `${mode},${h.stdout.trim()},${file}`]);
+}
+
 export async function writeWorkingFile(repoPath: string, file: string, content: string): Promise<void> {
   const abs = resolveInsideRepo(repoPath, file);
   await mkdir(dirname(abs), { recursive: true });

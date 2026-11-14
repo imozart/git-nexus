@@ -8,6 +8,7 @@ import {
   discardFile,
   getFileSides,
   restoreBackup,
+  writeIndexContent,
   writeWorkingFile,
   getFileDiff,
   getGitStatus,
@@ -118,6 +119,7 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
     getHistory: (repoPath: string, limit?: number) => getHistory(repoPath, limit),
     getFileSides: (repoPath: string, file: string, staged: boolean) => getFileSides(repoPath, file, staged),
     writeWorkingFile: (repoPath: string, file: string, content: string) => writeWorkingFile(repoPath, file, content),
+    writeIndexContent: (repoPath: string, file: string, content: string) => writeIndexContent(repoPath, file, content),
     discardFile: (repoPath: string, file: string, scope: DiscardScope) =>
       discardFile(repoPath, file, scope, join(dataDir, 'discarded', new Date().toISOString().replace(/[:.]/g, '-'))),
     restoreBackup: (repoPath: string, file: string, backup: string) => restoreBackup(repoPath, file, backup),

@@ -226,6 +226,8 @@ export interface GitNexusApi extends GitNexusIPC {
   getFileSides(repoPath: string, file: string, mode: DiffMode | boolean): Promise<FileSides>;
   /** Regrava o arquivo do working tree (descarte por linha/bloco). Não faz `git add`. */
   writeWorkingFile(repoPath: string, file: string, content: string): Promise<void>;
+  /** Grava o conteúdo como versão do arquivo no ÍNDICE (stage por linha/trecho), sem alterar o disco. */
+  writeIndexContent(repoPath: string, file: string, content: string): Promise<void>;
   /**
    * Descarta alterações do arquivo por completo. `worktree` = só as não staged; `all` = staged + working tree.
    * Antes de apagar, guarda uma cópia do arquivo (retornada em `backup`) para permitir desfazer.

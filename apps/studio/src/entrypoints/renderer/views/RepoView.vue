@@ -26,6 +26,16 @@ const rootEl = ref<HTMLElement>();
 const MODE_KEY = 'gitnexus.diffMode';
 const COMMIT_KEY = 'gitnexus.showCommitPanel';
 const COLLAPSE_KEY = 'gitnexus.collapseUnchanged';
+const SOURCE_KEY = 'gitnexus.diffSource';
+/** O que comparar: tudo o que mudou (HEAD x disco), só o que falta incluir (índice x disco) ou o que vai no commit (HEAD x índice). */
+type Source = 'head' | 'index' | 'staged';
+const SOURCES: Array<{ id: Source; label: string; hint: string }> = [
+  { id: 'head', label: 'Tudo', hint: 'Último commit x disco: tudo que mudou localmente' },
+  { id: 'index', label: 'Pendente', hint: 'Índice x disco: o que ainda não está no commit. Aqui dá para incluir linhas e blocos.' },
+  { id: 'staged', label: 'No commit', hint: 'Último commit x índice: o que vai no commit. Aqui dá para tirar linhas e blocos.' },
+];
+const stored = localStorage.getItem(SOURCE_KEY);
+const source = ref<Source>(stored === 'index' || stored === 'staged' ? stored : 'head');
 const viewMode = ref<'split' | 'unified'>(localStorage.getItem(MODE_KEY) === 'unified' ? 'unified' : 'split');
 const showCommit = ref(localStorage.getItem(COMMIT_KEY) !== '0');
 const collapse = ref(localStorage.getItem(COLLAPSE_KEY) !== '0');
@@ -33,7 +43,21 @@ watch(viewMode, (m) => {
   localStorage.setItem(MODE_KEY, m);
   void loadDiff();
 });
+watch(source, (v) => {
+  localStorage.setItem(SOURCE_KEY, v);
+  void loadDiff();
+});
 watch(showCommit, (v) => localStorage.setItem(COMMIT_KEY, v ? '1' : '0'));
+const labels = computed(() =>
+  source.value === 'index'
+    ? ['Índice (stage)', 'Working tree (atual)']
+    : source.value === 'staged'
+      ? ['Último commit (HEAD)', 'No commit (stage)']
+      : ['Último commit (HEAD)', 'Working tree (atual)'],
+);
+const stageAction = computed<'stage' | 'unstage' | null>(() => (source.value === 'index' ? 'stage' : source.value === 'staged' ? 'unstage' : null));
+/** Argumento do diff textual do git para a origem escolhida. */
+const textMode = computed<boolean | 'head'>(() => (source.value === 'head' ? 'head' : source.value === 'staged'));
 watch(collapse, (v) => localStorage.setItem(COLLAPSE_KEY, v ? '1' : '0'));
 
 // --- lista de arquivos -------------------------------------------------------------------
@@ -88,15 +112,15 @@ async function loadDiff(): Promise<void> {
   }
   try {
     if (viewMode.value === 'split') {
-      sides.value = await api.getFileSides(props.repo.path, path, 'head');
+      sides.value = await api.getFileSides(props.repo.path, path, source.value);
       diffText.value = '';
       // binário/grande/pasta: cai para o diff textual do git
       if (sides.value.binary || sides.value.tooLarge || sides.value.isDirectory) {
-        diffText.value = sides.value.isDirectory ? '(pasta não rastreada)' : await api.getFileDiff(props.repo.path, path, 'head');
+        diffText.value = sides.value.isDirectory ? '(pasta não rastreada)' : await api.getFileDiff(props.repo.path, path, textMode.value);
       }
     } else {
       sides.value = null;
-      diffText.value = await api.getFileDiff(props.repo.path, path, 'head');
+      diffText.value = await api.getFileDiff(props.repo.path, path, textMode.value);
     }
   } catch (e) {
     sides.value = null;
@@ -249,6 +273,20 @@ async function onDiscardLines(p: { content: string; what: 'linha' | 'bloco' }): 
   if (!path || before === undefined) return;
   await act(() => api.writeWorkingFile(props.repo.path, path, p.content));
   showNotice(`Descartada(o) ${p.what} em ${path}.`, () => api.writeWorkingFile(props.repo.path, path, before));
+}
+
+// --- stage por linha / bloco (grava só o índice; o disco não muda) -------------------------------
+async function onStageLines(p: { content: string; what: 'linha' | 'bloco'; direction: 'stage' | 'unstage' }): Promise<void> {
+  const path = active.value;
+  const s = sides.value;
+  if (!path || !s) return;
+  // versão do índice ANTES da mudança, para o "Desfazer": no stage é o lado esquerdo; no unstage, o direito
+  const before = p.direction === 'stage' ? s.oldText : s.newText;
+  await act(() => api.writeIndexContent(props.repo.path, path, p.content));
+  showNotice(
+    `${p.what === 'linha' ? 'Linha' : 'Bloco'} ${p.direction === 'stage' ? 'incluída(o) no commit' : 'removida(o) do commit'} em ${path}.`,
+    () => api.writeIndexContent(props.repo.path, path, before),
+  );
 }
 
 // --- descarte de arquivos inteiros -----------------------------------------------------------
@@ -455,6 +493,11 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
           </template>
           <span class="spacer" />
           <label v-if="showSplit" class="muted opt"><input v-model="collapse" type="checkbox" /> Recolher inalteradas</label>
+          <span class="seg" title="O que comparar">
+            <button v-for="o in SOURCES" :key="o.id" type="button" :class="{ on: source === o.id }" :title="o.hint" @click="source = o.id">
+              {{ o.label }}
+            </button>
+          </span>
           <span class="seg">
             <button type="button" :class="{ on: viewMode === 'split' }" @click="viewMode = 'split'">Lado a lado</button>
             <button type="button" :class="{ on: viewMode === 'unified' }" @click="viewMode = 'unified'">Unificado</button>
@@ -479,11 +522,13 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
               ref="splitRef"
               :old-text="sides.oldText"
               :new-text="sides.newText"
-              :can-discard="true"
+              :can-discard="source !== 'staged'"
+              :stage-action="stageAction"
               :collapse="collapse"
-              old-label="Último commit (HEAD)"
-              new-label="Working tree (atual)"
+              :old-label="labels[0]!"
+              :new-label="labels[1]!"
               @discard="onDiscardLines"
+              @stage-lines="onStageLines"
               @stats="stats = $event"
               @current="curDiff = $event"
             />
@@ -532,7 +577,7 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
   &__files { border-right: 1px solid var(--gn-border); min-width: 0; min-height: 0; overflow: hidden; }
   &__diff { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   &__toolbar {
-    display: flex; align-items: center; gap: 6px; padding: 5px 10px;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; padding: 5px 10px; white-space: nowrap;
     border-bottom: 1px solid var(--gn-border); background: var(--gn-surface);
     :deep(.gn-btn) { min-width: 28px; justify-content: center; font-weight: 700; }
   }
