@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
+import { t } from '../i18n';
 import { shortcutLabel, useCommandsStore, type Command } from '../stores/commands';
 
 const store = useCommandsStore();
@@ -45,12 +46,12 @@ const showGroup = (i: number) => !query.value.trim() && (i === 0 || results.valu
 <template>
   <Teleport to="body">
     <div v-if="store.isOpen" class="cp" @mousedown.self="store.close()">
-      <div class="cp__box" role="dialog" aria-label="Paleta de comandos">
+      <div class="cp__box" role="dialog" :aria-label="t('palette.label')">
         <input
           ref="input"
           v-model="query"
           class="cp__input"
-          placeholder="Digite um comando… (ex.: stash, blame, buscar todos)"
+          :placeholder="t('palette.placeholder')"
           spellcheck="false"
           autocomplete="off"
           @keydown="onKey"
@@ -71,9 +72,9 @@ const showGroup = (i: number) => !query.value.trim() && (i === 0 || results.valu
               <kbd v-if="c.shortcut" class="cp__kbd">{{ shortcutLabel(c.shortcut) }}</kbd>
             </div>
           </template>
-          <p v-if="!results.length" class="cp__empty">Nenhum comando encontrado.</p>
+          <p v-if="!results.length" class="cp__empty">{{ t('palette.empty') }}</p>
         </div>
-        <div class="cp__foot">↑↓ navegar · Enter executar · Esc fechar</div>
+        <div class="cp__foot">{{ t('palette.help') }}</div>
       </div>
     </div>
   </Teleport>

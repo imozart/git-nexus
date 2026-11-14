@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted } from 'vue';
 import { GnButton } from '@git-nexus/ui-kit';
+import { t } from '../i18n';
 
 defineProps<{ title: string; lines: string[]; confirmLabel: string; danger?: boolean }>();
 const emit = defineEmits<{ (e: 'confirm'): void; (e: 'cancel'): void }>();
@@ -19,7 +20,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
         <h3>{{ title }}</h3>
         <p v-for="l in lines" :key="l">{{ l }}</p>
         <div class="dlg__btns">
-          <GnButton @click="emit('cancel')">Cancelar</GnButton>
+          <GnButton @click="emit('cancel')">{{ t('dlg.cancel') }}</GnButton>
           <GnButton :variant="danger ? 'danger' : 'primary'" @click="emit('confirm')">{{ confirmLabel }}</GnButton>
         </div>
       </div>

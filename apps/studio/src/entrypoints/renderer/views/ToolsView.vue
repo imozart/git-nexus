@@ -8,24 +8,25 @@ import FilePanel from '../components/tools/FilePanel.vue';
 import RebasePanel from '../components/tools/RebasePanel.vue';
 import VersionPanel from '../components/tools/VersionPanel.vue';
 import HostingPanel from '../components/tools/HostingPanel.vue';
+import { t, type MessageKey } from '../i18n';
 import { useWorkspaceStore } from '../stores/workspace';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
 const ws = useWorkspaceStore();
 
 /** Seções da aba "Ferramentas". Cada painel recebe `repo` e se atualiza sozinho ao ficar visível. */
-const SECTIONS: Array<{ id: string; title: string; component: Component }> = [
-  { id: 'ops', title: 'Operações', component: OperationsPanel },
-  { id: 'stash', title: 'Stash', component: StashPanel },
-  { id: 'file', title: 'Arquivo (histórico e blame)', component: FilePanel },
-  { id: 'rebase', title: 'Rebase interativo', component: RebasePanel },
-  { id: 'hosting', title: 'PRs / MRs e CI', component: HostingPanel },
-  { id: 'version', title: 'Versão e changelog', component: VersionPanel },
+const SECTIONS: Array<{ id: string; title: MessageKey; component: Component }> = [
+  { id: 'ops', title: 'tools.ops', component: OperationsPanel },
+  { id: 'stash', title: 'tools.stash', component: StashPanel },
+  { id: 'file', title: 'tools.file', component: FilePanel },
+  { id: 'rebase', title: 'tools.rebase', component: RebasePanel },
+  { id: 'hosting', title: 'tools.hosting', component: HostingPanel },
+  { id: 'version', title: 'tools.version', component: VersionPanel },
 ];
 
 const KEY = 'gitnexus.toolsSection';
 const current = ref(SECTIONS.some((s) => s.id === localStorage.getItem(KEY)) ? localStorage.getItem(KEY)! : SECTIONS[0]!.id);
-const tabs = computed<GnTab[]>(() => SECTIONS.map((s) => ({ id: s.id, title: s.title })));
+const tabs = computed<GnTab[]>(() => SECTIONS.map((s) => ({ id: s.id, title: t(s.title) })));
 const section = computed(() => SECTIONS.find((s) => s.id === current.value)!);
 // pedido externo (menu "Histórico do arquivo" / "Blame"): troca de seção
 watch(
