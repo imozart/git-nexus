@@ -64,6 +64,57 @@ export interface CommitPolicy {
   ticketRequired: boolean;
   /** Regex (sem âncoras obrigatórias; é aplicada como correspondência total). */
   ticketPattern: string;
+  /** Restringe os tipos aceitos (padrão: todos). Vem da política do time. */
+  types?: ConventionalCommitType[];
+  /** Lista fechada de escopos permitidos (padrão: qualquer escopo válido). */
+  scopes?: string[];
+  /** Preenche o ticket automaticamente a partir do nome da branch (ex.: feat/PROJ-123-login). */
+  ticketFromBranch?: boolean;
+}
+
+/** Modo do scanner de segredos: `warn` avisa e permite seguir; `block` impede o commit. */
+export type SecretsMode = 'warn' | 'block' | 'off';
+
+export interface SecretsConfig {
+  mode: SecretsMode;
+  /** Globs de caminhos ignorados pelo scanner (ex.: `test/fixtures/**`). */
+  ignorePaths: string[];
+  /** Tamanho (MB) a partir do qual um arquivo em stage gera aviso. 0 desliga. */
+  maxFileSizeMb: number;
+}
+
+/** Conteúdo do `.gitnexus.json` na raiz do repositório (política versionada junto com o código). */
+export interface RepoConfig {
+  commit: Partial<CommitPolicy>;
+  secrets: Partial<SecretsConfig>;
+}
+
+export interface RepoPolicyInfo {
+  /** O repositório tem `.gitnexus.json`. */
+  found: boolean;
+  /** Política efetiva do time (vazia se não houver arquivo). */
+  commit: Partial<CommitPolicy>;
+  secrets: SecretsConfig;
+  /** Problemas encontrados ao ler o arquivo (JSON inválido, campo desconhecido, regex inválida…). */
+  errors: string[];
+}
+
+export type SecretFindingKind = 'secret' | 'sensitive-file' | 'large-file';
+
+export interface SecretFinding {
+  kind: SecretFindingKind;
+  file: string;
+  /** Linha (1-based) no arquivo novo; ausente para arquivos inteiros. */
+  line?: number;
+  /** Nome da regra (ex.: "Chave de acesso AWS"). */
+  rule: string;
+  /** Trecho mascarado: nunca contém o segredo completo. */
+  preview: string;
+}
+
+export interface SecretScanResult {
+  mode: SecretsMode;
+  findings: SecretFinding[];
 }
 
 export interface CommitResult {
@@ -156,6 +207,13 @@ export interface GitNexusApi extends GitNexusIPC {
   discardFile(repoPath: string, file: string, scope: DiscardScope): Promise<{ backup: string | null }>;
   restoreBackup(repoPath: string, file: string, backup: string): Promise<void>;
   addToGitignore(repoPath: string, pattern: string): Promise<void>;
+
+  // Política do time (.gitnexus.json) e proteção contra vazamento de segredos
+  getRepoPolicy(repoPath: string): Promise<RepoPolicyInfo>;
+  /** Grava/atualiza `.gitnexus.json` na raiz do repositório (para o time versionar). */
+  saveRepoConfig(repoPath: string, config: RepoConfig): Promise<void>;
+  /** Examina o que está em stage (linhas adicionadas, nomes e tamanhos de arquivo). */
+  scanStagedSecrets(repoPath: string): Promise<SecretScanResult>;
 
   // Integração com o sistema (processo principal)
   copyText(text: string): Promise<void>;

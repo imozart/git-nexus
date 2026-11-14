@@ -18,6 +18,9 @@ export const WORKER_METHODS = [
   'restoreBackup',
   'addToGitignore',
   'executeCommit',
+  'getRepoPolicy',
+  'saveRepoConfig',
+  'scanStagedSecrets',
   'getMergeConflicts',
   'resolveConflictFile',
 ] as const satisfies readonly (keyof GitNexusApi)[];
