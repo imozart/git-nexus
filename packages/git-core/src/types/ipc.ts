@@ -125,6 +125,41 @@ export interface UndoResult {
   message: string;
 }
 
+/** Uma entrada do stash (shelf). */
+export interface StashEntry {
+  /** Posição (0 = mais recente). */
+  index: number;
+  /** `stash@{n}` */
+  ref: string;
+  hash: string;
+  /** epoch em segundos */
+  date: number;
+  branch: string;
+  /** Nome dado pelo usuário ou, sem nome, o assunto do commit em que foi criado. */
+  message: string;
+  /** Tem nome (criado com mensagem) em vez do WIP padrão. */
+  named: boolean;
+}
+
+export interface StashFile {
+  path: string;
+  /** A, M ou D (para os não rastreados, sempre A). */
+  status: string;
+  untracked: boolean;
+}
+
+export interface CreateStashInput {
+  message?: string;
+  includeUntracked?: boolean;
+  keepIndex?: boolean;
+  paths?: string[];
+}
+
+export interface StashApplyResult {
+  conflicts: boolean;
+  message: string;
+}
+
 export type SecretFindingKind = 'secret' | 'sensitive-file' | 'large-file';
 
 export interface SecretFinding {
@@ -247,6 +282,18 @@ export interface GitNexusApi extends GitNexusIPC {
   getOperations(repoPath: string, limit?: number): Promise<GitOperation[]>;
   /** Volta ao estado anterior à operação `id` (e às mais novas). */
   undoOperation(repoPath: string, id: string): Promise<UndoResult>;
+
+  // Stash / shelf com nome e restauração parcial
+  listStashes(repoPath: string): Promise<StashEntry[]>;
+  createStash(repoPath: string, input: CreateStashInput): Promise<StashEntry>;
+  getStashFiles(repoPath: string, ref: string): Promise<StashFile[]>;
+  getStashFileDiff(repoPath: string, ref: string, file: string): Promise<string>;
+  /** `drop` = pop: remove o stash se aplicar sem conflitos. */
+  applyStash(repoPath: string, ref: string, drop?: boolean): Promise<StashApplyResult>;
+  /** Traz só alguns arquivos do stash; recusa se tiverem alterações locais, salvo `overwrite`. */
+  restoreStashFiles(repoPath: string, ref: string, files: string[], overwrite?: boolean): Promise<void>;
+  dropStash(repoPath: string, ref: string): Promise<void>;
+  renameStash(repoPath: string, ref: string, message: string): Promise<void>;
 
   // Integração com o sistema (processo principal)
   copyText(text: string): Promise<void>;
