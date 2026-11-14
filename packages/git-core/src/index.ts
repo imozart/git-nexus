@@ -10,3 +10,4 @@ export * from './staging.js';
 export * from './file-ops.js';
 export * from './secrets.js';
 export * from './operations.js';
+export * from './stash.js';

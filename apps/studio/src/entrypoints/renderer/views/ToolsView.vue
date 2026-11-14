@@ -3,12 +3,14 @@ import { computed, ref, type Component } from 'vue';
 import { GnTabs, type GnTab } from '@git-nexus/ui-kit';
 import type { RepositoryMeta } from '@git-nexus/git-core/pure';
 import OperationsPanel from '../components/tools/OperationsPanel.vue';
+import StashPanel from '../components/tools/StashPanel.vue';
 
 defineProps<{ repo: RepositoryMeta }>();
 
 /** Seções da aba "Ferramentas". Cada painel recebe `repo` e se atualiza sozinho ao ficar visível. */
 const SECTIONS: Array<{ id: string; title: string; component: Component }> = [
   { id: 'ops', title: 'Operações', component: OperationsPanel },
+  { id: 'stash', title: 'Stash', component: StashPanel },
 ];
 
 const KEY = 'gitnexus.toolsSection';
