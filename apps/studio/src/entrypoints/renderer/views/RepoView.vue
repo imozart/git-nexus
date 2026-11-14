@@ -377,6 +377,7 @@ const menuItems = computed<MenuItem[]>(() => {
     { id: 'copyName', label: many ? 'Copiar nomes dos arquivos' : 'Copiar nome do arquivo' },
   );
   if (single) {
+    if (!allNew && !isDir) items.push({ id: 'history', label: 'Histórico do arquivo' }, { id: 'blame', label: 'Anotar (blame)' }, { id: 's4', separator: true });
     items.push({ id: 'reveal', label: 'Mostrar na pasta' }, { id: 'open', label: 'Abrir com o programa padrão', disabled: isDir });
   }
   return items;
@@ -408,6 +409,10 @@ async function onMenu(id: string): Promise<void> {
         return await api.copyText(paths.join('\n'));
       case 'copyName':
         return await api.copyText(names.join('\n'));
+      case 'history':
+        return ws.openTools(props.repo, 'file', paths[0]!, 'history');
+      case 'blame':
+        return ws.openTools(props.repo, 'file', paths[0]!, 'blame');
       case 'reveal':
         return await api.showItemInFolder(props.repo.path, paths[0]!);
       case 'open': {

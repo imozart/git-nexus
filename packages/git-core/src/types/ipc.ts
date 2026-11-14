@@ -160,6 +160,46 @@ export interface StashApplyResult {
   message: string;
 }
 
+export type HistorySearchMode = 'message' | 'content' | 'regex';
+
+/** Filtros da busca no histórico. */
+export interface HistorySearch {
+  text?: string;
+  /** message = texto na mensagem; content = commits que adicionam/removem o texto (pickaxe); regex = linhas alteradas que casam. */
+  mode?: HistorySearchMode;
+  author?: string;
+  /** Só commits que tocam este caminho. */
+  path?: string;
+  /** Datas aceitas pelo git (ex.: 2026-01-31, "2 weeks ago"). */
+  since?: string;
+  until?: string;
+}
+
+export interface CommitFile {
+  /** A, M, D, T… */
+  status: string;
+  path: string;
+}
+
+export interface CommitDetail {
+  hash: string;
+  /** Mensagem completa (assunto + corpo). */
+  message: string;
+  files: CommitFile[];
+}
+
+/** Uma linha do blame: quem alterou por último e em qual commit. */
+export interface BlameLine {
+  line: number;
+  hash: string;
+  shortHash: string;
+  author: string;
+  /** epoch em segundos */
+  date: number;
+  summary: string;
+  text: string;
+}
+
 export type SecretFindingKind = 'secret' | 'sensitive-file' | 'large-file';
 
 export interface SecretFinding {
@@ -282,6 +322,15 @@ export interface GitNexusApi extends GitNexusIPC {
   getOperations(repoPath: string, limit?: number): Promise<GitOperation[]>;
   /** Volta ao estado anterior à operação `id` (e às mais novas). */
   undoOperation(repoPath: string, id: string): Promise<UndoResult>;
+
+  // Busca no histórico, histórico de arquivo, detalhe de commit e blame
+  searchHistory(repoPath: string, query: HistorySearch, limit?: number): Promise<CommitInfo[]>;
+  getFileHistory(repoPath: string, file: string, limit?: number): Promise<CommitInfo[]>;
+  listTrackedFiles(repoPath: string): Promise<string[]>;
+  getCommitDetail(repoPath: string, hash: string): Promise<CommitDetail>;
+  getCommitFileDiff(repoPath: string, hash: string, file: string): Promise<string>;
+  /** Autoria linha a linha (`rev` opcional; padrão: arquivo no disco). */
+  getBlame(repoPath: string, file: string, rev?: string): Promise<BlameLine[]>;
 
   // Stash / shelf com nome e restauração parcial
   listStashes(repoPath: string): Promise<StashEntry[]>;
