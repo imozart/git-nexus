@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { parseLog } from './history.js';
+import { unmergedFiles } from './conflicts.js';
 import { isWslPath } from './wsl.js';
 import { runGit } from './runner.js';
 import type { RebaseAction, RebaseItem, RebasePlan, RebaseResult, RebaseState } from './types/ipc.js';
@@ -57,7 +58,7 @@ export async function getRebaseState(repoPath: string): Promise<RebaseState> {
   if (!existsSync(dir)) return { inProgress: false, step: 0, total: 0, branch: '', conflicted: [] };
   const read = async (f: string) => (await readFile(join(dir, f), 'utf8').catch(() => '')).trim();
   const [step, total, head] = await Promise.all([read('msgnum'), read('end'), read('head-name')]);
-  const conflicted = (await runGit(repoPath, ['diff', '--name-only', '--diff-filter=U', '-z'], { check: false })).stdout.split('\0').filter(Boolean);
+  const conflicted = await unmergedFiles(repoPath);
   return { inProgress: true, step: Number(step) || 0, total: Number(total) || 0, branch: head.replace(/^refs\/heads\//, ''), conflicted };
 }
 

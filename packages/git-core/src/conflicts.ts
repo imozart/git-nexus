@@ -10,9 +10,19 @@ async function stage(repoPath: string, n: 1 | 2 | 3, file: string): Promise<stri
   return r.code === 0 ? r.stdout : '';
 }
 
+/**
+ * Arquivos em conflito, lidos direto do índice (entradas "unmerged"). É bem mais rápido que `git diff --diff-filter=U`,
+ * que compara o conteúdo de todos os arquivos alterados: em um repositório com milhares de alterações, isso custava
+ * ~3x o próprio `git status` a cada atualização da tela.
+ */
+export async function unmergedFiles(repoPath: string): Promise<string[]> {
+  const r = await runGit(repoPath, ['ls-files', '--unmerged', '-z'], { check: false });
+  // cada registro: "<modo> <sha> <estágio>\t<caminho>"
+  return [...new Set(r.stdout.split('\0').filter(Boolean).map((rec) => rec.slice(rec.indexOf('\t') + 1)))];
+}
+
 export async function getMergeConflicts(repoPath: string): Promise<MergeConflictBlock[]> {
-  const { stdout } = await runGit(repoPath, ['diff', '--name-only', '--diff-filter=U', '-z']);
-  const files = [...new Set(stdout.split('\0').filter(Boolean))];
+  const files = await unmergedFiles(repoPath);
   return Promise.all(
     files.map(async (filePath) => {
       const [base, ours, theirs, working] = await Promise.all([
