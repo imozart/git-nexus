@@ -69,6 +69,10 @@ O app avisa quando existe uma versão nova: **8 segundos depois de abrir** (para
 - Não instala sozinho: a instalação continua sendo um passo seu (abrir o instalador ou extrair o ZIP). Isso vale para todos os formatos, inclusive o portátil.
 - Precisa que o repositório seja **público**; com repositório privado a consulta retorna "não encontrado" e o app segue normalmente, sem avisos. Em desenvolvimento a verificação fica desativada.
 
+## Assinatura de código (Windows)
+
+Hoje os executáveis do Windows **não são assinados**, então o SmartScreen avisa na primeira abertura ("Mais informações" → "Executar assim mesmo"). O pipeline já está pronto para assinar pelo **SignPath Foundation** (gratuito para código aberto): o passo a passo está em [`docs/CODE_SIGNING.md`](docs/CODE_SIGNING.md) e a política pública em [`docs/CODE_SIGNING_POLICY.md`](docs/CODE_SIGNING_POLICY.md). Sem a configuração, o build segue normalmente sem assinatura.
+
 ## Licença
 
 GitNexus é software livre, distribuído sob a **GNU General Public License v3.0 (somente a versão 3)**. Veja o arquivo [`LICENSE`](LICENSE). Você pode usar, estudar, modificar e redistribuir, inclusive comercialmente, desde que mantenha a mesma licença nas versões distribuídas e disponibilize o código-fonte delas.
