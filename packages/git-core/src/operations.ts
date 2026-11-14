@@ -45,7 +45,7 @@ export function classify(gs: string): { kind: OperationKind; summary: string; fr
   }
   if (head === 'merge') return { kind: 'merge', summary: `Merge ${gs.slice('merge '.length)}` };
   if (head === 'pull') return { kind: 'pull', summary: `Pull ${detail ? `(${detail})` : ''}`.trim() };
-  if (head === 'reset') return { kind: 'reset', summary: `Reset ${gs.slice('reset: '.length).replace(/[0-9a-f]{40}/g, (h) => h.slice(0, 7))}` };
+  if (head === 'reset') return { kind: 'reset', summary: `Reset ${gs.slice('reset: '.length).replace(/\b[0-9a-f]{40}\b/g, (h) => h.slice(0, 7))}` };
   if (head === 'rebase') return { kind: 'rebase', summary: 'Rebase' };
   if (head === 'cherry-pick') return { kind: 'cherry-pick', summary: `Cherry-pick: ${detail}` };
   if (head === 'revert') return { kind: 'revert', summary: `Revert: ${detail}` };
