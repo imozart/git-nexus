@@ -178,6 +178,9 @@ watch(() => ws.versions[props.repo.id], load);
           <dt>Data</dt><dd>{{ fmtDate(selected.date) }}</dd>
           <dt>Pais</dt><dd class="mono">{{ selected.parents.map((p) => p.slice(0, 7)).join(', ') || '—' }}</dd>
         </dl>
+        <GnButton size="sm" class="gv__rb" title="Reescrever os commits depois deste (reordenar, juntar, editar mensagem, descartar)" @click="ws.openTools(repo, 'rebase', selected.hash)">
+          Rebase interativo a partir daqui
+        </GnButton>
         <pre v-if="detail && detail.message.includes('\n')" class="gv__msg">{{ detail.message }}</pre>
         <h4 v-if="detail">{{ detail.files.length }} arquivo(s) alterado(s)</h4>
         <ul v-if="detail" class="gv__files">
@@ -203,6 +206,7 @@ watch(() => ws.versions[props.repo.id], load);
   &__list { flex: 1; overflow: auto; min-width: 0; }
   &__search { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 14px; border-bottom: 1px solid var(--gn-border); input, select { min-width: 0; } }
   &__q { flex: 1; min-width: 160px; }
+  &__rb { margin-top: 10px; }
   &__msg { white-space: pre-wrap; font-family: var(--gn-mono); font-size: 12px; background: var(--gn-bg); padding: 8px 10px; border-radius: var(--gn-radius); margin: 10px 0 0; }
   &__files { list-style: none; margin: 6px 0 0; padding: 0; li { display: flex; align-items: center; gap: 6px; padding: 3px 4px; cursor: pointer; font-size: 12px; border-radius: 4px; &:hover, &.on { background: var(--gn-surface-2); } } }
   &__fpath { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--gn-mono); }

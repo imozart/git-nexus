@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { GnBadge, GnButton } from '@git-nexus/ui-kit';
-import type { FileEntry, FileSides, RepositoryMeta } from '@git-nexus/git-core/pure';
+import type { FileEntry, FileSides, RebaseState, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { STATUS_LABEL, checkState, groupEntries, hasStaged, isUntracked, statusLetter } from '../changes';
 import { useCommandsStore, type Command } from '../stores/commands';
@@ -18,6 +18,7 @@ const ws = useWorkspaceStore();
 const cmds = useCommandsStore();
 
 const branch = ref('');
+const rebase = ref<RebaseState | null>(null);
 const entries = ref<FileEntry[]>([]);
 const conflicted = ref<string[]>([]);
 const error = ref('');
@@ -91,7 +92,12 @@ async function refresh(keepError = false): Promise<void> {
   loading.value = true;
   if (!keepError) error.value = '';
   try {
-    const [st, conflicts] = await Promise.all([api.getGitStatus(props.repo.path), api.getMergeConflicts(props.repo.path)]);
+    const [st, conflicts, rb] = await Promise.all([
+      api.getGitStatus(props.repo.path),
+      api.getMergeConflicts(props.repo.path),
+      api.getRebaseState(props.repo.path).catch(() => null),
+    ]);
+    rebase.value = rb;
     const bad = new Set(conflicts.map((c) => c.filePath));
     conflicted.value = [...bad];
     branch.value = st.branch;
@@ -519,6 +525,10 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
       </div>
     </header>
 
+    <div v-if="rebase?.inProgress" class="rv__rebase">
+      <span>⇅ Rebase em andamento ({{ rebase.step }}/{{ rebase.total }}){{ rebase.conflicted.length ? ` — ${rebase.conflicted.length} arquivo(s) em conflito` : '' }}.</span>
+      <GnButton size="sm" variant="primary" @click="ws.openTools(repo, 'rebase')">Abrir rebase</GnButton>
+    </div>
     <p v-if="error" class="rv__error">{{ error }}</p>
     <div v-if="notice" class="rv__notice">
       <span>{{ notice.text }}</span>
@@ -646,6 +656,7 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
     border-bottom: 1px solid var(--gn-border); background: var(--gn-surface);
     :deep(.gn-btn) { min-width: 28px; justify-content: center; font-weight: 700; }
   }
+  &__rebase { display: flex; align-items: center; gap: 12px; padding: 7px 14px; background: rgba(224, 169, 59, 0.14); border-bottom: 1px solid var(--gn-warn); color: var(--gn-warn); }
   &__difftitle {
     display: flex; align-items: center; gap: 8px; padding: 5px 12px;
     border-bottom: 1px solid var(--gn-border); background: var(--gn-bg);
