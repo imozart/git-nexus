@@ -30,6 +30,15 @@ pnpm --filter @git-nexus/studio pack:dir   # só a pasta descompactada (win-unpa
 Saída de `pnpm dist` (Windows x64): `GitNexus-<versão>-win-x64.zip` (portátil: extrair e executar) e, quando o NSIS roda, `GitNexus-<versão>-win-x64-setup.exe`.
 Os dados (lista de repositórios, preferências) ficam em `GitNexusData/` ao lado do executável; nada é gravado no registro.
 
+## Painel de repositórios
+
+A tela inicial mostra, para cada repositório catalogado: **branch**, **↑ commits para enviar / ↓ commits para receber** (em relação ao upstream), **alterações locais**, **conflitos** ou "em dia". O status carrega em segundo plano (4 por vez).
+
+- **Buscar todos:** `git fetch --all --prune` em todos, com relatório de sucessos e falhas (remoto inacessível, credencial necessária…). Nunca pergunta senha: sem terminal, o git falha em vez de travar.
+- **Atualizar seguros:** pull **somente por fast-forward**, e só onde é seguro: há upstream, o repositório está atrás, não divergiu e a árvore está limpa. Nada de merge automático nem reescrita de histórico; o relatório diz quantos foram atualizados.
+- **Buscar / Pull** individuais em cada linha (o pull recusa quando a branch divergiu e explica o motivo).
+- **Só com pendências:** esconde os repositórios em dia.
+
 ## Aba de Staging (referência: IntelliJ)
 
 - **Lista de arquivos** em dois grupos — *Alterações* (rastreados) e *Arquivos não versionados* — com checkbox: marcado = no commit (stage), parcial = parte no stage, vazio = pendente. O resumo no topo mostra quantos estão no commit e quantos pendentes. Cores/letras por status (M, A, D, R, novo).

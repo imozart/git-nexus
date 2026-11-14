@@ -200,6 +200,25 @@ export interface BlameLine {
   text: string;
 }
 
+/** Resumo de um repositório para o painel: branch, sincronização com o upstream e pendências. */
+export interface RepoSummary {
+  branch: string;
+  detached: boolean;
+  upstream: string | null;
+  /** Commits locais ainda não enviados / commits do remoto ainda não trazidos. */
+  ahead: number;
+  behind: number;
+  staged: number;
+  unstaged: number;
+  untracked: number;
+  conflicted: number;
+}
+
+export interface SyncResult {
+  ok: boolean;
+  message: string;
+}
+
 export type SecretFindingKind = 'secret' | 'sensitive-file' | 'large-file';
 
 export interface SecretFinding {
@@ -322,6 +341,11 @@ export interface GitNexusApi extends GitNexusIPC {
   getOperations(repoPath: string, limit?: number): Promise<GitOperation[]>;
   /** Volta ao estado anterior à operação `id` (e às mais novas). */
   undoOperation(repoPath: string, id: string): Promise<UndoResult>;
+
+  // Painel de repositórios: resumo, fetch e pull (somente fast-forward)
+  getRepoSummary(repoPath: string): Promise<RepoSummary>;
+  fetchRepo(repoPath: string): Promise<SyncResult>;
+  pullRepo(repoPath: string): Promise<SyncResult>;
 
   // Busca no histórico, histórico de arquivo, detalhe de commit e blame
   searchHistory(repoPath: string, query: HistorySearch, limit?: number): Promise<CommitInfo[]>;
