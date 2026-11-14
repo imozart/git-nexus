@@ -18,12 +18,20 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   /** Contador por repositório: incrementar força as abas daquele repo a recarregar. */
   const versions = ref<Record<string, number>>({});
 
+  /** Pedido para a aba Ferramentas abrir numa seção (e arquivo) específicos, ex.: "Blame" a partir do menu. */
+  const toolsTarget = ref<{ repoId: string; section: string; file?: string; mode?: string; n: number } | null>(null);
+
   const active = computed(() => tabs.value.find((t) => t.id === activeId.value));
 
   function open(kind: Exclude<TabKind, 'home'>, repo: RepositoryMeta): void {
     const id = `${kind}:${repo.id}`;
     if (!tabs.value.some((t) => t.id === id)) tabs.value.push({ id, kind, repo });
     activeId.value = id;
+  }
+
+  function openTools(repo: RepositoryMeta, section?: string, file?: string, mode?: string): void {
+    if (section) toolsTarget.value = { repoId: repo.id, section, file, mode, n: (toolsTarget.value?.n ?? 0) + 1 };
+    open('tools', repo);
   }
 
   function close(id: string): void {
@@ -43,5 +51,5 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     versions.value[repoId] = (versions.value[repoId] ?? 0) + 1;
   }
 
-  return { tabs, activeId, active, versions, open, close, closeRepo, bump };
+  return { tabs, activeId, active, versions, toolsTarget, open, openTools, close, closeRepo, bump };
 });

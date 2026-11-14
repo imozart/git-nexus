@@ -11,3 +11,4 @@ export * from './file-ops.js';
 export * from './secrets.js';
 export * from './operations.js';
 export * from './stash.js';
+export * from './history-tools.js';
