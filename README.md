@@ -30,6 +30,26 @@ pnpm --filter @git-nexus/studio pack:dir   # só a pasta descompactada (win-unpa
 Saída de `pnpm dist` (Windows x64): `GitNexus-<versão>-win-x64.zip` (portátil: extrair e executar) e, quando o NSIS roda, `GitNexus-<versão>-win-x64-setup.exe`.
 Os dados (lista de repositórios, preferências) ficam em `GitNexusData/` ao lado do executável; nada é gravado no registro.
 
+## Paleta de comandos e atalhos
+
+**Ctrl+K** (ou **Ctrl+Shift+P**; ⌘ no macOS) abre a paleta: digite parte do nome de qualquer ação (sem acento, letras salteadas funcionam: `gh` encontra "Grafo / Histórico"), ↑↓ navega, Enter executa, Esc fecha. Os comandos usados por último aparecem primeiro. Há um comando por repositório catalogado ("Abrir repositório: …") e os do repositório aberto.
+
+| Atalho | Ação |
+|---|---|
+| Ctrl+K / Ctrl+Shift+P | Paleta de comandos |
+| Ctrl+1 | Ir para Repositórios |
+| Ctrl+PageDown / Ctrl+PageUp | Próxima / anterior aba |
+| Alt+W | Fechar aba |
+| F5 | Atualizar status do repositório |
+| Ctrl+Shift+A / Ctrl+Shift+U | Incluir tudo / remover tudo do commit |
+| Ctrl+Shift+C | Ir para o título do commit |
+| Ctrl+Enter (no formulário) | Fazer o commit |
+| Ctrl+Shift+B | Mostrar/ocultar o painel de commit |
+| F7 / Shift+F7 | Próxima / diferença anterior |
+| Alt+→ / Alt+← | Próximo / arquivo anterior |
+
+Os atalhos só usam Ctrl/⌘/Alt (ou teclas F), então nunca atrapalham a digitação. No app empacotado (Windows/Linux) o menu padrão do Electron é removido, porque reservaria Ctrl+W, Ctrl+R e o DevTools.
+
 ## Painel de repositórios
 
 A tela inicial mostra, para cada repositório catalogado: **branch**, **↑ commits para enviar / ↓ commits para receber** (em relação ao upstream), **alterações locais**, **conflitos** ou "em dia". O status carrega em segundo plano (4 por vez).
