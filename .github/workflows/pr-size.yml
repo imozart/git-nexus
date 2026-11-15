@@ -1,0 +1,38 @@
+name: Tamanho do PR
+
+# Label "tamanho: XS..XL" pelo total de linhas alteradas (adicionadas + removidas), sem lockfiles e arquivos gerados.
+# Faixas e regras em scripts/lib/pr-size.mjs. Serve para enxergar PR grande demais para revisar bem e, junto com a label de
+# área, saber o que é mudança pequena. Recalcula a cada push no PR.
+#
+# pull_request_target: o token pode escrever labels mesmo em PR de fork. Por isso o checkout é SEMPRE da branch principal
+# (o padrão desse evento) e nunca do código do PR; o workflow só lê números da API do GitHub.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: pr-size-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  tamanho:
+    name: Calcular o tamanho
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .node-version
+      - name: Etiquetar pelo tamanho
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/pr-size.mjs
