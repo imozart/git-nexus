@@ -14,9 +14,11 @@
     "build": "pnpm --filter @git-nexus/studio build",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "dist": "pnpm --filter @git-nexus/studio dist"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "5.1.0",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"
   }
