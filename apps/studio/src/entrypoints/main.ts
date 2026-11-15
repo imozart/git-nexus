@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { BrowserWindow, Menu, app, clipboard, dialog, ipcMain, shell, utilityProcess, type UtilityProcess } from 'electron';
 import { setMessageLocale, tm } from '@git-nexus/git-core';
-import { WORKER_METHODS, channel, type UtilityRequest, type UtilityResponse } from '../shared/channels';
+import { WORKER_METHODS, channel, type UtilityEvent, type UtilityRequest, type UtilityResponse } from '../shared/channels';
 import { isAllowedUpdateUrl } from '../shared/update';
 import { checkForUpdate } from './update';
 import { WINDOWS_INSTALLER_ARGS, downloadVerified, isReadyFile, replaceAppImage } from './installer';
@@ -59,7 +59,12 @@ function startWorker(): UtilityProcess {
     env: { ...process.env, GITNEXUS_DATA_DIR: dataDir },
     serviceName: 'gitnexus-git-worker',
   });
-  w.on('message', (msg: UtilityResponse) => {
+  w.on('message', (msg: UtilityResponse | UtilityEvent) => {
+    if ('event' in msg) {
+      // comandos git executados pelo worker: repassa a todas as janelas (aba "Log")
+      for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.send(channel('gitCommands'), msg.data);
+      return;
+    }
     const p = pending.get(msg.id);
     if (!p) return;
     pending.delete(msg.id);

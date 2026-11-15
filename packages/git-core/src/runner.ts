@@ -1,5 +1,39 @@
 import { spawn } from 'node:child_process';
+import { formatGitCommand, isReadOnlyGit, trimOutput } from './git-command.js';
+import type { GitCommandEvent } from './types/ipc.js';
 import { parseWslPath } from './wsl.js';
+
+const listeners = new Set<(e: GitCommandEvent) => void>();
+let nextEventId = 1;
+
+/** Observa todo comando git executado por `runGit` (a aba "Log" do app). Devolve a função que cancela. */
+export function onGitCommand(cb: (e: GitCommandEvent) => void): () => void {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+}
+
+function emit(repoPath: string, args: string[], startedAt: number, code: number, stdout: string, stderr: string): void {
+  if (!listeners.size) return;
+  const readOnly = isReadOnlyGit(args);
+  const output = trimOutput([stderr, stdout].filter((s) => s.trim()).join('\n'));
+  const e: GitCommandEvent = {
+    id: nextEventId++,
+    repoPath,
+    command: formatGitCommand(args),
+    readOnly,
+    startedAt,
+    durationMs: Date.now() - startedAt,
+    code,
+    ...(output && (!readOnly || code !== 0) ? { output } : {}),
+  };
+  for (const l of listeners) {
+    try {
+      l(e);
+    } catch {
+      /* um observador com defeito não pode quebrar o git */
+    }
+  }
+}
 
 export interface GitResult {
   stdout: string;
@@ -36,6 +70,7 @@ export function runGit(repoPath: string, args: string[], opts: GitRunOptions = {
     ? ['wsl.exe', ['-d', wsl.distro, '--cd', wsl.linuxPath, '--exec', 'git', ...args], undefined]
     : ['git', args, repoPath];
 
+  const startedAt = Date.now();
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, cmdArgs, {
       cwd,
@@ -46,13 +81,17 @@ export function runGit(repoPath: string, args: string[], opts: GitRunOptions = {
     const err: Buffer[] = [];
     child.stdout.on('data', (d: Buffer) => out.push(d));
     child.stderr.on('data', (d: Buffer) => err.push(d));
-    child.on('error', reject);
+    child.on('error', (err) => {
+      emit(repoPath, args, startedAt, -1, '', err.message);
+      reject(err);
+    });
     child.on('close', (code) => {
       const result: GitResult = {
         stdout: Buffer.concat(out).toString('utf8'),
         stderr: Buffer.concat(err).toString('utf8'),
         code: code ?? -1,
       };
+      emit(repoPath, args, startedAt, result.code, result.stdout, result.stderr);
       if ((opts.check ?? true) && result.code !== 0) {
         reject(new GitError(`git ${args.join(' ')} falhou (${result.code}): ${result.stderr.trim()}`, result, args));
       } else {

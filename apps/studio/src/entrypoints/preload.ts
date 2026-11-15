@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { CommitPolicy, ConventionalCommitInput, GitNexusApi, UpdateProgress } from '@git-nexus/git-core/pure';
+import type { CommitPolicy, ConventionalCommitInput, GitCommandEvent, GitNexusApi, UpdateProgress } from '@git-nexus/git-core/pure';
 import { validateCommitMessage } from '@git-nexus/governance-policy';
 import { MAIN_METHODS, WORKER_METHODS, channel } from '../shared/channels';
 
@@ -14,6 +14,12 @@ const api = {
     const handler = (_e: unknown, p: UpdateProgress) => cb(p);
     ipcRenderer.on(channel('updateProgress'), handler);
     return () => ipcRenderer.removeListener(channel('updateProgress'), handler);
+  },
+  // Evento: comandos git executados pelo app (aba "Log").
+  onGitCommand: (cb: (events: GitCommandEvent[]) => void) => {
+    const handler = (_e: unknown, events: GitCommandEvent[]) => cb(events);
+    ipcRenderer.on(channel('gitCommands'), handler);
+    return () => ipcRenderer.removeListener(channel('gitCommands'), handler);
   },
   // Síncrono e sem I/O: o linter roda direto no preload para feedback em tempo de digitação.
   validateCommitMessage: (input: ConventionalCommitInput, policy?: CommitPolicy, locale?: 'pt-BR' | 'en') =>

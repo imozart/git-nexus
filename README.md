@@ -64,6 +64,7 @@ Os dados (lista de repositórios, preferências) ficam em `GitNexusData/` ao lad
 | Ctrl+Shift+C | Ir para o título do commit |
 | Ctrl+Enter (no formulário) | Fazer o commit |
 | Ctrl+Shift+B | Mostrar/ocultar o painel de commit |
+| Ctrl+Shift+L | Mostrar/ocultar o log do Git |
 | F7 / Shift+F7 | Próxima / diferença anterior |
 | Alt+→ / Alt+← | Próximo / arquivo anterior |
 
@@ -142,6 +143,7 @@ Copyright (C) 2026 contribuidores do GitNexus.
 - **Seleção múltipla:** clique, Ctrl+clique, Shift+clique, Ctrl+A e retângulo (arrastar no espaço vazio). **Arraste** a seleção para *Alterações* para incluí-la no commit (e para *Não versionados* para tirar arquivos novos do stage). Espaço marca/desmarca; ↑/↓ navegam.
 - **Menu de contexto** (botão do meio ou direito, em arquivo ou grupo): descartar alterações, incluir/remover do commit, adicionar ao `.gitignore`, copiar caminho/nome, mostrar na pasta, abrir. Descartes pedem confirmação, guardam cópia em `GitNexusData/discarded` e oferecem **Desfazer**.
 - **Diff lado a lado** (HEAD x working tree) com numeração, trechos inalterados recolhíveis e botões por linha (`›`) e por bloco (`»`) para descartar. Barra superior: ↑ diferença anterior (Shift+F7) · ↓ próxima (F7) · ← arquivo anterior (Alt+←) · → próximo arquivo (Alt+→). A diferença atual fica destacada e o contador mostra “diferença 2 de 5”; na primeira/última diferença, ↑/↓ pulam para o arquivo anterior/próximo da lista (inclusive não versionados) e funcionam sem clicar antes em nenhum arquivo. Modo *Unificado* disponível.
+- **Log do Git** (parte de baixo da tela, recolhível como no IntelliJ): cada comando `git` que o app executa naquele repositório, com horário, resultado (✓/✗) e duração. Consultas (`status`, `log`, `diff`…) aparecem em cinza; o filtro *Só alterações* mostra apenas o que modifica o repositório; comando que falhou já mostra o motivo; dá para copiar a lista e limpar. A altura se ajusta arrastando a borda de cima. Senhas e tokens em endereços ou cabeçalhos são mascarados (`https://***@…`) e nada é gravado em disco: o log vive só na memória (últimos 500 comandos por repositório).
 - **Stage por linha e por bloco:** o seletor *Tudo | Pendente | No commit* escolhe o que comparar. Em **Pendente** (índice x disco) cada linha tem **+** e cada bloco **⊕** para incluir no commit só aquele trecho; em **No commit** (HEAD x índice) **−** e **⊖** tiram o trecho do commit. Só o índice é alterado (o disco não muda), há *Desfazer* no aviso, e o commit parcial deixa o resto pendente. Funciona também em arquivos novos.
 
 

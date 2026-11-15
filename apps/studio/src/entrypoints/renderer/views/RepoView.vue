@@ -12,6 +12,7 @@ import CommitForm from '../components/CommitForm.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import ContextMenu, { type MenuItem } from '../components/ContextMenu.vue';
 import DiffView from '../components/DiffView.vue';
+import GitLogPanel from '../components/GitLogPanel.vue';
 import SideBySideDiff from '../components/SideBySideDiff.vue';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
@@ -31,6 +32,7 @@ const MODE_KEY = 'gitnexus.diffMode';
 const COMMIT_KEY = 'gitnexus.showCommitPanel';
 const COLLAPSE_KEY = 'gitnexus.collapseUnchanged';
 const SOURCE_KEY = 'gitnexus.diffSource';
+const LOG_KEY = 'gitnexus.showGitLog';
 /** O que comparar: tudo o que mudou (HEAD x disco), só o que falta incluir (índice x disco) ou o que vai no commit (HEAD x índice). */
 type Source = 'head' | 'index' | 'staged';
 const SOURCES: Array<{ id: Source; label: MessageKey; hint: MessageKey }> = [
@@ -52,6 +54,9 @@ watch(source, (v) => {
   void loadDiff();
 });
 watch(showCommit, (v) => localStorage.setItem(COMMIT_KEY, v ? '1' : '0'));
+/** Log do Git (parte de baixo): aberto ou recolhido em uma barra. */
+const showLog = ref(localStorage.getItem(LOG_KEY) === '1');
+watch(showLog, (v) => localStorage.setItem(LOG_KEY, v ? '1' : '0'));
 const labels = computed(() =>
   source.value === 'index'
     ? [t('rv.side.index'), t('rv.side.worktree')]
@@ -251,6 +256,7 @@ function repoCommands(): Command[] {
       },
     },
     { id: 'rv.toggleCommit', title: t('rv.cmd.toggleCommit'), group: gStaging, shortcut: 'Mod+Shift+B', when, run: () => (showCommit.value = !showCommit.value) },
+    { id: 'rv.toggleLog', title: t('log.cmd.toggle'), group: gRepo, shortcut: 'Mod+Shift+L', keywords: 'log comandos commands console', when, run: () => (showLog.value = !showLog.value) },
     { id: 'rv.fetch', title: t('rv.cmd.fetch'), group: gRepo, keywords: 'remoto', when, run: () => syncThis('fetch') },
     { id: 'rv.pull', title: t('rv.cmd.pull'), group: gRepo, keywords: 'remoto', when, run: () => syncThis('pull') },
     { id: 'rv.nextDiff', title: t('rv.cmd.nextDiff'), group: gDiff, shortcut: 'F7', when, run: () => goDiff(1) },
@@ -621,6 +627,8 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
         <CommitForm :repo-path="repo.path" :branch="branch" :staged-count="stagedCount" @committed="onCommitted" />
       </aside>
     </div>
+
+    <GitLogPanel v-model:open="showLog" :repo-path="repo.path" />
 
     <ContextMenu v-if="menu" :x="menu.x" :y="menu.y" :items="menuItems" @select="onMenu" @close="menu = null" />
     <ConfirmDialog

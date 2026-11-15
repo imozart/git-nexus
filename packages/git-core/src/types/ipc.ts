@@ -323,6 +323,24 @@ export interface UpdateInfo {
   install?: 'installer' | 'appimage' | 'manual';
 }
 
+/** Um comando git executado pelo app (alimenta a aba "Log"). Sem segredos: o texto já passou por `redactSecrets`. */
+export interface GitCommandEvent {
+  id: number;
+  /** Caminho do repositório em que rodou, como o app o recebeu. */
+  repoPath: string;
+  /** Ex.: `git status --porcelain=v2 -z`. */
+  command: string;
+  /** Só consulta (status, log, diff...); `false` = pode alterar o repositório. */
+  readOnly: boolean;
+  /** Quando começou (ms desde 1970). */
+  startedAt: number;
+  durationMs: number;
+  /** Código de saída (-1 = o git nem chegou a iniciar). */
+  code: number;
+  /** Saída do git (stderr + stdout), cortada; só vem em comandos que alteram ou que falharam. */
+  output?: string;
+}
+
 /** Progresso do download da atualização (`total` = 0 quando o servidor não informa o tamanho). */
 export interface UpdateProgress {
   done: number;
@@ -605,6 +623,8 @@ export interface GitNexusApi extends GitNexusIPC {
   installUpdate(): Promise<void>;
   /** Acompanha o progresso do download; devolve a função que cancela a assinatura. */
   onUpdateProgress(cb: (p: UpdateProgress) => void): () => void;
+  /** Recebe cada comando git que o app executa (aba "Log"); devolve a função que cancela a assinatura. */
+  onGitCommand(cb: (events: GitCommandEvent[]) => void): () => void;
 
   // Integração com o sistema (processo principal)
   copyText(text: string): Promise<void>;
