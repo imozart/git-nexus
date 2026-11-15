@@ -1,0 +1,12 @@
+# Configuração do gitleaks (.github/workflows/secret-scan.yml). Usa todas as regras padrão.
+# Falso positivo? Não desligue a regra: acrescente um allowlist ESPECÍFICO (arquivo + padrão) abaixo, com o motivo.
+title = "GitNexus"
+
+[extend]
+useDefault = true
+
+# Exemplo (não ativo):
+# [[allowlists]]
+# description = "token de exemplo da documentação"
+# paths = ['''docs/EXEMPLO\.md''']
+# regexes = ['''ghp_EXEMPLO0000000000000000000000000000''']
