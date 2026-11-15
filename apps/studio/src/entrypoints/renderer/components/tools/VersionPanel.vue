@@ -4,6 +4,7 @@ import { GnBadge, GnButton } from '@git-nexus/ui-kit';
 import type { BumpChoice, ReleaseInfo, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
+import { t, type MessageKey } from '../../i18n';
 import ConfirmDialog from '../ConfirmDialog.vue';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
@@ -16,14 +17,14 @@ const error = ref('');
 const done = ref('');
 const confirm = ref<{ title: string; lines: string[]; label: string; run: () => Promise<void> } | null>(null);
 
-const BUMPS: Array<{ id: BumpChoice; label: string; hint: string }> = [
-  { id: 'auto', label: 'Automático', hint: 'breaking → major, feat → minor, demais → patch' },
-  { id: 'patch', label: 'Patch', hint: 'Correções' },
-  { id: 'minor', label: 'Minor', hint: 'Novidades compatíveis' },
-  { id: 'major', label: 'Major', hint: 'Quebra de compatibilidade' },
+const BUMPS: Array<{ id: BumpChoice; label: MessageKey; hint: MessageKey }> = [
+  { id: 'auto', label: 'ver.auto', hint: 'ver.autoHint' },
+  { id: 'patch', label: 'ver.patch', hint: 'ver.patchHint' },
+  { id: 'minor', label: 'ver.minor', hint: 'ver.minorHint' },
+  { id: 'major', label: 'ver.major', hint: 'ver.majorHint' },
 ];
 const BUMP_TONE = { initial: 'accent', major: 'danger', minor: 'success', patch: 'neutral' } as const;
-const BUMP_LABEL = { initial: 'primeira versão', major: 'major', minor: 'minor', patch: 'patch' } as const;
+const BUMP_LABEL: Record<ReleaseInfo['bump'], MessageKey> = { initial: 'ver.initial', major: 'ver.major', minor: 'ver.minor', patch: 'ver.patch' };
 
 async function load(): Promise<void> {
   loading.value = true;
@@ -43,23 +44,20 @@ const canAct = computed(() => !!info.value && info.value.commitCount > 0 && !inf
 async function copy(): Promise<void> {
   if (!info.value) return;
   await api.copyText(`## ${tag.value}\n\n${info.value.markdown}`);
-  done.value = 'Notas copiadas (Markdown).';
+  done.value = t('ver.copied');
 }
 
 function askTag(): void {
   if (!info.value) return;
   const i = info.value;
   confirm.value = {
-    title: `Criar a tag ${tag.value}?`,
-    lines: [
-      `A tag anotada ${tag.value} é criada no HEAD atual (${i.branch || 'HEAD desanexado'}), com o changelog na mensagem. Ela fica só no seu repositório.`,
-      'Se este repositório usa o pipeline de release automático do GitNexus, a tag é criada pelo CI no merge: não crie manualmente.',
-    ],
-    label: 'Criar tag',
+    title: t('ver.tagTitle', { tag: tag.value }),
+    lines: [t('ver.tagBody', { tag: tag.value, branch: i.branch || t('ver.detached') }), t('ver.tagCiNote')],
+    label: t('ver.tagCreate'),
     run: async () => {
       try {
         const r = await api.createReleaseTag(props.repo.path, i.version, i.markdown);
-        done.value = `Tag ${r.tag} criada. Para publicar: git push origin ${r.tag}`;
+        done.value = t('ver.tagDone', { tag: r.tag });
         ws.bump(props.repo.id);
       } catch (e) {
         error.value = errMsg(e);
@@ -74,7 +72,7 @@ async function saveChangelog(): Promise<void> {
   error.value = '';
   try {
     const r = await api.writeChangelog(props.repo.path, info.value.version, info.value.markdown);
-    done.value = `${r.path} atualizado com a versão ${tag.value}. Revise e faça o commit.`;
+    done.value = t('ver.changelogDone', { path: r.path, tag: tag.value });
     ws.bump(props.repo.id);
   } catch (e) {
     error.value = errMsg(e);
@@ -96,13 +94,10 @@ onMounted(load);
   <div class="vp">
     <header class="vp__head">
       <div>
-        <h2>Versão e changelog</h2>
-        <p class="muted">
-          Calculados dos Conventional Commits desde a última tag <code>vX.Y.Z</code>, com as mesmas regras do pipeline de release do
-          GitNexus: breaking → major, <code>feat</code> → minor, o resto → patch.
-        </p>
+        <h2>{{ t('ver.title') }}</h2>
+        <p class="muted">{{ t('ver.intro') }}</p>
       </div>
-      <GnButton size="sm" :disabled="loading" @click="load">Atualizar</GnButton>
+      <GnButton size="sm" :disabled="loading" @click="load">{{ t('rv.refresh') }}</GnButton>
     </header>
 
     <p v-if="error" class="err">{{ error }}</p>
@@ -111,26 +106,26 @@ onMounted(load);
     <template v-if="info">
       <section class="box">
         <div class="vp__ver">
-          <span class="vp__prev">{{ info.previous ?? 'sem tags' }}</span>
+          <span class="vp__prev">{{ info.previous ?? t('ver.noTags') }}</span>
           <span class="vp__arrow">→</span>
           <strong class="vp__next">{{ tag }}</strong>
-          <GnBadge :tone="BUMP_TONE[info.bump]">{{ BUMP_LABEL[info.bump] }}</GnBadge>
-          <span class="muted">{{ info.commitCount }} commit(s) desde {{ info.previous ?? 'o início' }}</span>
+          <GnBadge :tone="BUMP_TONE[info.bump]">{{ t(BUMP_LABEL[info.bump]) }}</GnBadge>
+          <span class="muted">{{ t('ver.sinceN', { n: info.commitCount, since: info.previous ?? t('ver.theStart') }) }}</span>
         </div>
-        <p v-if="info.initialFromPackage" class="muted">Ainda não há tags: a primeira versão vem do package.json.</p>
-        <p v-else-if="!info.hasTags" class="muted">Ainda não há tags: a primeira versão sugerida é {{ tag }}.</p>
-        <p v-if="info.tagExists" class="warn">A tag {{ tag }} já existe neste repositório.</p>
-        <p v-if="info.hasTags && !info.commitCount" class="muted">Nenhum commit novo desde {{ info.previous }}: não há o que lançar.</p>
+        <p v-if="info.initialFromPackage" class="muted">{{ t('ver.firstFromPackage') }}</p>
+        <p v-else-if="!info.hasTags" class="muted">{{ t('ver.firstSuggested', { tag }) }}</p>
+        <p v-if="info.tagExists" class="warn">{{ t('ver.tagExists', { tag }) }}</p>
+        <p v-if="info.hasTags && !info.commitCount" class="muted">{{ t('ver.nothingNew', { since: info.previous ?? '' }) }}</p>
 
         <div class="vp__ctl">
-          <span class="muted">Incremento:</span>
+          <span class="muted">{{ t('ver.increment') }}</span>
           <span class="seg">
-            <button v-for="b in BUMPS" :key="b.id" type="button" :class="{ on: bump === b.id }" :title="b.hint" @click="bump = b.id">{{ b.label }}</button>
+            <button v-for="b in BUMPS" :key="b.id" type="button" :class="{ on: bump === b.id }" :title="t(b.hint)" @click="bump = b.id">{{ t(b.label) }}</button>
           </span>
           <span class="spacer" />
-          <GnButton size="sm" :disabled="!info.commitCount" @click="copy">Copiar notas</GnButton>
-          <GnButton size="sm" :disabled="!info.commitCount" title="Insere a versão no topo do CHANGELOG.md" @click="saveChangelog">Salvar no CHANGELOG.md</GnButton>
-          <GnButton size="sm" variant="primary" :disabled="!canAct" @click="askTag">Criar tag {{ tag }}</GnButton>
+          <GnButton size="sm" :disabled="!info.commitCount" @click="copy">{{ t('ver.copyNotes') }}</GnButton>
+          <GnButton size="sm" :disabled="!info.commitCount" :title="t('ver.saveChangelogTip')" @click="saveChangelog">{{ t('ver.saveChangelog') }}</GnButton>
+          <GnButton size="sm" variant="primary" :disabled="!canAct" @click="askTag">{{ t('ver.createTag', { tag }) }}</GnButton>
         </div>
       </section>
 

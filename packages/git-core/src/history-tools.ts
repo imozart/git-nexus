@@ -2,6 +2,7 @@ import { parseLog } from './history.js';
 import { resolveInsideRepo } from './conflicts.js';
 import { runGit } from './runner.js';
 import type { BlameLine, CommitDetail, CommitFile, CommitInfo, HistorySearch } from './types/ipc.js';
+import { tm } from './messages.js';
 
 const LOG_FORMAT = ['%H', '%P', '%an', '%at', '%D', '%s'].join('%x1f') + '%x1e';
 
@@ -24,7 +25,7 @@ export async function searchHistory(repoPath: string, q: HistorySearch, limit = 
   }
   const r = await runGit(repoPath, args, { check: false });
   if (r.code !== 0) {
-    if (q.mode === 'regex' && /regex|regular expression/i.test(r.stderr)) throw new Error('Expressão regular inválida.');
+    if (q.mode === 'regex' && /regex|regular expression/i.test(r.stderr)) throw new Error(tm('Expressão regular inválida.', 'Invalid regular expression.'));
     return [];
   }
   return parseLog(r.stdout);
@@ -45,7 +46,7 @@ export async function listTrackedFiles(repoPath: string): Promise<string[]> {
 
 const hex = /^[0-9a-f]{7,40}$/i;
 function assertHash(h: string): void {
-  if (!hex.test(h)) throw new Error(`Hash de commit inválido: ${h}`);
+  if (!hex.test(h)) throw new Error(tm(`Hash de commit inválido: ${h}`, `Invalid commit hash: ${h}`));
 }
 
 /** Mensagem completa e arquivos alterados de um commit (o primeiro pai, em merges). */
@@ -103,6 +104,6 @@ export async function getBlame(repoPath: string, file: string, rev?: string): Pr
   }
   args.push('--', file);
   const r = await runGit(repoPath, args, { check: false });
-  if (r.code !== 0) throw new Error(r.stderr.trim() || 'Não foi possível calcular o blame (arquivo não versionado?).');
+  if (r.code !== 0) throw new Error(r.stderr.trim() || tm('Não foi possível calcular o blame (arquivo não versionado?).', 'Could not compute the blame (untracked file?).'));
   return parseBlame(r.stdout);
 }

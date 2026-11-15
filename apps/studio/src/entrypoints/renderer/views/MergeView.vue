@@ -5,6 +5,7 @@ import type { MergeConflictBlock, RepositoryMeta } from '@git-nexus/git-core/pur
 import { api, errMsg } from '../api';
 import { useWorkspaceStore } from '../stores/workspace';
 import MergeConflictResolver from '../components/MergeConflictResolver.vue';
+import { t } from '../i18n';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
 const ws = useWorkspaceStore();
@@ -36,10 +37,10 @@ async function resolve(block: MergeConflictBlock, merged: string): Promise<void>
   try {
     const ok = await api.resolveConflictFile(props.repo.path, block.filePath, merged);
     if (!ok) {
-      error.value = 'Recusado: o conteúdo ainda contém marcadores de conflito.';
+      error.value = t('mv.refused');
       return;
     }
-    info.value = `"${block.filePath}" marcado como resolvido (git add).`;
+    info.value = t('mv.resolved', { file: block.filePath });
     ws.bump(props.repo.id);
     await load();
   } catch (e) {
@@ -57,11 +58,11 @@ watch(() => ws.versions[props.repo.id], load);
   <div class="mv">
     <aside class="mv__side">
       <div class="mv__sidehead">
-        <strong>Arquivos em conflito</strong>
-        <GnButton size="sm" :disabled="loading" @click="load">Atualizar</GnButton>
+        <strong>{{ t('mv.files') }}</strong>
+        <GnButton size="sm" :disabled="loading" @click="load">{{ t('rv.refresh') }}</GnButton>
       </div>
       <p v-if="!conflicts.length && !loading" class="muted empty">
-        Nenhum conflito pendente.<br />Quando um merge, rebase ou cherry-pick gerar conflitos, eles aparecem aqui.
+        {{ t('mv.none') }}<br />{{ t('mv.noneHint') }}
       </p>
       <div
         v-for="c in conflicts"
@@ -71,11 +72,11 @@ watch(() => ws.versions[props.repo.id], load);
         @click="current = c.filePath"
       >
         <span class="item__name" :title="c.filePath">{{ c.filePath }}</span>
-        <GnBadge :tone="c.hasUnresolvedMarkers ? 'warn' : 'success'">{{ c.hasUnresolvedMarkers ? 'pendente' : 'sem marcadores' }}</GnBadge>
+        <GnBadge :tone="c.hasUnresolvedMarkers ? 'warn' : 'success'">{{ c.hasUnresolvedMarkers ? t('tree.statePending') : t('mcr.noMarkers') }}</GnBadge>
       </div>
       <p v-if="!conflicts.length && info" class="ok">{{ info }}</p>
       <div v-if="!conflicts.length && info" class="next">
-        <GnButton variant="primary" size="sm" @click="ws.open('repo', repo)">Ir para o commit</GnButton>
+        <GnButton variant="primary" size="sm" @click="ws.open('repo', repo)">{{ t('mv.goCommit') }}</GnButton>
       </div>
     </aside>
 

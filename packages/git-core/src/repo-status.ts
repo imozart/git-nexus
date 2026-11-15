@@ -1,5 +1,6 @@
 import { runGit } from './runner.js';
 import type { RepoSummary, SyncResult } from './types/ipc.js';
+import { tm } from './messages.js';
 
 /** Parse de `git status --porcelain=v2 --branch -z`. */
 export function parseSummary(raw: string): RepoSummary {
@@ -50,7 +51,7 @@ const NO_PROMPT = { GIT_TERMINAL_PROMPT: '0', GIT_SSH_COMMAND: process.env.GIT_S
 /** `git fetch --all --prune`. */
 export async function fetchRepo(repoPath: string): Promise<SyncResult> {
   const r = await runGit(repoPath, ['fetch', '--all', '--prune'], { check: false, env: NO_PROMPT });
-  if (r.code !== 0) return { ok: false, message: firstLine(r.stderr) || 'Falha ao buscar do remoto.' };
+  if (r.code !== 0) return { ok: false, message: firstLine(r.stderr) || tm('Falha ao buscar do remoto.', 'Failed to fetch from the remote.') };
   return { ok: true, message: 'Buscado.' };
 }
 
@@ -60,14 +61,14 @@ export async function fetchRepo(repoPath: string): Promise<SyncResult> {
  */
 export async function pullRepo(repoPath: string): Promise<SyncResult> {
   const s = await getRepoSummary(repoPath);
-  if (s.detached) return { ok: false, message: 'HEAD desanexado: nada a atualizar.' };
-  if (!s.upstream) return { ok: false, message: 'A branch não tem upstream configurado.' };
-  if (s.conflicted) return { ok: false, message: 'Há conflitos a resolver antes de atualizar.' };
+  if (s.detached) return { ok: false, message: tm('HEAD desanexado: nada a atualizar.', 'Detached HEAD: nothing to update.') };
+  if (!s.upstream) return { ok: false, message: tm('A branch não tem upstream configurado.', 'The branch has no upstream configured.') };
+  if (s.conflicted) return { ok: false, message: tm('Há conflitos a resolver antes de atualizar.', 'There are conflicts to resolve before updating.') };
   const r = await runGit(repoPath, ['pull', '--ff-only'], { check: false, env: NO_PROMPT });
   const out = (r.stderr + r.stdout).trim();
-  if (r.code === 0) return { ok: true, message: /Already up to date|Já está atualizado/i.test(out) ? 'Já estava atualizado.' : 'Atualizado (fast-forward).' };
-  if (/not possible to fast-forward|diverging|divergent/i.test(out)) return { ok: false, message: 'A branch divergiu do remoto: atualize manualmente (merge ou rebase).' };
-  if (/would be overwritten|Your local changes/i.test(out)) return { ok: false, message: 'Alterações locais conflitam com o que veio do remoto.' };
+  if (r.code === 0) return { ok: true, message: /Already up to date|Já está atualizado/i.test(out) ? tm('Já estava atualizado.', 'Already up to date.') : tm('Atualizado (fast-forward).', 'Updated (fast-forward).') };
+  if (/not possible to fast-forward|diverging|divergent/i.test(out)) return { ok: false, message: tm('A branch divergiu do remoto: atualize manualmente (merge ou rebase).', 'The branch diverged from the remote: update manually (merge or rebase).') };
+  if (/would be overwritten|Your local changes/i.test(out)) return { ok: false, message: tm('Alterações locais conflitam com o que veio do remoto.', 'Local changes conflict with what came from the remote.') };
   return { ok: false, message: firstLine(out) || 'Falha ao atualizar.' };
 }
 

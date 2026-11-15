@@ -2,6 +2,7 @@
 // e é testável: o armazenamento de tokens e o `fetch` são injetados.
 import {
   runGit,
+  tm,
   type ChangeRequest,
   type ChangeRequestState,
   type ChangeRequestSuggestion,
@@ -59,11 +60,11 @@ export class HostingService {
   // ---- descoberta do remoto -------------------------------------------------------------------
   private async ctx(repoPath: string): Promise<Ctx> {
     const names = (await runGit(repoPath, ['remote'], { check: false })).stdout.split('\n').map((x) => x.trim()).filter(Boolean);
-    if (!names.length) throw new Error('Este repositório não tem remoto configurado.');
+    if (!names.length) throw new Error(tm('Este repositório não tem remoto configurado.', 'This repository has no remote configured.'));
     const remoteName = names.includes('origin') ? 'origin' : names[0]!;
     const url = (await runGit(repoPath, ['remote', 'get-url', remoteName])).stdout.trim();
     const remote = parseRemote(url);
-    if (!remote) throw new Error(`Não foi possível entender o endereço do remoto "${remoteName}".`);
+    if (!remote) throw new Error(tm(`Não foi possível entender o endereço do remoto "${remoteName}".`, `Could not understand the address of the remote "${remoteName}".`));
     const kind = detectKind(remote.host, await this.store.getKind(remote.host));
     return { remoteName, remote, kind };
   }
@@ -85,7 +86,7 @@ export class HostingService {
     return {
       ...base,
       supported: c.kind !== null,
-      reason: c.kind ? undefined : `O host ${c.remote.host} não é reconhecido: informe se é GitHub ou GitLab.`,
+      reason: c.kind ? undefined : tm(`O host ${c.remote.host} não é reconhecido: informe se é GitHub ou GitLab.`, `The host ${c.remote.host} is not recognized: say whether it is GitHub or GitLab.`),
       needsKind: c.kind === null,
       kind: c.kind ?? undefined,
       host: c.remote.host,
@@ -103,10 +104,10 @@ export class HostingService {
   /** Valida o token no provedor (GET /user) e só então o guarda. O token nunca é devolvido nem aparece em mensagens. */
   async saveToken(repoPath: string, token: string, kindArg?: ProviderKind): Promise<{ login: string }> {
     const t = token.trim();
-    if (!t || /\s/.test(t)) throw new Error('Informe o token (sem espaços).');
+    if (!t || /\s/.test(t)) throw new Error(tm('Informe o token (sem espaços).', 'Provide the token (no spaces).'));
     const c = await this.ctx(repoPath);
     const kind = kindArg ?? c.kind;
-    if (!kind) throw new Error('Informe se este host é GitHub ou GitLab.');
+    if (!kind) throw new Error(tm('Informe se este host é GitHub ou GitLab.', 'Say whether this host is GitHub or GitLab.'));
     const user = (await this.call(kind, c.remote, t, 'GET', '/user')) as { login?: string; username?: string };
     if (kindArg) await this.store.setKind(c.remote.host, kindArg);
     await this.store.setToken(c.remote.host, t);
@@ -141,7 +142,7 @@ export class HostingService {
         signal: AbortSignal.timeout(15_000),
       });
     } catch {
-      throw new Error(`Sem conexão com ${remote.host}.`);
+      throw new Error(tm(`Sem conexão com ${remote.host}.`, `No connection to ${remote.host}.`));
     }
     if (res.ok) return res.status === 204 ? null : res.json();
     let detail = '';
@@ -151,17 +152,17 @@ export class HostingService {
     } catch {
       /* corpo sem JSON */
     }
-    if (res.status === 401) throw new Error('Token inválido ou expirado.');
-    if (res.status === 403) throw new Error(`Sem permissão (${detail || '403'}). Confira os escopos do token.`);
-    if (res.status === 404) throw new Error('Repositório não encontrado ou sem acesso: confira o token e as permissões.');
+    if (res.status === 401) throw new Error(tm('Token inválido ou expirado.', 'Invalid or expired token.'));
+    if (res.status === 403) throw new Error(tm(`Sem permissão (${detail || '403'}). Confira os escopos do token.`, `No permission (${detail || '403'}). Check the token scopes.`));
+    if (res.status === 404) throw new Error(tm('Repositório não encontrado ou sem acesso: confira o token e as permissões.', 'Repository not found or no access: check the token and permissions.'));
     throw new Error(`${remote.host} respondeu ${res.status}${detail ? `: ${detail}` : ''}.`);
   }
 
   private async authed(repoPath: string): Promise<{ c: Ctx & { kind: ProviderKind }; token: string }> {
     const c = await this.ctx(repoPath);
-    if (!c.kind) throw new Error('Informe se este host é GitHub ou GitLab.');
+    if (!c.kind) throw new Error(tm('Informe se este host é GitHub ou GitLab.', 'Say whether this host is GitHub or GitLab.'));
     const token = await this.store.getToken(c.remote.host);
-    if (!token) throw new Error('Conecte uma conta (token) para ver pull requests e o CI.');
+    if (!token) throw new Error(tm('Conecte uma conta (token) para ver pull requests e o CI.', 'Connect an account (token) to see pull requests and CI.'));
     return { c: { ...c, kind: c.kind }, token };
   }
 
@@ -178,7 +179,7 @@ export class HostingService {
   }
 
   async getCiStatus(repoPath: string, sha: string): Promise<CiStatus> {
-    if (!HEX.test(sha)) throw new Error('Commit inválido.');
+    if (!HEX.test(sha)) throw new Error(tm('Commit inválido.', 'Invalid commit.'));
     const { c, token } = await this.authed(repoPath);
     if (c.kind === 'github') {
       const runs = (await this.call('github', c.remote, token, 'GET', `${this.project(c)}/commits/${sha}/check-runs?per_page=100`).catch(() => ({ check_runs: [] }))) as { check_runs?: Parameters<typeof ciFromGithub>[0] };
@@ -192,10 +193,10 @@ export class HostingService {
   // ---- criar PR/MR ------------------------------------------------------------------------------
   /** Título e descrição montados dos Conventional Commits que a branch tem a mais que a base. */
   async suggestChangeRequest(repoPath: string, baseBranch: string): Promise<ChangeRequestSuggestion> {
-    if (!BRANCH.test(baseBranch)) throw new Error('Nome de branch inválido.');
+    if (!BRANCH.test(baseBranch)) throw new Error(tm('Nome de branch inválido.', 'Invalid branch name.'));
     const c = await this.ctx(repoPath);
     const head = (await runGit(repoPath, ['branch', '--show-current'])).stdout.trim();
-    if (!head) throw new Error('HEAD desanexado: troque para uma branch.');
+    if (!head) throw new Error(tm('HEAD desanexado: troque para uma branch.', 'Detached HEAD: switch to a branch.'));
     const hasRemoteBase = (await runGit(repoPath, ['rev-parse', '--verify', '-q', `refs/remotes/${c.remoteName}/${baseBranch}`], { check: false })).code === 0;
     const range = `${hasRemoteBase ? `${c.remoteName}/${baseBranch}` : baseBranch}..HEAD`;
     const log = await runGit(repoPath, ['log', '--no-merges', '--format=%H%x1f%an%x1f%s%x1f%b%x1e', range], { check: false });
@@ -214,7 +215,7 @@ export class HostingService {
     const sections = groupCommits(parsed.slice().reverse())
       .map((g) => [`## ${g.title}`, '', ...g.items.map((c) => `- ${c.scope ? `**${c.scope}:** ` : ''}${c.title}${c.pr ? ` (#${c.pr})` : ''}${c.ticket ? ` · \`${c.ticket}\`` : ''}`)].join('\n'))
       .join('\n\n');
-    const body = [`## Resumo`, '', parsed.length ? `Esta branch (\`${head}\`) reúne ${parsed.length} commit(s) sobre \`${baseBranch}\`.` : 'Sem commits novos em relação à base.', '', sections, ...(tickets.length ? ['', `Refs: ${tickets.join(', ')}`] : [])].join('\n').trim() + '\n';
+    const body = [tm('## Resumo', '## Summary'), '', parsed.length ? tm(`Esta branch (\`${head}\`) reúne ${parsed.length} commit(s) sobre \`${baseBranch}\`.`, `This branch (\`${head}\`) gathers ${parsed.length} commit(s) over \`${baseBranch}\`.`) : tm('Sem commits novos em relação à base.', 'No new commits compared to the base.'), '', sections, ...(tickets.length ? ['', `Refs: ${tickets.join(', ')}`] : [])].join('\n').trim() + '\n';
     const headPublished = (await runGit(repoPath, ['rev-parse', '--verify', '-q', `refs/remotes/${c.remoteName}/${head}`], { check: false })).code === 0;
     return {
       title: suggestTitle(commits, head),
@@ -228,14 +229,14 @@ export class HostingService {
 
   async createChangeRequest(repoPath: string, input: CreateChangeRequestInput): Promise<CreatedChangeRequest> {
     const title = input.title.trim();
-    if (!title) throw new Error('Informe o título.');
-    if (!BRANCH.test(input.head) || !BRANCH.test(input.base)) throw new Error('Nome de branch inválido.');
-    if (input.head === input.base) throw new Error('A branch de origem e a de destino são a mesma.');
+    if (!title) throw new Error(tm('Informe o título.', 'Provide the title.'));
+    if (!BRANCH.test(input.head) || !BRANCH.test(input.base)) throw new Error(tm('Nome de branch inválido.', 'Invalid branch name.'));
+    if (input.head === input.base) throw new Error(tm('A branch de origem e a de destino são a mesma.', 'The source and target branches are the same.'));
     const { c, token } = await this.authed(repoPath);
     let pushed = false;
     if (input.push) {
       const r = await runGit(repoPath, ['push', '-u', c.remoteName, input.head], { check: false, env: NO_PROMPT });
-      if (r.code !== 0) throw new Error(`Não foi possível enviar a branch: ${(r.stderr || r.stdout).trim().split('\n').slice(-2).join(' ')}`);
+      if (r.code !== 0) throw new Error(tm('Não foi possível enviar a branch: ', 'Could not push the branch: ') + (r.stderr || r.stdout).trim().split('\n').slice(-2).join(' '));
       pushed = true;
     }
     if (c.kind === 'github') {

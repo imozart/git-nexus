@@ -2,7 +2,8 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { GnButton } from '@git-nexus/ui-kit';
 import type { FileEntry } from '@git-nexus/git-core/pure';
-import { STATUS_LABEL, checkState, groupEntries, hasStaged, splitPath, statusLetter, type CheckState } from '../changes';
+import { checkState, groupEntries, hasStaged, splitPath, statusLabel, statusLetter, type CheckState } from '../changes';
+import { t } from '../i18n';
 
 type GroupId = 'changes' | 'unversioned';
 
@@ -204,23 +205,22 @@ watch(
     }
   },
 );
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-const TITLE: Record<GroupId, string> = { changes: 'Alterações', unversioned: 'Arquivos não versionados' };
+
 </script>
 
 <template>
   <div ref="root" class="tree" tabindex="0" @mousedown="onBandStart" @keydown="onKey">
     <div class="summary">
-      <span :title="'Arquivos no stage: entram no próximo commit'"><b>{{ included }}</b> no commit</span>
+      <span :title="t('tree.stagedTitle')"><b>{{ included }}</b> {{ t('tree.inCommit') }}</span>
       <span class="sep">·</span>
-      <span :title="'Alterados ou novos, ainda fora do commit'"><b>{{ pending }}</b> pendente{{ pending === 1 ? '' : 's' }}</span>
-      <span v-if="selection.size > 1" class="sel">{{ selection.size }} selecionados</span>
+      <span :title="t('tree.pendingTitle')"><b>{{ pending }}</b> {{ t('tree.pending', { n: pending }) }}</span>
+      <span v-if="selection.size > 1" class="sel">{{ t('tree.selected', { n: selection.size }) }}</span>
     </div>
     <input
       v-if="entries.length > 30 || filter"
       v-model="filter"
       class="filter"
-      placeholder="Filtrar arquivos…"
+      :placeholder="t('tree.filter')"
       spellcheck="false"
       @mousedown.stop
       @keydown.stop
@@ -228,9 +228,9 @@ const TITLE: Record<GroupId, string> = { changes: 'Alterações', unversioned: '
 
     <section v-if="conflicted.length" class="grp">
       <div class="grp__head grp__head--warn">
-        <span class="grp__title">Em conflito</span>
-        <span class="grp__count">{{ plural(conflicted.length, 'arquivo', 'arquivos') }}</span>
-        <GnButton size="sm" variant="primary" @click="emit('resolve')">Resolver</GnButton>
+        <span class="grp__title">{{ t('tree.conflicted') }}</span>
+        <span class="grp__count">{{ t('tree.files', { n: conflicted.length }) }}</span>
+        <GnButton size="sm" variant="primary" @click="emit('resolve')">{{ t('tree.resolve') }}</GnButton>
       </div>
       <div v-for="f in conflicted" :key="f" class="file file--conflict">
         <span class="st st--U">!</span>
@@ -254,18 +254,18 @@ const TITLE: Record<GroupId, string> = { changes: 'Alterações', unversioned: '
         @auxclick.middle.prevent="openGroupMenu($event, g)"
         @contextmenu.prevent="openGroupMenu($event, g)"
       >
-        <button class="chev" type="button" :class="{ 'chev--closed': collapsed[g] }" :aria-label="collapsed[g] ? 'Expandir' : 'Recolher'" @click="collapsed[g] = !collapsed[g]">▾</button>
+        <button class="chev" type="button" :class="{ 'chev--closed': collapsed[g] }" :aria-label="collapsed[g] ? t('tree.expand') : t('tree.collapse')" @click="collapsed[g] = !collapsed[g]">▾</button>
         <input
           type="checkbox"
           class="cb"
           :checked="groupState(groups[g]) === 'checked'"
           :indeterminate="groupState(groups[g]) === 'partial'"
           :disabled="!groups[g].length"
-          :title="groupState(groups[g]) === 'checked' ? 'Remover todos do commit' : 'Incluir todos no commit'"
+          :title="groupState(groups[g]) === 'checked' ? t('tree.removeAll') : t('tree.includeAll')"
           @change="toggleGroup(g)"
         />
-        <span class="grp__title" @click="selectGroup(g)">{{ TITLE[g] }}</span>
-        <span class="grp__count">{{ plural(groups[g].length, 'arquivo', 'arquivos') }}</span>
+        <span class="grp__title" @click="selectGroup(g)">{{ g === 'changes' ? t('tree.changes') : t('tree.unversioned') }}</span>
+        <span class="grp__count">{{ t('tree.files', { n: groups[g].length }) }}</span>
       </div>
 
       <div v-show="!collapsed[g]">
@@ -276,7 +276,7 @@ const TITLE: Record<GroupId, string> = { changes: 'Alterações', unversioned: '
           :class="{ 'file--sel': selection.has(r.e.path), 'file--active': activePath === r.e.path }"
           :data-path="r.e.path"
           draggable="true"
-          :title="`${STATUS_LABEL[r.letter]}${r.state === 'checked' ? ' · no commit' : r.state === 'partial' ? ' · parcialmente no commit' : ' · pendente'}\n${r.e.path}`"
+          :title="`${statusLabel(r.letter)} · ${r.state === 'checked' ? t('tree.stateChecked') : r.state === 'partial' ? t('tree.statePartial') : t('tree.statePending')}\n${r.e.path}`"
           @click="onRowClick($event, r.e)"
           @dragstart="onDragStart($event, r.e)"
           @mousedown.middle.prevent
@@ -294,17 +294,17 @@ const TITLE: Record<GroupId, string> = { changes: 'Alterações', unversioned: '
           <span class="st" :class="`st--${r.letter === '?' ? 'N' : r.letter}`">{{ r.letter === '?' ? '+' : r.letter }}</span>
           <span class="file__name" :class="`name--${r.letter === '?' ? 'N' : r.letter}`">{{ r.name }}</span>
           <span class="file__dir">{{ r.dir }}</span>
-          <span v-if="r.state === 'partial'" class="tag">parcial</span>
+          <span v-if="r.state === 'partial'" class="tag">{{ t('tree.partialTag') }}</span>
         </div>
         <div v-if="hidden(g)" class="more">
-          <GnButton size="sm" @click="showMore(g)">Mostrar mais {{ Math.min(PAGE, hidden(g)) }}</GnButton>
-          <GnButton v-if="hidden(g) > PAGE" size="sm" @click="showMore(g, true)">Mostrar todos ({{ hidden(g) }} restantes)</GnButton>
+          <GnButton size="sm" @click="showMore(g)">{{ t('tree.showMore', { n: Math.min(PAGE, hidden(g)) }) }}</GnButton>
+          <GnButton v-if="hidden(g) > PAGE" size="sm" @click="showMore(g, true)">{{ t('tree.showAll', { n: hidden(g) }) }}</GnButton>
         </div>
-        <p v-if="!groups[g].length" class="empty">{{ filter ? 'Nenhum arquivo corresponde ao filtro.' : g === 'changes' ? 'Nenhuma alteração.' : 'Nenhum arquivo novo.' }}</p>
+        <p v-if="!groups[g].length" class="empty">{{ filter ? t('tree.emptyFilter') : g === 'changes' ? t('tree.emptyChanges') : t('tree.emptyNew') }}</p>
       </div>
     </section>
 
-    <p class="hint">Arraste arquivos para “Alterações” para incluí-los. Botão do meio ou direito: mais ações.</p>
+    <p class="hint">{{ t('tree.hint') }}</p>
     <div v-if="band" class="band" :style="{ left: band.left + 'px', top: band.top + 'px', width: band.width + 'px', height: band.height + 'px' }" />
   </div>
 </template>

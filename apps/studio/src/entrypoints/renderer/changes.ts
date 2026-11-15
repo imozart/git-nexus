@@ -1,4 +1,5 @@
 import type { FileEntry } from '@git-nexus/git-core/pure';
+import { t, type MessageKey } from './i18n';
 
 export type CheckState = 'checked' | 'partial' | 'unchecked';
 export type StatusLetter = 'M' | 'A' | 'D' | 'R' | 'C' | 'T' | '?';
@@ -20,15 +21,17 @@ export function statusLetter(e: FileEntry): StatusLetter {
   return (['M', 'A', 'D', 'R', 'C', 'T'].includes(c) ? c : 'M') as StatusLetter;
 }
 
-export const STATUS_LABEL: Record<StatusLetter, string> = {
-  M: 'Modificado',
-  A: 'Adicionado',
-  D: 'Removido',
-  R: 'Renomeado',
-  C: 'Copiado',
-  T: 'Tipo alterado',
-  '?': 'Não versionado',
+const STATUS_KEY: Record<StatusLetter, MessageKey> = {
+  M: 'status.M',
+  A: 'status.A',
+  D: 'status.D',
+  R: 'status.R',
+  C: 'status.C',
+  T: 'status.T',
+  '?': 'status.untracked',
 };
+/** Nome do status no idioma atual (lê o idioma reativo: serve em templates e computed). */
+export const statusLabel = (l: StatusLetter): string => t(STATUS_KEY[l]);
 
 export function splitPath(p: string): { name: string; dir: string } {
   const clean = p.replace(/\/$/, '');

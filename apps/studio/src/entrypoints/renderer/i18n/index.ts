@@ -16,6 +16,8 @@ watch(
   (l) => {
     localStorage.setItem(KEY, l);
     document.documentElement.lang = l;
+    // mensagens geradas pelo núcleo/worker (erros do Git etc.) seguem o idioma da interface; sem a ponte (testes), ignora
+    void window.gitNexus?.setLocale?.(l)?.catch?.(() => undefined);
   },
   { immediate: true },
 );

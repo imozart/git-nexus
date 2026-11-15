@@ -58,6 +58,7 @@ import {
   type RepoPolicyInfo,
   type RepositoryMeta,
   type SecretScanResult,
+  setMessageLocale,
 } from '@git-nexus/git-core';
 import {
   DEFAULT_POLICY,
@@ -192,6 +193,9 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
     scanStagedSecrets: async (repoPath: string): Promise<SecretScanResult> => {
       const { secrets } = await readRepoPolicy(repoPath);
       return { mode: secrets.mode, findings: await scanStagedSecrets(repoPath, secrets) };
+    },
+    setLocale: async (locale: string) => {
+      setMessageLocale(locale);
     },
     executeCommit: async (repoPath: string, input: ConventionalCommitInput, localPolicy?: CommitPolicy) => {
       // A política do time (.gitnexus.json) é obrigatória: sobrepõe o que a interface enviou.

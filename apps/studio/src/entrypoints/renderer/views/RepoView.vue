@@ -3,7 +3,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { GnBadge, GnButton } from '@git-nexus/ui-kit';
 import type { FileEntry, FileSides, RebaseState, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
-import { STATUS_LABEL, checkState, groupEntries, hasStaged, isUntracked, statusLetter } from '../changes';
+import { checkState, groupEntries, hasStaged, isUntracked, statusLabel, statusLetter } from '../changes';
+import { t, type MessageKey } from '../i18n';
 import { useCommandsStore, type Command } from '../stores/commands';
 import { useWorkspaceStore } from '../stores/workspace';
 import ChangesTree from '../components/ChangesTree.vue';
@@ -32,10 +33,10 @@ const COLLAPSE_KEY = 'gitnexus.collapseUnchanged';
 const SOURCE_KEY = 'gitnexus.diffSource';
 /** O que comparar: tudo o que mudou (HEAD x disco), só o que falta incluir (índice x disco) ou o que vai no commit (HEAD x índice). */
 type Source = 'head' | 'index' | 'staged';
-const SOURCES: Array<{ id: Source; label: string; hint: string }> = [
-  { id: 'head', label: 'Tudo', hint: 'Último commit x disco: tudo que mudou localmente' },
-  { id: 'index', label: 'Pendente', hint: 'Índice x disco: o que ainda não está no commit. Aqui dá para incluir linhas e blocos.' },
-  { id: 'staged', label: 'No commit', hint: 'Último commit x índice: o que vai no commit. Aqui dá para tirar linhas e blocos.' },
+const SOURCES: Array<{ id: Source; label: MessageKey; hint: MessageKey }> = [
+  { id: 'head', label: 'rv.src.all', hint: 'rv.src.allHint' },
+  { id: 'index', label: 'rv.src.pending', hint: 'rv.src.pendingHint' },
+  { id: 'staged', label: 'rv.src.staged', hint: 'rv.src.stagedHint' },
 ];
 const stored = localStorage.getItem(SOURCE_KEY);
 const source = ref<Source>(stored === 'index' || stored === 'staged' ? stored : 'head');
@@ -53,10 +54,10 @@ watch(source, (v) => {
 watch(showCommit, (v) => localStorage.setItem(COMMIT_KEY, v ? '1' : '0'));
 const labels = computed(() =>
   source.value === 'index'
-    ? ['Índice (stage)', 'Working tree (atual)']
+    ? [t('rv.side.index'), t('rv.side.worktree')]
     : source.value === 'staged'
-      ? ['Último commit (HEAD)', 'No commit (stage)']
-      : ['Último commit (HEAD)', 'Working tree (atual)'],
+      ? [t('rv.side.head'), t('rv.side.staged')]
+      : [t('rv.side.head'), t('rv.side.worktree')],
 );
 const stageAction = computed<'stage' | 'unstage' | null>(() => (source.value === 'index' ? 'stage' : source.value === 'staged' ? 'unstage' : null));
 /** Argumento do diff textual do git para a origem escolhida. */
@@ -124,7 +125,7 @@ async function loadDiff(): Promise<void> {
       diffText.value = '';
       // binário/grande/pasta: cai para o diff textual do git
       if (sides.value.binary || sides.value.tooLarge || sides.value.isDirectory) {
-        diffText.value = sides.value.isDirectory ? '(pasta não rastreada)' : await api.getFileDiff(props.repo.path, path, textMode.value);
+        diffText.value = sides.value.isDirectory ? t('rv.untrackedDir') : await api.getFileDiff(props.repo.path, path, textMode.value);
       }
     } else {
       sides.value = null;
@@ -175,7 +176,7 @@ async function goDiff(delta: number): Promise<void> {
       i += delta;
       const next = ordered.value[i];
       if (!next) {
-        showNotice(delta > 0 ? 'Última diferença: não há mais arquivos à frente.' : 'Primeira diferença: não há arquivos anteriores.');
+        showNotice(delta > 0 ? t('rv.noMoreAhead') : t('rv.noMoreBehind'));
         return;
       }
       await open(next, delta > 0 ? 'first' : 'last');
@@ -212,62 +213,66 @@ function repoCommands(): Command[] {
   const withFile = () => isActiveTab() && !!active.value;
   const notIn = () => entries.value.filter((e) => checkState(e) !== 'checked').map((e) => e.path);
   const inCommit = () => entries.value.filter(hasStaged).map((e) => e.path);
+  const gStaging = t('rv.group.staging');
+  const gRepo = t('rv.group.repo');
+  const gDiff = t('rv.group.diff');
+  const gFile = t('rv.group.file');
   return [
-    { id: 'rv.refresh', title: 'Atualizar status do repositório', group: 'Staging', shortcut: 'F5', when, run: () => refresh() },
+    { id: 'rv.refresh', title: t('rv.cmd.refresh'), group: gStaging, shortcut: 'F5', when, run: () => refresh() },
     {
       id: 'rv.stageAll',
-      title: 'Incluir tudo no commit (stage)',
-      group: 'Staging',
+      title: t('rv.cmd.stageAll'),
+      group: gStaging,
       shortcut: 'Mod+Shift+A',
-      keywords: 'add todos',
+      keywords: 'add todos all',
       when: () => isActiveTab() && notIn().length > 0,
       run: () => onToggle(notIn(), true),
     },
     {
       id: 'rv.unstageAll',
-      title: 'Remover tudo do commit (unstage)',
-      group: 'Staging',
+      title: t('rv.cmd.unstageAll'),
+      group: gStaging,
       shortcut: 'Mod+Shift+U',
-      keywords: 'reset todos',
+      keywords: 'reset todos all',
       when: () => isActiveTab() && inCommit().length > 0,
       run: () => onToggle(inCommit(), false),
     },
     {
       id: 'rv.focusCommit',
-      title: 'Ir para o título do commit',
-      group: 'Staging',
+      title: t('rv.cmd.focusCommit'),
+      group: gStaging,
       shortcut: 'Mod+Shift+C',
-      keywords: 'mensagem escrever',
+      keywords: 'mensagem escrever message write',
       when,
       run: async () => {
         showCommit.value = true;
         await nextTick();
-        rootEl.value?.querySelector<HTMLInputElement>('.rv__commit input[placeholder^="resumo"]')?.focus();
+        rootEl.value?.querySelector<HTMLInputElement>('.rv__commit input[data-focus="commit-subject"]')?.focus();
       },
     },
-    { id: 'rv.toggleCommit', title: 'Mostrar/ocultar painel de commit', group: 'Staging', shortcut: 'Mod+Shift+B', when, run: () => (showCommit.value = !showCommit.value) },
-    { id: 'rv.fetch', title: 'Buscar (fetch) deste repositório', group: 'Repositório', keywords: 'remoto', when, run: () => syncThis('fetch') },
-    { id: 'rv.pull', title: 'Atualizar (pull fast-forward) este repositório', group: 'Repositório', keywords: 'remoto', when, run: () => syncThis('pull') },
-    { id: 'rv.nextDiff', title: 'Próxima diferença', group: 'Diff', shortcut: 'F7', when, run: () => goDiff(1) },
-    { id: 'rv.prevDiff', title: 'Diferença anterior', group: 'Diff', shortcut: 'Shift+F7', when, run: () => goDiff(-1) },
-    { id: 'rv.nextFile', title: 'Comparar próximo arquivo', group: 'Diff', shortcut: 'Alt+ArrowRight', when, run: () => goFile(1) },
-    { id: 'rv.prevFile', title: 'Comparar arquivo anterior', group: 'Diff', shortcut: 'Alt+ArrowLeft', when, run: () => goFile(-1) },
-    { id: 'rv.src.head', title: 'Diff: mostrar tudo (último commit x disco)', group: 'Diff', when, run: () => (source.value = 'head') },
-    { id: 'rv.src.index', title: 'Diff: mostrar pendente (permite incluir linhas no commit)', group: 'Diff', keywords: 'stage linha', when, run: () => (source.value = 'index') },
-    { id: 'rv.src.staged', title: 'Diff: mostrar o que vai no commit', group: 'Diff', keywords: 'unstage linha', when, run: () => (source.value = 'staged') },
-    { id: 'rv.view.split', title: 'Diff: lado a lado', group: 'Diff', when, run: () => (viewMode.value = 'split') },
-    { id: 'rv.view.unified', title: 'Diff: unificado', group: 'Diff', when, run: () => (viewMode.value = 'unified') },
-    { id: 'rv.collapse', title: 'Diff: recolher/expandir trechos inalterados', group: 'Diff', when, run: () => (collapse.value = !collapse.value) },
-    { id: 'rv.discard', title: 'Descartar alterações do arquivo aberto…', group: 'Arquivo', keywords: 'reverter', when: withFile, run: () => askDiscard([active.value!]) },
-    { id: 'rv.copyPath', title: 'Copiar caminho do arquivo aberto', group: 'Arquivo', when: withFile, run: () => api.copyText(active.value!) },
-    { id: 'rv.fileHistory', title: 'Histórico do arquivo aberto', group: 'Arquivo', when: withFile, run: () => ws.openTools(props.repo, 'file', active.value!, 'history') },
-    { id: 'rv.blame', title: 'Anotar (blame) o arquivo aberto', group: 'Arquivo', keywords: 'autoria', when: withFile, run: () => ws.openTools(props.repo, 'file', active.value!, 'blame') },
+    { id: 'rv.toggleCommit', title: t('rv.cmd.toggleCommit'), group: gStaging, shortcut: 'Mod+Shift+B', when, run: () => (showCommit.value = !showCommit.value) },
+    { id: 'rv.fetch', title: t('rv.cmd.fetch'), group: gRepo, keywords: 'remoto', when, run: () => syncThis('fetch') },
+    { id: 'rv.pull', title: t('rv.cmd.pull'), group: gRepo, keywords: 'remoto', when, run: () => syncThis('pull') },
+    { id: 'rv.nextDiff', title: t('rv.cmd.nextDiff'), group: gDiff, shortcut: 'F7', when, run: () => goDiff(1) },
+    { id: 'rv.prevDiff', title: t('rv.cmd.prevDiff'), group: gDiff, shortcut: 'Shift+F7', when, run: () => goDiff(-1) },
+    { id: 'rv.nextFile', title: t('rv.cmd.nextFile'), group: gDiff, shortcut: 'Alt+ArrowRight', when, run: () => goFile(1) },
+    { id: 'rv.prevFile', title: t('rv.cmd.prevFile'), group: gDiff, shortcut: 'Alt+ArrowLeft', when, run: () => goFile(-1) },
+    { id: 'rv.src.head', title: t('rv.cmd.srcHead'), group: gDiff, when, run: () => (source.value = 'head') },
+    { id: 'rv.src.index', title: t('rv.cmd.srcIndex'), group: gDiff, keywords: 'stage linha line', when, run: () => (source.value = 'index') },
+    { id: 'rv.src.staged', title: t('rv.cmd.srcStaged'), group: gDiff, keywords: 'unstage linha line', when, run: () => (source.value = 'staged') },
+    { id: 'rv.view.split', title: t('rv.cmd.split'), group: gDiff, when, run: () => (viewMode.value = 'split') },
+    { id: 'rv.view.unified', title: t('rv.cmd.unified'), group: gDiff, when, run: () => (viewMode.value = 'unified') },
+    { id: 'rv.collapse', title: t('rv.cmd.collapse'), group: gDiff, when, run: () => (collapse.value = !collapse.value) },
+    { id: 'rv.discard', title: t('rv.cmd.discard'), group: gFile, keywords: 'reverter revert', when: withFile, run: () => askDiscard([active.value!]) },
+    { id: 'rv.copyPath', title: t('rv.cmd.copyPath'), group: gFile, when: withFile, run: () => api.copyText(active.value!) },
+    { id: 'rv.fileHistory', title: t('rv.cmd.fileHistory'), group: gFile, when: withFile, run: () => ws.openTools(props.repo, 'file', active.value!, 'history') },
+    { id: 'rv.blame', title: t('rv.cmd.blame'), group: gFile, keywords: 'autoria author', when: withFile, run: () => ws.openTools(props.repo, 'file', active.value!, 'blame') },
   ];
 }
 
 async function syncThis(kind: 'fetch' | 'pull'): Promise<void> {
   const r = kind === 'fetch' ? await api.fetchRepo(props.repo.path) : await api.pullRepo(props.repo.path);
-  showNotice(`${kind === 'fetch' ? 'Buscar' : 'Pull'}: ${r.message}`);
+  showNotice(`${kind === 'fetch' ? t('rv.syncFetch') : t('rv.syncPull')}: ${r.message}`);
   if (r.ok) ws.bump(props.repo.id);
 }
 
@@ -307,7 +312,7 @@ function onMove(paths: string[], target: 'changes' | 'unversioned'): Promise<voi
   }
   const added = paths.filter((p) => byPath.value.get(p)?.x === 'A');
   if (!added.length) {
-    showNotice('Só arquivos novos (adicionados) podem voltar para “não versionados”.');
+    showNotice(t('rv.onlyNewBack'));
     return;
   }
   return onToggle(added, false);
@@ -337,7 +342,7 @@ async function onDiscardLines(p: { content: string; what: 'linha' | 'bloco' }): 
   const before = sides.value?.newText;
   if (!path || before === undefined) return;
   await act(() => api.writeWorkingFile(props.repo.path, path, p.content));
-  showNotice(`Descartada(o) ${p.what} em ${path}.`, () => api.writeWorkingFile(props.repo.path, path, before));
+  showNotice(t(p.what === 'linha' ? 'rv.discardedLine' : 'rv.discardedBlock', { path }), () => api.writeWorkingFile(props.repo.path, path, before));
 }
 
 // --- stage por linha / bloco (grava só o índice; o disco não muda) -------------------------------
@@ -349,7 +354,7 @@ async function onStageLines(p: { content: string; what: 'linha' | 'bloco'; direc
   const before = p.direction === 'stage' ? s.oldText : s.newText;
   await act(() => api.writeIndexContent(props.repo.path, path, p.content));
   showNotice(
-    `${p.what === 'linha' ? 'Linha' : 'Bloco'} ${p.direction === 'stage' ? 'incluída(o) no commit' : 'removida(o) do commit'} em ${path}.`,
+    t(p.what === 'linha' ? (p.direction === 'stage' ? 'rv.stagedLine' : 'rv.unstagedLine') : p.direction === 'stage' ? 'rv.stagedBlock' : 'rv.unstagedBlock', { path }),
     () => api.writeIndexContent(props.repo.path, path, before),
   );
 }
@@ -365,14 +370,14 @@ function askDiscard(paths: string[]): void {
   const anyTracked = files.some((e) => !isUntracked(e));
   const anyStaged = files.some(hasStaged);
   confirm.value = {
-    title: n === 1 ? 'Descartar alterações do arquivo?' : `Descartar alterações de ${n} arquivos?`,
+    title: n === 1 ? t('rv.discard.titleOne') : t('rv.discard.titleMany', { n }),
     lines: [
-      n === 1 ? files[0]!.path : `${n} arquivos`,
-      ...(anyTracked ? [`O arquivo volta ao último commit${anyStaged ? ' (inclusive o que está no stage)' : ''}.`] : []),
-      ...(anyNew ? ['Arquivos novos (não versionados) serão excluídos do disco.'] : []),
-      'Uma cópia de segurança fica em GitNexusData/discarded e você poderá desfazer logo em seguida.',
+      n === 1 ? files[0]!.path : t('rv.discard.nFiles', { n }),
+      ...(anyTracked ? [anyStaged ? t('rv.discard.backStaged') : t('rv.discard.back')] : []),
+      ...(anyNew ? [t('rv.discard.newDeleted')] : []),
+      t('rv.discard.backup'),
     ],
-    label: 'Descartar',
+    label: t('rv.discard.label'),
     run: async () => {
       const done: { path: string; backup: string }[] = [];
       let failed = '';
@@ -387,7 +392,7 @@ function askDiscard(paths: string[]): void {
       }
       if (failed) error.value = failed;
       showNotice(
-        `${n === 1 ? 'Alterações descartadas' : `${n} arquivos descartados`}.`,
+        n === 1 ? t('rv.discard.doneOne') : t('rv.discard.doneMany', { n }),
         done.length
           ? async () => {
               for (const d of done) await api.restoreBackup(props.repo.path, d.path, d.backup);
@@ -425,25 +430,25 @@ const menuItems = computed<MenuItem[]>(() => {
       id: 'discard',
       danger: true,
       label: allNew
-        ? many ? `Excluir ${n} arquivos novos…` : 'Descartar (excluir arquivo novo)…'
-        : many ? `Descartar alterações de ${n} arquivos…` : 'Descartar alterações…',
+        ? many ? t('rv.menu.deleteNew', { n }) : t('rv.menu.discardNew')
+        : many ? t('rv.discard.titleMany', { n }).replace(/\?$/, '…') : t('rv.menu.discard'),
     },
     { id: 's1', separator: true },
   ];
-  if (anyOut) items.push({ id: 'include', label: many ? 'Incluir no commit' : 'Incluir no commit (stage)' });
-  if (anyIn) items.push({ id: 'exclude', label: many ? 'Remover do commit' : 'Remover do commit (unstage)' });
+  if (anyOut) items.push({ id: 'include', label: many ? t('rv.menu.include') : t('rv.menu.includeOne') });
+  if (anyIn) items.push({ id: 'exclude', label: many ? t('rv.menu.exclude') : t('rv.menu.excludeOne') });
   if (allNew) {
-    items.push({ id: 's2', separator: true }, { id: 'ignore', label: many ? 'Adicionar ao .gitignore' : 'Adicionar ao .gitignore' });
-    if (ext) items.push({ id: 'ignoreExt', label: `Ignorar todos os *${ext}` });
+    items.push({ id: 's2', separator: true }, { id: 'ignore', label: t('rv.menu.ignore') });
+    if (ext) items.push({ id: 'ignoreExt', label: t('rv.menu.ignoreExt', { ext }) });
   }
   items.push(
     { id: 's3', separator: true },
-    { id: 'copyPath', label: many ? 'Copiar caminhos relativos' : 'Copiar caminho relativo' },
-    { id: 'copyName', label: many ? 'Copiar nomes dos arquivos' : 'Copiar nome do arquivo' },
+    { id: 'copyPath', label: many ? t('rv.menu.copyPaths') : t('rv.menu.copyPath') },
+    { id: 'copyName', label: many ? t('rv.menu.copyNames') : t('rv.menu.copyName') },
   );
   if (single) {
-    if (!allNew && !isDir) items.push({ id: 'history', label: 'Histórico do arquivo' }, { id: 'blame', label: 'Anotar (blame)' }, { id: 's4', separator: true });
-    items.push({ id: 'reveal', label: 'Mostrar na pasta' }, { id: 'open', label: 'Abrir com o programa padrão', disabled: isDir });
+    if (!allNew && !isDir) items.push({ id: 'history', label: t('rv.menu.history') }, { id: 'blame', label: t('rv.menu.blame') }, { id: 's4', separator: true });
+    items.push({ id: 'reveal', label: t('rv.menu.reveal') }, { id: 'open', label: t('rv.menu.open'), disabled: isDir });
   }
   return items;
 });
@@ -516,23 +521,23 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
         <span class="muted rv__path">{{ repo.path }}</span>
       </div>
       <div class="rv__btns">
-        <GnButton size="sm" :disabled="loading" @click="refresh()">Atualizar</GnButton>
-        <GnButton size="sm" @click="ws.open('graph', repo)">Grafo / Histórico</GnButton>
-        <GnButton size="sm" @click="ws.open('tools', repo)">Ferramentas</GnButton>
+        <GnButton size="sm" :disabled="loading" @click="refresh()">{{ t('rv.refresh') }}</GnButton>
+        <GnButton size="sm" @click="ws.open('graph', repo)">{{ t('rv.graph') }}</GnButton>
+        <GnButton size="sm" @click="ws.open('tools', repo)">{{ t('rv.tools') }}</GnButton>
         <GnButton size="sm" :variant="conflicted.length ? 'primary' : 'ghost'" @click="ws.open('merge', repo)">
-          Conflitos{{ conflicted.length ? ` (${conflicted.length})` : '' }}
+          {{ t('rv.conflicts') }}{{ conflicted.length ? ` (${conflicted.length})` : '' }}
         </GnButton>
       </div>
     </header>
 
     <div v-if="rebase?.inProgress" class="rv__rebase">
-      <span>⇅ Rebase em andamento ({{ rebase.step }}/{{ rebase.total }}){{ rebase.conflicted.length ? ` — ${rebase.conflicted.length} arquivo(s) em conflito` : '' }}.</span>
-      <GnButton size="sm" variant="primary" @click="ws.openTools(repo, 'rebase')">Abrir rebase</GnButton>
+      <span>⇅ {{ t('rv.rebaseRunning', { step: rebase.step, total: rebase.total }) }}{{ rebase.conflicted.length ? t('rv.rebaseConflicts', { n: rebase.conflicted.length }) : '' }}.</span>
+      <GnButton size="sm" variant="primary" @click="ws.openTools(repo, 'rebase')">{{ t('rv.openRebase') }}</GnButton>
     </div>
     <p v-if="error" class="rv__error">{{ error }}</p>
     <div v-if="notice" class="rv__notice">
       <span>{{ notice.text }}</span>
-      <GnButton v-if="notice.undo" size="sm" variant="primary" @click="runUndo">Desfazer</GnButton>
+      <GnButton v-if="notice.undo" size="sm" variant="primary" @click="runUndo">{{ t('rv.undo') }}</GnButton>
       <GnButton size="sm" @click="notice = null">×</GnButton>
     </div>
 
@@ -552,43 +557,43 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
 
       <main class="rv__diff">
         <div class="rv__toolbar">
-          <GnButton size="sm" :disabled="!nav.prevDiff" title="Diferença anterior (Shift+F7)" aria-label="Diferença anterior" @click="goDiff(-1)">↑</GnButton>
-          <GnButton size="sm" :disabled="!nav.nextDiff" title="Próxima diferença (F7)" aria-label="Próxima diferença" @click="goDiff(1)">↓</GnButton>
+          <GnButton size="sm" :disabled="!nav.prevDiff" :title="t('rv.prevDiffTip')" :aria-label="t('rv.cmd.prevDiff')" @click="goDiff(-1)">↑</GnButton>
+          <GnButton size="sm" :disabled="!nav.nextDiff" :title="t('rv.nextDiffTip')" :aria-label="t('rv.cmd.nextDiff')" @click="goDiff(1)">↓</GnButton>
           <span class="sepv" />
-          <GnButton size="sm" :disabled="!nav.prevFile" title="Comparar arquivo anterior (Alt+←)" aria-label="Comparar arquivo anterior" @click="goFile(-1)">←</GnButton>
-          <GnButton size="sm" :disabled="!nav.nextFile" title="Comparar próximo arquivo (Alt+→)" aria-label="Comparar próximo arquivo" @click="goFile(1)">→</GnButton>
-          <span v-if="active" class="muted">arquivo {{ activeIndex + 1 }} de {{ ordered.length }}</span>
+          <GnButton size="sm" :disabled="!nav.prevFile" :title="t('rv.prevFileTip')" :aria-label="t('rv.cmd.prevFile')" @click="goFile(-1)">←</GnButton>
+          <GnButton size="sm" :disabled="!nav.nextFile" :title="t('rv.nextFileTip')" :aria-label="t('rv.cmd.nextFile')" @click="goFile(1)">→</GnButton>
+          <span v-if="active" class="muted">{{ t('rv.fileOf', { i: activeIndex + 1, n: ordered.length }) }}</span>
           <template v-if="active">
             <span class="sepv" />
-            <span class="muted">{{ curDiff >= 0 ? `diferença ${curDiff + 1} de ${diffCount}` : `${diffCount} diferenças` }}</span>
+            <span class="muted">{{ curDiff >= 0 ? t('rv.diffOf', { i: curDiff + 1, n: diffCount }) : t('rv.diffCount', { n: diffCount }) }}</span>
             <template v-if="showSplit">
               <span class="stat stat--add">+{{ stats.added }}</span>
               <span class="stat stat--del">−{{ stats.removed }}</span>
             </template>
           </template>
           <span class="spacer" />
-          <label v-if="showSplit" class="muted opt"><input v-model="collapse" type="checkbox" /> Recolher inalteradas</label>
-          <span class="seg" title="O que comparar">
-            <button v-for="o in SOURCES" :key="o.id" type="button" :class="{ on: source === o.id }" :title="o.hint" @click="source = o.id">
-              {{ o.label }}
+          <label v-if="showSplit" class="muted opt"><input v-model="collapse" type="checkbox" /> {{ t('rv.collapseUnchanged') }}</label>
+          <span class="seg" :title="t('rv.whatToCompare')">
+            <button v-for="o in SOURCES" :key="o.id" type="button" :class="{ on: source === o.id }" :title="t(o.hint)" @click="source = o.id">
+              {{ t(o.label) }}
             </button>
           </span>
           <span class="seg">
-            <button type="button" :class="{ on: viewMode === 'split' }" @click="viewMode = 'split'">Lado a lado</button>
-            <button type="button" :class="{ on: viewMode === 'unified' }" @click="viewMode = 'unified'">Unificado</button>
+            <button type="button" :class="{ on: viewMode === 'split' }" @click="viewMode = 'split'">{{ t('rv.split') }}</button>
+            <button type="button" :class="{ on: viewMode === 'unified' }" @click="viewMode = 'unified'">{{ t('rv.unified') }}</button>
           </span>
-          <GnButton size="sm" :title="showCommit ? 'Ocultar painel de commit' : 'Mostrar painel de commit'" @click="showCommit = !showCommit">
-            {{ showCommit ? 'Ocultar commit ▸' : '◂ Commit' }}
+          <GnButton size="sm" :title="showCommit ? t('rv.hideCommitPanel') : t('rv.showCommitPanel')" @click="showCommit = !showCommit">
+            {{ showCommit ? t('rv.hideCommit') : t('rv.showCommit') }}
           </GnButton>
         </div>
 
-        <div v-if="!active || !activeEntry" class="muted placeholder">Selecione um arquivo para ver o diff.</div>
+        <div v-if="!active || !activeEntry" class="muted placeholder">{{ t('rv.selectFile') }}</div>
         <template v-else>
           <div class="rv__difftitle">
             <span class="rv__file">{{ activeEntry.path }}</span>
-            <GnBadge :tone="isUntracked(activeEntry) ? 'warn' : 'accent'">{{ STATUS_LABEL[statusLetter(activeEntry)] }}</GnBadge>
+            <GnBadge :tone="isUntracked(activeEntry) ? 'warn' : 'accent'">{{ statusLabel(statusLetter(activeEntry)) }}</GnBadge>
             <GnBadge :tone="checkState(activeEntry) === 'checked' ? 'success' : 'neutral'">
-              {{ checkState(activeEntry) === 'checked' ? 'no commit' : checkState(activeEntry) === 'partial' ? 'parcialmente no commit' : 'pendente' }}
+              {{ checkState(activeEntry) === 'checked' ? t('tree.stateChecked') : checkState(activeEntry) === 'partial' ? t('tree.statePartial') : t('tree.statePending') }}
             </GnBadge>
           </div>
           <div class="rv__diffbody">
@@ -607,7 +612,7 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
               @stats="stats = $event"
               @current="curDiff = $event"
             />
-            <DiffView v-else ref="unifiedRef" :diff="diffText || '(sem diferenças a exibir)'" @current="curDiff = $event" />
+            <DiffView v-else ref="unifiedRef" :diff="diffText || t('rv.noDiff')" @current="curDiff = $event" />
           </div>
         </template>
       </main>

@@ -86,10 +86,10 @@ const call = (m, args) => fetch('/rpc', { method: 'POST', body: JSON.stringify({
 const api = {};
 for (const m of ${JSON.stringify(METHODS)}) api[m] = (...args) => call(m, JSON.parse(JSON.stringify(args)));
 api.onUpdateProgress = () => () => {};
-api.validateCommitMessage = (input, policy) => {
+api.validateCommitMessage = (input, policy, locale) => {
   const x = new XMLHttpRequest();
   x.open('POST', '/validate', false);
-  x.send(JSON.stringify({ input, policy }));
+  x.send(JSON.stringify({ input, policy, locale }));
   return JSON.parse(x.responseText);
 };
 window.gitNexus = api;
@@ -116,8 +116,8 @@ createServer(async (req, res) => {
       return;
     }
     if (url.pathname === '/validate') {
-      const { input, policy } = JSON.parse(await body());
-      res.end(JSON.stringify(validateCommitMessage(input, policy)));
+      const { input, policy, locale } = JSON.parse(await body());
+      res.end(JSON.stringify(validateCommitMessage(input, policy, locale)));
       return;
     }
     if (url.pathname === '/clipboard') return void res.end(clipboard);

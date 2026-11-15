@@ -4,6 +4,7 @@ import { GnBadge, GnButton } from '@git-nexus/ui-kit';
 import type { ChangeRequest, ChangeRequestState, CiState, CiStatus, HostingInfo, ProviderKind, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
+import { dateLocale, t, type MessageKey } from '../../i18n';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
 const ws = useWorkspaceStore();
@@ -19,7 +20,7 @@ const token = ref('');
 const kindChoice = ref<ProviderKind>('gitlab');
 const connecting = ref(false);
 
-const label = computed(() => (info.value?.kind === 'gitlab' ? 'GitLab' : info.value?.kind === 'github' ? 'GitHub' : 'remoto'));
+const label = computed(() => (info.value?.kind === 'gitlab' ? 'GitLab' : info.value?.kind === 'github' ? 'GitHub' : t('hp.remote')));
 const crName = computed(() => (info.value?.kind === 'gitlab' ? 'merge request' : 'pull request'));
 const crShort = computed(() => (info.value?.kind === 'gitlab' ? 'MR' : 'PR'));
 
@@ -43,7 +44,7 @@ async function connect(): Promise<void> {
   try {
     const r = await api.hostingSaveToken(props.repo.path, token.value, info.value?.needsKind ? kindChoice.value : undefined);
     token.value = '';
-    done.value = `Conectado como ${r.login}.`;
+    done.value = t('hp.connectedAs', { login: r.login });
     await loadInfo();
   } catch (e) {
     error.value = errMsg(e);
@@ -56,7 +57,7 @@ async function disconnect(): Promise<void> {
   await api.hostingRemoveToken(props.repo.path);
   items.value = [];
   ci.clear();
-  done.value = 'Conta desconectada (o token foi apagado).';
+  done.value = t('hp.disconnected');
   await loadInfo();
 }
 
@@ -66,7 +67,9 @@ const open = (url: string) => api.hostingOpen(props.repo.path, url).catch((e) =>
 const state = ref<ChangeRequestState>('open');
 const items = ref<ChangeRequest[]>([]);
 const ci = reactive(new Map<string, CiStatus | 'loading' | 'error'>());
-const STATE_LABEL: Record<ChangeRequestState, string> = { open: 'Abertos', merged: 'Mergeados', closed: 'Fechados' };
+const STATE_LABEL: Record<ChangeRequestState, MessageKey> = { open: 'hp.state.open', merged: 'hp.state.merged', closed: 'hp.state.closed' };
+const STATE_ONE: Record<ChangeRequestState, MessageKey> = { open: 'hp.none.open', merged: 'hp.none.merged', closed: 'hp.none.closed' };
+const STATE_BADGE: Record<ChangeRequestState, MessageKey> = { open: 'hp.badge.open', merged: 'hp.badge.merged', closed: 'hp.badge.closed' };
 
 async function loadList(): Promise<void> {
   error.value = '';
@@ -92,11 +95,11 @@ async function loadList(): Promise<void> {
 }
 watch(state, loadList);
 
-const CI_LABEL: Record<CiState, string> = { success: 'CI ok', failure: 'CI falhou', pending: 'CI rodando', none: 'sem CI' };
+const CI_LABEL: Record<CiState, MessageKey> = { success: 'gv.ci.success', failure: 'gv.ci.failure', pending: 'gv.ci.pending', none: 'gv.ci.none' };
 const CI_TONE: Record<CiState, 'success' | 'danger' | 'warn' | 'neutral'> = { success: 'success', failure: 'danger', pending: 'warn', none: 'neutral' };
 const ciOf = (sha: string) => ci.get(sha);
 const firstFailing = (c: CiStatus | undefined) => c?.checks.find((x) => x.state === 'failure')?.url;
-const when = (s: string) => new Date(s).toLocaleString('pt-BR');
+const when = (s: string) => new Date(s).toLocaleString(dateLocale.value);
 
 // --- criar PR/MR -----------------------------------------------------------------------------------
 const form = reactive({ title: '', body: '', base: 'main', draft: false, push: false });
@@ -139,7 +142,7 @@ async function create(): Promise<void> {
       push: form.push,
     });
     created.value = { url: r.url, number: r.number };
-    done.value = `${crShort.value} #${r.number} criado${r.pushed ? ' (a branch foi enviada antes)' : ''}.`;
+    done.value = t(r.pushed ? 'hp.createdPushed' : 'hp.created', { cr: crShort.value, n: r.number });
     ws.bump(props.repo.id);
   } catch (e) {
     error.value = errMsg(e);
@@ -148,11 +151,7 @@ async function create(): Promise<void> {
   }
 }
 
-const tokenHelp = computed(() =>
-  (info.value?.kind ?? kindChoice.value) === 'github'
-    ? 'GitHub: Settings → Developer settings → Fine-grained tokens, com acesso ao repositório e permissões "Pull requests: Read and write", "Commit statuses: Read" e "Checks: Read".'
-    : 'GitLab: Preferences → Access tokens, com o escopo "api" (para criar MRs) ou só "read_api" (para ver MRs e pipelines).',
-);
+const tokenHelp = computed(() => ((info.value?.kind ?? kindChoice.value) === 'github' ? t('hp.tokenHelpGithub') : t('hp.tokenHelpGitlab')));
 
 watch(() => ws.versions[props.repo.id], loadInfo);
 onMounted(loadInfo);
@@ -162,12 +161,12 @@ onMounted(loadInfo);
   <div class="hp">
     <header class="hp__head">
       <div>
-        <h2>Pull requests / Merge requests</h2>
+        <h2>{{ t('hp.title') }}</h2>
         <p v-if="info?.supported" class="muted">
           {{ label }} · <a href="#" @click.prevent="open(info.webUrl!)">{{ info.host }}/{{ info.projectPath }}</a>
         </p>
       </div>
-      <GnButton size="sm" :disabled="loading" @click="loadInfo">Atualizar</GnButton>
+      <GnButton size="sm" :disabled="loading" @click="loadInfo">{{ t('rv.refresh') }}</GnButton>
     </header>
 
     <p v-if="error" class="err">{{ error }}</p>
@@ -177,22 +176,21 @@ onMounted(loadInfo);
 
     <!-- conectar uma conta -->
     <section v-if="info && (info.needsKind || (info.supported && !info.hasToken))" class="box">
-      <h3>Conectar uma conta</h3>
+      <h3>{{ t('hp.connectTitle') }}</h3>
       <p class="muted">
-        Para listar {{ crName }}s e o CI, e criar {{ crName }}s, o app precisa de um token de acesso.
-        Ele fica <b>criptografado pelo sistema</b> e nunca volta para a tela.
+        {{ t('hp.connectIntro', { cr: crName }) }}
         <template v-if="info && !info.secureStorage">
-          <br /><span class="warn">⚠ O armazenamento seguro do sistema não está disponível: o token fica só na memória e some ao fechar o app.</span>
+          <br /><span class="warn">⚠ {{ t('hp.noSecureStorage') }}</span>
         </template>
       </p>
       <div v-if="info.needsKind" class="hp__kind">
-        <span>Este host é:</span>
-        <label><input v-model="kindChoice" type="radio" value="github" /> GitHub (Enterprise)</label>
+        <span>{{ t('hp.hostIs') }}</span>
+        <label><input v-model="kindChoice" type="radio" value="github" /> {{ t('hp.githubEnterprise') }}</label>
         <label><input v-model="kindChoice" type="radio" value="gitlab" /> GitLab</label>
       </div>
       <form class="hp__conn" @submit.prevent="connect">
-        <input v-model="token" type="password" placeholder="Cole o token de acesso" autocomplete="off" spellcheck="false" />
-        <GnButton type="submit" variant="primary" :disabled="connecting || !token.trim()">{{ connecting ? 'Validando…' : 'Conectar' }}</GnButton>
+        <input v-model="token" type="password" :placeholder="t('hp.tokenPh')" autocomplete="off" spellcheck="false" />
+        <GnButton type="submit" variant="primary" :disabled="connecting || !token.trim()">{{ connecting ? t('hp.validating') : t('hp.connect') }}</GnButton>
       </form>
       <p class="muted small">{{ tokenHelp }}</p>
     </section>
@@ -200,43 +198,43 @@ onMounted(loadInfo);
     <template v-if="info?.supported && info.hasToken">
       <div class="hp__bar">
         <span class="seg">
-          <button type="button" :class="{ on: mode === 'list' }" @click="mode = 'list'">Lista</button>
-          <button type="button" :class="{ on: mode === 'create' }" @click="startCreate">Criar {{ crShort }}</button>
+          <button type="button" :class="{ on: mode === 'list' }" @click="mode = 'list'">{{ t('hp.list') }}</button>
+          <button type="button" :class="{ on: mode === 'create' }" @click="startCreate">{{ t('hp.createCr', { cr: crShort }) }}</button>
         </span>
         <span v-if="mode === 'list'" class="seg">
-          <button v-for="(l, k) in STATE_LABEL" :key="k" type="button" :class="{ on: state === k }" @click="state = k">{{ l }}</button>
+          <button v-for="(l, k) in STATE_LABEL" :key="k" type="button" :class="{ on: state === k }" @click="state = k">{{ t(l) }}</button>
         </span>
         <span class="spacer" />
-        <GnButton size="sm" title="Apaga o token guardado" @click="disconnect">Desconectar</GnButton>
+        <GnButton size="sm" :title="t('hp.disconnectTip')" @click="disconnect">{{ t('hp.disconnect') }}</GnButton>
       </div>
 
       <!-- lista -->
       <section v-if="mode === 'list'">
-        <p v-if="!items.length && !loading" class="muted box">Nenhum {{ crName }} {{ STATE_LABEL[state].toLowerCase().replace(/s$/, '') }}.</p>
+        <p v-if="!items.length && !loading" class="muted box">{{ t(STATE_ONE[state], { cr: crName }) }}</p>
         <ul class="list">
           <li v-for="it in items" :key="it.number" class="cr">
             <div class="cr__main">
               <div class="cr__t">
                 <span class="mono muted">#{{ it.number }}</span>
                 <strong :title="it.title">{{ it.title }}</strong>
-                <GnBadge v-if="it.draft" tone="neutral">rascunho</GnBadge>
-                <GnBadge :tone="it.state === 'merged' ? 'accent' : it.state === 'open' ? 'success' : 'danger'">{{ it.state === 'open' ? 'aberto' : it.state === 'merged' ? 'mergeado' : 'fechado' }}</GnBadge>
+                <GnBadge v-if="it.draft" tone="neutral">{{ t('hp.draft') }}</GnBadge>
+                <GnBadge :tone="it.state === 'merged' ? 'accent' : it.state === 'open' ? 'success' : 'danger'">{{ t(STATE_BADGE[it.state]) }}</GnBadge>
               </div>
-              <div class="muted cr__m">{{ it.author }} · <span class="mono">{{ it.sourceBranch }} → {{ it.targetBranch }}</span> · atualizado {{ when(it.updatedAt) }}</div>
+              <div class="muted cr__m">{{ it.author }} · <span class="mono">{{ it.sourceBranch }} → {{ it.targetBranch }}</span> · {{ t('hp.updated', { when: when(it.updatedAt) }) }}</div>
             </div>
             <span class="cr__ci">
               <span v-if="ciOf(it.sha) === 'loading'" class="muted small">CI…</span>
-              <span v-else-if="ciOf(it.sha) === 'error'" class="muted small" title="Não foi possível consultar o CI">CI ?</span>
+              <span v-else-if="ciOf(it.sha) === 'error'" class="muted small" :title="t('hp.ciError')">CI ?</span>
               <GnBadge
                 v-else-if="ciOf(it.sha)"
                 :tone="CI_TONE[(ciOf(it.sha) as CiStatus).state]"
-                :title="(ciOf(it.sha) as CiStatus).checks.map((c) => `${c.name}: ${c.state}`).join('\n') || 'Sem checks'"
+                :title="(ciOf(it.sha) as CiStatus).checks.map((c) => `${c.name}: ${c.state}`).join('\n') || t('hp.noChecks')"
               >
-                {{ CI_LABEL[(ciOf(it.sha) as CiStatus).state] }}
+                {{ t(CI_LABEL[(ciOf(it.sha) as CiStatus).state]) }}
               </GnBadge>
-              <GnButton v-if="firstFailing(ciOf(it.sha) as CiStatus | undefined)" size="sm" @click="open(firstFailing(ciOf(it.sha) as CiStatus)!)">Ver falha</GnButton>
+              <GnButton v-if="firstFailing(ciOf(it.sha) as CiStatus | undefined)" size="sm" @click="open(firstFailing(ciOf(it.sha) as CiStatus)!)">{{ t('gv.seeFailure') }}</GnButton>
             </span>
-            <GnButton size="sm" @click="open(it.url)">Abrir</GnButton>
+            <GnButton size="sm" @click="open(it.url)">{{ t('hp.open') }}</GnButton>
           </li>
         </ul>
       </section>
@@ -244,45 +242,45 @@ onMounted(loadInfo);
       <!-- criar -->
       <section v-else class="box">
         <template v-if="created">
-          <p class="ok">{{ crShort }} #{{ created.number }} criado.</p>
-          <GnButton variant="primary" @click="open(created.url)">Abrir no navegador</GnButton>
+          <p class="ok">{{ t('hp.created', { cr: crShort, n: created.number }) }}</p>
+          <GnButton variant="primary" @click="open(created.url)">{{ t('hp.openBrowser') }}</GnButton>
         </template>
         <form v-else class="hp__form" @submit.prevent="create">
           <div class="hp__row">
             <label>
-              Branch de origem
+              {{ t('hp.sourceBranch') }}
               <input :value="suggestion?.head ?? info.currentBranch" readonly />
             </label>
             <label>
-              Destino
+              {{ t('hp.target') }}
               <select v-model="form.base" @change="suggest">
                 <option v-for="b in [...new Set([info.defaultBranch, ...info.branches])]" :key="b" :value="b">{{ b }}</option>
               </select>
             </label>
           </div>
           <p v-if="suggestion" class="muted small">
-            {{ suggestion.commits.length }} commit(s) sobre {{ form.base }}:
+            {{ t('hp.commitsOver', { n: suggestion.commits.length, base: form.base }) }}
             {{ suggestion.commits.slice(0, 4).map((c) => c.subject).join(' · ') }}{{ suggestion.commits.length > 4 ? ' …' : '' }}
           </p>
           <label>
-            Título
+            {{ t('hp.titleLabel') }}
             <input v-model="form.title" spellcheck="false" />
           </label>
           <label>
-            Descrição (Markdown) <span class="muted small">— montada dos Conventional Commits</span>
+            {{ t('hp.descLabel') }} <span class="muted small">{{ t('hp.descNote') }}</span>
             <textarea v-model="form.body" rows="12" spellcheck="false" />
           </label>
           <div class="hp__opts">
-            <label class="chk"><input v-model="form.draft" type="checkbox" /> Criar como rascunho</label>
+            <label class="chk"><input v-model="form.draft" type="checkbox" /> {{ t('hp.asDraft') }}</label>
             <label class="chk">
-              <input v-model="form.push" type="checkbox" /> Enviar a branch (push) antes
-              <span v-if="suggestion?.headPublished" class="muted small">(já existe no remoto)</span>
+              <input v-model="form.push" type="checkbox" /> {{ t('hp.pushFirst') }}
+              <span v-if="suggestion?.headPublished" class="muted small">{{ t('hp.alreadyRemote') }}</span>
             </label>
-            <GnButton size="sm" type="button" @click="suggest">Regenerar título e descrição</GnButton>
+            <GnButton size="sm" type="button" @click="suggest">{{ t('hp.regenerate') }}</GnButton>
           </div>
           <div class="hp__opts">
             <GnButton type="submit" variant="primary" :disabled="creating || !form.title.trim() || !suggestion">
-              {{ creating ? 'Criando…' : `Criar ${crShort}` }}
+              {{ creating ? t('hp.creating') : t('hp.createCr', { cr: crShort }) }}
             </GnButton>
           </div>
         </form>

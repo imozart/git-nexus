@@ -4,6 +4,7 @@ import { GnButton } from '@git-nexus/ui-kit';
 import type { BlameLine, CommitInfo, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
+import { dateLocale, t } from '../../i18n';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
 const ws = useWorkspaceStore();
@@ -18,8 +19,8 @@ const diffText = ref('');
 const error = ref('');
 const loading = ref(false);
 
-const fmtDate = (s: number) => new Date(s * 1000).toLocaleDateString('pt-BR');
-const fmtDateTime = (s: number) => new Date(s * 1000).toLocaleString('pt-BR');
+const fmtDate = (s: number) => new Date(s * 1000).toLocaleDateString(dateLocale.value);
+const fmtDateTime = (s: number) => new Date(s * 1000).toLocaleString(dateLocale.value);
 const UNCOMMITTED = /^0+$/;
 
 /** Cor estável por commit (o mesmo commit tem sempre a mesma faixa no blame). */
@@ -62,10 +63,10 @@ const rows = computed(() => blame.value.map((b, i) => ({ b, first: i === 0 || bl
 const selectedInfo = computed(() => history.value.find((c) => c.hash === selectedHash.value) ?? blame.value.find((b) => b.hash === selectedHash.value));
 
 function applyTarget(): void {
-  const t = ws.toolsTarget;
-  if (t && t.repoId === props.repo.id && t.section === 'file') {
-    if (t.file) file.value = t.file;
-    if (t.mode === 'blame' || t.mode === 'history') mode.value = t.mode;
+  const tg = ws.toolsTarget;
+  if (tg && tg.repoId === props.repo.id && tg.section === 'file') {
+    if (tg.file) file.value = tg.file;
+    if (tg.mode === 'blame' || tg.mode === 'history') mode.value = tg.mode;
   }
 }
 
@@ -86,29 +87,28 @@ onMounted(async () => {
         v-model="file"
         class="fp__file"
         list="fp-files"
-        placeholder="Escolha ou digite um arquivo versionado (ex.: src/app.ts)"
+        :placeholder="t('fp.filePh')"
         spellcheck="false"
         @keydown.enter="load"
         @change="load"
       />
       <datalist id="fp-files"><option v-for="f in tracked" :key="f" :value="f" /></datalist>
       <span class="seg">
-        <button type="button" :class="{ on: mode === 'history' }" @click="mode = 'history'">Histórico</button>
-        <button type="button" :class="{ on: mode === 'blame' }" @click="mode = 'blame'">Blame</button>
+        <button type="button" :class="{ on: mode === 'history' }" @click="mode = 'history'">{{ t('fp.history') }}</button>
+        <button type="button" :class="{ on: mode === 'blame' }" @click="mode = 'blame'">{{ t('gv.blame') }}</button>
       </span>
-      <GnButton size="sm" :disabled="loading || !file.trim()" @click="load">Atualizar</GnButton>
+      <GnButton size="sm" :disabled="loading || !file.trim()" @click="load">{{ t('rv.refresh') }}</GnButton>
     </header>
 
     <p v-if="error" class="err">{{ error }}</p>
     <p v-else-if="!file.trim()" class="muted empty">
-      Escolha um arquivo para ver quem alterou cada linha (blame) ou todos os commits que o tocaram, mesmo depois de renomeado.
-      Também dá para abrir pelo botão do meio num arquivo do staging.
+      {{ t('fp.intro') }}
     </p>
 
     <div v-if="file.trim() && !error" class="fp__body">
       <!-- histórico -->
       <div v-if="mode === 'history'" class="fp__list">
-        <p v-if="!history.length && !loading" class="muted empty">Nenhum commit para este arquivo.</p>
+        <p v-if="!history.length && !loading" class="muted empty">{{ t('fp.noCommits') }}</p>
         <div v-for="c in history" :key="c.hash" class="hrow" :class="{ on: selectedHash === c.hash }" @click="pickCommit(c.hash)">
           <span class="mono muted">{{ c.shortHash }}</span>
           <span class="hrow__sub" :title="c.subject">{{ c.subject }}</span>
@@ -122,8 +122,8 @@ onMounted(async () => {
           <span class="brow__bar" :style="{ background: UNCOMMITTED.test(r.b.hash) ? 'var(--gn-warn)' : hue(r.b.hash) }" />
           <span class="brow__who" @click="pickCommit(r.b.hash)">
             <template v-if="r.first">
-              <span class="mono">{{ UNCOMMITTED.test(r.b.hash) ? 'local' : r.b.shortHash }}</span>
-              <span class="brow__author">{{ UNCOMMITTED.test(r.b.hash) ? 'não commitado' : r.b.author }}</span>
+              <span class="mono">{{ UNCOMMITTED.test(r.b.hash) ? t('fp.local') : r.b.shortHash }}</span>
+              <span class="brow__author">{{ UNCOMMITTED.test(r.b.hash) ? t('fp.uncommitted') : r.b.author }}</span>
               <span class="muted">{{ UNCOMMITTED.test(r.b.hash) ? '' : fmtDate(r.b.date) }}</span>
             </template>
           </span>
