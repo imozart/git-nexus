@@ -1,0 +1,31 @@
+[
+  { "name": "enhancement", "color": "a2eeef", "description": "Nova funcionalidade (feat)" },
+  { "name": "bug", "color": "d73a4a", "description": "Correção de defeito (fix)" },
+  { "name": "documentation", "color": "0075ca", "description": "Documentação (docs)" },
+  { "name": "performance", "color": "fbca04", "description": "Ganho de desempenho (perf)" },
+  { "name": "refatoração", "color": "5319e7", "description": "Reorganização sem mudar o comportamento (refactor)" },
+  { "name": "testes", "color": "bfd4f2", "description": "Testes (test)" },
+  { "name": "build", "color": "c5def5", "description": "Empacotamento e build (build)" },
+  { "name": "ci", "color": "ededed", "description": "Pipelines e automação (ci)" },
+  { "name": "estilo", "color": "f9d0c4", "description": "Formatação, sem mudar o comportamento (style)" },
+  { "name": "chore", "color": "cfd3d7", "description": "Manutenção (chore)" },
+  { "name": "reversão", "color": "e99695", "description": "Desfaz uma alteração anterior (revert)" },
+  { "name": "breaking change", "color": "b60205", "description": "Quebra de compatibilidade: gera versão major" },
+
+  { "name": "área: app", "color": "1d76db", "description": "Altera o aplicativo (apps/studio)" },
+  { "name": "área: ui-kit", "color": "1d76db", "description": "Altera os componentes visuais (apps/ui-kit)" },
+  { "name": "área: git-core", "color": "1d76db", "description": "Altera o núcleo de Git (packages/git-core)" },
+  { "name": "área: política", "color": "1d76db", "description": "Altera a política de governança (packages/governance-policy)" },
+  { "name": "área: ci", "color": "1d76db", "description": "Altera workflows, scripts e configuração de CI" },
+  { "name": "área: docs", "color": "1d76db", "description": "Altera documentação" },
+  { "name": "dependências", "color": "0366d6", "description": "Altera dependências (package.json, lockfile)" },
+
+  { "name": "tamanho: XS", "color": "0e8a16", "description": "Até 10 linhas alteradas" },
+  { "name": "tamanho: S", "color": "7bc043", "description": "De 11 a 50 linhas alteradas" },
+  { "name": "tamanho: M", "color": "fbca04", "description": "De 51 a 200 linhas alteradas" },
+  { "name": "tamanho: L", "color": "f9a03f", "description": "De 201 a 500 linhas alteradas" },
+  { "name": "tamanho: XL", "color": "d93f0b", "description": "Mais de 500 linhas: considere dividir o PR" },
+
+  { "name": "conflito", "color": "b60205", "description": "O PR tem conflito com a branch de destino" },
+  { "name": "bloqueado", "color": "fef2c0", "description": "Depende de outro PR aberto (veja o comentário com a ordem de merge)" }
+]

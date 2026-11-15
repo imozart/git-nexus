@@ -1,0 +1,40 @@
+name: Sincronizar labels
+
+# O catálogo de labels vive em .github/labels.json (nome, cor e descrição). Ao mudar o catálogo na main, as labels do
+# repositório são criadas/atualizadas sozinhas. Nunca apaga: label fora do catálogo continua existindo.
+# Também pode ser rodado à mão (Actions > Sincronizar labels > Run workflow), por exemplo depois de criar o repositório.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/labels.json
+      - .github/workflows/labels-sync.yml
+      - scripts/sync-labels.mjs
+      - scripts/lib/labels.mjs
+  workflow_dispatch:
+
+concurrency:
+  group: labels-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write # criar/editar labels
+
+jobs:
+  sync:
+    name: Sincronizar as labels
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .node-version
+      - name: Criar e atualizar as labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/sync-labels.mjs --repo "$GITHUB_REPOSITORY"
