@@ -1,0 +1,34 @@
+name: Título do PR
+
+# O merge é feito com "merge commit": o título do PR vira a mensagem que o pipeline de release lê para decidir a versão.
+# Título fora do padrão Conventional Commits gera versão errada (ou nenhuma). Regras em scripts/lib/pr-title.mjs.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  title:
+    name: Título do PR (Conventional Commits)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+      - name: Conferir o título
+        env:
+          # por variável de ambiente: o título é texto do usuário e nunca deve ser interpolado dentro do script
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: node scripts/check-pr-title.mjs
