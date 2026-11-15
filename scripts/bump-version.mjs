@@ -3,7 +3,7 @@
 //
 //   node scripts/bump-version.mjs --version 1.2.3 [--dry]
 //
-// O pipeline (job "Registrar a versão" do release.yml) roda isto depois de publicar uma release estável e faz o commit
+// O pipeline (workflow release-sync.yml, chamado pelo release.yml) roda isto depois de publicar uma release estável e faz o commit
 // `chore(release): v1.2.3 [skip release]`. Quem compilar a partir da tag ou da main passa a ver a versão certa.
 
 import { appendFileSync } from 'node:fs';

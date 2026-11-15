@@ -66,8 +66,14 @@ O pacote oficial **não** é afetado (a versão é injetada no build), por isso 
 
 ### O que foi implementado
 
-Depois de publicar uma release **estável**, o job `sync-version` (`release.yml`) roda `scripts/bump-version.mjs`, que grava a versão em todos os
-`package.json` do monorepo, e faz o commit `chore(release): vX.Y.Z [skip release]` na `main`:
+Depois de publicar uma release **estável**, o job `sync-version` do `release.yml` chama o workflow reutilizável **`release-sync.yml`**, que num commit só
+`chore(release): vX.Y.Z [skip release]` na `main` grava:
+
+1. a **versão** em todos os `package.json` do monorepo (`scripts/bump-version.mjs`);
+2. a **entrada da versão no `CHANGELOG.md`** (`scripts/changelog.mjs`), montada dos commits desde a estável anterior.
+
+Por que um arquivo separado: o registro é uma unidade com entradas e saídas próprias (a versão), roda sozinho à mão quando uma versão fica de fora
+(*Actions → Registrar a release no código → Run workflow*) e tira ~40 linhas do `release.yml`.
 
 - `[skip release]` evita um laço (o commit não dispara outra release) e o cálculo de versão/notas **ignora** commits `chore(release)`;
 - betas não gravam versão (ficam só na tag);
@@ -82,3 +88,24 @@ Depois de publicar uma release **estável**, o job `sync-version` (`release.yml`
 3. No ruleset da `main` (*Settings → Rules → Rulesets → main → Bypass list*): adicione **Repository admin** (a sua conta, dona do token, está nesse papel).
 
 Rodar à mão (por exemplo para acertar a versão agora): `node scripts/bump-version.mjs --version 1.1.0` (`--dry` só mostra o que mudaria).
+
+## CHANGELOG.md
+
+O `CHANGELOG.md` (formato inspirado no *Keep a Changelog*, em português) é **gerado a cada release estável**; não precisa ser editado à mão.
+
+- **Fonte:** os mesmos commits (Conventional Commits) das notas da release, entre a estável anterior e a tag nova, com as mesmas seções.
+- **O que entra:** breaking, novidades, correções, performance, refatorações, documentação, build e commits fora do padrão. **Ficam de fora** testes, CI, estilo e
+  manutenção interna (o que não muda nada para quem usa o app); eles continuam na lista completa das notas de cada release. Versão só com isso ganha uma linha avisando.
+- **Beta nunca entra.** Só versões `X.Y.Z`.
+- **Seguro de repetir:** refazer uma versão com os mesmos commits gera o mesmo texto, então reexecutar o pipeline não cria commit. Só a versão do momento é refeita;
+  as outras (inclusive edições feitas à mão nelas) são preservadas. O texto antes da primeira versão (título e explicação) também é preservado.
+- **Se conserta sozinho:** se uma versão estável anterior não estiver no arquivo (uma release que saiu com o job desligado, por exemplo), a próxima release a completa.
+- **Não bloqueia a release:** se o changelog falhar, a versão ainda é gravada e a release continua publicada; o aviso fica no log.
+
+Comandos úteis (precisam do clone com as tags: `git fetch --tags`):
+
+```bash
+node scripts/changelog.mjs --version 1.5.0 --dry     # mostra se mudaria, sem gravar
+node scripts/changelog.mjs --version 1.5.0           # acrescenta/refaz a 1.5.0 (e completa o que faltar)
+node scripts/changelog.mjs --backfill --force        # refaz o arquivo inteiro a partir de todas as tags (perde edições à mão)
+```
