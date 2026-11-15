@@ -1,4 +1,6 @@
-// Gera os manifestos para gerenciadores de pacote (winget, Scoop, Homebrew Cask) a partir de uma release.
+import { flatpakFiles } from './flatpak.mjs';
+
+// Gera os manifestos para gerenciadores de pacote (winget, Scoop, Homebrew Cask, Flatpak) a partir de uma release.
 // Função pura: recebe a versão, o repositório e o conteúdo do SHA256SUMS.txt; devolve { caminho: conteúdo }.
 
 export const PACKAGE = {
@@ -140,5 +142,10 @@ export function buildPackaging({ version, repo, sumsText, date = new Date().toIS
   if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`Versão inválida: ${version}`);
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error(`Repositório inválido: ${repo}`);
   const sums = parseSums(sumsText);
-  return { ...wingetFiles({ version, repo, sums, date }), ...scoopFile({ version, repo, sums }), ...caskFile({ version, repo, sums }) };
+  return {
+    ...wingetFiles({ version, repo, sums, date }),
+    ...scoopFile({ version, repo, sums }),
+    ...caskFile({ version, repo, sums }),
+    ...flatpakFiles({ version, repo, sums, date, description: PACKAGE.description }),
+  };
 }

@@ -46,9 +46,28 @@ Instalação pelo usuário: `brew install --cask imozart/gitnexus/gitnexus`.
 
 > Sem notarização, o macOS bloqueia o app na primeira abertura. O cask não resolve isso; é preciso a conta Apple Developer (`CODE_SIGNING.md`).
 
-## Flathub (Linux): ainda não
+## Flathub (Linux)
 
-O Flathub **não está pronto** por um motivo técnico: o app executa o `git` do sistema, e dentro do sandbox do Flatpak o `git` não existe.
-Seria preciso empacotar o `git` no próprio Flatpak (módulo extra) ou usar `flatpak-spawn --host` (que exige a permissão
-`--talk-name=org.freedesktop.Flatpak` e enfraquece o sandbox). Além disso o Flathub exige repositório público, metainfo AppStream
-e revisão manual. Fica como evolução futura; hoje o Linux é atendido por **AppImage, `.deb`, `.rpm` e `tar.gz`** nas releases.
+O pipeline gera também o manifesto do **Flatpak** (`flatpak/dev.gitnexus.studio.yml`, `.desktop` e `.metainfo.xml`), junto com os de
+winget, Scoop e Homebrew (artefato `packaging-manifests` da release).
+
+O app executa o `git` do sistema e dentro do sandbox do Flatpak ele não existe. Em vez de enfraquecer o sandbox com
+`flatpak-spawn --host`, o manifesto **compila o próprio git como um módulo** (em `/app/bin`, que já está no `PATH`), a partir do tarball
+oficial do kernel.org com SHA-256 fixo (`FLATPAK.git` em `scripts/lib/flatpak.mjs`; atualize a versão e o hash quando sair um git novo).
+O app em si vem dos pacotes `tar.gz` da release (x64 e arm64), rodando com `zypak-wrapper` sobre o `org.electronjs.Electron2.BaseApp`.
+
+Permissões pedidas: rede, X11/Wayland, GPU, a **pasta pessoal** (os repositórios ficam lá) e o serviço de segredos (`org.freedesktop.secrets`)
+para guardar os tokens criptografados.
+
+> **Estado: rascunho não testado.** Não há como rodar o `flatpak-builder` no Windows; o manifesto foi validado só como YAML/XML e
+> contra o conteúdo real do `tar.gz` da release (pasta raiz `GitNexus-<versão>-linux-<arq>/` com o executável `gitnexus`). Antes de enviar:
+>
+> 1. Torne o repositório **público** (o Flathub exige) e publique uma release.
+> 2. Num Linux com `flatpak-builder`: `flatpak-builder --user --install --force-clean build flatpak/dev.gitnexus.studio.yml`
+>    e `flatpak run dev.gitnexus.studio`. Confira que o app abre, que o `git` é encontrado (abra um repositório) e que o token do GitHub/GitLab é guardado.
+> 3. Valide: `flatpak run --command=flatpak-builder-lint org.flatpak.Builder manifest flatpak/dev.gitnexus.studio.yml` e
+>    `... appstream flatpak/dev.gitnexus.studio.metainfo.xml`.
+> 4. Abra o pedido em <https://github.com/flathub/flathub> (branch `new-pull-request`) conforme o
+>    [guia de submissão](https://docs.flathub.org/docs/for-app-authors/submission). O ID `dev.gitnexus.studio` exige que você
+>    comprove o controle do domínio `gitnexus.dev` ou use o ID baseado no GitHub `io.github.imozart.GitNexus` (nesse caso troque
+>    `appId` em `scripts/lib/flatpak.mjs` e o `appId` do `electron-builder.yml`).
