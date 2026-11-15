@@ -260,6 +260,46 @@ export interface RebaseResult {
   state: RebaseState;
 }
 
+export type BumpChoice = 'auto' | 'major' | 'minor' | 'patch';
+
+export interface ReleaseCommit {
+  hash: string;
+  short: string;
+  type: string;
+  scope: string;
+  title: string;
+  breaking: boolean;
+  breakingNote: string | null;
+  pr: string | null;
+  ticket: string | null;
+  author: string;
+}
+
+export interface ReleaseSection {
+  id: string;
+  title: string;
+  items: ReleaseCommit[];
+}
+
+/** Próxima versão e changelog calculados a partir das tags vX.Y.Z e dos Conventional Commits desde a última. */
+export interface ReleaseInfo {
+  branch: string;
+  /** Última tag vX.Y.Z (null se ainda não há). */
+  previous: string | null;
+  /** Próxima versão sugerida (sem o "v"). */
+  version: string;
+  bump: 'initial' | 'major' | 'minor' | 'patch';
+  hasTags: boolean;
+  /** A tag da próxima versão já existe (não dá para criá-la de novo). */
+  tagExists: boolean;
+  /** Sem tags: a versão veio do package.json da raiz. */
+  initialFromPackage: boolean;
+  commitCount: number;
+  sections: ReleaseSection[];
+  /** Changelog em Markdown (só as seções). */
+  markdown: string;
+}
+
 export type SecretFindingKind = 'secret' | 'sensitive-file' | 'large-file';
 
 export interface SecretFinding {
@@ -382,6 +422,13 @@ export interface GitNexusApi extends GitNexusIPC {
   getOperations(repoPath: string, limit?: number): Promise<GitOperation[]>;
   /** Volta ao estado anterior à operação `id` (e às mais novas). */
   undoOperation(repoPath: string, id: string): Promise<UndoResult>;
+
+  // Versão e changelog (mesmo núcleo do pipeline de release)
+  getReleaseInfo(repoPath: string, bump?: BumpChoice): Promise<ReleaseInfo>;
+  /** Cria a tag anotada vX.Y.Z no HEAD (local). */
+  createReleaseTag(repoPath: string, version: string, notes?: string): Promise<{ tag: string }>;
+  /** Insere a versão no topo do CHANGELOG.md. */
+  writeChangelog(repoPath: string, version: string, markdown: string): Promise<{ path: string }>;
 
   // Rebase interativo visual
   getRebasePlan(repoPath: string, base: string): Promise<RebasePlan>;
