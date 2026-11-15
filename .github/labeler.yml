@@ -1,0 +1,30 @@
+# Rótulos aplicados por .github/workflows/labeler.yml conforme os arquivos que o PR altera.
+# Os rótulos são criados sozinhos na primeira vez. Um PR pode ter vários.
+
+"área: app":
+  - changed-files:
+      - any-glob-to-any-file: ['apps/studio/**']
+
+"área: ui-kit":
+  - changed-files:
+      - any-glob-to-any-file: ['apps/ui-kit/**']
+
+"área: git-core":
+  - changed-files:
+      - any-glob-to-any-file: ['packages/git-core/**']
+
+"área: política":
+  - changed-files:
+      - any-glob-to-any-file: ['packages/governance-policy/**']
+
+"área: ci":
+  - changed-files:
+      - any-glob-to-any-file: ['.github/**', 'scripts/**', '.node-version', '.gitleaks.toml', 'vitest.config.ts']
+
+"área: docs":
+  - changed-files:
+      - any-glob-to-any-file: ['docs/**', '*.md']
+
+"dependências":
+  - changed-files:
+      - any-glob-to-any-file: ['pnpm-lock.yaml', '**/package.json']

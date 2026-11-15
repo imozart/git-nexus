@@ -1,0 +1,45 @@
+name: Issues e PRs parados
+
+# Sem resposta há 60 dias, a issue ou o PR ganha o rótulo "parado" e um aviso; sem novidade por mais 14 dias, é fechado.
+# Qualquer comentário (ou mudança no PR) tira o rótulo e zera a contagem. Fica de fora o que tem rótulo de proteção
+# (pinned, security, bug) e as issues abertas pelo próprio pipeline (release-failure e main-health), que só se resolvem consertando.
+# Útil quando houver contribuição externa; com um mantenedor só, é uma rede de segurança contra backlog esquecido.
+
+on:
+  schedule:
+    - cron: '30 6 * * *' # diário, 06:30 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  stale:
+    name: Marcar e fechar o que está parado
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
+        with:
+          days-before-stale: 60
+          days-before-close: 14
+          stale-issue-label: parado
+          stale-pr-label: parado
+          exempt-issue-labels: pinned,security,bug,release-failure,main-health
+          exempt-pr-labels: pinned,security
+          exempt-draft-pr: true
+          exempt-all-milestones: true
+          remove-stale-when-updated: true
+          operations-per-run: 100
+          stale-issue-message: >-
+            Esta issue está sem atividade há 60 dias e foi marcada como **parada**. Se ainda for relevante, comente aqui (qualquer
+            comentário tira o rótulo); sem novidade em 14 dias ela será fechada, e dá para reabri-la quando quiser.
+          close-issue-message: >-
+            Fechada por falta de atividade. Se o problema continua, reabra ou abra uma issue nova com os detalhes atuais.
+          stale-pr-message: >-
+            Este PR está sem atividade há 60 dias e foi marcado como **parado**. Se ainda for útil, envie uma atualização ou comente
+            (isso tira o rótulo); sem novidade em 14 dias ele será fechado, e a branch continua disponível para retomar.
+          close-pr-message: >-
+            Fechado por falta de atividade. A branch continua disponível: reabra o PR quando quiser retomar.
