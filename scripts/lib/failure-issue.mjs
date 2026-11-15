@@ -15,11 +15,11 @@ export function fenceFor(text) {
 }
 
 /** Corpo da issue ou do comentário: link da execução + relatório (cortado se for enorme). */
-export function failureBody({ report, runUrl, runNumber, sha }) {
+export function failureBody({ report, runUrl, runNumber, sha, heading = 'A release automática **falhou**', hint = 'Nada foi publicado por essa execução. Depois de corrigir, rode de novo: *Actions → Release → Run workflow* (ou o próximo merge na `main` tenta outra vez e herda os commits não lançados).' }) {
   const head = [
-    `A release automática **falhou** (execução [#${runNumber}](${runUrl})${sha ? `, commit \`${sha.slice(0, 7)}\`` : ''}).`,
+    `${heading} (execução [#${runNumber}](${runUrl})${sha ? `, commit \`${sha.slice(0, 7)}\`` : ''}).`,
     '',
-    'Nada foi publicado por essa execução. Depois de corrigir, rode de novo: *Actions → Release → Run workflow* (ou o próximo merge na `main` tenta outra vez e herda os commits não lançados).',
+    hint,
     '',
     '### Relatório',
     '',
@@ -37,6 +37,16 @@ export function failureBody({ report, runUrl, runNumber, sha }) {
 }
 
 export const issueTitle = (runNumber) => `Falha na release (execução #${runNumber})`;
+
+/** Rótulo e textos da verificação semanal da main (mesma mecânica da falha de release). */
+export const HEALTH = {
+  label: 'main-health',
+  color: 'D93F0B',
+  description: 'A verificação semanal da main falhou (aberta pelo pipeline)',
+  title: (runNumber) => `A main está com problemas (verificação semanal #${runNumber})`,
+  heading: 'A verificação semanal da `main` **falhou**',
+  hint: 'Typecheck, testes, build ou auditoria de dependências quebraram na `main` sem nenhuma mudança sua (uma dependência nova, uma vulnerabilidade publicada ou uma mudança no ambiente). Veja o relatório, corrija e feche esta issue.',
+};
 
 /** Já existe uma issue aberta com o rótulo? Comenta nela (evita uma issue por falha); senão abre uma. */
 export function planIssue(openIssueNumbers) {
