@@ -1,6 +1,6 @@
 # Guia de desenvolvimento
 
-Como o repositório é organizado e como rodar, testar e empacotar. A especificação original e os contratos IPC estão na [especificação](ESPECIFICACAO.md).
+Como o repositório é organizado e como rodar, testar e empacotar. As regras de contribuição estão no [CONTRIBUTING](../CONTRIBUTING.md); a especificação original e os contratos IPC, na [especificação](ESPECIFICACAO.md).
 
 ## Estrutura
 
@@ -54,6 +54,7 @@ Pendências conhecidas:
 - **WSL2** testado só por unidade (leitura de caminho), não em distribuição real.
 - **Flatpak/Flathub** ainda é um rascunho a testar (veja [PACKAGING](PACKAGING.md)).
 - O repositório é **privado**: parte da automação (revisão de dependências, proveniência assinada, ruleset) só vale depois que ele for público.
+- **Ao tornar o repositório público:** ativar o *Private vulnerability reporting* (o [SECURITY](../SECURITY.md) manda reportar por ele) e acrescentar o atalho de segurança em `.github/ISSUE_TEMPLATE/config.yml`.
 
 ## Mais documentação
 

@@ -14,4 +14,4 @@ Gerenciador Git desktop portátil (Electron + Vue 3 + TypeScript), monorepo PNPM
 - Contratos IPC em `packages/git-core/src/types/ipc.ts`.
 - Dependências: `governance-policy` depende de `git-core` (tipos); `git-core` NÃO depende de `governance-policy`.
 - Pacotes internos são consumidos como TypeScript fonte (`main: src/index.ts`) e empacotados pelo ESBuild/Vite.
-- Estado de execução e pendências: ver "Estado e pendências" em [docs/DESENVOLVIMENTO.md](docs/DESENVOLVIMENTO.md).
+- Estado de execução e pendências: ver "Estado e pendências" em [docs/DESENVOLVIMENTO.md](docs/DESENVOLVIMENTO.md). Convenções de contribuição (branch, commits, PR): [CONTRIBUTING.md](CONTRIBUTING.md).
