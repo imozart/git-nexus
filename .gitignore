@@ -12,3 +12,6 @@ apps/studio/.dev-data/
 # dados de runtime gerados ao executar o app/harness
 GitNexusData/
 .harness-data/
+
+# cobertura de testes (pnpm test:coverage)
+coverage/
