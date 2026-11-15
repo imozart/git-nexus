@@ -1,6 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { runGit } from './runner.js';
+import { tm } from './messages.js';
 
 const MAX_UNTRACKED_BYTES = 200_000;
 
@@ -62,10 +63,10 @@ export async function getFileDiff(repoPath: string, file: string, staged: boolea
     const abs = join(repoPath, file);
     const s = await stat(abs);
     if (!s.isFile()) return '';
-    if (s.size > MAX_UNTRACKED_BYTES) return `(arquivo novo, ${s.size} bytes — grande demais para pré-visualizar)`;
+    if (s.size > MAX_UNTRACKED_BYTES) return tm(`(arquivo novo, ${s.size} bytes — grande demais para pré-visualizar)`, `(new file, ${s.size} bytes — too large to preview)`);
     const text = await readFile(abs, 'utf8');
-    if (text.includes('\0')) return '(arquivo binário novo)';
-    return `(arquivo novo, não rastreado)\n` + text.split('\n').map((l) => '+' + l).join('\n');
+    if (text.includes('\0')) return tm('(arquivo binário novo)', '(new binary file)');
+    return tm('(arquivo novo, não rastreado)', '(new file, untracked)') + '\n' + text.split('\n').map((l) => '+' + l).join('\n');
   } catch {
     return '';
   }

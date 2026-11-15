@@ -4,6 +4,7 @@ import { GnBadge, GnButton } from '@git-nexus/ui-kit';
 import type { RebaseAction, RebasePlan, RebaseState, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
+import { t, type MessageKey } from '../../i18n';
 import ConfirmDialog from '../ConfirmDialog.vue';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
@@ -32,13 +33,14 @@ const dragFrom = ref(-1);
 const dragOver = ref(-1);
 const confirm = ref<{ title: string; lines: string[]; label: string; danger?: boolean; run: () => Promise<void> } | null>(null);
 
-const ACTIONS: Array<{ id: RebaseAction; label: string; hint: string }> = [
-  { id: 'pick', label: 'Manter', hint: 'Mantém o commit como está' },
-  { id: 'reword', label: 'Editar mensagem', hint: 'Troca a mensagem do commit' },
-  { id: 'squash', label: 'Juntar (squash)', hint: 'Junta ao commit de cima e combina as mensagens' },
-  { id: 'fixup', label: 'Juntar (fixup)', hint: 'Junta ao commit de cima e descarta esta mensagem' },
-  { id: 'drop', label: 'Descartar', hint: 'Remove o commit e as alterações dele' },
+const ACTIONS: Array<{ id: RebaseAction; label: MessageKey; hint: MessageKey }> = [
+  { id: 'pick', label: 'rb.pick', hint: 'rb.pickHint' },
+  { id: 'reword', label: 'rb.reword', hint: 'rb.rewordHint' },
+  { id: 'squash', label: 'rb.squash', hint: 'rb.squashHint' },
+  { id: 'fixup', label: 'rb.fixup', hint: 'rb.fixupHint' },
+  { id: 'drop', label: 'rb.drop', hint: 'rb.dropHint' },
 ];
+const actionHint = (id: RebaseAction): string => t(ACTIONS.find((a) => a.id === id)!.hint);
 
 async function loadState(): Promise<void> {
   try {
@@ -55,7 +57,7 @@ async function loadPlan(baseSpec: string): Promise<void> {
   busy.value = true;
   try {
     const p = await api.getRebasePlan(props.repo.path, baseSpec);
-    if (!p.commits.length) throw new Error('Não há commits depois desse ponto.');
+    if (!p.commits.length) throw new Error(t('rb.noCommits'));
     plan.value = p;
     rows.value = p.commits.map((c) => ({ hash: c.hash, shortHash: c.shortHash, subject: c.subject, published: c.published, action: 'pick', message: '' }));
   } catch (e) {
@@ -102,10 +104,10 @@ function reset(): void {
 const firstKept = computed(() => rows.value.find((r) => r.action !== 'drop'));
 const problem = computed(() => {
   if (!rows.value.length) return '';
-  if (!firstKept.value) return 'Todos os commits estão marcados para descarte.';
-  if (firstKept.value.action === 'squash' || firstKept.value.action === 'fixup') return 'O primeiro commit mantido não pode ser "juntar": não há commit de cima.';
+  if (!firstKept.value) return t('rb.allDropped');
+  if (firstKept.value.action === 'squash' || firstKept.value.action === 'fixup') return t('rb.firstCantSquash');
   const bad = rows.value.find((r) => r.action === 'reword' && !r.message.trim());
-  return bad ? `Escreva a nova mensagem do commit ${bad.shortHash}.` : '';
+  return bad ? t('rb.writeMessage', { hash: bad.shortHash }) : '';
 });
 const resultCount = computed(() => rows.value.filter((r) => r.action === 'pick' || r.action === 'reword').length);
 const changed = computed(() => rows.value.some((r, i) => r.action !== 'pick' || r.hash !== plan.value?.commits[i]?.hash));
@@ -113,11 +115,11 @@ const publishedCount = computed(() => rows.value.filter((r) => r.published).leng
 
 function askRun(): void {
   const lines = [
-    `${rows.value.length} commit(s) serão reescritos e passarão a ser ${resultCount.value}.`,
-    'Um backup do estado atual é guardado antes de começar, e a operação aparece em Operações para você desfazer.',
+    t('rb.willRewrite', { n: rows.value.length, result: resultCount.value }),
+    t('rb.backupNote'),
   ];
-  if (publishedCount.value) lines.push(`⚠ ${publishedCount.value} commit(s) já foram publicados: depois do rebase será preciso um push forçado (--force-with-lease).`);
-  confirm.value = { title: 'Executar o rebase?', lines, label: 'Executar rebase', danger: publishedCount.value > 0, run };
+  if (publishedCount.value) lines.push(t('rb.publishedForce', { n: publishedCount.value }));
+  confirm.value = { title: t('rb.runTitle'), lines, label: t('rb.runLabel'), danger: publishedCount.value > 0, run };
 }
 
 async function run(): Promise<void> {
@@ -133,7 +135,7 @@ async function run(): Promise<void> {
     state.value = r.state;
     infoWarn.value = r.status === 'stopped';
     if (r.status === 'done') {
-      info.value = `${r.message} Backup: ${r.backup}`;
+      info.value = t('rb.doneBackup', { message: r.message, backup: r.backup ?? '' });
       plan.value = null;
       rows.value = [];
     } else info.value = r.message;
@@ -165,9 +167,9 @@ async function proceed(kind: 'continue' | 'skip' | 'abort'): Promise<void> {
 }
 function askAbort(): void {
   confirm.value = {
-    title: 'Abortar o rebase?',
-    lines: ['Todos os commits voltam ao estado de antes do rebase. As resoluções de conflito feitas até aqui serão perdidas.'],
-    label: 'Abortar rebase',
+    title: t('rb.abortTitle'),
+    lines: [t('rb.abortBody')],
+    label: t('rb.abort'),
     danger: true,
     run: () => proceed('abort'),
   };
@@ -179,8 +181,8 @@ async function runConfirm(): Promise<void> {
 }
 
 function applyTarget(): void {
-  const t = ws.toolsTarget;
-  if (t && t.repoId === props.repo.id && t.section === 'rebase' && t.file) void loadPlan(t.file);
+  const tg = ws.toolsTarget;
+  if (tg && tg.repoId === props.repo.id && tg.section === 'rebase' && tg.file) void loadPlan(tg.file);
 }
 
 watch(() => ws.toolsTarget, applyTarget);
@@ -194,11 +196,8 @@ onMounted(async () => {
 <template>
   <div class="rb">
     <header class="rb__head">
-      <h2>Rebase interativo</h2>
-      <p class="muted">
-        Reescreva os últimos commits: <b>reordene</b> (arraste), <b>edite mensagens</b>, <b>junte</b> commits ou <b>descarte</b> alguns.
-        O resultado vira um histórico mais limpo antes de publicar.
-      </p>
+      <h2>{{ t('rb.title') }}</h2>
+      <p class="muted">{{ t('rb.intro') }}</p>
     </header>
 
     <p v-if="error" class="err">{{ error }}</p>
@@ -206,20 +205,20 @@ onMounted(async () => {
 
     <!-- rebase em andamento -->
     <section v-if="state?.inProgress" class="box box--warn">
-      <h3>⇅ Rebase em andamento — passo {{ state.step }}/{{ state.total }} <span class="muted">({{ state.branch }})</span></h3>
+      <h3>⇅ {{ t('rb.running', { step: state.step, total: state.total }) }} <span class="muted">({{ state.branch }})</span></h3>
       <template v-if="state.conflicted.length">
-        <p>Há conflito em:</p>
+        <p>{{ t('rb.conflictIn') }}</p>
         <ul class="conf">
           <li v-for="f in state.conflicted" :key="f">{{ f }}</li>
         </ul>
-        <p class="muted">Resolva cada arquivo na aba Conflitos (isso o inclui no commit) e depois clique em Continuar.</p>
+        <p class="muted">{{ t('rb.resolveHint') }}</p>
       </template>
-      <p v-else class="muted">Sem conflitos pendentes. Clique em Continuar para seguir.</p>
+      <p v-else class="muted">{{ t('rb.noConflicts') }}</p>
       <div class="rb__btns">
-        <GnButton size="sm" variant="primary" :disabled="busy" @click="ws.open('merge', repo)">Resolver conflitos</GnButton>
-        <GnButton size="sm" :disabled="busy || state.conflicted.length > 0" @click="proceed('continue')">Continuar</GnButton>
-        <GnButton size="sm" :disabled="busy" title="Descarta o commit deste passo" @click="proceed('skip')">Pular este commit</GnButton>
-        <GnButton size="sm" variant="danger" :disabled="busy" @click="askAbort">Abortar rebase</GnButton>
+        <GnButton size="sm" variant="primary" :disabled="busy" @click="ws.open('merge', repo)">{{ t('rb.resolveConflicts') }}</GnButton>
+        <GnButton size="sm" :disabled="busy || state.conflicted.length > 0" @click="proceed('continue')">{{ t('rb.continue') }}</GnButton>
+        <GnButton size="sm" :disabled="busy" :title="t('rb.skipTip')" @click="proceed('skip')">{{ t('rb.skip') }}</GnButton>
+        <GnButton size="sm" variant="danger" :disabled="busy" @click="askAbort">{{ t('rb.abort') }}</GnButton>
       </div>
     </section>
 
@@ -227,25 +226,25 @@ onMounted(async () => {
     <section v-else class="box">
       <form class="pick" @submit.prevent="loadLast">
         <label>
-          Reescrever os últimos
+          {{ t('rb.rewriteLast') }}
           <input v-model.number="count" type="number" min="2" max="50" />
-          commits da branch atual
+          {{ t('rb.commitsOfBranch') }}
         </label>
-        <GnButton type="submit" variant="primary" :disabled="busy">Carregar commits</GnButton>
-        <span class="muted">ou use "Rebase interativo a partir daqui" no detalhe de um commit do grafo.</span>
+        <GnButton type="submit" variant="primary" :disabled="busy">{{ t('rb.loadCommits') }}</GnButton>
+        <span class="muted">{{ t('rb.orUseGraph') }}</span>
       </form>
     </section>
 
     <!-- lista editável -->
     <section v-if="plan && !state?.inProgress" class="box">
       <div class="rb__top">
-        <strong>{{ rows.length }} commit(s) → {{ resultCount }}</strong>
-        <span class="muted">do mais antigo (em cima) ao mais novo · branch {{ plan.branch }}</span>
+        <strong>{{ t('rb.nToN', { n: rows.length, result: resultCount }) }}</strong>
+        <span class="muted">{{ t('rb.orderNote', { branch: plan.branch }) }}</span>
         <span class="spacer" />
-        <GnButton size="sm" :disabled="!changed" @click="reset">Restaurar ordem original</GnButton>
+        <GnButton size="sm" :disabled="!changed" @click="reset">{{ t('rb.restoreOrder') }}</GnButton>
       </div>
-      <p v-if="publishedCount" class="warn">⚠ {{ publishedCount }} commit(s) já estão publicados em um remoto: reescrevê-los exige push forçado e afeta quem já os baixou.</p>
-      <p v-if="plan.hasMerges" class="err">Este trecho tem commits de merge; o rebase interativo só funciona em histórico linear.</p>
+      <p v-if="publishedCount" class="warn">⚠ {{ t('rb.publishedWarn', { n: publishedCount }) }}</p>
+      <p v-if="plan.hasMerges" class="err">{{ t('rb.hasMerges') }}</p>
 
       <ol class="rows">
         <li
@@ -260,13 +259,13 @@ onMounted(async () => {
           @drop.prevent="onDrop(i)"
           @dragend="dragFrom = dragOver = -1"
         >
-          <span class="row__grip" title="Arraste para reordenar">⠿</span>
+          <span class="row__grip" :title="t('rb.dragTip')">⠿</span>
           <span class="row__mv">
-            <button type="button" :disabled="i === 0" title="Subir" aria-label="Subir" @click="move(i, i - 1)">▲</button>
-            <button type="button" :disabled="i === rows.length - 1" title="Descer" aria-label="Descer" @click="move(i, i + 1)">▼</button>
+            <button type="button" :disabled="i === 0" :title="t('rb.up')" :aria-label="t('rb.up')" @click="move(i, i - 1)">▲</button>
+            <button type="button" :disabled="i === rows.length - 1" :title="t('rb.down')" :aria-label="t('rb.down')" @click="move(i, i + 1)">▼</button>
           </span>
-          <select :value="r.action" :title="ACTIONS.find((a) => a.id === r.action)?.hint" @change="setAction(r, ($event.target as HTMLSelectElement).value as RebaseAction)">
-            <option v-for="a in ACTIONS" :key="a.id" :value="a.id" :title="a.hint">{{ a.label }}</option>
+          <select :value="r.action" :title="actionHint(r.action)" @change="setAction(r, ($event.target as HTMLSelectElement).value as RebaseAction)">
+            <option v-for="a in ACTIONS" :key="a.id" :value="a.id" :title="t(a.hint)">{{ t(a.label) }}</option>
           </select>
           <span class="row__hash mono">{{ r.shortHash }}</span>
           <div class="row__main">
@@ -276,19 +275,19 @@ onMounted(async () => {
               v-model="r.message"
               class="row__msg"
               rows="3"
-              placeholder="Nova mensagem do commit"
+              :placeholder="t('rb.newMessage')"
               @mousedown.stop
               @dragstart.prevent.stop
             />
           </div>
-          <GnBadge v-if="r.published" tone="warn" title="Já publicado em um remoto">publicado</GnBadge>
+          <GnBadge v-if="r.published" tone="warn" :title="t('rb.publishedTip')">{{ t('rb.published') }}</GnBadge>
         </li>
       </ol>
 
       <p v-if="problem" class="err">{{ problem }}</p>
       <div class="rb__btns">
-        <GnButton variant="primary" :disabled="busy || !!problem || !changed || plan.hasMerges" @click="askRun">Executar rebase…</GnButton>
-        <span v-if="!changed" class="muted">Altere a ordem ou as ações para habilitar.</span>
+        <GnButton variant="primary" :disabled="busy || !!problem || !changed || plan.hasMerges" @click="askRun">{{ t('rb.runEllipsis') }}</GnButton>
+        <span v-if="!changed" class="muted">{{ t('rb.changeToEnable') }}</span>
       </div>
     </section>
 

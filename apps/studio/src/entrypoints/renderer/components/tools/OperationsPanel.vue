@@ -4,6 +4,7 @@ import { GnBadge, GnButton } from '@git-nexus/ui-kit';
 import type { GitOperation, OperationKind, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
+import { dateLocale, t } from '../../i18n';
 import ConfirmDialog from '../ConfirmDialog.vue';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
@@ -43,9 +44,9 @@ const affected = computed(() => {
 
 const explain = computed(() => {
   const k = confirm.value?.kind;
-  if (k === 'commit' || k === 'amend') return 'O commit é desfeito e as alterações voltam para o stage.';
-  if (k === 'checkout') return 'Você volta para a branch anterior.';
-  return 'O repositório volta ao estado anterior. Alterações locais são preservadas; se houver conflito com elas, a operação é cancelada.';
+  if (k === 'commit' || k === 'amend') return t('ops.explainCommit');
+  if (k === 'checkout') return t('ops.explainCheckout');
+  return t('ops.explainOther');
 });
 
 async function run(): Promise<void> {
@@ -64,7 +65,7 @@ async function run(): Promise<void> {
   await load();
 }
 
-const when = (s: number) => new Date(s * 1000).toLocaleString('pt-BR');
+const when = (s: number) => new Date(s * 1000).toLocaleString(dateLocale.value);
 onMounted(load);
 watch(() => ws.versions[props.repo.id], load);
 </script>
@@ -73,18 +74,15 @@ watch(() => ws.versions[props.repo.id], load);
   <div class="ops">
     <header class="ops__head">
       <div>
-        <h2>Histórico de operações</h2>
-        <p class="muted">
-          Tudo o que mudou o HEAD (commits, merges, pulls, rebases, resets, trocas de branch). Volte ao estado anterior a qualquer
-          uma: nada se perde, porque o próprio desfazer também entra na lista e pode ser desfeito.
-        </p>
+        <h2>{{ t('ops.title') }}</h2>
+        <p class="muted">{{ t('ops.intro') }}</p>
       </div>
-      <GnButton size="sm" :disabled="loading" @click="load">Atualizar</GnButton>
+      <GnButton size="sm" :disabled="loading" @click="load">{{ t('rv.refresh') }}</GnButton>
     </header>
 
     <p v-if="error" class="err">{{ error }}</p>
     <p v-if="done" class="ok">✔ {{ done }}</p>
-    <p v-if="!ops.length && !loading && !error" class="muted empty">Nenhuma operação registrada ainda.</p>
+    <p v-if="!ops.length && !loading && !error" class="muted empty">{{ t('ops.empty') }}</p>
 
     <ol class="ops__list">
       <li v-for="(o, i) in ops" :key="o.id" class="op" :class="{ 'op--first': i === 0 }">
@@ -102,19 +100,19 @@ watch(() => ws.versions[props.repo.id], load);
           size="sm"
           :variant="i === 0 ? 'primary' : 'ghost'"
           :disabled="!o.undoable"
-          :title="o.undoable ? 'Voltar ao estado anterior a esta operação' : o.undoReason"
+          :title="o.undoable ? t('ops.undoTip') : o.undoReason"
           @click="confirm = o"
         >
-          {{ i === 0 ? 'Desfazer' : 'Voltar para antes' }}
+          {{ i === 0 ? t('rv.undo') : t('ops.backBefore') }}
         </GnButton>
       </li>
     </ol>
 
     <ConfirmDialog
       v-if="confirm"
-      :title="affected.length > 1 ? `Desfazer ${affected.length} operações?` : 'Desfazer esta operação?'"
-      :lines="[...affected.map((a) => `• ${a.summary}`), explain, 'Dá para refazer depois: o desfazer aparece nesta lista.']"
-      confirm-label="Desfazer"
+      :title="affected.length > 1 ? t('ops.confirmMany', { n: affected.length }) : t('ops.confirmOne')"
+      :lines="[...affected.map((a) => `• ${a.summary}`), explain, t('ops.redoHint')]"
+      :confirm-label="t('rv.undo')"
       danger
       @confirm="run"
       @cancel="confirm = null"

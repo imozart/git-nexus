@@ -7,17 +7,18 @@ import { unmergedFiles } from './conflicts.js';
 import { isWslPath } from './wsl.js';
 import { runGit } from './runner.js';
 import type { RebaseAction, RebaseItem, RebasePlan, RebaseResult, RebaseState } from './types/ipc.js';
+import { tm } from './messages.js';
 
 const LOG_FORMAT = ['%H', '%P', '%an', '%at', '%D', '%s'].join('%x1f') + '%x1e';
 const HASH = /^[0-9a-f]{7,40}$/i;
 const ACTIONS: readonly RebaseAction[] = ['pick', 'reword', 'squash', 'fixup', 'drop'];
 
 function assertHash(h: string): void {
-  if (!HASH.test(h)) throw new Error(`Hash de commit inválido: ${h}`);
+  if (!HASH.test(h)) throw new Error(tm(`Hash de commit inválido: ${h}`, `Invalid commit hash: ${h}`));
 }
 
 function assertLocal(repoPath: string): void {
-  if (isWslPath(repoPath)) throw new Error('O rebase interativo ainda não é suportado em repositórios WSL2.');
+  if (isWslPath(repoPath)) throw new Error(tm('O rebase interativo ainda não é suportado em repositórios WSL2.', 'Interactive rebase is not supported yet in WSL2 repositories.'));
 }
 
 /** Commits que seriam reescritos: de `base` (exclusive) até o HEAD, do mais antigo para o mais novo. */
@@ -25,12 +26,12 @@ export async function getRebasePlan(repoPath: string, baseSpec: string): Promise
   let base = baseSpec;
   if (/^HEAD~\d{1,3}$/.test(baseSpec)) {
     const r = await runGit(repoPath, ['rev-parse', '--verify', '-q', baseSpec], { check: false });
-    if (r.code !== 0) throw new Error('O histórico tem menos commits do que o pedido (o primeiro commit não pode ser reescrito).');
+    if (r.code !== 0) throw new Error(tm('O histórico tem menos commits do que o pedido (o primeiro commit não pode ser reescrito).', 'The history has fewer commits than requested (the first commit cannot be rewritten).'));
     base = r.stdout.trim();
   }
   assertHash(base);
   const anc = await runGit(repoPath, ['merge-base', '--is-ancestor', base, 'HEAD'], { check: false });
-  if (anc.code !== 0) throw new Error('Esse commit não está no histórico da branch atual.');
+  if (anc.code !== 0) throw new Error(tm('Esse commit não está no histórico da branch atual.', 'That commit is not in the history of the current branch.'));
 
   const log = await runGit(repoPath, ['log', '--reverse', `--format=${LOG_FORMAT}`, `${base}..HEAD`]);
   const commits = parseLog(log.stdout);
@@ -89,17 +90,17 @@ function validate(items: RebaseItem[], plan: RebasePlan): void {
   const seen = new Set<string>();
   for (const it of items) {
     assertHash(it.hash);
-    if (!ACTIONS.includes(it.action)) throw new Error(`Ação inválida: ${it.action}`);
+    if (!ACTIONS.includes(it.action)) throw new Error(tm(`Ação inválida: ${it.action}`, `Invalid action: ${it.action}`));
     const full = [...known].find((h) => h === it.hash || h.startsWith(it.hash));
-    if (!full) throw new Error(`O commit ${it.hash.slice(0, 7)} não faz parte do rebase.`);
-    if (seen.has(full)) throw new Error(`O commit ${it.hash.slice(0, 7)} aparece duas vezes.`);
+    if (!full) throw new Error(tm(`O commit ${it.hash.slice(0, 7)} não faz parte do rebase.`, `Commit ${it.hash.slice(0, 7)} is not part of the rebase.`));
+    if (seen.has(full)) throw new Error(tm(`O commit ${it.hash.slice(0, 7)} aparece duas vezes.`, `Commit ${it.hash.slice(0, 7)} appears twice.`));
     seen.add(full);
   }
-  if (seen.size !== known.size) throw new Error('A lista não contém todos os commits do plano (use "drop" para descartar um commit).');
+  if (seen.size !== known.size) throw new Error(tm('A lista não contém todos os commits do plano (use "drop" para descartar um commit).', 'The list does not contain every commit of the plan (use "drop" to discard a commit).'));
   const firstKept = items.find((i) => i.action !== 'drop');
-  if (!firstKept) throw new Error('Todos os commits foram descartados; use reset se é isso o que você quer.');
-  if (firstKept.action === 'squash' || firstKept.action === 'fixup') throw new Error('O primeiro commit mantido não pode ser squash/fixup: não há commit anterior para juntar.');
-  for (const it of items) if (it.action === 'reword' && !it.message?.trim()) throw new Error(`Informe a nova mensagem do commit ${it.hash.slice(0, 7)} (reword).`);
+  if (!firstKept) throw new Error(tm('Todos os commits foram descartados; use reset se é isso o que você quer.', 'All commits were dropped; use reset if that is what you want.'));
+  if (firstKept.action === 'squash' || firstKept.action === 'fixup') throw new Error(tm('O primeiro commit mantido não pode ser squash/fixup: não há commit anterior para juntar.', 'The first kept commit cannot be squash/fixup: there is no previous commit to meld into.'));
+  for (const it of items) if (it.action === 'reword' && !it.message?.trim()) throw new Error(tm(`Informe a nova mensagem do commit ${it.hash.slice(0, 7)} (reword).`, `Provide the new message for commit ${it.hash.slice(0, 7)} (reword).`));
 }
 
 /**
@@ -110,13 +111,13 @@ function validate(items: RebaseItem[], plan: RebasePlan): void {
 export async function startRebase(repoPath: string, base: string, items: RebaseItem[]): Promise<RebaseResult> {
   assertLocal(repoPath);
   const state = await getRebaseState(repoPath);
-  if (state.inProgress) throw new Error('Já existe um rebase em andamento. Continue ou aborte antes de começar outro.');
+  if (state.inProgress) throw new Error(tm('Já existe um rebase em andamento. Continue ou aborte antes de começar outro.', 'A rebase is already in progress. Continue or abort it before starting another.'));
   const dirty = (await runGit(repoPath, ['status', '--porcelain', '--untracked-files=no'])).stdout.trim();
-  if (dirty) throw new Error('Há alterações não commitadas. Faça commit ou guarde-as em um stash antes do rebase.');
+  if (dirty) throw new Error(tm('Há alterações não commitadas. Faça commit ou guarde-as em um stash antes do rebase.', 'There are uncommitted changes. Commit or stash them before the rebase.'));
 
   const plan = await getRebasePlan(repoPath, base);
-  if (plan.hasMerges) throw new Error('O trecho tem commits de merge; o rebase interativo só funciona em histórico linear.');
-  if (!plan.branch) throw new Error('HEAD desanexado: troque para uma branch antes do rebase.');
+  if (plan.hasMerges) throw new Error(tm('O trecho tem commits de merge; o rebase interativo só funciona em histórico linear.', 'The range has merge commits; interactive rebase only works on linear history.'));
+  if (!plan.branch) throw new Error(tm('HEAD desanexado: troque para uma branch antes do rebase.', 'Detached HEAD: switch to a branch before the rebase.'));
   // aceita hashes abreviados
   const full = new Map(plan.commits.map((c) => [c.hash, c.hash]));
   const norm = items.map((it) => ({ ...it, hash: [...full.keys()].find((h) => h.startsWith(it.hash.toLowerCase())) ?? it.hash }));
@@ -144,7 +145,7 @@ export async function startRebase(repoPath: string, base: string, items: RebaseI
       { check: false, env: { GIT_EDITOR: 'true' } },
     );
     const after = await getRebaseState(repoPath);
-    if (r.code === 0 && !after.inProgress) return { status: 'done', message: 'Rebase concluído.', backup, state: after };
+    if (r.code === 0 && !after.inProgress) return { status: 'done', message: tm('Rebase concluído.', 'Rebase finished.'), backup, state: after };
     if (after.inProgress) return { status: 'stopped', message: stoppedMessage(after), backup, state: after };
     // falhou sem deixar rebase em andamento: nada mudou
     throw new Error((r.stderr || r.stdout).trim().split('\n').slice(-3).join('\n') || 'O rebase falhou.');
@@ -160,12 +161,12 @@ const stoppedMessage = (s: RebaseState) =>
 
 async function step(repoPath: string, args: string[]): Promise<RebaseResult> {
   const before = await getRebaseState(repoPath);
-  if (!before.inProgress) throw new Error('Não há rebase em andamento.');
+  if (!before.inProgress) throw new Error(tm('Não há rebase em andamento.', 'There is no rebase in progress.'));
   const r = await runGit(repoPath, ['-c', 'core.editor=true', 'rebase', ...args], { check: false, env: { GIT_EDITOR: 'true' } });
   const after = await getRebaseState(repoPath);
   if (!after.inProgress) {
     if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().split('\n').slice(-3).join('\n'));
-    return { status: args[0] === '--abort' ? 'aborted' : 'done', message: args[0] === '--abort' ? 'Rebase abortado: tudo voltou ao estado anterior.' : 'Rebase concluído.', state: after };
+    return { status: args[0] === '--abort' ? 'aborted' : 'done', message: args[0] === '--abort' ? tm('Rebase abortado: tudo voltou ao estado anterior.', 'Rebase aborted: everything went back to the previous state.') : tm('Rebase concluído.', 'Rebase finished.'), state: after };
   }
   return { status: 'stopped', message: stoppedMessage(after), state: after };
 }
@@ -173,7 +174,7 @@ async function step(repoPath: string, args: string[]): Promise<RebaseResult> {
 /** Continua depois de resolver os conflitos (os arquivos precisam estar no stage). */
 export async function continueRebase(repoPath: string): Promise<RebaseResult> {
   const s = await getRebaseState(repoPath);
-  if (s.conflicted.length) throw new Error(`Ainda há conflitos não resolvidos: ${s.conflicted.join(', ')}`);
+  if (s.conflicted.length) throw new Error(tm(`Ainda há conflitos não resolvidos: ${s.conflicted.join(', ')}`, `There are still unresolved conflicts: ${s.conflicted.join(', ')}`));
   return step(repoPath, ['--continue']);
 }
 

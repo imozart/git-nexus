@@ -1,4 +1,7 @@
-import type { CommitPolicy, ConventionalCommitInput, ConventionalCommitType, SecretsConfig } from '@git-nexus/git-core/pure';
+import { getMessageLocale, type CommitPolicy, type ConventionalCommitInput, type ConventionalCommitType, type MessageLocale, type SecretsConfig } from '@git-nexus/git-core/pure';
+
+/** Texto no idioma pedido (padrão: o idioma atual do processo). */
+const tl = (loc: MessageLocale, pt: string, en: string): string => (loc === 'en' ? en : pt);
 
 export type { CommitPolicy, SecretsConfig };
 
@@ -42,34 +45,36 @@ export function compileTicketPattern(pattern: string): RegExp | null {
 export function validateCommitMessage(
   input: ConventionalCommitInput,
   policy: CommitPolicy = DEFAULT_POLICY,
+  locale: MessageLocale = getMessageLocale(),
 ): ValidationResult {
+  const tm = (pt: string, en: string) => tl(locale, pt, en);
   const errors: string[] = [];
   const subject = input.subject?.trim() ?? '';
   const scope = input.scope?.trim() ?? '';
   const ticket = input.ticketNumber?.trim() ?? '';
 
-  if (!COMMIT_TYPES.includes(input.type)) errors.push(`Tipo inválido: "${input.type}".`);
+  if (!COMMIT_TYPES.includes(input.type)) errors.push(tm(`Tipo inválido: "${input.type}".`, `Invalid type: "${input.type}".`));
   else if (policy.types?.length && !policy.types.includes(input.type))
-    errors.push(`O tipo "${input.type}" não é permitido neste repositório (use: ${policy.types.join(', ')}).`);
+    errors.push(tm(`O tipo "${input.type}" não é permitido neste repositório (use: ${policy.types.join(', ')}).`, `The type "${input.type}" is not allowed in this repository (use: ${policy.types.join(', ')}).`));
 
-  if (policy.scopeRequired && !scope) errors.push('O escopo é obrigatório.');
-  else if (scope && !SCOPE_RE.test(scope)) errors.push('Escopo inválido (use letras, números, ".", "_", "-" ou "/").');
+  if (policy.scopeRequired && !scope) errors.push(tm('O escopo é obrigatório.', 'The scope is required.'));
+  else if (scope && !SCOPE_RE.test(scope)) errors.push(tm('Escopo inválido (use letras, números, ".", "_", "-" ou "/").', 'Invalid scope (use letters, numbers, ".", "_", "-" or "/").'));
   else if (scope && policy.scopes?.length && !policy.scopes.includes(scope))
-    errors.push(`Escopo "${scope}" não permitido neste repositório (use: ${policy.scopes.join(', ')}).`);
+    errors.push(tm(`Escopo "${scope}" não permitido neste repositório (use: ${policy.scopes.join(', ')}).`, `Scope "${scope}" is not allowed in this repository (use: ${policy.scopes.join(', ')}).`));
 
-  if (!subject) errors.push('O título é obrigatório.');
+  if (!subject) errors.push(tm('O título é obrigatório.', 'The title is required.'));
   else {
     if (subject.length > policy.maxSubjectLength)
-      errors.push(`O título excede ${policy.maxSubjectLength} caracteres (${subject.length}).`);
-    if (subject.endsWith('.')) errors.push('O título não deve terminar com ponto.');
+      errors.push(tm(`O título excede ${policy.maxSubjectLength} caracteres (${subject.length}).`, `The title exceeds ${policy.maxSubjectLength} characters (${subject.length}).`));
+    if (subject.endsWith('.')) errors.push(tm('O título não deve terminar com ponto.', 'The title must not end with a period.'));
   }
 
   if (!ticket) {
-    if (policy.ticketRequired) errors.push('O número do ticket é obrigatório.');
+    if (policy.ticketRequired) errors.push(tm('O número do ticket é obrigatório.', 'The ticket number is required.'));
   } else {
     const re = compileTicketPattern(policy.ticketPattern);
-    if (!re) errors.push(`A regex de ticket da política é inválida: ${policy.ticketPattern}`);
-    else if (!re.test(ticket)) errors.push(`Ticket fora do padrão (${policy.ticketPattern}), ex.: ABC-123.`);
+    if (!re) errors.push(tm(`A regex de ticket da política é inválida: ${policy.ticketPattern}`, `The policy ticket regex is invalid: ${policy.ticketPattern}`));
+    else if (!re.test(ticket)) errors.push(tm(`Ticket fora do padrão (${policy.ticketPattern}), ex.: ABC-123.`, `Ticket does not match the pattern (${policy.ticketPattern}), e.g. ABC-123.`));
   }
 
   return { isValid: errors.length === 0, errors };
@@ -124,49 +129,50 @@ const isStrArr = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) 
  * descritos em `errors`, para o app mostrar o problema sem travar o repositório.
  */
 export function parseRepoConfig(text: string): ParsedRepoConfig {
+  const tm = (pt: string, en: string) => tl(getMessageLocale(), pt, en);
   const out: ParsedRepoConfig = { commit: {}, secrets: { ...DEFAULT_SECRETS, ignorePaths: [] }, errors: [] };
   let raw: unknown;
   try {
     raw = JSON.parse(text);
   } catch (e) {
-    out.errors.push(`${REPO_CONFIG_FILE}: JSON inválido (${(e as Error).message}).`);
+    out.errors.push(tm(`${REPO_CONFIG_FILE}: JSON inválido (${(e as Error).message}).`, `${REPO_CONFIG_FILE}: invalid JSON (${(e as Error).message}).`));
     return out;
   }
   if (!isObj(raw)) {
-    out.errors.push(`${REPO_CONFIG_FILE}: o conteúdo deve ser um objeto JSON.`);
+    out.errors.push(tm(`${REPO_CONFIG_FILE}: o conteúdo deve ser um objeto JSON.`, `${REPO_CONFIG_FILE}: the content must be a JSON object.`));
     return out;
   }
 
   const c = raw.commit;
   if (c !== undefined) {
-    if (!isObj(c)) out.errors.push('"commit" deve ser um objeto.');
+    if (!isObj(c)) out.errors.push(tm('"commit" deve ser um objeto.', '"commit" must be an object.'));
     else {
       const p = out.commit;
       if (c.maxSubjectLength !== undefined) {
         if (Number.isInteger(c.maxSubjectLength) && (c.maxSubjectLength as number) >= 10 && (c.maxSubjectLength as number) <= 200)
           p.maxSubjectLength = c.maxSubjectLength as number;
-        else out.errors.push('"commit.maxSubjectLength" deve ser um inteiro entre 10 e 200.');
+        else out.errors.push(tm('"commit.maxSubjectLength" deve ser um inteiro entre 10 e 200.', '"commit.maxSubjectLength" must be an integer between 10 and 200.'));
       }
       for (const k of ['scopeRequired', 'ticketRequired', 'ticketFromBranch'] as const) {
         if (c[k] === undefined) continue;
         if (typeof c[k] === 'boolean') p[k] = c[k] as boolean;
-        else out.errors.push(`"commit.${k}" deve ser true ou false.`);
+        else out.errors.push(tm(`"commit.${k}" deve ser true ou false.`, `"commit.${k}" must be true or false.`));
       }
       if (c.ticketPattern !== undefined) {
         if (typeof c.ticketPattern === 'string' && compileTicketPattern(c.ticketPattern)) p.ticketPattern = c.ticketPattern;
-        else out.errors.push('"commit.ticketPattern" deve ser uma regex válida.');
+        else out.errors.push(tm('"commit.ticketPattern" deve ser uma regex válida.', '"commit.ticketPattern" must be a valid regex.'));
       }
       if (c.types !== undefined) {
-        if (!isStrArr(c.types) || c.types.length === 0) out.errors.push('"commit.types" deve ser uma lista não vazia.');
+        if (!isStrArr(c.types) || c.types.length === 0) out.errors.push(tm('"commit.types" deve ser uma lista não vazia.', '"commit.types" must be a non-empty list.'));
         else {
           const known = c.types.filter((t): t is ConventionalCommitType => (COMMIT_TYPES as readonly string[]).includes(t));
           const unknown = c.types.filter((t) => !(COMMIT_TYPES as readonly string[]).includes(t));
-          if (unknown.length) out.errors.push(`"commit.types" tem tipos desconhecidos: ${unknown.join(', ')}.`);
+          if (unknown.length) out.errors.push(tm(`"commit.types" tem tipos desconhecidos: ${unknown.join(', ')}.`, `"commit.types" has unknown types: ${unknown.join(', ')}.`));
           if (known.length) p.types = known;
         }
       }
       if (c.scopes !== undefined) {
-        if (!isStrArr(c.scopes) || c.scopes.some((s) => !SCOPE_RE.test(s))) out.errors.push('"commit.scopes" deve ser uma lista de escopos válidos.');
+        if (!isStrArr(c.scopes) || c.scopes.some((s) => !SCOPE_RE.test(s))) out.errors.push(tm('"commit.scopes" deve ser uma lista de escopos válidos.', '"commit.scopes" must be a list of valid scopes.'));
         else if (c.scopes.length) p.scopes = c.scopes;
       }
     }
@@ -174,24 +180,24 @@ export function parseRepoConfig(text: string): ParsedRepoConfig {
 
   const s = raw.secrets;
   if (s !== undefined) {
-    if (!isObj(s)) out.errors.push('"secrets" deve ser um objeto.');
+    if (!isObj(s)) out.errors.push(tm('"secrets" deve ser um objeto.', '"secrets" must be an object.'));
     else {
       if (s.mode !== undefined) {
         if (s.mode === 'warn' || s.mode === 'block' || s.mode === 'off') out.secrets.mode = s.mode;
-        else out.errors.push('"secrets.mode" deve ser "warn", "block" ou "off".');
+        else out.errors.push(tm('"secrets.mode" deve ser "warn", "block" ou "off".', '"secrets.mode" must be "warn", "block" or "off".'));
       }
       if (s.ignorePaths !== undefined) {
         if (isStrArr(s.ignorePaths)) out.secrets.ignorePaths = s.ignorePaths;
-        else out.errors.push('"secrets.ignorePaths" deve ser uma lista de globs.');
+        else out.errors.push(tm('"secrets.ignorePaths" deve ser uma lista de globs.', '"secrets.ignorePaths" must be a list of globs.'));
       }
       if (s.maxFileSizeMb !== undefined) {
         if (typeof s.maxFileSizeMb === 'number' && s.maxFileSizeMb >= 0) out.secrets.maxFileSizeMb = s.maxFileSizeMb;
-        else out.errors.push('"secrets.maxFileSizeMb" deve ser um número maior ou igual a 0.');
+        else out.errors.push(tm('"secrets.maxFileSizeMb" deve ser um número maior ou igual a 0.', '"secrets.maxFileSizeMb" must be a number greater than or equal to 0.'));
       }
     }
   }
 
-  for (const k of Object.keys(raw)) if (!['commit', 'secrets', '$schema'].includes(k)) out.errors.push(`Campo desconhecido: "${k}".`);
+  for (const k of Object.keys(raw)) if (!['commit', 'secrets', '$schema'].includes(k)) out.errors.push(tm(`Campo desconhecido: "${k}".`, `Unknown field: "${k}".`));
   return out;
 }
 

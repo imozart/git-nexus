@@ -1,6 +1,7 @@
 import { resolveInsideRepo } from './conflicts.js';
 import { runGit } from './runner.js';
 import type { StashEntry, StashFile } from './types/ipc.js';
+import { tm } from './messages.js';
 
 const FS = '\x1f';
 const RS = '\x1e';
@@ -48,9 +49,9 @@ export async function createStash(repoPath: string, opts: CreateStashOptions = {
     args.push('--', ...opts.paths.map((p) => p.replace(/\/$/, '')));
   }
   const r = await runGit(repoPath, args);
-  if (/No local changes to save/i.test(r.stdout + r.stderr)) throw new Error('Não há alterações locais para guardar.');
+  if (/No local changes to save/i.test(r.stdout + r.stderr)) throw new Error(tm('Não há alterações locais para guardar.', 'There are no local changes to stash.'));
   const [top] = await listStashes(repoPath);
-  if (!top) throw new Error('O git não criou o stash.');
+  if (!top) throw new Error(tm('O git não criou o stash.', 'Git did not create the stash.'));
   return top;
 }
 
@@ -90,14 +91,14 @@ export async function applyStash(repoPath: string, ref: string, drop = false): P
   assertRef(ref);
   const r = await runGit(repoPath, ['stash', drop ? 'pop' : 'apply', '--index', ref], { check: false });
   const out = (r.stdout + r.stderr).trim();
-  if (r.code === 0) return { conflicts: false, message: drop ? 'Stash aplicado e removido.' : 'Stash aplicado.' };
-  if (/CONFLICT|conflict/i.test(out)) return { conflicts: true, message: 'Aplicado com conflitos: resolva-os na aba Conflitos. O stash foi mantido.' };
+  if (r.code === 0) return { conflicts: false, message: drop ? tm('Stash aplicado e removido.', 'Stash applied and removed.') : tm('Stash aplicado.', 'Stash applied.') };
+  if (/CONFLICT|conflict/i.test(out)) return { conflicts: true, message: tm('Aplicado com conflitos: resolva-os na aba Conflitos. O stash foi mantido.', 'Applied with conflicts: resolve them in the Conflicts tab. The stash was kept.') };
   // --index pode falhar quando o índice atual difere; tenta sem ele
   const r2 = await runGit(repoPath, ['stash', drop ? 'pop' : 'apply', ref], { check: false });
   const out2 = (r2.stdout + r2.stderr).trim();
-  if (r2.code === 0) return { conflicts: false, message: drop ? 'Stash aplicado e removido.' : 'Stash aplicado.' };
-  if (/CONFLICT|conflict/i.test(out2)) return { conflicts: true, message: 'Aplicado com conflitos: resolva-os na aba Conflitos. O stash foi mantido.' };
-  throw new Error(out2 || out || 'Não foi possível aplicar o stash.');
+  if (r2.code === 0) return { conflicts: false, message: drop ? tm('Stash aplicado e removido.', 'Stash applied and removed.') : tm('Stash aplicado.', 'Stash applied.') };
+  if (/CONFLICT|conflict/i.test(out2)) return { conflicts: true, message: tm('Aplicado com conflitos: resolva-os na aba Conflitos. O stash foi mantido.', 'Applied with conflicts: resolve them in the Conflicts tab. The stash was kept.') };
+  throw new Error(out2 || out || tm('Não foi possível aplicar o stash.', 'Could not apply the stash.'));
 }
 
 /**
@@ -110,14 +111,14 @@ export async function restoreStashFiles(repoPath: string, ref: string, files: st
   const all = await getStashFiles(repoPath, ref);
   const chosen = files.map((f) => {
     const hit = all.find((x) => x.path === f);
-    if (!hit) throw new Error(`O arquivo não está no stash: ${f}`);
+    if (!hit) throw new Error(tm(`O arquivo não está no stash: ${f}`, `The file is not in the stash: ${f}`));
     resolveInsideRepo(repoPath, f);
     return hit;
   });
   if (!overwrite) {
     const st = await runGit(repoPath, ['status', '--porcelain', '-z', '--', ...chosen.map((c) => c.path)]);
     const dirty = st.stdout.split('\0').filter(Boolean).map((l) => l.slice(3));
-    if (dirty.length) throw new Error(`Estes arquivos já têm alterações locais: ${dirty.join(', ')}. Confirme para sobrescrever.`);
+    if (dirty.length) throw new Error(tm(`Estes arquivos já têm alterações locais: ${dirty.join(', ')}. Confirme para sobrescrever.`, `These files already have local changes: ${dirty.join(', ')}. Confirm to overwrite.`));
   }
   for (const c of chosen) {
     if (c.status === 'D') {
@@ -144,5 +145,5 @@ export async function renameStash(repoPath: string, ref: string, message: string
 }
 
 function assertRef(ref: string): void {
-  if (!/^stash@\{\d+\}$/.test(ref)) throw new Error(`Referência de stash inválida: ${ref}`);
+  if (!/^stash@\{\d+\}$/.test(ref)) throw new Error(tm(`Referência de stash inválida: ${ref}`, `Invalid stash reference: ${ref}`));
 }

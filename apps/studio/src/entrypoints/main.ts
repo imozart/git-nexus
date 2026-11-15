@@ -3,6 +3,7 @@ import { accessSync, constants, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { BrowserWindow, Menu, app, clipboard, dialog, ipcMain, shell, utilityProcess, type UtilityProcess } from 'electron';
+import { setMessageLocale, tm } from '@git-nexus/git-core';
 import { WORKER_METHODS, channel, type UtilityRequest, type UtilityResponse } from '../shared/channels';
 import { isAllowedUpdateUrl } from '../shared/update';
 import { checkForUpdate } from './update';
@@ -83,7 +84,10 @@ function callWorker(method: UtilityRequest['method'], args: unknown[]): Promise<
 }
 
 for (const m of WORKER_METHODS) {
-  ipcMain.handle(channel(m), (_e, ...args: unknown[]) => callWorker(m, args));
+  ipcMain.handle(channel(m), (_e, ...args: unknown[]) => {
+    if (m === 'setLocale') setMessageLocale(String(args[0])); // o processo principal tem as próprias mensagens
+    return callWorker(m, args);
+  });
 }
 
 ipcMain.handle(channel('pickDirectories'), async (e) => {
@@ -109,7 +113,7 @@ ipcMain.handle(channel('createChangeRequest'), (_e, repoPath: string, input: Par
   hosting.createChangeRequest(String(repoPath), input),
 );
 ipcMain.handle(channel('hostingOpen'), async (_e, repoPath: string, url: string) => {
-  if (!(await hosting.isAllowedUrl(String(repoPath), String(url)))) throw new Error('Endereço não permitido.');
+  if (!(await hosting.isAllowedUrl(String(repoPath), String(url)))) throw new Error(tm('Endereço não permitido.', 'Address not allowed.'));
   await shell.openExternal(String(url));
 });
 
@@ -120,7 +124,7 @@ function updateContext() {
 ipcMain.handle(channel('checkForUpdate'), () => {
   // Em desenvolvimento a versão do app não é a de uma release: não faz sentido comparar (a menos que se force por variável).
   if (!app.isPackaged && !process.env.GITNEXUS_UPDATE_REPO) {
-    return { status: 'unavailable', current: app.getVersion(), message: 'Verificação desativada em desenvolvimento.' };
+    return { status: 'unavailable', current: app.getVersion(), message: tm('Verificação desativada em desenvolvimento.', 'Update check is disabled in development.') };
   }
   return checkForUpdate(updateContext());
 });
@@ -130,8 +134,8 @@ ipcMain.handle(channel('checkForUpdate'), () => {
 let downloadedUpdate: { file: string; kind: 'installer' | 'appimage'; version: string } | null = null;
 ipcMain.handle(channel('downloadUpdate'), async (e) => {
   const info = await checkForUpdate(updateContext());
-  if (info.status !== 'available' || !info.downloadUrl || !info.assetName || !info.sumsUrl || !info.latest) throw new Error('Não há atualização para baixar.');
-  if (info.install !== 'installer' && info.install !== 'appimage') throw new Error('Este pacote precisa ser instalado manualmente.');
+  if (info.status !== 'available' || !info.downloadUrl || !info.assetName || !info.sumsUrl || !info.latest) throw new Error(tm('Não há atualização para baixar.', 'There is no update to download.'));
+  if (info.install !== 'installer' && info.install !== 'appimage') throw new Error(tm('Este pacote precisa ser instalado manualmente.', 'This package must be installed manually.'));
   const r = await downloadVerified({
     url: info.downloadUrl,
     name: info.assetName,
@@ -146,7 +150,7 @@ ipcMain.handle(channel('downloadUpdate'), async (e) => {
 });
 ipcMain.handle(channel('installUpdate'), async () => {
   const u = downloadedUpdate;
-  if (!u || !(await isReadyFile(u.file))) throw new Error('Baixe a atualização antes de instalar.');
+  if (!u || !(await isReadyFile(u.file))) throw new Error(tm('Baixe a atualização antes de instalar.', 'Download the update before installing.'));
   if (u.kind === 'installer') {
     // Instalador NSIS em modo silencioso (por usuário, sem administrador): atualiza no mesmo lugar e reabre o app.
     spawn(u.file, [...WINDOWS_INSTALLER_ARGS], { detached: true, stdio: 'ignore' }).unref();
@@ -154,13 +158,13 @@ ipcMain.handle(channel('installUpdate'), async () => {
     return;
   }
   const target = process.env.APPIMAGE;
-  if (!target) throw new Error('O AppImage atual não foi identificado.');
+  if (!target) throw new Error(tm('O AppImage atual não foi identificado.', 'The current AppImage could not be identified.'));
   await replaceAppImage(u.file, target);
   app.relaunch({ execPath: target, args: [] });
   app.quit();
 });
 ipcMain.handle(channel('openExternal'), async (_e, url: string) => {
-  if (!isAllowedUpdateUrl(String(url))) throw new Error('Endereço não permitido.');
+  if (!isAllowedUpdateUrl(String(url))) throw new Error(tm('Endereço não permitido.', 'Address not allowed.'));
   await shell.openExternal(String(url));
 });
 ipcMain.handle(channel('copyText'), (_e, text: string) => clipboard.writeText(String(text)));

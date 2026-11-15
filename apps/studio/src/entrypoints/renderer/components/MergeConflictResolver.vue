@@ -9,6 +9,7 @@ import {
   type MergeConflictBlock,
 } from '@git-nexus/git-core/pure';
 import CodeEditor from './CodeEditor.vue';
+import { t } from '../i18n';
 
 const props = defineProps<{ block: MergeConflictBlock; busy?: boolean }>();
 const emit = defineEmits<{ (e: 'resolve', merged: string): void }>();
@@ -43,46 +44,46 @@ const noBase = computed(() => props.block.base === '');
   <div class="mcr">
     <div class="mcr__top">
       <div class="pane">
-        <div class="pane__title"><GnBadge tone="success">Ours (atual)</GnBadge></div>
+        <div class="pane__title"><GnBadge tone="success">{{ t('mcr.ours') }}</GnBadge></div>
         <CodeEditor :model-value="block.ours" read-only :filename="block.filePath" />
       </div>
       <div class="pane">
         <div class="pane__title">
-          <GnBadge>Base (ancestral comum)</GnBadge>
-          <span v-if="noBase" class="muted">sem ancestral (arquivo adicionado nos dois lados)</span>
+          <GnBadge>{{ t('mcr.base') }}</GnBadge>
+          <span v-if="noBase" class="muted">{{ t('mcr.noBase') }}</span>
         </div>
         <CodeEditor :model-value="block.base" read-only :filename="block.filePath" />
       </div>
       <div class="pane">
-        <div class="pane__title"><GnBadge tone="accent">Theirs (entrando)</GnBadge></div>
+        <div class="pane__title"><GnBadge tone="accent">{{ t('mcr.theirs') }}</GnBadge></div>
         <CodeEditor :model-value="block.theirs" read-only :filename="block.filePath" />
       </div>
     </div>
 
     <div class="mcr__bar">
-      <strong>Resultado da fusão</strong>
+      <strong>{{ t('mcr.result') }}</strong>
       <GnBadge :tone="locked ? 'danger' : 'success'">
-        {{ locked ? `${regions.length} bloco(s) em conflito` : 'sem marcadores' }}
+        {{ locked ? t('mcr.blocksInConflict', { n: regions.length }) : t('mcr.noMarkers') }}
       </GnBadge>
       <span class="spacer" />
       <template v-if="regions.length">
-        <span class="muted">Todos:</span>
-        <GnButton size="sm" @click="chooseAll('ours')">Ours</GnButton>
-        <GnButton size="sm" @click="chooseAll('theirs')">Theirs</GnButton>
-        <GnButton size="sm" @click="chooseAll('both')">Ambos</GnButton>
+        <span class="muted">{{ t('mcr.all') }}</span>
+        <GnButton size="sm" @click="chooseAll('ours')">{{ t('mcr.oursShort') }}</GnButton>
+        <GnButton size="sm" @click="chooseAll('theirs')">{{ t('mcr.theirsShort') }}</GnButton>
+        <GnButton size="sm" @click="chooseAll('both')">{{ t('mcr.both') }}</GnButton>
       </template>
-      <GnButton size="sm" variant="ghost" @click="reset">Reiniciar</GnButton>
+      <GnButton size="sm" variant="ghost" @click="reset">{{ t('mcr.reset') }}</GnButton>
     </div>
 
     <div v-if="regions.length" class="mcr__blocks">
       <div v-for="(r, i) in regions" :key="r.from" class="blk">
         <button class="blk__go" type="button" @click="editor?.scrollTo(r.from)">
-          Bloco {{ i + 1 }} · linha {{ lineOf(r.from) }}
+          {{ t('mcr.blockAt', { i: i + 1, line: lineOf(r.from) }) }}
         </button>
-        <GnButton size="sm" @click="choose(i, 'ours')">Ours</GnButton>
-        <GnButton v-if="r.base !== null" size="sm" @click="choose(i, 'base')">Base</GnButton>
-        <GnButton size="sm" @click="choose(i, 'theirs')">Theirs</GnButton>
-        <GnButton size="sm" @click="choose(i, 'both')">Ambos</GnButton>
+        <GnButton size="sm" @click="choose(i, 'ours')">{{ t('mcr.oursShort') }}</GnButton>
+        <GnButton v-if="r.base !== null" size="sm" @click="choose(i, 'base')">{{ t('mcr.baseShort') }}</GnButton>
+        <GnButton size="sm" @click="choose(i, 'theirs')">{{ t('mcr.theirsShort') }}</GnButton>
+        <GnButton size="sm" @click="choose(i, 'both')">{{ t('mcr.both') }}</GnButton>
       </div>
     </div>
 
@@ -92,11 +93,11 @@ const noBase = computed(() => props.block.base === '');
 
     <div class="mcr__foot">
       <span v-if="locked" class="warn">
-        Resolva ou remova todos os marcadores (&lt;&lt;&lt;&lt;&lt;&lt;&lt;, =======, &gt;&gt;&gt;&gt;&gt;&gt;&gt;) para liberar.
+        {{ t('mcr.locked') }}
       </span>
-      <span v-else class="ok">Pronto para marcar como resolvido.</span>
+      <span v-else class="ok">{{ t('mcr.ready') }}</span>
       <GnButton variant="primary" :disabled="locked || busy" @click="emit('resolve', result)">
-        Marcar como Resolvido
+        {{ t('mcr.markResolved') }}
       </GnButton>
     </div>
   </div>

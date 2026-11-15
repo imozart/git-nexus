@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import { applyDiscard, applyStage, blockRows, diffLines, splitLines, type DiffRow } from '@git-nexus/git-core/pure';
+import { t } from '../i18n';
 
 const props = defineProps<{
   oldText: string;
@@ -153,12 +154,12 @@ const KIND_CLASS: Record<DiffRow['kind'], string> = { eq: '', change: 'row--chan
       <div class="sbs__label">{{ newLabel }}</div>
     </div>
 
-    <div v-if="!blocks.length" class="muted empty">Sem diferenças de conteúdo.</div>
+    <div v-if="!blocks.length" class="muted empty">{{ t('sbs.noDiff') }}</div>
 
     <div ref="body" class="sbs__body">
       <template v-for="(it, n) in items" :key="n">
         <button v-if="it.kind === 'fold'" class="fold" type="button" @click="expanded = new Set(expanded).add(it.from)">
-          ⋯ {{ it.count }} linhas inalteradas
+          ⋯ {{ t('sbs.unchanged', { n: it.count }) }}
         </button>
         <div
           v-else
@@ -174,7 +175,7 @@ const KIND_CLASS: Record<DiffRow['kind'], string> = { eq: '', change: 'row--chan
                 v-if="isFirstOfBlock(it.idx)"
                 class="ctrl__btn ctrl__btn--stage ctrl__btn--block"
                 type="button"
-                :title="stageAction === 'stage' ? 'Incluir o bloco inteiro no commit' : 'Tirar o bloco inteiro do commit'"
+                :title="stageAction === 'stage' ? t('sbs.stageBlock') : t('sbs.unstageBlock')"
                 @click="stageBlock(it.row.block)"
               >
                 {{ stageAction === 'stage' ? '⊕' : '⊖' }}
@@ -182,7 +183,7 @@ const KIND_CLASS: Record<DiffRow['kind'], string> = { eq: '', change: 'row--chan
               <button
                 class="ctrl__btn ctrl__btn--stage"
                 type="button"
-                :title="stageAction === 'stage' ? 'Incluir esta linha no commit' : 'Tirar esta linha do commit'"
+                :title="stageAction === 'stage' ? t('sbs.stageLine') : t('sbs.unstageLine')"
                 @click="stageRow(it.idx)"
               >
                 {{ stageAction === 'stage' ? '+' : '−' }}
@@ -193,19 +194,19 @@ const KIND_CLASS: Record<DiffRow['kind'], string> = { eq: '', change: 'row--chan
                 v-if="isFirstOfBlock(it.idx)"
                 class="ctrl__btn ctrl__btn--block"
                 type="button"
-                title="Descartar bloco inteiro (volta ao conteúdo da esquerda)"
+                :title="t('sbs.discardBlock')"
                 @click="discardBlock(it.row.block)"
               >
                 »
               </button>
-              <button class="ctrl__btn" type="button" title="Descartar esta linha" @click="discardRow(it.idx)">›</button>
+              <button class="ctrl__btn" type="button" :title="t('sbs.discardLine')" @click="discardRow(it.idx)">›</button>
             </template>
           </span>
           <span class="no">{{ it.row.newNo }}</span>
           <span class="code" :class="{ 'code--empty': it.row.newText === undefined }">{{ it.row.newText }}</span>
         </div>
       </template>
-      <div v-if="truncated" class="muted empty">Exibindo as primeiras {{ MAX_ITEMS }} linhas.</div>
+      <div v-if="truncated" class="muted empty">{{ t('sbs.truncated', { n: MAX_ITEMS }) }}</div>
     </div>
   </div>
 </template>

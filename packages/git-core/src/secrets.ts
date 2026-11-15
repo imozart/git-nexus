@@ -1,5 +1,6 @@
 import { runGit } from './runner.js';
 import type { SecretFinding, SecretsConfig } from './types/ipc.js';
+import { tm } from './messages.js';
 
 /** Marcador que o desenvolvedor coloca na linha para dizer "isto não é um segredo". */
 export const ALLOW_MARKER = 'gitnexus:allow-secret';
@@ -48,6 +49,27 @@ const RULES: Rule[] = [
   },
 ];
 
+/** Nome da regra (escrito em português) no idioma atual. */
+const RULE_EN: Record<string, string> = {
+  'Chave privada (PEM/SSH/PGP)': 'Private key (PEM/SSH/PGP)',
+  'Chave de acesso AWS': 'AWS access key',
+  'Token do GitHub': 'GitHub token',
+  'Token do GitLab': 'GitLab token',
+  'Token do Slack': 'Slack token',
+  'Chave de API do Google': 'Google API key',
+  'Chave secreta do Stripe': 'Stripe secret key',
+  'Token do npm': 'npm token',
+  JWT: 'JWT',
+  'Credenciais em URL de conexão': 'Credentials in a connection URL',
+  'Senha/segredo atribuído no código': 'Password/secret assigned in code',
+  'Arquivo .env (variáveis de ambiente)': '.env file (environment variables)',
+  'Chave privada SSH': 'SSH private key',
+  'Arquivo de chave/certificado': 'Key/certificate file',
+  'Arquivo de senhas (.htpasswd)': 'Password file (.htpasswd)',
+  'Arquivo de credenciais': 'Credentials file',
+};
+const ruleName = (pt: string): string => tm(pt, RULE_EN[pt] ?? pt);
+
 /** Mostra só o começo do trecho: o segredo completo nunca sai do scanner. */
 export function mask(s: string): string {
   const t = s.trim();
@@ -61,7 +83,7 @@ export function scanLine(line: string): { rule: string; preview: string } | null
     const m = r.re.exec(line);
     if (!m) continue;
     if (r.accept && !r.accept(m[0], m.slice(1))) continue;
-    return { rule: r.name, preview: mask(m[1] ?? m[0]) };
+    return { rule: ruleName(r.name), preview: mask(m[1] ?? m[0]) };
   }
   return null;
 }
@@ -139,7 +161,7 @@ export async function scanStagedSecrets(repoPath: string, cfg: SecretsConfig): P
 
   for (const f of files) {
     const rule = SENSITIVE_FILE.find(([re]) => re.test(f));
-    if (rule) findings.push({ kind: 'sensitive-file', file: f, rule: rule[1], preview: f });
+    if (rule) findings.push({ kind: 'sensitive-file', file: f, rule: ruleName(rule[1]), preview: f });
   }
 
   if (cfg.maxFileSizeMb > 0 && files.length) {
@@ -151,7 +173,7 @@ export async function scanStagedSecrets(repoPath: string, cfg: SecretsConfig): P
     r.stdout.split('\n').forEach((s, i) => {
       const size = Number(s);
       if (Number.isFinite(size) && size >= limit && files[i])
-        findings.push({ kind: 'large-file', file: files[i]!, rule: `Arquivo grande (${(size / 1024 / 1024).toFixed(1)} MB)`, preview: files[i]! });
+        findings.push({ kind: 'large-file', file: files[i]!, rule: tm(`Arquivo grande (${(size / 1024 / 1024).toFixed(1)} MB)`, `Large file (${(size / 1024 / 1024).toFixed(1)} MB)`), preview: files[i]! });
     });
   }
   return findings;

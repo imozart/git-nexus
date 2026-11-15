@@ -3,6 +3,7 @@ import { isAbsolute, join, relative, resolve } from 'node:path';
 import type { MergeConflictBlock } from './types/ipc.js';
 import { hasConflictMarkers } from './conflict-markers.js';
 import { runGit } from './runner.js';
+import { tm } from './messages.js';
 
 async function stage(repoPath: string, n: 1 | 2 | 3, file: string): Promise<string> {
   // Estágios do índice: 1 = base (ancestral), 2 = ours, 3 = theirs. Ausente => add/delete.
@@ -47,7 +48,7 @@ export async function getMergeConflicts(repoPath: string): Promise<MergeConflict
 export function resolveInsideRepo(repoPath: string, filePath: string): string {
   const abs = isAbsolute(filePath) ? resolve(filePath) : resolve(repoPath, filePath);
   const rel = relative(resolve(repoPath), abs);
-  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) throw new Error('Caminho fora do repositório.');
+  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) throw new Error(tm('Caminho fora do repositório.', 'Path outside the repository.'));
   return abs;
 }
 

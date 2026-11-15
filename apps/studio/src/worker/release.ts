@@ -1,7 +1,7 @@
 // Versão e changelog dentro do app: o MESMO núcleo que o pipeline de release usa (scripts/lib/release-core.mjs).
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { runGit, type BumpChoice, type ReleaseInfo } from '@git-nexus/git-core';
+import { runGit, tm, type BumpChoice, type ReleaseInfo } from '@git-nexus/git-core';
 import { computeNext, groupCommits, latestTag, parseCommit, renderSections, type ParsedCommit } from '../../../../scripts/lib/release-core.mjs';
 
 const SEMVER = /^\d+\.\d+\.\d+$/;
@@ -57,10 +57,10 @@ export async function getReleaseInfo(repoPath: string, bump: BumpChoice = 'auto'
 
 /** Cria a tag anotada vX.Y.Z no HEAD (local; o envio ao remoto é decisão sua). */
 export async function createReleaseTag(repoPath: string, version: string, notes?: string): Promise<{ tag: string }> {
-  if (!SEMVER.test(version)) throw new Error(`Versão inválida: ${version}`);
+  if (!SEMVER.test(version)) throw new Error(tm(`Versão inválida: ${version}`, `Invalid version: ${version}`));
   const tag = `v${version}`;
   const exists = await runGit(repoPath, ['rev-parse', '-q', '--verify', `refs/tags/${tag}`], { check: false });
-  if (exists.code === 0) throw new Error(`A tag ${tag} já existe.`);
+  if (exists.code === 0) throw new Error(tm(`A tag ${tag} já existe.`, `The tag ${tag} already exists.`));
   const msg = `GitNexus ${tag}${notes?.trim() ? `\n\n${notes.trim()}` : ''}`;
   await runGit(repoPath, ['tag', '-a', '--cleanup=verbatim', tag, '-m', msg]); // verbatim: não remove as linhas que começam com "#" (títulos do Markdown)
   return { tag };
@@ -68,11 +68,11 @@ export async function createReleaseTag(repoPath: string, version: string, notes?
 
 /** Insere a versão no topo do CHANGELOG.md (cria o arquivo se não existir). Recusa duplicar a mesma versão. */
 export async function writeChangelog(repoPath: string, version: string, markdown: string, date = new Date()): Promise<{ path: string }> {
-  if (!SEMVER.test(version)) throw new Error(`Versão inválida: ${version}`);
+  if (!SEMVER.test(version)) throw new Error(tm(`Versão inválida: ${version}`, `Invalid version: ${version}`));
   const file = join(repoPath, 'CHANGELOG.md');
   const current = await readFile(file, 'utf8').catch(() => '');
   const heading = `## [v${version}]`;
-  if (current.includes(heading)) throw new Error(`O CHANGELOG.md já tem a versão v${version}.`);
+  if (current.includes(heading)) throw new Error(tm(`O CHANGELOG.md já tem a versão v${version}.`, `CHANGELOG.md already has version v${version}.`));
   const day = date.toISOString().slice(0, 10);
   // dentro do changelog cada seção desce um nível (### Novidades) para ficar abaixo do título da versão
   const body = markdown.replace(/^## /gm, '### ').trim();

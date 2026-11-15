@@ -4,6 +4,7 @@ import { GnBadge, GnButton } from '@git-nexus/ui-kit';
 import type { FileEntry, RepositoryMeta, StashEntry, StashFile } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
+import { dateLocale, t, type MessageKey } from '../../i18n';
 import ConfirmDialog from '../ConfirmDialog.vue';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
@@ -29,8 +30,8 @@ const showOnly = ref(false);
 const confirm = ref<{ title: string; lines: string[]; label: string; danger?: boolean; run: () => Promise<void> } | null>(null);
 const renaming = ref('');
 
-const when = (s: number) => new Date(s * 1000).toLocaleString('pt-BR');
-const STATUS: Record<string, string> = { A: 'novo', M: 'modificado', D: 'removido' };
+const when = (s: number) => new Date(s * 1000).toLocaleString(dateLocale.value);
+const STATUS: Record<string, MessageKey> = { A: 'gv.st.A', M: 'gv.st.M', D: 'gv.st.D' };
 
 async function load(): Promise<void> {
   loading.value = true;
@@ -99,7 +100,7 @@ function create(): Promise<void> {
     form.message = '';
     only.value = new Set();
     selected.value = e;
-    return `Guardado como "${e.message}".`;
+    return t('stash.savedAs', { name: e.message });
   });
 }
 
@@ -125,16 +126,16 @@ async function restore(overwrite = false): Promise<void> {
   error.value = '';
   try {
     await api.restoreStashFiles(props.repo.path, s.ref, list, overwrite);
-    info.value = `${list.length} arquivo(s) restaurado(s) do stash. O stash foi mantido.`;
+    info.value = t('stash.restored', { n: list.length });
     ws.bump(props.repo.id);
     await load();
   } catch (e) {
     const msg = errMsg(e);
-    if (!overwrite && msg.includes('alterações locais')) {
+    if (!overwrite && /alterações locais|already have local changes/.test(msg)) {
       confirm.value = {
-        title: 'Sobrescrever alterações locais?',
-        lines: [msg, 'As alterações locais desses arquivos serão substituídas pela versão do stash.'],
-        label: 'Sobrescrever',
+        title: t('stash.overwriteTitle'),
+        lines: [msg, t('stash.overwriteBody')],
+        label: t('stash.overwrite'),
         danger: true,
         run: () => restore(true),
       };
@@ -146,11 +147,11 @@ function askDrop(): void {
   const s = selected.value;
   if (!s) return;
   confirm.value = {
-    title: 'Excluir este stash?',
-    lines: [`"${s.message}" (${s.ref}) será removido. Esta ação não pode ser desfeita pela interface.`],
-    label: 'Excluir',
+    title: t('stash.dropTitle'),
+    lines: [t('stash.dropBody', { name: s.message, ref: s.ref })],
+    label: t('stash.drop'),
     danger: true,
-    run: () => act(async () => { await api.dropStash(props.repo.path, s.ref); return 'Stash excluído.'; }),
+    run: () => act(async () => { await api.dropStash(props.repo.path, s.ref); return t('stash.dropped'); }),
   };
 }
 
@@ -165,7 +166,7 @@ function doRename(): Promise<void> {
   return act(async () => {
     await api.renameStash(props.repo.path, s.ref, name);
     selected.value = null; // a entrada é recriada no topo da lista; selecionada de volta abaixo
-    return 'Stash renomeado.';
+    return t('stash.renamed');
   }).then(async () => {
     if (!selected.value && stashes.value[0]) await select(stashes.value[0]);
   });
@@ -185,28 +186,28 @@ watch(() => ws.versions[props.repo.id], load);
   <div class="st">
     <aside class="st__left">
       <section class="box">
-        <h3>Guardar alterações</h3>
+        <h3>{{ t('stash.saveChanges') }}</h3>
         <form @submit.prevent="create">
-          <input v-model="form.message" placeholder="Nome (ex.: ajuste do login)" spellcheck="false" />
-          <label class="chk"><input v-model="form.includeUntracked" type="checkbox" /> Incluir arquivos novos (não versionados)</label>
-          <label class="chk"><input v-model="form.keepIndex" type="checkbox" /> Manter o que já está no commit (stage)</label>
+          <input v-model="form.message" :placeholder="t('stash.namePh')" spellcheck="false" />
+          <label class="chk"><input v-model="form.includeUntracked" type="checkbox" /> {{ t('stash.includeUntracked') }}</label>
+          <label class="chk"><input v-model="form.keepIndex" type="checkbox" /> {{ t('stash.keepIndex') }}</label>
           <button type="button" class="link" @click="showOnly = !showOnly">
-            {{ showOnly ? '▾' : '▸' }} Guardar só alguns arquivos{{ only.size ? ` (${only.size})` : '' }}
+            {{ showOnly ? '▾' : '▸' }} {{ t('stash.onlySome') }}{{ only.size ? ` (${only.size})` : '' }}
           </button>
           <ul v-if="showOnly" class="files files--pick">
             <li v-for="e in changed" :key="e.path">
               <label><input type="checkbox" :checked="only.has(e.path)" @change="toggleOnly(e.path)" /> {{ e.path }}</label>
             </li>
-            <li v-if="!changed.length" class="muted">Nenhuma alteração local.</li>
+            <li v-if="!changed.length" class="muted">{{ t('stash.noLocal') }}</li>
           </ul>
           <GnButton variant="primary" type="submit" :disabled="!changed.length">
-            {{ only.size ? `Guardar ${only.size} arquivo(s)` : 'Guardar tudo' }}
+            {{ only.size ? t('stash.saveN', { n: only.size }) : t('stash.saveAll') }}
           </GnButton>
         </form>
       </section>
 
-      <h3 class="list-title">Guardados ({{ stashes.length }})</h3>
-      <p v-if="!stashes.length && !loading" class="muted">Nenhum stash. Guarde alterações para trocar de tarefa sem commitar.</p>
+      <h3 class="list-title">{{ t('stash.saved', { n: stashes.length }) }}</h3>
+      <p v-if="!stashes.length && !loading" class="muted">{{ t('stash.none') }}</p>
       <ul class="list">
         <li v-for="s in stashes" :key="s.hash" class="item" :class="{ 'item--on': selected?.hash === s.hash }" @click="select(s)">
           <div class="item__top">
@@ -222,36 +223,36 @@ watch(() => ws.versions[props.repo.id], load);
       <p v-if="error" class="err">{{ error }}</p>
       <p v-if="info" class="ok">✔ {{ info }}</p>
 
-      <div v-if="!selected" class="muted placeholder">Selecione um stash para ver os arquivos e restaurar tudo ou só parte.</div>
+      <div v-if="!selected" class="muted placeholder">{{ t('stash.select') }}</div>
       <template v-else>
         <header class="st__head">
           <template v-if="renaming">
             <input v-model="renaming" class="rename" spellcheck="false" @keydown.enter="doRename" @keydown.esc="renaming = ''" />
-            <GnButton size="sm" variant="primary" @click="doRename">Salvar</GnButton>
-            <GnButton size="sm" @click="renaming = ''">Cancelar</GnButton>
+            <GnButton size="sm" variant="primary" @click="doRename">{{ t('stash.save') }}</GnButton>
+            <GnButton size="sm" @click="renaming = ''">{{ t('dlg.cancel') }}</GnButton>
           </template>
           <template v-else>
             <h2 :title="selected.message">{{ selected.message }}</h2>
-            <GnButton size="sm" @click="startRename">Renomear</GnButton>
+            <GnButton size="sm" @click="startRename">{{ t('stash.rename') }}</GnButton>
           </template>
         </header>
         <div class="st__actions">
-          <GnButton size="sm" variant="primary" @click="apply(true)" title="Aplica tudo e remove o stash">Aplicar e remover</GnButton>
-          <GnButton size="sm" @click="apply(false)" title="Aplica tudo e mantém o stash">Aplicar (manter)</GnButton>
-          <GnButton size="sm" variant="danger" @click="askDrop">Excluir</GnButton>
+          <GnButton size="sm" variant="primary" @click="apply(true)" :title="t('stash.applyDropTip')">{{ t('stash.applyDrop') }}</GnButton>
+          <GnButton size="sm" @click="apply(false)" :title="t('stash.applyKeepTip')">{{ t('stash.applyKeep') }}</GnButton>
+          <GnButton size="sm" variant="danger" @click="askDrop">{{ t('stash.drop') }}</GnButton>
         </div>
 
         <div class="st__files">
           <div class="st__filesbar">
-            <label class="chk"><input type="checkbox" :checked="allPicked" @change="pickAll" /> {{ files.length }} arquivo(s)</label>
-            <GnButton size="sm" :disabled="!pick.size" @click="restore()">Restaurar {{ pick.size || '' }} selecionado(s)</GnButton>
+            <label class="chk"><input type="checkbox" :checked="allPicked" @change="pickAll" /> {{ t('stash.nFiles', { n: files.length }) }}</label>
+            <GnButton size="sm" :disabled="!pick.size" @click="restore()">{{ t('stash.restoreSelected', { n: pick.size || '' }) }}</GnButton>
           </div>
           <ul class="files">
             <li v-for="f in files" :key="f.path" :class="{ 'files__on': diffFile === f.path }" @click="showDiff(f)">
               <input type="checkbox" :checked="pick.has(f.path)" @click.stop @change="togglePick(f.path)" />
-              <GnBadge :tone="f.status === 'D' ? 'danger' : f.status === 'A' ? 'success' : 'accent'">{{ STATUS[f.status] ?? f.status }}</GnBadge>
+              <GnBadge :tone="f.status === 'D' ? 'danger' : f.status === 'A' ? 'success' : 'accent'">{{ STATUS[f.status] ? t(STATUS[f.status]!) : f.status }}</GnBadge>
               <span class="files__path" :title="f.path">{{ f.path }}</span>
-              <GnBadge v-if="f.untracked" tone="warn">não versionado</GnBadge>
+              <GnBadge v-if="f.untracked" tone="warn">{{ t('status.untracked') }}</GnBadge>
             </li>
           </ul>
         </div>

@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { runGit } from './runner.js';
 import type { GitOperation, OperationKind, UndoResult } from './types/ipc.js';
+import { tm } from './messages.js';
 
 const FS = '\x1f';
 const RS = '\x1e';
@@ -96,16 +97,16 @@ export async function getOperations(repoPath: string, limit = 60): Promise<GitOp
   ops.forEach((op, i) => {
     if (op.kind === 'checkout') {
       op.undoable = i === 0 && !!op.fromBranch; // só a troca mais recente
-      op.undoReason = op.undoable ? undefined : 'Só a troca de branch mais recente pode ser desfeita.';
+      op.undoReason = op.undoable ? undefined : tm('Só a troca de branch mais recente pode ser desfeita.', 'Only the most recent branch switch can be undone.');
       checkoutNewer = true;
       return;
     }
     if (!op.prevHash) {
-      op.undoReason = 'Não há estado anterior para voltar.';
+      op.undoReason = tm('Não há estado anterior para voltar.', 'There is no previous state to go back to.');
       return;
     }
     if (checkoutNewer) {
-      op.undoReason = 'Houve troca de branch depois desta operação.';
+      op.undoReason = tm('Houve troca de branch depois desta operação.', 'A branch switch happened after this operation.');
       return;
     }
     op.undoable = true;
@@ -145,22 +146,22 @@ export async function operationInProgress(repoPath: string): Promise<string | nu
  */
 export async function undoOperation(repoPath: string, id: string): Promise<UndoResult> {
   const busy = await operationInProgress(repoPath);
-  if (busy) throw new Error(`Há um ${busy} em andamento. Conclua ou aborte antes de desfazer operações.`);
+  if (busy) throw new Error(tm(`Há um ${busy} em andamento. Conclua ou aborte antes de desfazer operações.`, `There is a ${busy} in progress. Finish or abort it before undoing operations.`));
   const ops = await getOperations(repoPath, 200);
   const op = ops.find((o) => o.id === id);
-  if (!op) throw new Error('A lista de operações mudou. Atualize e tente de novo.');
-  if (!op.undoable) throw new Error(op.undoReason ?? 'Esta operação não pode ser desfeita.');
+  if (!op) throw new Error(tm('A lista de operações mudou. Atualize e tente de novo.', 'The operation list changed. Refresh and try again.'));
+  if (!op.undoable) throw new Error(op.undoReason ?? tm('Esta operação não pode ser desfeita.', 'This operation cannot be undone.'));
 
   if (op.kind === 'checkout') {
     await runGit(repoPath, ['checkout', op.fromBranch!]);
-    return { message: `Voltou para a branch ${op.fromBranch}.` };
+    return { message: tm(`Voltou para a branch ${op.fromBranch}.`, `Went back to branch ${op.fromBranch}.`) };
   }
   const mode = op.kind === 'commit' || op.kind === 'amend' ? '--soft' : '--keep';
   await runGit(repoPath, ['reset', mode, op.prevHash!]);
   return {
     message:
       mode === '--soft'
-        ? 'Commit desfeito: as alterações voltaram para o stage.'
-        : `Estado anterior restaurado (${op.prevHash!.slice(0, 7)}).`,
+        ? tm('Commit desfeito: as alterações voltaram para o stage.', 'Commit undone: the changes went back to the stage.')
+        : tm(`Estado anterior restaurado (${op.prevHash!.slice(0, 7)}).`, `Previous state restored (${op.prevHash!.slice(0, 7)}).`),
   };
 }

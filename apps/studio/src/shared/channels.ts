@@ -18,6 +18,7 @@ export const WORKER_METHODS = [
   'discardFile',
   'restoreBackup',
   'addToGitignore',
+  'setLocale',
   'executeCommit',
   'getReleaseInfo',
   'createReleaseTag',

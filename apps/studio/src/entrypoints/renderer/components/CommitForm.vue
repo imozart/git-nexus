@@ -19,7 +19,7 @@ import {
   typeFromBranch,
 } from '@git-nexus/governance-policy';
 import { api, errMsg, isHookRejection, stripHookPrefix } from '../api';
-import { t } from '../i18n';
+import { locale, t } from '../i18n';
 
 const props = defineProps<{ repoPath: string; branch: string; stagedCount: number }>();
 const emit = defineEmits<{ (e: 'committed', hash: string): void }>();
@@ -121,7 +121,7 @@ const input = computed<ConventionalCommitInput>(() => ({
 }));
 
 // Linter em tempo real: roda a cada tecla, sem I/O.
-const validation = computed(() => api.validateCommitMessage(input.value, { ...policy.value }));
+const validation = computed(() => api.validateCommitMessage(input.value, { ...policy.value }, locale.value));
 const subjectLen = computed(() => form.subject.trim().length);
 const preview = computed(() => formatCommitMessage(input.value));
 
@@ -288,7 +288,7 @@ async function saveTeamPolicy(): Promise<void> {
           {{ subjectLen }}/{{ policy.maxSubjectLength }}
         </span>
       </span>
-      <input v-model="form.subject" :placeholder="t('commit.subjectPh')" />
+      <input v-model="form.subject" data-focus="commit-subject" :placeholder="t('commit.subjectPh')" />
     </label>
 
     <label class="cf__field">

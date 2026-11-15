@@ -16,8 +16,8 @@ const api = {
     return () => ipcRenderer.removeListener(channel('updateProgress'), handler);
   },
   // Síncrono e sem I/O: o linter roda direto no preload para feedback em tempo de digitação.
-  validateCommitMessage: (input: ConventionalCommitInput, policy?: CommitPolicy) =>
-    validateCommitMessage(input, policy),
+  validateCommitMessage: (input: ConventionalCommitInput, policy?: CommitPolicy, locale?: 'pt-BR' | 'en') =>
+    validateCommitMessage(input, policy, locale),
 } as unknown as GitNexusApi;
 
 contextBridge.exposeInMainWorld('gitNexus', api);

@@ -4,6 +4,7 @@ import { GnBadge, GnButton } from '@git-nexus/ui-kit';
 import { buildGraph, type CiStatus, type CommitDetail, type CommitInfo, type HistorySearchMode, type RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { useWorkspaceStore } from '../stores/workspace';
+import { dateLocale, t, type MessageKey } from '../i18n';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
 const ws = useWorkspaceStore();
@@ -50,7 +51,7 @@ function clearSearch(): void {
 const detail = ref<CommitDetail | null>(null);
 /** Status de CI do commit selecionado (só aparece com uma conta GitHub/GitLab conectada em Ferramentas). */
 const ci = ref<CiStatus | null>(null);
-const CI_TEXT = { success: 'CI ok', failure: 'CI falhou', pending: 'CI rodando', none: 'sem CI' } as const;
+const CI_TEXT: Record<CiStatus['state'], MessageKey> = { success: 'gv.ci.success', failure: 'gv.ci.failure', pending: 'gv.ci.pending', none: 'gv.ci.none' };
 const CI_TONE = { success: 'success', failure: 'danger', pending: 'warn', none: 'neutral' } as const;
 let hostingReady: Promise<boolean> | null = null;
 const canCi = () => (hostingReady ??= api.hostingInfo(props.repo.path).then((i) => i.supported && i.hasToken).catch(() => false));
@@ -75,7 +76,7 @@ async function showFile(f: string): Promise<void> {
   diffFile.value = f;
   diffText.value = await api.getCommitFileDiff(props.repo.path, selectedHash.value, f);
 }
-const STATUS: Record<string, string> = { A: 'novo', M: 'modificado', D: 'removido', T: 'tipo' };
+const STATUS: Record<string, MessageKey> = { A: 'gv.st.A', M: 'gv.st.M', D: 'gv.st.D', T: 'gv.st.T' };
 
 const x = (lane: number) => lane * COL_W + COL_W / 2 + 2;
 const color = (lane: number) => COLORS[lane % COLORS.length]!;
@@ -97,7 +98,7 @@ function more(): void {
   void load();
 }
 
-const fmtDate = (s: number) => new Date(s * 1000).toLocaleString('pt-BR');
+const fmtDate = (s: number) => new Date(s * 1000).toLocaleString(dateLocale.value);
 const refTone = (r: string) => (r.startsWith('HEAD') ? 'accent' : r.startsWith('tag:') ? 'warn' : r.includes('/') ? 'neutral' : 'success');
 
 onMounted(load);
@@ -108,27 +109,27 @@ watch(() => ws.versions[props.repo.id], load);
   <div class="gv">
     <header class="gv__head">
       <strong>{{ repo.name }}</strong>
-      <span class="muted">{{ results ? `${results.length} resultado(s) da busca` : `${commits.length} commit(s) · todas as branches` }}</span>
+      <span class="muted">{{ results ? t('gv.results', { n: results.length }) : t('gv.commitsAll', { n: commits.length }) }}</span>
       <span class="spacer" />
-      <GnButton size="sm" :disabled="loading" @click="load">Atualizar</GnButton>
-      <GnButton size="sm" @click="ws.open('repo', repo)">Voltar ao staging</GnButton>
+      <GnButton size="sm" :disabled="loading" @click="load">{{ t('rv.refresh') }}</GnButton>
+      <GnButton size="sm" @click="ws.open('repo', repo)">{{ t('gv.backToStaging') }}</GnButton>
     </header>
     <form class="gv__search" @submit.prevent="runSearch">
-      <select v-model="q.mode" title="Onde procurar o texto">
-        <option value="message">Na mensagem</option>
-        <option value="content">Código adicionado/removido</option>
-        <option value="regex">Código (regex)</option>
+      <select v-model="q.mode" :title="t('gv.whereToSearch')">
+        <option value="message">{{ t('gv.modeMessage') }}</option>
+        <option value="content">{{ t('gv.modeContent') }}</option>
+        <option value="regex">{{ t('gv.modeRegex') }}</option>
       </select>
-      <input v-model="q.text" class="gv__q" placeholder="Texto a procurar…" spellcheck="false" />
-      <input v-model="q.author" placeholder="Autor" spellcheck="false" />
-      <input v-model="q.path" placeholder="Arquivo/pasta" spellcheck="false" />
-      <input v-model="q.since" placeholder="Desde (ex.: 2026-01-01, 2 weeks ago)" spellcheck="false" />
-      <GnButton size="sm" variant="primary" type="submit" :disabled="searching || !hasFilter">Buscar</GnButton>
-      <GnButton v-if="results" size="sm" type="button" @click="clearSearch">Limpar</GnButton>
+      <input v-model="q.text" class="gv__q" :placeholder="t('gv.textPh')" spellcheck="false" />
+      <input v-model="q.author" :placeholder="t('gv.authorPh')" spellcheck="false" />
+      <input v-model="q.path" :placeholder="t('gv.pathPh')" spellcheck="false" />
+      <input v-model="q.since" :placeholder="t('gv.sincePh')" spellcheck="false" />
+      <GnButton size="sm" variant="primary" type="submit" :disabled="searching || !hasFilter">{{ t('gv.search') }}</GnButton>
+      <GnButton v-if="results" size="sm" type="button" @click="clearSearch">{{ t('gv.clear') }}</GnButton>
     </form>
     <p v-if="error" class="err">{{ error }}</p>
-    <p v-else-if="results && !results.length" class="muted empty">Nenhum commit corresponde à busca.</p>
-    <p v-else-if="!commits.length && !loading" class="muted empty">Este repositório ainda não tem commits.</p>
+    <p v-else-if="results && !results.length" class="muted empty">{{ t('gv.noMatch') }}</p>
+    <p v-else-if="!commits.length && !loading" class="muted empty">{{ t('gv.noCommits') }}</p>
 
     <div class="gv__body">
       <div class="gv__list">
@@ -143,10 +144,10 @@ watch(() => ws.versions[props.repo.id], load);
           <svg v-if="!results" class="row__graph" :width="graphW" :height="ROW_H">
             <g v-if="layout.rows[i]" fill="none" stroke-width="2">
               <line
-                v-for="t in layout.rows[i]!.through"
-                :key="'t' + t"
-                :x1="x(t)" :y1="0" :x2="x(t)" :y2="ROW_H"
-                :stroke="color(t)"
+                v-for="lane in layout.rows[i]!.through"
+                :key="'t' + lane"
+                :x1="x(lane)" :y1="0" :x2="x(lane)" :y2="ROW_H"
+                :stroke="color(lane)"
               />
               <line
                 v-for="(s, k) in layout.rows[i]!.incoming"
@@ -175,33 +176,33 @@ watch(() => ws.versions[props.repo.id], load);
           <span class="row__meta muted">{{ c.shortHash }}</span>
         </div>
         <div v-if="!results && commits.length >= limit" class="more">
-          <GnButton size="sm" :disabled="loading" @click="more">Carregar mais</GnButton>
+          <GnButton size="sm" :disabled="loading" @click="more">{{ t('gv.loadMore') }}</GnButton>
         </div>
       </div>
 
       <aside v-if="selected" class="gv__detail">
         <h3>{{ selected.subject }}</h3>
         <dl>
-          <dt>Hash</dt><dd class="mono">{{ selected.hash }}</dd>
-          <dt>Autor</dt><dd>{{ selected.author }}</dd>
-          <dt>Data</dt><dd>{{ fmtDate(selected.date) }}</dd>
-          <dt>Pais</dt><dd class="mono">{{ selected.parents.map((p) => p.slice(0, 7)).join(', ') || '—' }}</dd>
+          <dt>{{ t('gv.hash') }}</dt><dd class="mono">{{ selected.hash }}</dd>
+          <dt>{{ t('gv.author') }}</dt><dd>{{ selected.author }}</dd>
+          <dt>{{ t('gv.date') }}</dt><dd>{{ fmtDate(selected.date) }}</dd>
+          <dt>{{ t('gv.parents') }}</dt><dd class="mono">{{ selected.parents.map((p) => p.slice(0, 7)).join(', ') || '—' }}</dd>
         </dl>
         <div v-if="ci" class="gv__ci">
-          <GnBadge :tone="CI_TONE[ci.state]" :title="ci.checks.map((c) => `${c.name}: ${c.state}`).join('\n')">{{ CI_TEXT[ci.state] }}</GnBadge>
-          <GnButton v-if="failUrl" size="sm" @click="api.hostingOpen(repo.path, failUrl!)">Ver falha</GnButton>
+          <GnBadge :tone="CI_TONE[ci.state]" :title="ci.checks.map((c) => `${c.name}: ${c.state}`).join('\n')">{{ t(CI_TEXT[ci.state]) }}</GnBadge>
+          <GnButton v-if="failUrl" size="sm" @click="api.hostingOpen(repo.path, failUrl!)">{{ t('gv.seeFailure') }}</GnButton>
         </div>
-        <GnButton size="sm" class="gv__rb" title="Reescrever os commits depois deste (reordenar, juntar, editar mensagem, descartar)" @click="ws.openTools(repo, 'rebase', selected.hash)">
-          Rebase interativo a partir daqui
+        <GnButton size="sm" class="gv__rb" :title="t('gv.rebaseTip')" @click="ws.openTools(repo, 'rebase', selected.hash)">
+          {{ t('gv.rebaseHere') }}
         </GnButton>
         <pre v-if="detail && detail.message.includes('\n')" class="gv__msg">{{ detail.message }}</pre>
-        <h4 v-if="detail">{{ detail.files.length }} arquivo(s) alterado(s)</h4>
+        <h4 v-if="detail">{{ t('gv.filesChanged', { n: detail.files.length }) }}</h4>
         <ul v-if="detail" class="gv__files">
           <li v-for="f in detail.files" :key="f.path" :class="{ on: diffFile === f.path }" @click="showFile(f.path)">
-            <GnBadge :tone="f.status === 'D' ? 'danger' : f.status === 'A' ? 'success' : 'accent'">{{ STATUS[f.status] ?? f.status }}</GnBadge>
+            <GnBadge :tone="f.status === 'D' ? 'danger' : f.status === 'A' ? 'success' : 'accent'">{{ STATUS[f.status] ? t(STATUS[f.status]!) : f.status }}</GnBadge>
             <span class="gv__fpath" :title="f.path">{{ f.path }}</span>
-            <button type="button" class="gv__mini" title="Histórico deste arquivo" @click.stop="ws.openTools(repo, 'file', f.path, 'history')">⏱</button>
-            <button type="button" class="gv__mini" title="Blame" @click.stop="ws.openTools(repo, 'file', f.path, 'blame')">👤</button>
+            <button type="button" class="gv__mini" :title="t('gv.fileHistory')" @click.stop="ws.openTools(repo, 'file', f.path, 'history')">⏱</button>
+            <button type="button" class="gv__mini" :title="t('gv.blame')" @click.stop="ws.openTools(repo, 'file', f.path, 'blame')">👤</button>
           </li>
         </ul>
         <pre v-if="diffFile" class="gv__diff"><template v-for="(l, i) in diffText.split('\n')" :key="i"><span :class="l.startsWith('+') && !l.startsWith('+++') ? 'a' : l.startsWith('-') && !l.startsWith('---') ? 'd' : l.startsWith('@@') ? 'h' : ''">{{ l }}

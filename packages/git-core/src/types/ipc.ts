@@ -495,7 +495,10 @@ export interface GitNexusApi extends GitNexusIPC {
   validateCommitMessage(
     input: ConventionalCommitInput,
     policy?: CommitPolicy,
+    locale?: 'pt-BR' | 'en',
   ): { isValid: boolean; errors: string[] };
+  /** Idioma das mensagens de erro/aviso geradas pelo núcleo (a interface avisa ao trocar de idioma). */
+  setLocale(locale: string): Promise<void>;
   executeCommit(
     repoPath: string,
     input: ConventionalCommitInput,
