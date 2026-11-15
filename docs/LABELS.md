@@ -91,3 +91,8 @@ A cada abertura, atualização ou fechamento de PR, **todos** os abertos são re
 - A label `bloqueado` é gerenciada pela automação: ela remove quando não há mais dependência. Para um bloqueio manual, use outra label.
 - O comentário é identificado por uma marca invisível no início; títulos de PR entram sem `@menção` e em uma linha só.
 - Funciona com merge commit (o modo usado neste repositório). Com *squash* ou *rebase* as pontas das branches deixam de ser ancestrais depois do merge, mas isso só afeta PRs de cima que ainda não foram reescritos.
+
+## Donos do código (CODEOWNERS)
+
+`.github/CODEOWNERS` pede a revisão do dono sempre que um PR muda arquivos da área. Hoje é uma pessoa só; ao entrar mais gente, troque pelo time de cada área.
+A revisão do dono **não é obrigatória** (para isso, ative *Require review from Code Owners* no ruleset da `main`), e o autor do PR nunca é pedido como revisor do próprio PR.
