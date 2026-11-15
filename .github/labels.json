@@ -31,5 +31,6 @@
   { "name": "tamanho: XL", "color": "d93f0b", "description": "Mais de 500 linhas: considere dividir o PR" },
 
   { "name": "conflito", "color": "b60205", "description": "O PR tem conflito com a branch de destino" },
-  { "name": "bloqueado", "color": "fef2c0", "description": "Depende de outro PR aberto (veja o comentário com a ordem de merge)" }
+  { "name": "bloqueado", "color": "fef2c0", "description": "Depende de outro PR aberto (veja o comentário com a ordem de merge)" },
+  { "name": "desatualizada", "color": "e4e669", "description": "A main tem commits novos que a branch não tem: atualize (merge ou rebase)" }
 ]

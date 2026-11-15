@@ -1,0 +1,40 @@
+name: Atraso dos PRs
+
+# Marca com a label "desatualizada" os PRs abertos que não têm commits novos da main, e tira a label quando atualizam (merge ou rebase
+# da main na branch). É um AVISO, não uma trava: o repositório é privado no plano gratuito, sem ruleset, então nada aqui impede o merge.
+# Quando existir ruleset, a regra "Require branches to be up to date before merging" faz a trava de verdade (docs/LABELS.md).
+# Roda a cada push na main e quando um PR é aberto ou atualizado. Contagem em scripts/lib/pr-behind.mjs.
+#
+# pull_request_target: o token pode escrever labels mesmo em PR de fork. Por isso o checkout é SEMPRE da branch principal
+# (o padrão desse evento) e nunca do código do PR; o workflow só compara commits pela API do GitHub.
+
+on:
+  push:
+    branches: [main]
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: pr-behind
+  cancel-in-progress: true # a rodada mais nova enxerga o estado mais novo
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  atraso:
+    name: Procurar PRs desatualizados
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .node-version
+      - name: Etiquetar os PRs desatualizados
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/pr-behind.mjs

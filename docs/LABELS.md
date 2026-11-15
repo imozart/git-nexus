@@ -19,7 +19,7 @@ node scripts/sync-labels.mjs --dry-run --repo dono/repo
 | Tipo | `enhancement`, `bug`, `documentation`, `performance`, `refatoração`, `testes`, `build`, `ci`, `estilo`, `chore`, `reversão`, `breaking change` | título do PR (Conventional Commits) |
 | Área | `área: app`, `área: ui-kit`, `área: git-core`, `área: política`, `área: ci`, `área: docs`, `dependências` | pastas alteradas (`.github/labeler.yml`) |
 | Tamanho | `tamanho: XS` … `tamanho: XL` | linhas alteradas |
-| Estado | `conflito`, `bloqueado` | estado do PR |
+| Estado | `conflito`, `bloqueado`, `desatualizada` | estado do PR |
 
 As labels `release-failure`, `main-health` e `parado` são criadas pelas próprias automações que as usam.
 
@@ -116,3 +116,16 @@ Toda issue nasce com **`triagem`** (ainda não analisada). Tire a label quando e
 O prefixo do título acompanha os tipos do Conventional Commits (`bug`, `feat`, `docs`, `perf`), o que facilita transformar uma issue em branch e em PR (`fix/…`, `feat/…`).
 
 Quando o repositório ficar público: ative *Private vulnerability reporting* e acrescente o atalho de segurança no `config.yml` (o comentário no arquivo lembra).
+
+## Branch desatualizada
+
+O workflow **Atraso dos PRs** (`pr-behind.yml`) marca com `desatualizada` o PR que **não tem commits novos da `main`** e tira a label quando a branch é atualizada (merge ou rebase da `main`).
+Roda a cada push na `main` e a cada PR aberto ou atualizado.
+
+- **É um aviso, não uma trava.** O repositório é privado no plano gratuito, sem ruleset, então nada impede o merge de um PR desatualizado. A trava de verdade é a regra
+  *Require branches to be up to date before merging* do ruleset da `main`, disponível quando o repositório ficar público (ou com GitHub Pro).
+- **O que conta:** só commits com conteúdo novo. Ficam de fora os **commits de merge** (o conteúdo deles já está nos commits que juntaram; sem isso, em uma pilha de PRs, o merge do de
+  baixo marcaria todos os de cima) e o **`chore(release)`** que o pipeline grava depois de cada release (sem isso, todo PR ficaria marcado a cada release).
+- **Atenção a pilhas:** com *Require up to date* ligado no futuro, cada merge deixa os PRs restantes atrás da `main` e cada um precisaria ser atualizado e passar o CI de novo
+  (Windows e empacotamento inclusos). Em pilha longa isso é caro; vale decidir quando o ruleset existir.
+- Para simular: `GITHUB_REPOSITORY=dono/repo node scripts/pr-behind.mjs --dry-run`.
