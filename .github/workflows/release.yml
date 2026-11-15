@@ -365,7 +365,7 @@ jobs:
   # 6) Se qualquer etapa falhar, envia um e-mail com os detalhes (job, passo e trecho do log com o erro).
   # Requer: secrets MAIL_USERNAME e MAIL_PASSWORD (Gmail: senha de app) e a variável NOTIFY_EMAIL. Sem eles, só avisa no log.
   notify-failure:
-    name: Notificar falha por e-mail
+    name: Notificar falha (issue e e-mail)
     needs: [version, quality, build, release]
     if: ${{ always() && contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-latest
@@ -373,6 +373,7 @@ jobs:
     permissions:
       contents: read
       actions: read # ler jobs e logs da execução
+      issues: write # abrir/comentar a issue de falha
     env:
       GH_TOKEN: ${{ github.token }}
       MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
@@ -389,6 +390,14 @@ jobs:
 
       - name: Resumo na página da execução
         run: cat "$RUNNER_TEMP/failure.txt" >> "$GITHUB_STEP_SUMMARY"
+
+      # Registro permanente e pesquisável (o e-mail some na caixa de entrada). Se já há uma issue aberta com o rótulo release-failure,
+      # comenta nela em vez de abrir outra. Não bloqueia: a issue é um registro a mais e não pode esconder a falha real.
+      - name: Abrir (ou atualizar) a issue de falha
+        continue-on-error: true
+        run: >-
+          node scripts/failure-issue.mjs --repo "$GITHUB_REPOSITORY" --run-number "$GITHUB_RUN_NUMBER" --sha "$GITHUB_SHA"
+          --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --report "$RUNNER_TEMP/failure.txt"
 
       - name: Enviar e-mail
         if: ${{ env.MAIL_USERNAME != '' && env.MAIL_PASSWORD != '' && env.NOTIFY_EMAIL != '' }}
