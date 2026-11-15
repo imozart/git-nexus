@@ -61,3 +61,17 @@ O workflow **Nome da branch** (`branch-name.yml`, check `Nome da branch (tipo/de
 - `dependabot/…`, `renovate/…` e `release/…` ficam de fora.
 
 Para tornar a regra obrigatória, acrescente o check ao ruleset da `main`.
+
+## Tamanho do PR
+
+O workflow **Tamanho do PR** (`pr-size.yml`) soma as linhas adicionadas + removidas e aplica **uma** label de tamanho (recalculada a cada push):
+
+| Label | Linhas alteradas |
+|---|---|
+| `tamanho: XS` | até 10 |
+| `tamanho: S` | 11 a 50 |
+| `tamanho: M` | 51 a 200 |
+| `tamanho: L` | 201 a 500 |
+| `tamanho: XL` | mais de 500: considere dividir o PR |
+
+Lockfiles (`pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`), snapshots e arquivos `.min.js/.min.css` não entram na conta. Faixas em `scripts/lib/pr-size.mjs`.
