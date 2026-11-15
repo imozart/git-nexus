@@ -117,8 +117,8 @@ watch(() => ws.versions[props.repo.id], load);
       <strong>{{ repo.name }}</strong>
       <span class="muted">{{ results ? t('gv.results', { n: results.length }) : t('gv.commitsAll', { n: commits.length }) }}</span>
       <span class="spacer" />
-      <GnButton size="sm" :disabled="loading" @click="load">{{ t('rv.refresh') }}</GnButton>
-      <GnButton size="sm" @click="ws.open('repo', repo)">{{ t('gv.backToStaging') }}</GnButton>
+      <GnButton size="sm" tone="accent" :disabled="loading" @click="load">{{ t('rv.refresh') }}</GnButton>
+      <GnButton size="sm" tone="accent" @click="ws.open('repo', repo)">{{ t('gv.backToStaging') }}</GnButton>
     </header>
     <form class="gv__search" @submit.prevent="runSearch">
       <ComboBox v-model="q.mode" :options="searchModes" :title="t('gv.whereToSearch')" />

@@ -556,10 +556,10 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
         <span class="muted rv__path">{{ repo.path }}</span>
       </div>
       <div class="rv__btns">
-        <GnButton size="sm" :disabled="loading" @click="refresh()">{{ t('rv.refresh') }}</GnButton>
-        <GnButton size="sm" @click="ws.open('graph', repo)">{{ t('rv.graph') }}</GnButton>
-        <GnButton size="sm" @click="ws.open('tools', repo)">{{ t('rv.tools') }}</GnButton>
-        <GnButton size="sm" :variant="conflicted.length ? 'primary' : 'ghost'" @click="ws.open('merge', repo)">
+        <GnButton size="sm" tone="accent" :disabled="loading" @click="refresh()">{{ t('rv.refresh') }}</GnButton>
+        <GnButton size="sm" tone="accent" @click="ws.open('graph', repo)">{{ t('rv.graph') }}</GnButton>
+        <GnButton size="sm" tone="accent" @click="ws.open('tools', repo)">{{ t('rv.tools') }}</GnButton>
+        <GnButton size="sm" :tone="conflicted.length ? 'warn' : 'neutral'" :variant="conflicted.length ? 'primary' : 'ghost'" @click="ws.open('merge', repo)">
           {{ t('rv.conflicts') }}{{ conflicted.length ? ` (${conflicted.length})` : '' }}
         </GnButton>
       </div>
