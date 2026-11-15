@@ -1,0 +1,62 @@
+name: Dependências
+
+# O Dependabot cuida das atualizações; aqui fica o que olha o PR em si:
+#  1) revisão de dependências: bloqueia um PR que ADICIONA ou atualiza para uma dependência com vulnerabilidade conhecida;
+#  2) auditoria do que já está no lockfile (pnpm audit): reprova em severidade alta ou crítica e lista as demais no resumo.
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: dependencies-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    name: Revisão de dependências
+    # Precisa do grafo de dependências, que em repositório PRIVADO exige GitHub Advanced Security. Pulado (conta como aprovado)
+    # enquanto o repositório for privado; passa a valer sozinho quando ele for público.
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+
+  audit:
+    name: Auditoria de dependências (pnpm audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # Tudo (inclusive ferramentas de build): vulnerabilidade ALTA ou crítica reprova. Não instala nada: audita o lockfile.
+      - name: Auditar (alta e crítica reprovam)
+        run: pnpm audit --audit-level=high
+
+      # Moderadas e baixas não bloqueiam (muitas vêm só de ferramentas de build), mas aparecem na página da execução.
+      - name: Resumo completo
+        if: ${{ always() }}
+        run: |
+          {
+            echo '## pnpm audit'
+            echo
+            echo '```'
+            pnpm audit || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
