@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GitNexus — cliente Git desktop portátil</title>
+  <meta name="description" content="Cliente Git desktop portátil e de código aberto: commits no padrão do time, stage por linha, desfazer de verdade, rebase visual, GitHub e GitLab." />
+  <link rel="icon" href="media/icon.svg" type="image/svg+xml" />
+  <style>
+    :root { --bg:#17181b; --surface:#1f2023; --surface2:#2a2c31; --border:#34363c; --text:#e3e5e8; --muted:#9097a1; --accent:#4f86f7; --green:#4fb56a; --warn:#e0a93b; }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+    a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+    .wrap { max-width:1080px; margin:0 auto; padding:0 24px; }
+    header.top { display:flex; align-items:center; gap:14px; padding:18px 0; }
+    header.top img { width:36px; height:36px; }
+    header.top strong { font-size:18px; }
+    header.top nav { margin-left:auto; display:flex; gap:20px; font-size:14px; }
+    .hero { text-align:center; padding:56px 0 24px; }
+    .hero h1 { font-size:clamp(32px,5vw,52px); line-height:1.15; margin:0 0 16px; letter-spacing:-0.02em; }
+    .hero h1 em { font-style:normal; color:var(--accent); }
+    .hero p.lead { max-width:700px; margin:0 auto 28px; color:var(--muted); font-size:18px; }
+    .cta { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+    .btn { display:inline-block; padding:11px 20px; border-radius:8px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-weight:600; }
+    .btn:hover { text-decoration:none; border-color:var(--accent); }
+    .btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .hint { color:var(--muted); font-size:13px; margin-top:10px; min-height:20px; }
+    .shot { margin:36px auto 0; border:1px solid var(--border); border-radius:12px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.45); max-width:1000px; }
+    .shot img { display:block; width:100%; height:auto; }
+    section { padding:64px 0 8px; }
+    section h2 { font-size:30px; margin:0 0 8px; letter-spacing:-0.01em; }
+    section > .wrap > p.sub { color:var(--muted); margin:0 0 32px; max-width:720px; }
+    .feat { display:grid; grid-template-columns:1fr 1.25fr; gap:32px; align-items:center; margin:40px 0; }
+    .feat.rev { grid-template-columns:1.25fr 1fr; } .feat.rev .txt { order:2; }
+    .feat h3 { font-size:22px; margin:0 0 8px; } .feat p { color:var(--muted); margin:0 0 10px; }
+    .feat ul { color:var(--muted); padding-left:18px; margin:0; } .feat li { margin:3px 0; }
+    .feat .shot { margin:0; max-width:none; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:14px; }
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px 18px; }
+    .card b { display:block; margin-bottom:4px; } .card span { color:var(--muted); font-size:14px; }
+    table { width:100%; border-collapse:collapse; background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; font-size:14px; }
+    th, td { text-align:left; padding:9px 14px; border-bottom:1px solid var(--border); } th { color:var(--muted); font-weight:600; background:var(--surface2); }
+    tr:last-child td { border-bottom:none; } code { font-family:ui-monospace,"Cascadia Code",Consolas,monospace; font-size:13px; background:var(--surface2); padding:1px 6px; border-radius:4px; }
+    pre { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; overflow:auto; font-size:13px; }
+    footer { margin-top:72px; padding:28px 0 48px; border-top:1px solid var(--border); color:var(--muted); font-size:14px; }
+    footer .wrap { display:flex; gap:18px; flex-wrap:wrap; justify-content:space-between; }
+    @media (max-width:820px) { .feat, .feat.rev { grid-template-columns:1fr; } .feat.rev .txt { order:0; } header.top nav { display:none; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <img src="media/icon.svg" alt="" />
+      <strong>GitNexus</strong>
+      <nav>
+        <a href="#recursos">Recursos</a>
+        <a href="#baixar">Baixar</a>
+        <a href="#instalar">Instalar</a>
+        <a href="https://github.com/imozart/git-nexus">GitHub</a>
+      </nav>
+    </header>
+
+    <div class="hero">
+      <h1>O cliente Git que faz o time seguir as regras, <em>não perde seu trabalho</em> e roda em qualquer lugar.</h1>
+      <p class="lead">Portátil (sem instalar), 64 bits, de código aberto (GPL-3.0). Commits no padrão do time, stage por linha, desfazer de verdade, rebase visual, GitHub e GitLab, inclusive on-premise.</p>
+      <div class="cta">
+        <a id="dl-main" class="btn primary" href="https://github.com/imozart/git-nexus/releases/latest">Baixar a última versão</a>
+        <a class="btn" href="https://github.com/imozart/git-nexus">Ver no GitHub</a>
+      </div>
+      <div id="dl-hint" class="hint"></div>
+      <div class="shot"><img src="media/commit-linter.png" alt="Tela de staging do GitNexus: diff lado a lado e o formulário de commit com a mensagem em conformidade" /></div>
+    </div>
+  </div>
+
+  <section id="recursos">
+    <div class="wrap">
+      <h2>O que faz diferente</h2>
+      <p class="sub">Cada um destes recursos é testado contra repositórios Git reais; os GIFs abaixo são da própria interface.</p>
+
+      <div class="feat">
+        <div class="txt">
+          <h3>Commits sempre no padrão</h3>
+          <p>Um linter de Conventional Commits em tempo real, e o botão só habilita quando a mensagem está 100% conforme.</p>
+          <ul>
+            <li>Política do time em <code>.gitnexus.json</code>: tipos, escopos, regra de ticket.</li>
+            <li>Ticket e tipo preenchidos pelo nome da branch.</li>
+            <li>Scanner de segredos antes de cada commit.</li>
+          </ul>
+        </div>
+        <div class="shot"><img src="media/commit-linter.gif" alt="O linter acusando erros e depois aprovando a mensagem do commit" loading="lazy" /></div>
+      </div>
+
+      <div class="feat rev">
+        <div class="txt">
+          <h3>Stage por linha e por bloco</h3>
+          <p>Inclua no commit só o trecho que importa, com diff lado a lado. O restante continua pendente.</p>
+          <ul><li>Descarte por linha, bloco ou arquivo, com cópia de segurança.</li><li>Navegação entre diferenças e arquivos pelo teclado.</li></ul>
+        </div>
+        <div class="shot"><img src="media/stage-por-linha.gif" alt="Incluindo uma única linha no commit pelo botão +" loading="lazy" /></div>
+      </div>
+
+      <div class="feat">
+        <div class="txt">
+          <h3>Desfazer de verdade</h3>
+          <p>Todo commit, merge, pull, rebase e troca de branch entra num histórico de operações (o reflog) e pode ser desfeito. O próprio desfazer também.</p>
+        </div>
+        <div class="shot"><img src="media/desfazer.gif" alt="Desfazendo o último commit pelo histórico de operações" loading="lazy" /></div>
+      </div>
+
+      <div class="feat rev">
+        <div class="txt">
+          <h3>Rebase interativo visual</h3>
+          <p>Arraste para reordenar, junte commits, edite mensagens e descarte, sem editar o arquivo <code>todo</code>.</p>
+          <ul><li>Backup automático e aviso de commits já publicados.</li><li>Conflitos com continuar, pular e abortar.</li></ul>
+        </div>
+        <div class="shot"><img src="media/rebase.gif" alt="Juntando e descartando commits no rebase visual" loading="lazy" /></div>
+      </div>
+
+      <div class="feat">
+        <div class="txt">
+          <h3>Conflitos sem sofrimento</h3>
+          <p>Três painéis (ours, base e theirs) e o resultado editável. Escolha por bloco ou para o arquivo todo; o botão só libera quando não resta nenhum marcador.</p>
+          <ul><li>Resolver também dentro de um rebase, com continuar, pular e abortar.</li><li>Nada é marcado como resolvido com <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code> sobrando.</li></ul>
+        </div>
+        <div class="shot"><img src="media/conflito.gif" alt="Resolvendo um conflito em três painéis e marcando como resolvido" loading="lazy" /></div>
+      </div>
+
+      <div class="feat rev">
+        <div class="txt">
+          <h3>Tudo a um Ctrl+K</h3>
+          <p>Paleta de comandos com busca difusa e atalhos para quase tudo. Quem usa Git de verdade não precisa tirar a mão do teclado.</p>
+        </div>
+        <div class="shot"><img src="media/paleta.gif" alt="Paleta de comandos encontrando rebase, stash e blame" loading="lazy" /></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>E mais</h2>
+      <p class="sub">O que acompanha o dia a dia de quem mantém vários projetos.</p>
+      <div class="grid">
+        <div class="card"><b>GitHub e GitLab</b><span>PRs/MRs, status do CI e criação a partir dos commits. Funciona com GitLab próprio (on-premise).</span></div>
+        <div class="card"><b>Painel de repositórios</b><span>Branch, pendências e ahead/behind de todos os projetos, com fetch e pull em lote.</span></div>
+        <div class="card"><b>Stash com nome</b><span>Guarde por tarefa e restaure só alguns arquivos.</span></div>
+        <div class="card"><b>Histórico, blame e busca</b><span>Por mensagem, por código (pickaxe) ou regex, autor e data; segue renomeações.</span></div>
+        <div class="card"><b>Versão e changelog</b><span>Próxima versão e changelog a partir dos Conventional Commits.</span></div>
+        <div class="card"><b>Português e English</b><span>Troca de idioma na hora.</span></div>
+        <div class="card"><b>Portátil</b><span>Extraia o ZIP e execute; os dados ficam ao lado. Só binários de 64 bits.</span></div>
+        <div class="card"><b>Grande de verdade</b><span>Testado com 20 mil arquivos e 5 mil commits.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="baixar">
+    <div class="wrap">
+      <h2>Baixar</h2>
+      <p id="dl-sub" class="sub">Escolha o pacote do seu sistema. Os hashes SHA-256 de cada versão estão em <code>SHA256SUMS.txt</code>.</p>
+      <div id="dl-table"></div>
+    </div>
+  </section>
+
+  <section id="instalar">
+    <div class="wrap">
+      <h2>Instalar pelo gerenciador de pacotes</h2>
+      <p class="sub">Disponível conforme os manifestos forem publicados nos catálogos (veja <a href="https://github.com/imozart/git-nexus/blob/main/docs/PACKAGING.md">PACKAGING.md</a>).</p>
+<pre>winget install Imozart.GitNexus                      # Windows (instalador por usuário)
+scoop bucket add gitnexus https://github.com/imozart/scoop-gitnexus
+scoop install gitnexus                                # Windows (portátil)
+brew install --cask imozart/gitnexus/gitnexus         # macOS</pre>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span>GitNexus é software livre sob a <a href="https://github.com/imozart/git-nexus/blob/main/LICENSE">GNU GPL v3</a>.</span>
+      <span><a href="https://github.com/imozart/git-nexus/blob/main/docs/CODE_SIGNING_POLICY.md">Política de assinatura</a> · <a href="https://github.com/imozart/git-nexus/issues">Issues</a></span>
+    </div>
+  </footer>
+
+  <script>
+    // Lista os arquivos da última release (API pública do GitHub). Sem release pública, cai no link para as Releases.
+    (function () {
+      var REPO = 'imozart/git-nexus';
+      var ua = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+      var os = /win/i.test(ua) ? 'win' : /mac/i.test(ua) ? 'mac' : /linux|x11/i.test(ua) ? 'linux' : 'win';
+      var ROWS = [
+        ['Windows', 'Instalador (por usuário)', /-win-(x64|arm64)-setup\.exe$/],
+        ['Windows', 'ZIP portátil', /-win-(x64|arm64)\.zip$/],
+        ['macOS', 'DMG', /-mac-(x64|arm64)\.dmg$/],
+        ['Linux', 'AppImage (portátil)', /-linux-(x64|x86_64|arm64)\.AppImage$/],
+        ['Linux', 'Debian/Ubuntu (.deb)', /-linux-(amd64|arm64)\.deb$/],
+        ['Linux', 'Fedora/RHEL (.rpm)', /-linux-(x86_64|aarch64)\.rpm$/]
+      ];
+      var ARCH = { x64: 'x64', amd64: 'x64', x86_64: 'x64', arm64: 'ARM64', aarch64: 'ARM64' };
+      function mb(n) { return (n / 1048576).toFixed(0) + ' MB'; }
+      function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+      fetch('https://api.github.com/repos/' + REPO + '/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(function (rel) {
+          var rows = '';
+          var main = null;
+          var wantArm = /arm/i.test(navigator.userAgent) && !/x86|x64|intel|win64/i.test(navigator.userAgent);
+          ROWS.forEach(function (def) {
+            rel.assets.forEach(function (a) {
+              var m = def[2].exec(a.name);
+              if (!m) return;
+              rows += '<tr><td>' + def[0] + '</td><td>' + def[1] + '</td><td>' + (ARCH[m[1]] || m[1]) + '</td><td><a href="' + esc(a.browser_download_url) + '">' + esc(a.name) + '</a></td><td>' + mb(a.size) + '</td></tr>';
+              var mine = (os === 'win' && def[0] === 'Windows' && def[1].indexOf('Instalador') === 0) || (os === 'mac' && def[0] === 'macOS') || (os === 'linux' && def[1].indexOf('AppImage') === 0);
+              if (mine && (!main || (wantArm ? /arm64|aarch64/ : /x64|x86_64|amd64/).test(a.name))) main = a;
+            });
+          });
+          document.getElementById('dl-table').innerHTML = '<table><thead><tr><th>Sistema</th><th>Pacote</th><th>Arq.</th><th>Arquivo</th><th>Tamanho</th></tr></thead><tbody>' + rows + '</tbody></table>';
+          document.getElementById('dl-sub').innerHTML = 'Versão <b>' + esc(rel.tag_name) + '</b>. Os hashes SHA-256 estão em <code>SHA256SUMS.txt</code>.';
+          if (main) {
+            var b = document.getElementById('dl-main');
+            b.href = main.browser_download_url;
+            b.textContent = 'Baixar ' + rel.tag_name + ' para ' + (os === 'win' ? 'Windows' : os === 'mac' ? 'macOS' : 'Linux');
+            document.getElementById('dl-hint').textContent = main.name + ' · ' + mb(main.size);
+          }
+        })
+        .catch(function () {
+          document.getElementById('dl-table').innerHTML = '<p class="hint">Veja todas as versões em <a href="https://github.com/' + REPO + '/releases">github.com/' + REPO + '/releases</a>.</p>';
+        });
+    })();
+  </script>
+</body>
+</html>

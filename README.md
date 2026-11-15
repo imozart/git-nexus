@@ -4,6 +4,25 @@ Gerenciador Git desktop portátil (Electron + Vue 3 + TypeScript) com linter de 
 
 Especificação completa: [INSTRUCOES.md](INSTRUCOES.md).
 
+## Vitrine
+
+<table>
+  <tr>
+    <td width="50%"><b>Commit com linter</b><br /><img src="docs/media/commit-linter.gif" alt="O linter acusando erros e depois aprovando a mensagem do commit" /></td>
+    <td width="50%"><b>Resolução de conflito</b><br /><img src="docs/media/conflito.gif" alt="Resolvendo um conflito em três painéis e marcando como resolvido" /></td>
+  </tr>
+  <tr>
+    <td><b>Desfazer de verdade</b><br /><img src="docs/media/desfazer.gif" alt="Desfazendo o último commit pelo histórico de operações" /></td>
+    <td><b>Stage por linha</b><br /><img src="docs/media/stage-por-linha.gif" alt="Incluindo uma única linha no commit" /></td>
+  </tr>
+  <tr>
+    <td><b>Rebase interativo visual</b><br /><img src="docs/media/rebase.gif" alt="Juntando e descartando commits no rebase visual" /></td>
+    <td><b>Paleta de comandos (Ctrl+K)</b><br /><img src="docs/media/paleta.gif" alt="Paleta de comandos encontrando rebase, stash e blame" /></td>
+  </tr>
+</table>
+
+Página do projeto: <https://imozart.github.io/git-nexus/> (fonte em [`docs/index.html`](docs/index.html), publicada pelo GitHub Pages a partir da pasta `docs/`). Os GIFs são gravados da interface real; veja *Testar a interface sem Electron* abaixo.
+
 ## Estrutura
 
 ```
@@ -94,16 +113,17 @@ O que isso mudou no app:
 
 ## Idiomas
 
-**Português (Brasil)** e **English**, com troca **na hora** (seletor ao lado de *Comandos* ou pela paleta). Na primeira abertura vale o idioma do sistema. Já estão traduzidos: abas, tela inicial, paleta de comandos e todos os comandos, aviso de atualização e o formulário de commit; as demais telas (staging, grafo, conflitos e Ferramentas) ainda aparecem em português, e as chaves ausentes nunca quebram a interface (caem no português). Veja [`docs/I18N.md`](docs/I18N.md) para traduzir mais telas ou adicionar um idioma; os testes impedem chaves faltando, mortas ou com variáveis diferentes.
+**Português (Brasil)** e **English**, com troca **na hora** (seletor ao lado de *Comandos* ou pela paleta). Na primeira abertura vale o idioma do sistema. **Todas as telas** estão traduzidas, e também as mensagens de erro e aviso do núcleo, do worker e da validação de commit. Só o texto gerado a partir dos commits (notas de release e CHANGELOG) fica em português, porque usa o mesmo núcleo do pipeline de release. Como contribuir com outro idioma: [`docs/I18N.md`](docs/I18N.md).
 
 ## Atualizações
 
-O app avisa quando existe uma versão nova: **8 segundos depois de abrir** (para não atrasar a abertura) e depois **a cada 12 horas**, ele consulta a última release pública do GitHub e, se for maior que a versão em uso, mostra uma faixa no topo: *Nova versão X disponível (você usa Y)*, com **Baixar**, **Ver novidades**, **Depois** (volta a avisar na próxima abertura) e **Ignorar esta versão**.
+O app avisa quando existe uma versão nova: **8 segundos depois de abrir** (para não atrasar a abertura) e depois **a cada 12 horas**, ele consulta a última release pública do GitHub e, se for maior que a versão em uso, mostra uma faixa no topo: *Nova versão X disponível (você usa Y)*, com **Instalar e reiniciar**, **Baixar**, **Ver novidades**, **Depois** (volta a avisar na próxima abertura) e **Ignorar esta versão**.
 
-- **Baixar** abre no navegador o pacote certo para o seu sistema: instalador (ou ZIP, se você usa a versão portátil) no Windows, DMG no macOS, AppImage no Linux, sempre da arquitetura certa. Sem pacote compatível, abre a página da release.
-- **Privacidade:** é uma única requisição GET à API pública do GitHub, sem enviar nenhum dado seu nem identificador (só o `User-Agent` genérico `GitNexus-update-check`). Só são abertos endereços `https://github.com/imozart/git-nexus/…`.
+- **Instalar e reiniciar** (Windows instalado e Linux em AppImage): baixa o pacote da release com barra de progresso e **confere o SHA-256** contra o `SHA256SUMS.txt` da mesma release; se o hash não bater, o arquivo é descartado. Só depois mostra *Baixada e conferida* e o botão **Reiniciar e instalar**, então nada é fechado sozinho. No Windows roda o instalador em modo silencioso (por usuário, sem administrador) e reabre o app; no Linux troca o arquivo do AppImage e reabre.
+- **Baixar** abre no navegador o pacote certo para o seu sistema: instalador (ou ZIP, se você usa a versão portátil) no Windows, DMG no macOS, AppImage no Linux, sempre da arquitetura certa. É o caminho dos formatos que não se atualizam sozinhos (ZIP portátil, macOS, .deb/.rpm) e de releases antigas sem `SHA256SUMS.txt`.
+- **Segurança:** a interface não informa endereço nenhum: o processo principal consulta a release, escolhe o pacote e só baixa de `https://github.com/imozart/git-nexus/…`. O nome do arquivo é validado e há um limite de tamanho.
+- **Privacidade:** a verificação é uma única requisição GET à API pública do GitHub, sem enviar nenhum dado seu nem identificador (só o `User-Agent` genérico `GitNexus-update-check`). O download só acontece quando você clica em *Instalar e reiniciar* ou *Baixar*.
 - Pela paleta (Ctrl+K): *Verificar atualizações do GitNexus* (consulta na hora, mesmo para uma versão ignorada) e *Desligar/Ligar a verificação automática*.
-- Não instala sozinho: a instalação continua sendo um passo seu (abrir o instalador ou extrair o ZIP). Isso vale para todos os formatos, inclusive o portátil.
 - Precisa que o repositório seja **público**; com repositório privado a consulta retorna "não encontrado" e o app segue normalmente, sem avisos. Em desenvolvimento a verificação fica desativada.
 
 ## Assinatura de código (Windows)
