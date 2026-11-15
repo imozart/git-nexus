@@ -20,6 +20,7 @@ import {
 } from '@git-nexus/governance-policy';
 import { api, errMsg, isHookRejection, stripHookPrefix } from '../api';
 import { locale, t } from '../i18n';
+import ComboBox from './ComboBox.vue';
 
 const props = defineProps<{ repoPath: string; branch: string; stagedCount: number }>();
 const emit = defineEmits<{ (e: 'committed', hash: string): void }>();
@@ -269,10 +270,7 @@ async function saveTeamPolicy(): Promise<void> {
     <div class="cf__row">
       <label class="cf__field">
         <span class="cf__label">{{ t('commit.scope') }} {{ policy.scopeRequired ? '*' : `(${t('commit.optional')})` }}</span>
-        <input v-model="form.scope" list="cf-scopes" :placeholder="t('commit.scopePh')" spellcheck="false" />
-        <datalist v-if="policy.scopes?.length" id="cf-scopes">
-          <option v-for="s in policy.scopes" :key="s" :value="s" />
-        </datalist>
+        <ComboBox v-model="form.scope" searchable :options="policy.scopes ?? []" :placeholder="t('commit.scopePh')" :aria-label="t('commit.scope')" />
       </label>
       <label class="cf__field">
         <span class="cf__label">{{ t('commit.ticket') }} {{ policy.ticketRequired ? '*' : `(${t('commit.optional')})` }}</span>

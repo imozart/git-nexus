@@ -5,6 +5,7 @@ import { buildGraph, type CiStatus, type CommitDetail, type CommitInfo, type His
 import { api, errMsg } from '../api';
 import { useWorkspaceStore } from '../stores/workspace';
 import { dateLocale, t, type MessageKey } from '../i18n';
+import ComboBox from '../components/ComboBox.vue';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
 const ws = useWorkspaceStore();
@@ -18,6 +19,11 @@ const limit = ref(300);
 const error = ref('');
 const loading = ref(false);
 const selectedHash = ref('');
+const searchModes = computed(() => [
+  { value: 'message', label: t('gv.modeMessage') },
+  { value: 'content', label: t('gv.modeContent') },
+  { value: 'regex', label: t('gv.modeRegex') },
+]);
 
 const layout = computed(() => buildGraph(commits.value));
 const graphW = computed(() => Math.max(1, layout.value.lanes) * COL_W + 8);
@@ -115,11 +121,7 @@ watch(() => ws.versions[props.repo.id], load);
       <GnButton size="sm" @click="ws.open('repo', repo)">{{ t('gv.backToStaging') }}</GnButton>
     </header>
     <form class="gv__search" @submit.prevent="runSearch">
-      <select v-model="q.mode" :title="t('gv.whereToSearch')">
-        <option value="message">{{ t('gv.modeMessage') }}</option>
-        <option value="content">{{ t('gv.modeContent') }}</option>
-        <option value="regex">{{ t('gv.modeRegex') }}</option>
-      </select>
+      <ComboBox v-model="q.mode" :options="searchModes" :title="t('gv.whereToSearch')" />
       <input v-model="q.text" class="gv__q" :placeholder="t('gv.textPh')" spellcheck="false" />
       <input v-model="q.author" :placeholder="t('gv.authorPh')" spellcheck="false" />
       <input v-model="q.path" :placeholder="t('gv.pathPh')" spellcheck="false" />
