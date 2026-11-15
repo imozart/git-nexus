@@ -43,3 +43,10 @@ O workflow **Labels do PR (tipo)** (`pr-labels.yml`) lê o título do PR e aplic
 - Título sem tipo válido? Vale o **prefixo da branch** (`feat/…`, `fix/…`; `hotfix/` conta como `fix`).
 - Muda o título? A label é trocada (roda também em `edited`). Só as labels deste grupo são removidas; as demais nunca são tocadas.
 - Usa `pull_request_target` sem executar código do PR: o checkout é da `main` e título, branch e corpo entram só por variável de ambiente.
+
+## Notas de release por label
+
+`.github/release.yml` define as categorias das notas que o **próprio GitHub** gera a partir das labels dos PRs
+(botão *Generate release notes* na tela de release, ou `gh release create --generate-notes`). Usa os mesmos títulos e a mesma ordem
+das seções do pipeline (`scripts/lib/release-core.mjs`), e os bots (`dependabot`, `github-actions`) ficam de fora.
+As notas publicadas pelo `release.yml` continuam saindo de `scripts/release-info.mjs` (lê os commits); este arquivo vale para as notas geradas pelo GitHub.

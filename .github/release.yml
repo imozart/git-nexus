@@ -1,0 +1,49 @@
+# Categorias das notas de release que o GitHub gera a partir das LABELS dos PRs (botão "Generate release notes",
+# `gh release create --generate-notes`). As notas do pipeline (scripts/release-info.mjs) já agrupam pelos commits;
+# aqui ficam os mesmos títulos (scripts/lib/release-core.mjs) para as duas fontes parecerem uma só.
+# As labels são aplicadas sozinhas pelo workflow pr-labels.yml (tipo do título do PR).
+
+changelog:
+  exclude:
+    authors:
+      - dependabot
+      - github-actions
+  categories:
+    - title: ⚠️ Mudanças que quebram compatibilidade
+      labels:
+        - breaking change
+    - title: ✨ Novidades
+      labels:
+        - enhancement
+    - title: 🐛 Correções
+      labels:
+        - bug
+    - title: ⚡ Performance
+      labels:
+        - performance
+    - title: ♻️ Refatorações
+      labels:
+        - refatoração
+    - title: 📚 Documentação
+      labels:
+        - documentation
+    - title: 🧪 Testes
+      labels:
+        - testes
+    - title: 📦 Build e dependências
+      labels:
+        - build
+        - dependências
+    - title: 🤖 CI/CD
+      labels:
+        - ci
+    - title: 🎨 Estilo
+      labels:
+        - estilo
+    - title: 🧹 Manutenção
+      labels:
+        - chore
+        - reversão
+    - title: 🔹 Outras alterações
+      labels:
+        - '*'
