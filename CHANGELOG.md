@@ -1,8 +1,8 @@
 # Changelog
 
-Todas as mudanças relevantes do GitNexus, por versão. As versões seguem o [SemVer](https://semver.org/lang/pt-BR/) e o formato é inspirado no [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
+Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https://semver.org/lang/pt-BR/) e o formato é inspirado no [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
-Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Ficam fora da lista os commits de testes, CI, estilo e manutenção interna; a lista completa, com os pacotes para baixar, está em cada [release](https://github.com/imozart/git-nexus/releases).
+Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
 ## [1.5.0] - 2026-11-15
 
@@ -14,6 +14,35 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - **tools:** aba Arquivo travava em repositórios grandes (combobox com busca) ([`e61c6bf`](https://github.com/imozart/git-nexus/commit/e61c6bf57ff818821f761fc266cc6729a9432a29))
 
+### 🤖 CI/CD
+
+- **release:** CHANGELOG.md gerado a cada release estável, em workflow próprio ([`07f9a97`](https://github.com/imozart/git-nexus/commit/07f9a97f0949001c6e60cd687b571a8514912ae1))
+- **labels:** ordem de merge e label bloqueado para PRs empilhados ([`b7079a7`](https://github.com/imozart/git-nexus/commit/b7079a76ba9b4c7b7ad3e91ee1ac25df347fcdec))
+- **labels:** label de conflito nos PRs abertos ([`680fb96`](https://github.com/imozart/git-nexus/commit/680fb9604bf992904a6bb3d8c9b44483b9595db5))
+- **labels:** label de tamanho do PR (XS a XL) pelas linhas alteradas ([`c252d3e`](https://github.com/imozart/git-nexus/commit/c252d3e4b7a425324c38f31598aadc64f3c969b7))
+- **branch:** verificar o nome da branch (tipo/descrição) em todo PR ([`f52a941`](https://github.com/imozart/git-nexus/commit/f52a94180474cf2e00f5efe01b3f0e4968a8c409))
+- **release:** categorias das notas de release geradas pelo GitHub, por label ([`266c63f`](https://github.com/imozart/git-nexus/commit/266c63f10198c20ad7471bf379bfada58394fb3f))
+- **labels:** label de tipo pelo título do PR, com a branch como alternativa ([`b5a9dcc`](https://github.com/imozart/git-nexus/commit/b5a9dccbad5eaa9251135ddf411fcfbc8b7494a4))
+- **labels:** catálogo de labels versionado e sincronização automática ([`7cea57b`](https://github.com/imozart/git-nexus/commit/7cea57b9dcaf2a87fb052091e1e1331fe97a99bd))
+- composite action para preparar o repositório nos workflows ([`68fca8a`](https://github.com/imozart/git-nexus/commit/68fca8ad4f3c801e4dc50f5e615830eee74ff07b))
+- rótulos automáticos por pasta e fechamento de itens parados ([`d161e89`](https://github.com/imozart/git-nexus/commit/d161e8999dcdf0b16c55c8ad75593b6b563125b6))
+- verificação semanal da main com issue em caso de falha ([`8c4cf2b`](https://github.com/imozart/git-nexus/commit/8c4cf2baf54ef2b779ab2402d908a69996a4a666))
+- abrir uma issue quando a release falha ([`27ba0c8`](https://github.com/imozart/git-nexus/commit/27ba0c8c6ffc218e11ed87aef4812661b20f060b))
+- versão do Node em um arquivo só (.node-version) ([`3898858`](https://github.com/imozart/git-nexus/commit/3898858d1bd0e42848da40f16fbc38d3d3d3e0a0))
+- varredura de segredos no histórico (gitleaks) ([`359484b`](https://github.com/imozart/git-nexus/commit/359484b64663f3f5d44d29545d33bcbd43be84ab))
+- SBOM e proveniência assinada nas releases ([`ae5987a`](https://github.com/imozart/git-nexus/commit/ae5987a6a5f49fe4d65a004d75d4f3635fdc3738))
+- testes de interface automatizados no repositório ([`7b07e90`](https://github.com/imozart/git-nexus/commit/7b07e9028c2faeef6ae855de5515cb4455702cc8))
+- teste de fumaça do app empacotado ([`d09be7a`](https://github.com/imozart/git-nexus/commit/d09be7aec7585e0b7548d6c5a4cc6f98b35b6546))
+- cache do Electron nos builds da release ([`ad07c32`](https://github.com/imozart/git-nexus/commit/ad07c32ddeeb4fbcad95bc83c89eacbf2924bf83))
+- revisão e auditoria de dependências no PR ([`2599805`](https://github.com/imozart/git-nexus/commit/25998055c593ceafd92106c432f39383f3cb7430))
+- cobertura de testes com piso mínimo ([`afcb0eb`](https://github.com/imozart/git-nexus/commit/afcb0eb8ee083973fe82ed3ed6fb62d2cd5ac713))
+- título do PR, lint dos workflows e ensaio do empacotamento ([`f5e011c`](https://github.com/imozart/git-nexus/commit/f5e011c8938876e0c30db37e84c27cbc0553723d))
+
+### 🧹 Manutenção
+
+- **repo:** templates de issue em formulário, no padrão do Beekeeper e adaptados ao GitNexus ([`cb83e21`](https://github.com/imozart/git-nexus/commit/cb83e2167c5fae739ab63db2766b324965e000d1))
+- **repo:** CODEOWNERS por área do repositório ([`10d9308`](https://github.com/imozart/git-nexus/commit/10d9308c99ae5f5de51c6033b6ce0480f162531a))
+
 ## [1.4.0] - 2026-11-15
 
 ### ✨ Novidades
@@ -21,6 +50,10 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 - **ui:** painéis laterais recolhíveis com faixas nomeadas ([`12e464a`](https://github.com/imozart/git-nexus/commit/12e464a8afac2b32f72270db3926fac127491647))
 - **log:** aba de log com os comandos git executados, por repositório ([`0436ea9`](https://github.com/imozart/git-nexus/commit/0436ea9f008ad857350c220841289947cc9c44e9))
 - **i18n:** seletor de idioma com bandeira e lista arredondada ([`6a50009`](https://github.com/imozart/git-nexus/commit/6a50009b0949ba83d4ce4a9d4457ab7c31c5af41))
+
+### 🤖 CI/CD
+
+- versão no código e canal beta ([`fe0a082`](https://github.com/imozart/git-nexus/commit/fe0a082fbd554722c4846e324411b84cb204931c))
 
 ## [1.3.0] - 2026-11-14
 
@@ -59,6 +92,14 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 ### ⚡ Performance
 
 - repositórios grandes (stage em lotes, lista com janela, filtro e conflitos pelo índice) ([`769b450`](https://github.com/imozart/git-nexus/commit/769b45022986286de9f0c759ab635be5b0916d9f))
+
+### 🤖 CI/CD
+
+- **release:** assinar o Windows pelo SignPath quando configurado ([`4fa15fc`](https://github.com/imozart/git-nexus/commit/4fa15fcb333e096daa1206c582a552d1aa036054))
+
+### 🧹 Manutenção
+
+- adotar a licença GPL-3.0 ([`a45cb06`](https://github.com/imozart/git-nexus/commit/a45cb06fc7b8737f9576a208b8baaefb1f642890))
 
 ## [1.1.0] - 2026-11-13
 

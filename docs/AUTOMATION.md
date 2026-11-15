@@ -94,8 +94,11 @@ Rodar à mão (por exemplo para acertar a versão agora): `node scripts/bump-ver
 O `CHANGELOG.md` (formato inspirado no *Keep a Changelog*, em português) é **gerado a cada release estável**; não precisa ser editado à mão.
 
 - **Fonte:** os mesmos commits (Conventional Commits) das notas da release, entre a estável anterior e a tag nova, com as mesmas seções.
-- **O que entra:** breaking, novidades, correções, performance, refatorações, documentação, build e commits fora do padrão. **Ficam de fora** testes, CI, estilo e
-  manutenção interna (o que não muda nada para quem usa o app); eles continuam na lista completa das notas de cada release. Versão só com isso ganha uma linha avisando.
+- **O que entra: tudo.** Todo commit entre a última versão estável e a nova, de qualquer tipo (breaking, novidades, correções, performance, refatorações, documentação, testes,
+  build, CI, estilo, manutenção e commits fora do padrão), agrupado por tipo na ordem das notas da release. Só o commit `chore(release)` que o próprio pipeline grava fica de fora.
+  Uma versão sem nenhum commit (build manual) ganha uma linha avisando.
+- **De onde vêm as linhas:** das mensagens dos commits da branch (merge commits não são lidos): `git log --no-merges`. Para o changelog ficar bom, as mensagens dos commits
+  precisam seguir o Conventional Commits; o que não segue cai em *Outras alterações*.
 - **Beta nunca entra.** Só versões `X.Y.Z`.
 - **Seguro de repetir:** refazer uma versão com os mesmos commits gera o mesmo texto, então reexecutar o pipeline não cria commit. Só a versão do momento é refeita;
   as outras (inclusive edições feitas à mão nelas) são preservadas. O texto antes da primeira versão (título e explicação) também é preservado.

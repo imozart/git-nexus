@@ -50,9 +50,9 @@ describe('scripts/changelog.mjs', () => {
     expect(r.out).toMatch(/v1\.0\.0: .*versão que faltava/);
   });
 
-  it('o que é interno e o commit chore(release) ficam de fora', () => {
+  it('entra tudo (inclusive CI e manutenção); só o commit chore(release) do pipeline fica de fora', () => {
     const t = changelog();
-    expect(t).not.toContain('ajusta o cache');
+    expect(t).toContain('ajusta o cache');
     // o preâmbulo cita o tipo `chore(release)`; o que não pode aparecer é a mensagem do commit do pipeline
     expect(t).not.toContain('chore(release): v1.1.0');
     expect(t).not.toContain('[skip release]');
