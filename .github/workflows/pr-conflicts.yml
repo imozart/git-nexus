@@ -1,0 +1,39 @@
+name: Conflitos nos PRs
+
+# Marca com a label "conflito" os PRs abertos que não dão merge limpo na main, e tira a label quando o conflito some.
+# Roda a cada push na main (é quando os outros PRs passam a conflitar, principalmente nas pilhas, onde o merge de um quebra
+# o seguinte) e quando um PR é aberto/atualizado. Regras em scripts/lib/pr-conflicts.mjs.
+#
+# pull_request_target: o token pode escrever labels mesmo em PR de fork. Por isso o checkout é SEMPRE da branch principal
+# (o padrão desse evento) e nunca do código do PR; o workflow só lê o campo "mergeable" da API do GitHub.
+
+on:
+  push:
+    branches: [main]
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: pr-conflicts
+  cancel-in-progress: true # a rodada mais nova enxerga o estado mais novo
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  conflitos:
+    name: Procurar conflitos
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .node-version
+      - name: Etiquetar os PRs com conflito
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/pr-conflicts.mjs
