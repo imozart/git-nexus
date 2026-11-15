@@ -12,6 +12,10 @@
   { "name": "reversão", "color": "e99695", "description": "Desfaz uma alteração anterior (revert)" },
   { "name": "breaking change", "color": "b60205", "description": "Quebra de compatibilidade: gera versão major" },
 
+  { "name": "triagem", "color": "d4c5f9", "description": "Issue nova, ainda não analisada (sai quando for triada)" },
+  { "name": "question", "color": "d876e3", "description": "Dúvida de uso" },
+  { "name": "idioma", "color": "0e8a16", "description": "Idiomas e traduções (i18n)" },
+
   { "name": "área: app", "color": "1d76db", "description": "Altera o aplicativo (apps/studio)" },
   { "name": "área: ui-kit", "color": "1d76db", "description": "Altera os componentes visuais (apps/ui-kit)" },
   { "name": "área: git-core", "color": "1d76db", "description": "Altera o núcleo de Git (packages/git-core)" },

@@ -1,0 +1,11 @@
+# Configuração da tela "New issue": só formulários (sem issue em branco) e atalhos para onde a dúvida costuma ter resposta.
+# Quando o repositório ficar público: ative "Private vulnerability reporting" (Settings > Code security) e acrescente aqui um atalho
+# para https://github.com/imozart/git-nexus/security/advisories/new, para que vulnerabilidades não sejam relatadas em issue pública.
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 README e guia de uso
+    url: https://github.com/imozart/git-nexus#readme
+    about: Instalação, atalhos, repositórios grandes, política do time e atualizações.
+  - name: 🌐 Como adicionar um idioma
+    url: https://github.com/imozart/git-nexus/blob/main/docs/I18N.md
+    about: Passo a passo para traduzir o app e abrir o PR.

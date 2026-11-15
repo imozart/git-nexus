@@ -1,0 +1,57 @@
+name: 🌐 Idioma ou tradução
+description: Pedir um idioma novo, corrigir uma tradução ou avisar de um texto sem tradução
+title: "i18n: "
+labels: ["idioma", "triagem"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        O GitNexus tem **Português (Brasil)** e **English**. Veja em [docs/I18N.md](https://github.com/imozart/git-nexus/blob/main/docs/I18N.md) como um idioma novo é adicionado:
+        quem traduz também pode abrir o PR direto, sem precisar programar a tela.
+
+  - type: dropdown
+    id: tipo
+    attributes:
+      label: O que você quer
+      options:
+        - Um idioma novo
+        - Corrigir uma tradução existente
+        - Texto que aparece sem tradução (idioma errado na tela)
+    validations:
+      required: true
+
+  - type: input
+    id: idioma
+    attributes:
+      label: Idioma
+      description: O nome e, se souber, o código (como `es`, `fr`, `de`, `pt-PT`).
+      placeholder: Español (es)
+    validations:
+      required: true
+
+  - type: textarea
+    id: detalhes
+    attributes:
+      label: Detalhes
+      description: |
+        Para correção ou texto sem tradução: em qual tela está, o texto como aparece hoje e como deveria ficar.
+        Para idioma novo: por que ele ajudaria (quem usa, em que região).
+    validations:
+      required: true
+
+  - type: input
+    id: versao
+    attributes:
+      label: Versão do GitNexus
+      description: Em *Ferramentas → Versão e changelog*.
+      placeholder: "1.4.0"
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: ajuda
+    attributes:
+      label: Participação
+      options:
+        - label: Posso traduzir ou revisar o idioma (sou falante nativo ou fluente).
+          required: false

@@ -1,0 +1,46 @@
+name: 📚 Documentação
+description: Algo errado, desatualizado ou faltando no README, nos guias ou na página do projeto
+title: "docs: "
+labels: ["documentation", "triagem"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Pedidos de documentação são triados separadamente das funcionalidades, então costumam andar rápido. Seja o mais específico que puder.
+
+  - type: input
+    id: onde
+    attributes:
+      label: Onde está
+      description: O arquivo (por exemplo `README.md` ou `docs/I18N.md`), o link da página ou o nome da tela do app.
+      placeholder: docs/PACKAGING.md, seção "Flatpak"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: tipo
+    attributes:
+      label: O que há de errado
+      options:
+        - Está errado ou desatualizado
+        - Está confuso ou incompleto
+        - Falta documentar algo
+        - Erro de digitação ou de português
+    validations:
+      required: true
+
+  - type: textarea
+    id: descricao
+    attributes:
+      label: Descrição
+      description: O que está errado ou faltando. Se você já sabe o texto certo, escreva aqui.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: ajuda
+    attributes:
+      label: Participação
+      options:
+        - label: Posso abrir um PR com a correção.
+          required: false

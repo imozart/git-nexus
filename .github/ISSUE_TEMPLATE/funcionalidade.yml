@@ -1,0 +1,72 @@
+name: ✨ Sugestão de funcionalidade
+description: Uma ideia para o GitNexus
+title: "feat: "
+labels: ["enhancement", "triagem"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado pela ideia! Descrever o **problema** antes da solução ajuda a achar o melhor caminho (às vezes não é o primeiro que vem à cabeça).
+        Pode escrever em português ou em inglês. Se a sugestão é visual, uma captura com um círculo vermelho vale mais que mil palavras.
+
+  - type: textarea
+    id: problema
+    attributes:
+      label: Qual problema isso resolve
+      description: O que você tenta fazer e não consegue (ou faz com muito esforço) hoje?
+      placeholder: Sempre que preciso comparar dois ramos, tenho que sair do app e abrir o terminal.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solucao
+    attributes:
+      label: Como você imagina a solução
+      description: O que o app deveria fazer. Não precisa ser detalhado.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: Alternativas que você considerou
+      description: Outras formas de resolver, ou como você contorna o problema hoje (inclusive em outros clientes Git).
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área do app
+      options:
+        - Commit e stage
+        - Histórico e grafo
+        - Merge e conflitos
+        - Rebase
+        - Branches e tags
+        - GitHub e GitLab (PRs/MRs, CI)
+        - Política de commits e governança
+        - Interface, atalhos e acessibilidade
+        - Idiomas
+        - Instalação e atualização
+        - Outra / não sei
+    validations:
+      required: true
+
+  - type: textarea
+    id: contexto
+    attributes:
+      label: Contexto adicional
+      description: Capturas de tela, exemplos de outros programas, links.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: ajuda
+    attributes:
+      label: Participação
+      options:
+        - label: Posso ajudar a testar uma versão beta dessa funcionalidade.
+          required: false
+        - label: Tenho interesse em implementar (abra a issue primeiro; combinamos antes do PR).
+          required: false
