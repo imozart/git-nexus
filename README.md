@@ -71,6 +71,27 @@ scoop bucket add gitnexus https://github.com/imozart/scoop-gitnexus && scoop ins
 brew install --cask imozart/gitnexus/gitnexus   # macOS
 ```
 
+## Repositórios grandes
+
+Medido em um repositório sintético de **20.000 arquivos e 5.000 commits** (`GN_PERF=1 pnpm exec vitest run packages/git-core/test/perf.test.ts`; a ferramenta gera o repositório com `git fast-import` e imprime os tempos):
+
+| Operação | Tempo |
+|---|---|
+| status (limpo / com 8.000 alterações) | ~0,2 s / ~0,3 s |
+| histórico de 300 commits | ~0,1 s |
+| busca por mensagem / por autor | ~0,1 s |
+| busca por conteúdo (pickaxe) em 5.000 commits | ~0,45 s |
+| histórico de arquivo (segue renomeações) | ~0,27 s |
+| blame de um arquivo de 5.000 linhas | ~0,15 s |
+| conflitos com 8.000 alterações | 0,12 s (era 0,73 s) |
+
+O que isso mudou no app:
+
+- **Lista de arquivos com janela:** o staging desenha 500 linhas por grupo e oferece **Mostrar mais / Mostrar todos**; com 9.000 alterações o DOM caiu de ~45 mil para ~5 mil nós. Os checkboxes de grupo, a seleção (Ctrl+A) e o "incluir tudo" continuam valendo para **todos** os arquivos, não só os desenhados.
+- **Filtro de arquivos** (aparece com mais de 30 alterações): filtra por parte do caminho; o checkbox do grupo passa a valer para o que está filtrado.
+- **Incluir/remover do commit em lotes:** antes, "incluir tudo" com milhares de arquivos estourava o limite de ~32 mil caracteres da linha de comando do Windows e simplesmente não funcionava; agora vai em lotes e com `--literal-pathspecs` (um arquivo chamado `a[1].txt` ou `*.md` não vira curinga).
+- **Detecção de conflitos pelo índice** (`git ls-files --unmerged`), em vez de `git diff`, que comparava o conteúdo de todos os arquivos alterados a cada atualização da tela.
+
 ## Idiomas
 
 **Português (Brasil)** e **English**, com troca **na hora** (seletor ao lado de *Comandos* ou pela paleta). Na primeira abertura vale o idioma do sistema. Já estão traduzidos: abas, tela inicial, paleta de comandos e todos os comandos, aviso de atualização e o formulário de commit; as demais telas (staging, grafo, conflitos e Ferramentas) ainda aparecem em português, e as chaves ausentes nunca quebram a interface (caem no português). Veja [`docs/I18N.md`](docs/I18N.md) para traduzir mais telas ou adicionar um idioma; os testes impedem chaves faltando, mortas ou com variáveis diferentes.

@@ -17,7 +17,13 @@ const emit = defineEmits<{
   (e: 'resolve'): void;
 }>();
 
-const groups = computed(() => groupEntries(props.entries));
+// Filtro de arquivos (útil com milhares de alterações): vale para o que se vê, inclusive o checkbox do grupo.
+const filter = ref('');
+const visibleEntries = computed(() => {
+  const q = filter.value.trim().toLowerCase();
+  return q ? props.entries.filter((e) => e.path.toLowerCase().includes(q)) : props.entries;
+});
+const groups = computed(() => groupEntries(visibleEntries.value));
 const flat = computed(() => [...groups.value.changes, ...groups.value.unversioned]);
 const byPath = computed(() => new Map(props.entries.map((e) => [e.path, e])));
 
@@ -178,8 +184,26 @@ function onKey(ev: KeyboardEvent) {
 const collapsed = ref<Record<GroupId, boolean>>({ changes: false, unversioned: false });
 const included = computed(() => props.entries.filter(hasStaged).length);
 const pending = computed(() => props.entries.length - included.value);
+// Só desenha uma janela de linhas por grupo: com milhares de arquivos, desenhar todos custava segundos (e dezenas de
+// milhares de nós no DOM). "Mostrar mais" amplia; o filtro e as ações do grupo continuam valendo para TODOS.
+const PAGE = 500;
+const limit = ref<Record<GroupId, number>>({ changes: PAGE, unversioned: PAGE });
 const rows = (g: GroupId) =>
-  groups.value[g].map((e) => ({ e, ...splitPath(e.path), letter: statusLetter(e), state: checkState(e) }));
+  groups.value[g].slice(0, limit.value[g]).map((e) => ({ e, ...splitPath(e.path), letter: statusLetter(e), state: checkState(e) }));
+const hidden = (g: GroupId) => Math.max(0, groups.value[g].length - limit.value[g]);
+const showMore = (g: GroupId, all = false) => (limit.value[g] = all ? Number.MAX_SAFE_INTEGER : limit.value[g] + PAGE);
+watch(filter, () => (limit.value = { changes: PAGE, unversioned: PAGE }));
+// navegar (setas) ou abrir um arquivo além da janela amplia o grupo para ele aparecer
+watch(
+  () => props.activePath,
+  (p) => {
+    if (!p) return;
+    for (const g of ['changes', 'unversioned'] as GroupId[]) {
+      const i = groups.value[g].findIndex((e) => e.path === p);
+      if (i >= limit.value[g]) limit.value[g] = i + PAGE;
+    }
+  },
+);
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const TITLE: Record<GroupId, string> = { changes: 'Alterações', unversioned: 'Arquivos não versionados' };
 </script>
@@ -192,6 +216,15 @@ const TITLE: Record<GroupId, string> = { changes: 'Alterações', unversioned: '
       <span :title="'Alterados ou novos, ainda fora do commit'"><b>{{ pending }}</b> pendente{{ pending === 1 ? '' : 's' }}</span>
       <span v-if="selection.size > 1" class="sel">{{ selection.size }} selecionados</span>
     </div>
+    <input
+      v-if="entries.length > 30 || filter"
+      v-model="filter"
+      class="filter"
+      placeholder="Filtrar arquivos…"
+      spellcheck="false"
+      @mousedown.stop
+      @keydown.stop
+    />
 
     <section v-if="conflicted.length" class="grp">
       <div class="grp__head grp__head--warn">
@@ -263,7 +296,11 @@ const TITLE: Record<GroupId, string> = { changes: 'Alterações', unversioned: '
           <span class="file__dir">{{ r.dir }}</span>
           <span v-if="r.state === 'partial'" class="tag">parcial</span>
         </div>
-        <p v-if="!groups[g].length" class="empty">{{ g === 'changes' ? 'Nenhuma alteração.' : 'Nenhum arquivo novo.' }}</p>
+        <div v-if="hidden(g)" class="more">
+          <GnButton size="sm" @click="showMore(g)">Mostrar mais {{ Math.min(PAGE, hidden(g)) }}</GnButton>
+          <GnButton v-if="hidden(g) > PAGE" size="sm" @click="showMore(g, true)">Mostrar todos ({{ hidden(g) }} restantes)</GnButton>
+        </div>
+        <p v-if="!groups[g].length" class="empty">{{ filter ? 'Nenhum arquivo corresponde ao filtro.' : g === 'changes' ? 'Nenhuma alteração.' : 'Nenhum arquivo novo.' }}</p>
       </div>
     </section>
 
@@ -355,4 +392,6 @@ const TITLE: Record<GroupId, string> = { changes: 'Alterações', unversioned: '
 .empty { margin: 0; padding: 2px 28px 8px; font-size: 12px; color: var(--gn-muted); }
 .hint { margin: 0; padding: 10px 12px; font-size: 11px; color: var(--gn-muted); }
 .band { position: fixed; z-index: 50; pointer-events: none; background: rgba(79, 134, 247, 0.15); border: 1px solid var(--gn-accent); }
+.filter { display: block; width: calc(100% - 16px); margin: 6px 8px; }
+.more { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 10px; }
 </style>
