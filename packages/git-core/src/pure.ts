@@ -4,3 +4,4 @@ export * from './graph.js';
 export * from './conflict-markers.js';
 export * from './line-diff.js';
 export * from './messages.js';
+export * from './git-command.js';

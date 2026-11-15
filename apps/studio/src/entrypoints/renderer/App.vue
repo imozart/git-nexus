@@ -5,6 +5,7 @@ import CommandPalette from './components/CommandPalette.vue';
 import { LOCALES, locale, setLocale, t } from './i18n';
 import { useCommandsStore, type Command } from './stores/commands';
 import { useRepositoriesStore } from './stores/repositories';
+import { useGitLogStore } from './stores/gitlog';
 import { useUpdateStore } from './stores/update';
 import { HOME_TAB, useWorkspaceStore } from './stores/workspace';
 
@@ -12,6 +13,7 @@ const cmds = useCommandsStore();
 const ws = useWorkspaceStore();
 const repos = useRepositoriesStore();
 const upd = useUpdateStore();
+const gitLog = useGitLogStore();
 
 const inRepo = () => !!ws.active?.repo;
 
@@ -124,6 +126,7 @@ let off: (() => void) | undefined;
 let updTimers: ReturnType<typeof setTimeout>[] = [];
 onMounted(() => {
   off = cmds.register(globalCommands);
+  gitLog.start();
   // atualização: 8 s depois de abrir (não atrasa a abertura) e a cada 12 h
   updTimers = [setTimeout(() => void upd.check(), 8000)];
   const iv = setInterval(() => void upd.check(), 12 * 3600 * 1000);

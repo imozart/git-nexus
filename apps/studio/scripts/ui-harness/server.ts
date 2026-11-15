@@ -4,6 +4,8 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
+import { onGitCommand } from '@git-nexus/git-core';
+import type { GitCommandEvent } from '@git-nexus/git-core/pure';
 import { validateCommitMessage } from '@git-nexus/governance-policy';
 import { createHandlers } from '../../src/worker/handlers';
 import { checkForUpdate } from '../../src/entrypoints/update';
@@ -13,6 +15,10 @@ import { HostingService, type TokenStore } from '../../src/worker/hosting-servic
 const [, , root = 'dist/renderer', dataDir = '.harness-data', portArg = '5199'] = process.argv;
 const handlers = createHandlers(dataDir);
 let clipboard = '';
+
+// Comandos git do harness: o navegador pergunta por eles (no app real o processo principal os envia).
+const gitEvents: GitCommandEvent[] = [];
+onGitCommand((e) => gitEvents.push(e));
 
 // Armazenamento de tokens do harness: em memória (o app real usa safeStorage do Electron).
 class PlainTokenStore implements TokenStore {
@@ -86,6 +92,15 @@ const call = (m, args) => fetch('/rpc', { method: 'POST', body: JSON.stringify({
 const api = {};
 for (const m of ${JSON.stringify(METHODS)}) api[m] = (...args) => call(m, JSON.parse(JSON.stringify(args)));
 api.onUpdateProgress = () => () => {};
+let gitSeen = 0;
+api.onGitCommand = (cb) => {
+  const iv = setInterval(async () => {
+    const r = await (await fetch('/gitlog?since=' + gitSeen)).json();
+    gitSeen = r.next;
+    if (r.events.length) cb(r.events);
+  }, 150);
+  return () => clearInterval(iv);
+};
 api.validateCommitMessage = (input, policy, locale) => {
   const x = new XMLHttpRequest();
   x.open('POST', '/validate', false);
@@ -119,6 +134,10 @@ createServer(async (req, res) => {
       const { input, policy, locale } = JSON.parse(await body());
       res.end(JSON.stringify(validateCommitMessage(input, policy, locale)));
       return;
+    }
+    if (url.pathname === '/gitlog') {
+      const since = Number(url.searchParams.get('since') ?? 0);
+      return void res.end(JSON.stringify({ next: gitEvents.length, events: gitEvents.slice(since) }));
     }
     if (url.pathname === '/clipboard') return void res.end(clipboard);
     if (url.pathname === '/stub.js') {
