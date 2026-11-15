@@ -80,7 +80,7 @@ A tela inicial mostra, para cada repositório catalogado: **branch**, **↑ comm
 
 ## Instalar por gerenciador de pacote
 
-A cada release o pipeline gera os manifestos de **winget**, **Scoop** e **Homebrew** (artefato `packaging-manifests` da execução). Veja [`docs/PACKAGING.md`](docs/PACKAGING.md) para publicá-los. Depois de publicados:
+A cada release o pipeline gera os manifestos de **winget**, **Scoop**, **Homebrew** e **Flatpak/Flathub** (este último ainda é um rascunho a testar; veja o PACKAGING) (artefato `packaging-manifests` da execução). Veja [`docs/PACKAGING.md`](docs/PACKAGING.md) para publicá-los. Depois de publicados:
 
 ```powershell
 winget install Imozart.GitNexus        # Windows (instalador por usuário)
@@ -88,6 +88,7 @@ scoop bucket add gitnexus https://github.com/imozart/scoop-gitnexus && scoop ins
 ```
 ```bash
 brew install --cask imozart/gitnexus/gitnexus   # macOS
+flatpak install flathub dev.gitnexus.studio     # Linux (quando estiver no Flathub)
 ```
 
 ## Repositórios grandes

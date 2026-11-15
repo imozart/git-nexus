@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Gera os manifestos de winget, Scoop e Homebrew Cask de uma release já publicada.
+// Gera os manifestos de winget, Scoop, Homebrew Cask e Flatpak (Flathub) de uma release já publicada.
 //   node scripts/gen-packaging.mjs --version 1.3.0 --repo imozart/git-nexus --sums dist/SHA256SUMS.txt --out packaging-out [--date 2026-11-14]
-// Os arquivos são gravados em <out>/winget, <out>/scoop e <out>/homebrew (veja docs/PACKAGING.md para publicar).
+// Os arquivos são gravados em <out>/winget, <out>/scoop, <out>/homebrew e <out>/flatpak (veja docs/PACKAGING.md para publicar).
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

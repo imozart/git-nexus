@@ -11,6 +11,8 @@ const SUMS = [
   [`GitNexus-${V}-win-arm64.zip`, sha('d')],
   [`GitNexus-${V}-mac-x64.dmg`, sha('e')],
   [`GitNexus-${V}-mac-arm64.dmg`, sha('f')],
+  [`GitNexus-${V}-linux-x64.tar.gz`, sha('1')],
+  [`GitNexus-${V}-linux-arm64.tar.gz`, sha('2')],
 ]
   .map(([n, h]) => `${h}  ${n}`)
   .join('\n');
@@ -29,6 +31,9 @@ describe('parseSums', () => {
 describe('manifestos', () => {
   it('gera os arquivos esperados', () => {
     expect(Object.keys(gen()).sort()).toEqual([
+      'flatpak/dev.gitnexus.studio.desktop',
+      'flatpak/dev.gitnexus.studio.metainfo.xml',
+      'flatpak/dev.gitnexus.studio.yml',
       'homebrew/Casks/gitnexus.rb',
       'scoop/gitnexus.json',
       `winget/manifests/i/Imozart/GitNexus/${V}/Imozart.GitNexus.installer.yaml`,
@@ -72,6 +77,26 @@ describe('manifestos', () => {
     expect(c).toContain('GitNexus-#{version}-mac-#{arch}.dmg');
     expect(c).toContain('strategy :github_latest');
     expect(c).toContain('app "GitNexus.app"');
+  });
+
+  it('flatpak: git compilado no sandbox, pacotes por arquitetura e metainfo da versão', () => {
+    const f = gen();
+    const m = f['flatpak/dev.gitnexus.studio.yml']!;
+    expect(m).toContain('app-id: dev.gitnexus.studio');
+    expect(m).toContain('base: org.electronjs.Electron2.BaseApp');
+    expect(m).toContain('name: git'); // o app chama "git" pelo PATH: sem ele o sandbox não funciona
+    expect(m).toMatch(/git-\d+\.\d+\.\d+\.tar\.xz\n\s+sha256: [0-9a-f]{64}/);
+    expect(m).toContain(`url: https://github.com/imozart/git-nexus/releases/download/v${V}/GitNexus-${V}-linux-x64.tar.gz`);
+    expect(m).toContain(`sha256: ${sha('1')}`);
+    expect(m).toContain(`sha256: ${sha('2')}`);
+    expect(m).toContain('only-arches: [aarch64]');
+    expect(m).toContain('zypak-wrapper');
+    expect(m).toContain('--talk-name=org.freedesktop.secrets');
+    const x = f['flatpak/dev.gitnexus.studio.metainfo.xml']!;
+    expect(x).toContain('<id>dev.gitnexus.studio</id>');
+    expect(x).toContain(`<release version="${V}" date="2026-11-14">`);
+    expect(x).toContain('<project_license>GPL-3.0-only</project_license>');
+    expect(f['flatpak/dev.gitnexus.studio.desktop']).toContain('Exec=gitnexus %U');
   });
 
   it('recusa SHA ausente, versão e repositório inválidos', () => {
