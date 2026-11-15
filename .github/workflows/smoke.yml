@@ -3,6 +3,7 @@ name: Teste de fumaça
 # Compila o app, empacota (sem instalador) e ABRE de verdade num display virtual (xvfb). O build só verifica que compila;
 # aqui se verifica que o app inicia: a janela abre, a interface monta e a ponte preload -> processo principal -> worker responde.
 # O app encerra sozinho com código 0 (ok), 1 (falha) ou 2 (tempo esgotado) quando GITNEXUS_SMOKE=1 (apps/studio/src/entrypoints/smoke.ts).
+# Depois, o mesmo pacote é usado de verdade pelos testes da janela real (tests-electron): stage, commit, log e idioma de ponta a ponta.
 
 on:
   pull_request:
@@ -19,7 +20,7 @@ jobs:
   smoke:
     name: Teste de fumaça do app empacotado
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -57,3 +58,22 @@ jobs:
           # o código de saída do app (e não o do tee) decide
           code=${PIPESTATUS[0]}
           grep -q GITNEXUS_SMOKE_OK "$RUNNER_TEMP/smoke.log" && [ "$code" -eq 0 ]
+
+      # O mesmo app empacotado, agora USADO: abre um repositório, faz stage e commit pelo formulário, confere no git de verdade, abre o log e troca
+      # de idioma, dirigindo a janela por CDP (apps/studio/scripts/ui-tests/run-electron.mjs). Reaproveita o empacotamento acima: não há build extra.
+      - name: Testes de interação na janela real (Electron)
+        env:
+          GN_APP_ARGS: --no-sandbox --disable-gpu
+          GN_UI_OUT: ${{ github.workspace }}/e2e-output
+        run: |
+          xvfb-run -a --server-args="-screen 0 1280x800x24" \
+            node apps/studio/scripts/ui-tests/run-electron.mjs apps/studio/release/linux-unpacked/gitnexus
+
+      - name: Guardar as capturas de tela
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: e2e-output
+          path: e2e-output
+          retention-days: 7
+          if-no-files-found: ignore
