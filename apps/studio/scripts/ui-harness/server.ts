@@ -8,12 +8,39 @@ import { validateCommitMessage } from '@git-nexus/governance-policy';
 import { createHandlers } from '../../src/worker/handlers';
 import { checkForUpdate } from '../../src/entrypoints/update';
 import { isAllowedUpdateUrl } from '../../src/shared/update';
+import { HostingService, type TokenStore } from '../../src/worker/hosting-service';
 
 const [, , root = 'dist/renderer', dataDir = '.harness-data', portArg = '5199'] = process.argv;
 const handlers = createHandlers(dataDir);
 let clipboard = '';
 
+// Armazenamento de tokens do harness: em memória (o app real usa safeStorage do Electron).
+class PlainTokenStore implements TokenStore {
+  private tokens = new Map<string, string>();
+  private kinds = new Map<string, 'github' | 'gitlab'>();
+  getToken = async (h: string) => this.tokens.get(h);
+  setToken = async (h: string, t: string) => void this.tokens.set(h, t);
+  removeToken = async (h: string) => void this.tokens.delete(h);
+  getKind = async (h: string) => this.kinds.get(h);
+  setKind = async (h: string, k: 'github' | 'gitlab') => void this.kinds.set(h, k);
+  secure = () => true;
+}
+const hosting = new HostingService(new PlainTokenStore());
+
 const MAIN_STUBS: Record<string, (...a: any[]) => unknown> = {
+  hostingInfo: (p: string) => hosting.hostingInfo(p),
+  hostingSaveToken: (p: string, t: string, k?: 'github' | 'gitlab') => hosting.saveToken(p, t, k),
+  hostingRemoveToken: (p: string) => hosting.removeToken(p),
+  listChangeRequests: (p: string, s: 'open' | 'merged' | 'closed') => hosting.listChangeRequests(p, s),
+  getCiStatus: (p: string, sha: string) => hosting.getCiStatus(p, sha),
+  suggestChangeRequest: (p: string, b: string) => hosting.suggestChangeRequest(p, b),
+  createChangeRequest: (p: string, i: Parameters<HostingService['createChangeRequest']>[1]) => hosting.createChangeRequest(p, i),
+  hostingOpen: async (p: string, url: string) => {
+    if (!(await hosting.isAllowedUrl(p, url))) throw new Error('Endereço não permitido.');
+    const { mkdir, writeFile } = await import('node:fs/promises');
+    await mkdir(dataDir, { recursive: true });
+    await writeFile(join(dataDir, 'opened-url.txt'), url, 'utf8');
+  },
   pickDirectories: () => [],
   copyText: (t: string) => void (clipboard = t),
   showItemInFolder: () => undefined,
