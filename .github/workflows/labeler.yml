@@ -1,0 +1,23 @@
+name: Rótulos por pasta
+
+# Etiqueta cada PR conforme as pastas que ele altera (.github/labeler.yml): ajuda a filtrar, a revisar e a montar notas.
+# pull_request_target: roda com o token do repositório mesmo em PR de fork, e por isso NÃO faz checkout nem executa código do PR;
+# a configuração é lida da branch principal (a action usa a API do GitHub).
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  labeler:
+    name: Etiquetar o PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13 # v7.0.0
+        with:
+          sync-labels: true # tira o rótulo quando o PR deixa de mexer naquela pasta

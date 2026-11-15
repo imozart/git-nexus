@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -45,6 +45,26 @@ describe('versão do Node dos workflows', () => {
         expect(checkout, `${w.file} > ${j.name}`).toBeLessThan(node);
       }
     }
+  });
+});
+
+describe('rótulos por pasta (.github/labeler.yml)', () => {
+  const text = readFileSync(join(root, '.github', 'labeler.yml'), 'utf8').replace(/\r\n/g, '\n');
+  const globs = [...text.matchAll(/any-glob-to-any-file:\s*\[([^\]]*)\]/g)].flatMap((m) => [...m[1]!.matchAll(/'([^']+)'/g)].map((g) => g[1]!));
+
+  it('todo glob de pasta aponta para uma pasta que existe (renomear uma pasta sem atualizar o labeler deixaria o rótulo morto)', () => {
+    expect(globs.length).toBeGreaterThan(5);
+    for (const g of globs) {
+      const dir = /^([^*]+)\/\*\*$/.exec(g)?.[1];
+      if (dir && !dir.startsWith('.')) expect(existsSync(join(root, dir)), g).toBe(true);
+      if (dir?.startsWith('.')) expect(existsSync(join(root, dir)), g).toBe(true);
+    }
+  });
+
+  it('o workflow do labeler não faz checkout (usa pull_request_target: nunca executar código do PR)', () => {
+    const w = workflows.find((x) => x.file === 'labeler.yml')!;
+    expect(w.text).toContain('pull_request_target');
+    expect(w.text).not.toContain('actions/checkout');
   });
 });
 
