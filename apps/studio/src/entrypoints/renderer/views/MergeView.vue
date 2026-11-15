@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { GnBadge, GnButton } from '@git-nexus/ui-kit';
 import type { MergeConflictBlock, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { useWorkspaceStore } from '../stores/workspace';
 import MergeConflictResolver from '../components/MergeConflictResolver.vue';
+import ToolStripe, { type StripeItem } from '../components/ToolStripe.vue';
 import { t } from '../i18n';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
@@ -16,6 +17,13 @@ const error = ref('');
 const info = ref('');
 const loading = ref(false);
 const saving = ref(false);
+
+const PANEL_KEY = 'gitnexus.showConflictList';
+const showList = ref(localStorage.getItem(PANEL_KEY) !== '0');
+watch(showList, (v) => localStorage.setItem(PANEL_KEY, v ? '1' : '0'));
+const stripe = computed<StripeItem[]>(() => [
+  { id: 'list', label: t('mv.stripe'), active: showList.value, badge: conflicts.value.length, title: showList.value ? t('mv.hidePanel') : t('mv.showPanel') },
+]);
 
 async function load(): Promise<void> {
   loading.value = true;
@@ -56,7 +64,8 @@ watch(() => ws.versions[props.repo.id], load);
 
 <template>
   <div class="mv">
-    <aside class="mv__side">
+    <ToolStripe side="left" :items="stripe" @toggle="showList = !showList" />
+    <aside v-show="showList" class="mv__side">
       <div class="mv__sidehead">
         <strong>{{ t('mv.files') }}</strong>
         <GnButton size="sm" :disabled="loading" @click="load">{{ t('rv.refresh') }}</GnButton>
@@ -97,10 +106,10 @@ watch(() => ws.versions[props.repo.id], load);
 
 <style scoped lang="scss">
 .mv {
-  display: grid; grid-template-columns: 270px 1fr; height: 100%;
-  &__side { border-right: 1px solid var(--gn-border); overflow: auto; }
+  display: flex; height: 100%;
+  &__side { flex: none; width: 270px; border-right: 1px solid var(--gn-border); overflow: auto; }
   &__sidehead { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--gn-border); }
-  &__main { display: flex; flex-direction: column; min-width: 0; min-height: 0; > :deep(.mcr) { flex: 1; } }
+  &__main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; > :deep(.mcr) { flex: 1; } }
 }
 .item {
   display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 6px 12px; cursor: pointer;
