@@ -1,0 +1,68 @@
+name: Empacotamento
+
+# Ensaio do empacotamento em todo PR. Antes, um build quebrado só aparecia DEPOIS do merge (e cancelava a release).
+# Gera o app descompactado (--dir, sem instalador) e confere que não há binário de 32 bits (scripts/verify-arch.mjs).
+# macOS e ARM ficam para a release: aqui o custo/benefício é Linux e Windows x64.
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: package-check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Empacotamento (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, args: --linux --x64 --dir }
+          - { os: windows-latest, args: --win --x64 --dir }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # O download do Electron é o trecho mais lento; o cache o reaproveita entre execuções.
+      - name: Cache do Electron (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: electron-${{ runner.os }}-
+      - name: Cache do Electron (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: electron-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: electron-${{ runner.os }}-
+
+      - run: pnpm install --frozen-lockfile
+      - name: Compilar (esbuild + vite)
+        run: pnpm --filter @git-nexus/studio build
+      - name: Empacotar (electron-builder --dir)
+        run: pnpm --filter @git-nexus/studio exec electron-builder ${{ matrix.args }} --publish never
+      - name: Verificar que o app é somente 64 bits
+        run: node scripts/verify-arch.mjs apps/studio/release x64
