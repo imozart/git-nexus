@@ -10,6 +10,7 @@ import { checkForUpdate } from './update';
 import { WINDOWS_INSTALLER_ARGS, downloadVerified, isReadyFile, replaceAppImage } from './installer';
 import { HostingService } from '../worker/hosting-service';
 import { SecureTokenStore } from './hosting-store';
+import { attachSmoke, smokeEnabled } from './smoke';
 
 // --- Portabilidade: dados ao lado do executável, nada no registro/AppData ---------------
 // Modo portátil: AppImage e ZIP/tar.gz (descompactados em pasta gravável).
@@ -215,6 +216,9 @@ function createWindow(): void {
   win.webContents.on('will-navigate', (ev, url) => {
     if (!url.startsWith('file:') && !url.startsWith(process.env.VITE_DEV_SERVER_URL ?? 'file:')) ev.preventDefault();
   });
+
+  // Só no CI (GITNEXUS_SMOKE=1): confere que o app empacotado abre e responde, e sai com 0/1 (veja smoke.ts).
+  if (smokeEnabled()) attachSmoke(win, (code) => app.exit(code));
 
   const devUrl = process.env.VITE_DEV_SERVER_URL;
   if (devUrl) void win.loadURL(devUrl);
