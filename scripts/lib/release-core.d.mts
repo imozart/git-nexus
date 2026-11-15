@@ -35,6 +35,13 @@ export function computeNext(o: {
   bumpOverride?: 'auto' | BumpKind;
   initialVersion: string;
 }): { previous: string | null; version: string; bump: BumpKind | 'initial' };
+export function computeBeta(o: {
+  tags: string[];
+  commits: ParsedCommit[];
+  bumpOverride?: 'auto' | BumpKind;
+  initialVersion: string;
+}): { previous: string | null; version: string; stable: string; bump: BumpKind | 'initial'; channel: 'beta' };
+export function isReleaseCommit(c: ParsedCommit): boolean;
 export function groupCommits(commits: ParsedCommit[]): CommitGroup[];
 export function renderCommitLine(c: ParsedCommit, repo?: string): string;
 export function renderSections(commits: ParsedCommit[], repo?: string): string[];
