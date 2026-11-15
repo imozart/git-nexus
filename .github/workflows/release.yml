@@ -73,12 +73,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup
       - run: pnpm typecheck
       - run: pnpm test
 
@@ -106,12 +101,9 @@ jobs:
           - { id: linux-arm64, name: Linux ARM64, os: ubuntu-latest, args: --linux --arm64 }
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: ./.github/actions/setup
         with:
-          node-version-file: .node-version
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+          install: 'false' # o cache do Electron (abaixo) precisa vir antes: o pós-instalação do pacote "electron" baixa o binário
 
       # O download do Electron e das ferramentas do electron-builder (NSIS, etc.) é o trecho mais lento de cada build.
       - name: Cache do Electron (Linux)
@@ -144,6 +136,8 @@ jobs:
           # uma chave por pacote: x64 e ARM64 baixam binários diferentes do Electron e não podem disputar o mesmo cache
           key: electron-${{ matrix.id }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: electron-${{ matrix.id }}-
+
+      - run: pnpm install --frozen-lockfile
 
       - name: Dependências de empacotamento (rpm)
         if: runner.os == 'Linux'

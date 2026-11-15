@@ -1,0 +1,24 @@
+name: Preparar o repositório
+description: >-
+  pnpm + Node (a versão do .node-version) com cache do pnpm e instalação do lockfile. Antes dela o job precisa ter feito
+  o checkout (a action local e o .node-version vivem no repositório).
+
+inputs:
+  install:
+    description: Rodar `pnpm install --frozen-lockfile` (padrão sim). Use 'false' quando algo (um cache) precisa vir antes da instalação ou quando só se usa o pnpm.
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    # As versões ficam fixadas por SHA aqui, num lugar só; os workflows não repetem mais este trecho.
+    - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      with:
+        node-version-file: .node-version
+        cache: pnpm
+    - name: Instalar as dependências (lockfile congelado)
+      if: ${{ inputs.install == 'true' }}
+      shell: bash
+      run: pnpm install --frozen-lockfile
