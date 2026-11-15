@@ -1,0 +1,65 @@
+name: Saúde da main
+
+# O CI só roda quando há PR. Uma semana sem mudanças não prova que a main continua saudável: uma dependência nova, uma vulnerabilidade
+# publicada ou uma mudança no ambiente do GitHub podem quebrá-la sem que ninguém tenha mexido em nada. Toda segunda-feira a main passa
+# por typecheck, testes, build e auditoria; se falhar, abre uma issue com o rótulo main-health (ou comenta na que já está aberta).
+# Também dá para rodar à mão: Actions > Saúde da main > Run workflow. (Em repositório público o GitHub pausa agendas depois de 60 dias sem atividade.)
+
+on:
+  schedule:
+    - cron: '0 9 * * 1' # segundas, 09:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: main-health
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    name: Saúde da main (typecheck, testes, build e auditoria)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - name: Auditoria de dependências (alta e crítica reprovam)
+        run: pnpm audit --audit-level=high
+
+  report:
+    name: Abrir a issue da falha
+    needs: [health]
+    if: ${{ always() && needs.health.result == 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read # ler jobs e logs da execução
+      issues: write # abrir/comentar a issue
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .node-version
+      - name: Montar o relatório da falha
+        run: node scripts/failure-report.mjs --repo "$GITHUB_REPOSITORY" --run "$GITHUB_RUN_ID" --out "$RUNNER_TEMP/failure.txt"
+      - name: Abrir (ou atualizar) a issue
+        run: >-
+          node scripts/failure-issue.mjs --kind health --repo "$GITHUB_REPOSITORY" --run-number "$GITHUB_RUN_NUMBER" --sha "$GITHUB_SHA"
+          --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --report "$RUNNER_TEMP/failure.txt"

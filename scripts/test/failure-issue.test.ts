@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error módulo .mjs sem tipos
-import { LABEL, MAX_BODY, failureBody, fenceFor, issueTitle, planIssue } from '../lib/failure-issue.mjs';
+import { HEALTH, LABEL, MAX_BODY, failureBody, fenceFor, issueTitle, planIssue } from '../lib/failure-issue.mjs';
 
 const base = { runUrl: 'https://github.com/o/r/actions/runs/9', runNumber: 42, sha: 'abcdef1234567890' };
 
@@ -34,6 +34,18 @@ describe('failureBody', () => {
 
   it('funciona sem o commit', () => {
     expect(failureBody({ runUrl: base.runUrl, runNumber: 1, report: 'x' })).not.toContain('commit `');
+  });
+});
+
+describe('verificação semanal da main', () => {
+  it('usa rótulo, título e texto próprios, sem falar de release', () => {
+    const b = failureBody({ ...base, report: 'pnpm audit: 1 high', heading: HEALTH.heading, hint: HEALTH.hint });
+    expect(b).toContain('verificação semanal da `main` **falhou**');
+    expect(b).toContain('pnpm audit: 1 high');
+    expect(b).not.toContain('Nada foi publicado');
+    expect(HEALTH.label).toBe('main-health');
+    expect(HEALTH.label).not.toBe(LABEL);
+    expect(HEALTH.title(9)).toBe('A main está com problemas (verificação semanal #9)');
   });
 });
 
