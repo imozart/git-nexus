@@ -1,0 +1,41 @@
+name: Labels do PR (tipo)
+
+# O tipo do título do PR (Conventional Commits) vira label: feat -> enhancement, fix -> bug, docs -> documentation etc.;
+# "!" no título ou "BREAKING CHANGE:" no corpo acrescenta "breaking change". Sem tipo válido no título, vale o prefixo da
+# branch (feat/..., fix/...). As regras estão em scripts/lib/pr-labels.mjs; as labels, em .github/labels.json.
+#
+# pull_request_target: o token pode escrever labels mesmo em PR de fork. Por isso o checkout é SEMPRE da branch principal
+# (o padrão desse evento) e nunca do código do PR; título, branch e corpo (texto do usuário) entram só por variável de ambiente.
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, ready_for_review]
+
+concurrency:
+  group: pr-labels-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  tipo:
+    name: Aplicar a label de tipo
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .node-version
+      - name: Etiquetar pelo tipo
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/pr-labels.mjs

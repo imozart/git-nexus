@@ -22,3 +22,24 @@ node scripts/sync-labels.mjs --dry-run --repo dono/repo
 | Estado | `conflito`, `bloqueado` | estado do PR |
 
 As labels `release-failure`, `main-health` e `parado` são criadas pelas próprias automações que as usam.
+
+## Label de tipo (título e branch)
+
+O workflow **Labels do PR (tipo)** (`pr-labels.yml`) lê o título do PR e aplica a label do tipo:
+
+| Título | Label |
+|---|---|
+| `feat` | `enhancement` |
+| `fix` | `bug` |
+| `docs` | `documentation` |
+| `perf` | `performance` |
+| `refactor` | `refatoração` |
+| `test` | `testes` |
+| `build`, `ci`, `chore` | `build`, `ci`, `chore` |
+| `style` | `estilo` |
+| `revert` | `reversão` |
+
+- `!` no título (`feat(api)!: …`) ou `BREAKING CHANGE:` no início de uma linha do corpo acrescenta **`breaking change`**.
+- Título sem tipo válido? Vale o **prefixo da branch** (`feat/…`, `fix/…`; `hotfix/` conta como `fix`).
+- Muda o título? A label é trocada (roda também em `edited`). Só as labels deste grupo são removidas; as demais nunca são tocadas.
+- Usa `pull_request_target` sem executar código do PR: o checkout é da `main` e título, branch e corpo entram só por variável de ambiente.
