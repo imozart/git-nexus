@@ -15,6 +15,7 @@
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:ui": "pnpm --filter @git-nexus/studio ui-test",
     "dist": "pnpm --filter @git-nexus/studio dist"
   },
   "devDependencies": {

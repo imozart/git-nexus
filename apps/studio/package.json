@@ -16,6 +16,7 @@
     "build": "pnpm build:node && pnpm build:renderer",
     "dev": "node scripts/dev.mjs",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "ui-test": "node scripts/ui-tests/run.mjs",
     "dist": "pnpm build && electron-builder --win",
     "pack:dir": "pnpm build && electron-builder --dir"
   },
