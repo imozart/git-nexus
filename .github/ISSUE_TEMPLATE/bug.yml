@@ -1,0 +1,126 @@
+name: 🐛 Defeito
+description: Algo não funciona como deveria, dá erro ou o app fecha sozinho
+title: "bug: "
+labels: ["bug", "triagem"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por avisar! Quanto mais específico o relato, mais rápido sai a correção. Pode escrever em português ou em inglês.
+
+        **Antes de enviar**, procure nas [issues abertas e fechadas](https://github.com/imozart/git-nexus/issues?q=is%3Aissue) se alguém já relatou o mesmo problema.
+        O app está **lento ou travando**? Use o formulário *Lentidão ou travamento*: ele pede o tamanho do repositório, que é o que mais ajuda nesses casos.
+
+  - type: textarea
+    id: o-que-aconteceu
+    attributes:
+      label: O que aconteceu
+      description: Descreva o defeito de forma clara e curta.
+      placeholder: Ao clicar em "Atualizar" na aba Arquivo, aparece o erro "…" e a lista fica vazia.
+    validations:
+      required: true
+
+  - type: textarea
+    id: como-reproduzir
+    attributes:
+      label: Como reproduzir
+      description: Os passos, na ordem, a partir do app aberto. Se só acontece em um repositório específico, diga como ele é (tamanho, hospedagem, ramos).
+      value: |
+        1. Abrir o repositório '...'
+        2. Clicar em '...'
+        3. Ver o erro
+    validations:
+      required: true
+
+  - type: textarea
+    id: comportamento-esperado
+    attributes:
+      label: O que você esperava que acontecesse
+    validations:
+      required: true
+
+  - type: input
+    id: versao
+    attributes:
+      label: Versão do GitNexus
+      description: Em *Ferramentas → Versão e changelog*.
+      placeholder: "1.4.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: sistema
+    attributes:
+      label: Sistema operacional
+      options:
+        - Windows 10/11 (x64)
+        - Windows (ARM64)
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux (x64)
+        - Linux (ARM64)
+        - Outro (descreva em "Contexto adicional")
+    validations:
+      required: true
+
+  - type: dropdown
+    id: instalacao
+    attributes:
+      label: Como você instalou
+      options:
+        - Instalador do Windows (setup.exe)
+        - ZIP portátil do Windows
+        - winget ou Scoop
+        - macOS (DMG ou Homebrew)
+        - AppImage
+        - Pacote .deb
+        - Pacote .rpm
+        - Flatpak
+        - Compilei do código-fonte
+    validations:
+      required: true
+
+  - type: input
+    id: versao-git
+    attributes:
+      label: Versão do Git
+      description: Saída de `git --version`. Opcional, mas ajuda quando o erro vem de um comando do git.
+      placeholder: git version 2.47.0
+    validations:
+      required: false
+
+  - type: textarea
+    id: log-de-comandos
+    attributes:
+      label: Comandos git executados (painel de log)
+      description: |
+        Abra o painel de log (**Ctrl+Shift+L**) e copie os comandos perto do erro. O app já oculta tokens, mas **confira antes de colar**.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: capturas
+    attributes:
+      label: Capturas de tela ou GIFs
+      description: Arraste as imagens para cá. Ajudam muito em problemas visuais.
+    validations:
+      required: false
+
+  - type: textarea
+    id: contexto
+    attributes:
+      label: Contexto adicional
+      description: Qualquer outra coisa que possa ajudar (acontecia antes? passou a acontecer depois de atualizar?).
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmacoes
+    attributes:
+      label: Confirmações
+      options:
+        - label: Procurei nas issues existentes e não achei o mesmo problema.
+          required: true
+        - label: Não colei senhas, tokens nem dados privados nos textos, logs e capturas.
+          required: true

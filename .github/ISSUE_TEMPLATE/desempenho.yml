@@ -1,0 +1,136 @@
+name: ⚡ Lentidão ou travamento
+description: O app fica lento, congela ou usa muita memória (principalmente em repositórios grandes)
+title: "perf: "
+labels: ["performance", "triagem"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Problemas de desempenho dependem muito do **tamanho do repositório** e da máquina, por isso este formulário pede esses números.
+        Eles são o que permite reproduzir o problema. Pode escrever em português ou em inglês.
+
+  - type: textarea
+    id: o-que-esta-lento
+    attributes:
+      label: O que está lento ou travando
+      description: Descreva o que você vê e o que fazia na hora.
+      placeholder: Ao abrir a lista de arquivos da aba Ferramentas, o app congela por uns 20 segundos.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: onde
+    attributes:
+      label: Em qual parte acontece
+      options:
+        - Abrir ou atualizar o repositório
+        - Lista de arquivos e status
+        - Histórico ou grafo
+        - Diff
+        - Stage, commit ou stash
+        - Busca ou listas de seleção
+        - Fetch, pull ou push
+        - Outra (descreva acima)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: comportamento
+    attributes:
+      label: Como o app se comporta
+      options:
+        - Só fica lento, mas responde
+        - Trava e volta sozinho depois de um tempo
+        - Trava e preciso fechar o app
+        - Fecha sozinho
+    validations:
+      required: true
+
+  - type: input
+    id: arquivos
+    attributes:
+      label: Arquivos rastreados
+      description: Saída de `git ls-files | wc -l` (no PowerShell, `(git ls-files).Count`).
+      placeholder: "32000"
+    validations:
+      required: true
+
+  - type: input
+    id: commits
+    attributes:
+      label: Número de commits
+      description: Saída de `git rev-list --count HEAD`.
+      placeholder: "180000"
+    validations:
+      required: false
+
+  - type: input
+    id: tamanho-do-repositorio
+    attributes:
+      label: Tamanho da pasta .git
+      description: Aproximado, em MB ou GB. Se usa Git LFS, submódulos ou muitos ramos, diga em "Contexto adicional".
+      placeholder: 2,4 GB
+    validations:
+      required: false
+
+  - type: input
+    id: versao
+    attributes:
+      label: Versão do GitNexus
+      description: Em *Ferramentas → Versão e changelog*.
+      placeholder: "1.4.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: sistema
+    attributes:
+      label: Sistema operacional
+      options:
+        - Windows 10/11 (x64)
+        - Windows (ARM64)
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux (x64)
+        - Linux (ARM64)
+        - Outro (descreva em "Contexto adicional")
+    validations:
+      required: true
+
+  - type: input
+    id: maquina
+    attributes:
+      label: Máquina
+      description: Memória RAM e tipo de disco (SSD/HDD). Repositório em pasta de rede ou na nuvem (OneDrive, Dropbox) também importa.
+      placeholder: 16 GB de RAM, SSD
+    validations:
+      required: false
+
+  - type: textarea
+    id: log-de-comandos
+    attributes:
+      label: Comandos git executados (painel de log)
+      description: |
+        Abra o painel de log (**Ctrl+Shift+L**) e copie os comandos da hora da lentidão; ele mostra quanto cada um demorou.
+        O app já oculta tokens, mas **confira antes de colar**.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: contexto
+    attributes:
+      label: Contexto adicional
+      description: Acontecia antes? Em outros repositórios também? Algum antivírus ou sincronizador de pastas ativo?
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmacoes
+    attributes:
+      label: Confirmações
+      options:
+        - label: Procurei nas issues existentes e não achei o mesmo problema.
+          required: true
+        - label: Não colei senhas, tokens nem dados privados nos textos e logs.
+          required: true

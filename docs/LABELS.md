@@ -96,3 +96,23 @@ A cada abertura, atualização ou fechamento de PR, **todos** os abertos são re
 
 `.github/CODEOWNERS` pede a revisão do dono sempre que um PR muda arquivos da área. Hoje é uma pessoa só; ao entrar mais gente, troque pelo time de cada área.
 A revisão do dono **não é obrigatória** (para isso, ative *Require review from Code Owners* no ruleset da `main`), e o autor do PR nunca é pedido como revisor do próprio PR.
+
+## Templates de issue
+
+`.github/ISSUE_TEMPLATE/` tem **formulários** (issue forms) em vez de texto livre: campos obrigatórios, listas de escolha e labels aplicadas sozinhas.
+A issue em branco está desligada (`config.yml`): toda issue passa por um formulário. O que a lista do Beekeeper Studio (4 modelos em Markdown) e a nossa têm em comum
+são bug, funcionalidade, documentação e pergunta; o que é nosso: desempenho (dependente do tamanho do repositório) e idioma (i18n).
+
+| Formulário | Título | Labels | O que pede de especial |
+|---|---|---|---|
+| 🐛 Defeito (`bug.yml`) | `bug: ` | `bug`, `triagem` | passos, versão do app (*Ferramentas → Versão e changelog*), sistema, **forma de instalação** (instalador, ZIP, winget, AppImage, deb, rpm, Flatpak…), versão do Git e o **log de comandos** do painel (Ctrl+Shift+L) |
+| ⚡ Lentidão ou travamento (`desempenho.yml`) | `perf: ` | `performance`, `triagem` | **tamanho do repositório** (arquivos rastreados, commits, `.git`), onde trava, se o app volta, máquina e disco |
+| ✨ Funcionalidade (`funcionalidade.yml`) | `feat: ` | `enhancement`, `triagem` | problema antes da solução, alternativas, área do app e se a pessoa pode testar o beta |
+| 📚 Documentação (`documentacao.yml`) | `docs: ` | `documentation`, `triagem` | onde está (arquivo ou link) e o tipo do problema |
+| 🌐 Idioma ou tradução (`idioma.yml`) | `i18n: ` | `idioma`, `triagem` | idioma novo, correção ou texto sem tradução; liga a [docs/I18N.md](I18N.md) |
+| ❓ Pergunta (`pergunta.yml`) | `pergunta: ` | `question`, `triagem` | o que a pessoa quer fazer e o que já tentou |
+
+Toda issue nasce com **`triagem`** (ainda não analisada). Tire a label quando ela for lida e classificada: o filtro `is:issue is:open label:triagem` é a fila de trabalho.
+O prefixo do título acompanha os tipos do Conventional Commits (`bug`, `feat`, `docs`, `perf`), o que facilita transformar uma issue em branch e em PR (`fix/…`, `feat/…`).
+
+Quando o repositório ficar público: ative *Private vulnerability reporting* e acrescente o atalho de segurança no `config.yml` (o comentário no arquivo lembra).

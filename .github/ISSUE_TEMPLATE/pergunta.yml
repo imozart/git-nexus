@@ -1,0 +1,46 @@
+name: ❓ Pergunta
+description: Dúvida sobre como fazer algo no GitNexus
+title: "pergunta: "
+labels: ["question", "triagem"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Antes de perguntar, vale uma olhada no [README](https://github.com/imozart/git-nexus#readme) e na paleta de comandos do app (**Ctrl+K**), que lista tudo o que ele faz.
+        Se for um defeito ou uma sugestão, use o formulário correspondente.
+
+  - type: textarea
+    id: pergunta
+    attributes:
+      label: Qual é a sua dúvida
+      description: Diga o que você quer fazer, não só o que não achou.
+      placeholder: Como faço para desfazer o último commit sem perder as alterações?
+    validations:
+      required: true
+
+  - type: textarea
+    id: tentativas
+    attributes:
+      label: O que você já tentou
+    validations:
+      required: false
+
+  - type: input
+    id: versao
+    attributes:
+      label: Versão do GitNexus
+      description: Em *Ferramentas → Versão e changelog*. Opcional, mas a resposta pode depender dela.
+      placeholder: "1.4.0"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: sistema
+    attributes:
+      label: Sistema operacional
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: false
