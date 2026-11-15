@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import type { UpdateInfo } from '@git-nexus/git-core/pure';
+import type { UpdateInfo, UpdateProgress } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { t } from '../i18n';
 
@@ -16,6 +16,14 @@ export const useUpdateStore = defineStore('update', () => {
   const flash = ref('');
   const enabled = ref(localStorage.getItem(ENABLED_KEY) !== '0');
   const skipped = ref(localStorage.getItem(SKIP_KEY) ?? '');
+  /** Instalação dentro do app: baixando → pronto (conferido pelo SHA-256) → instalando (o app vai reiniciar). */
+  const phase = ref<'idle' | 'downloading' | 'ready' | 'installing'>('idle');
+  const progress = ref<UpdateProgress>({ done: 0, total: 0 });
+  /** O pacote baixado é o da versão `info.latest`? (se uma versão mais nova sair depois, volta a pedir o download). */
+  let readyVersion = '';
+  /** Dá para instalar sem sair do app (Windows instalado, AppImage) e há hash para conferir. */
+  const canInstall = computed(() => info.value?.install === 'installer' || info.value?.install === 'appimage');
+  const percent = computed(() => (progress.value.total > 0 ? Math.min(100, Math.round((progress.value.done / progress.value.total) * 100)) : 0));
 
   /** Há versão nova, e a pessoa não pediu para ignorá-la nem dispensou o aviso nesta sessão. */
   const visible = computed(() => info.value?.status === 'available' && !dismissed.value && info.value.latest !== skipped.value);
@@ -57,6 +65,33 @@ export const useUpdateStore = defineStore('update', () => {
     localStorage.setItem(ENABLED_KEY, v ? '1' : '0');
     say(v ? t('update.autoOn') : t('update.autoOff'));
   }
+  /** Baixa o pacote e confere o SHA-256. Depois disso a pessoa escolhe quando reiniciar (nada é fechado sozinho). */
+  async function downloadAndVerify(): Promise<void> {
+    if (phase.value === 'downloading' || phase.value === 'installing') return;
+    phase.value = 'downloading';
+    progress.value = { done: 0, total: 0 };
+    const off = api.onUpdateProgress((p) => (progress.value = p));
+    try {
+      const r = await api.downloadUpdate();
+      readyVersion = r.version;
+      phase.value = 'ready';
+    } catch (e) {
+      phase.value = 'idle';
+      say(errMsg(e));
+    } finally {
+      off();
+    }
+  }
+  async function installAndRestart(): Promise<void> {
+    if (phase.value !== 'ready' || readyVersion !== info.value?.latest) return;
+    phase.value = 'installing';
+    try {
+      await api.installUpdate();
+    } catch (e) {
+      phase.value = 'ready';
+      say(errMsg(e));
+    }
+  }
   async function download(): Promise<void> {
     const i = info.value;
     if (!i) return;
@@ -70,5 +105,5 @@ export const useUpdateStore = defineStore('update', () => {
     if (info.value?.url) await api.openExternal(info.value.url).catch((e) => say(errMsg(e)));
   }
 
-  return { info, checking, flash, enabled, visible, check, later, skip, setEnabled, download, openNotes };
+  return { info, checking, flash, enabled, visible, phase, progress, percent, canInstall, check, later, skip, setEnabled, download, downloadAndVerify, installAndRestart, openNotes };
 });

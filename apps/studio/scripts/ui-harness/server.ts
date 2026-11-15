@@ -57,6 +57,17 @@ const MAIN_STUBS: Record<string, (...a: any[]) => unknown> = {
         return raw ? { ok: true, status: 200, json: async () => JSON.parse(raw) } : { ok: false, status: 404, json: async () => ({}) };
       }) as unknown as typeof fetch,
     }),
+  // Instalação simulada: não baixa nada; só marca no disco o que o app faria (o teste lê installed.txt).
+  downloadUpdate: async () => {
+    if (process.env.GN_FAKE_DOWNLOAD_FAIL) throw new Error(process.env.GN_FAKE_DOWNLOAD_FAIL);
+    await new Promise((r) => setTimeout(r, 400));
+    return { version: '9.9.9', assetName: 'GitNexus-9.9.9-win-x64-setup.exe', sha256: 'f'.repeat(64) };
+  },
+  installUpdate: async () => {
+    const { mkdir, writeFile } = await import('node:fs/promises');
+    await mkdir(dataDir, { recursive: true });
+    await writeFile(join(dataDir, 'installed.txt'), 'restart', 'utf8');
+  },
   // Registra o endereço que o app pediria para abrir no navegador (o teste lê este arquivo).
   openExternal: async (url: string) => {
     if (!isAllowedUpdateUrl(String(url))) throw new Error('Endereço não permitido.');
@@ -74,6 +85,7 @@ const call = (m, args) => fetch('/rpc', { method: 'POST', body: JSON.stringify({
 });
 const api = {};
 for (const m of ${JSON.stringify(METHODS)}) api[m] = (...args) => call(m, JSON.parse(JSON.stringify(args)));
+api.onUpdateProgress = () => () => {};
 api.validateCommitMessage = (input, policy) => {
   const x = new XMLHttpRequest();
   x.open('POST', '/validate', false);

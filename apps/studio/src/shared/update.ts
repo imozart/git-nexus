@@ -66,3 +66,44 @@ export function isAllowedUpdateUrl(url: string, repo = UPDATE_REPO): boolean {
     return false;
   }
 }
+
+// --- Instalação da atualização (decisão pura; quem baixa e executa é entrypoints/installer.ts) ---------------------
+
+/**
+ * O que o botão "Instalar e reiniciar" faz neste sistema:
+ *  - `installer`: Windows instalado (NSIS) → baixa o instalador, confere o SHA-256 e o executa em modo silencioso;
+ *  - `appimage`: Linux em AppImage → baixa o novo AppImage, confere o SHA-256 e substitui o arquivo atual;
+ *  - `manual`: o resto (ZIP portátil, macOS não assinado, .deb/.rpm) → só abre o download no navegador.
+ */
+export type InstallKind = 'installer' | 'appimage' | 'manual';
+
+export interface InstallContext {
+  platform: NodeJS.Platform | string;
+  portable: boolean;
+  /** Linux: o app foi iniciado a partir de um AppImage (variável APPIMAGE definida). */
+  appImage: boolean;
+}
+
+export function installPlan(assetName: string | undefined, ctx: InstallContext): InstallKind {
+  if (!assetName) return 'manual';
+  if (ctx.platform === 'win32' && !ctx.portable && assetName.endsWith('-setup.exe')) return 'installer';
+  if (ctx.platform === 'linux' && ctx.appImage && assetName.endsWith('.AppImage')) return 'appimage';
+  return 'manual';
+}
+
+/** Nome do arquivo de hashes que o pipeline publica em toda release (`sha256sum *`). */
+export const SUMS_ASSET = 'SHA256SUMS.txt';
+
+/** Lê o conteúdo do `sha256sum` ("<hash>  <arquivo>" ou "<hash> *<arquivo>") e devolve o hash do arquivo pedido. */
+export function findSha256(sumsText: string, fileName: string): string | null {
+  for (const line of sumsText.split(/\r?\n/)) {
+    const m = /^([0-9a-fA-F]{64})\s+\*?(.+?)\s*$/.exec(line);
+    if (m?.[1] && m[2] === fileName) return m[1].toLowerCase();
+  }
+  return null;
+}
+
+/** Nome de arquivo seguro para gravar no disco: sem pastas, sem caracteres estranhos. */
+export function isSafeAssetName(name: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/.test(name) && !name.includes('..');
+}

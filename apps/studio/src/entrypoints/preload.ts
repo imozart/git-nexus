@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { CommitPolicy, ConventionalCommitInput, GitNexusApi } from '@git-nexus/git-core/pure';
+import type { CommitPolicy, ConventionalCommitInput, GitNexusApi, UpdateProgress } from '@git-nexus/git-core/pure';
 import { validateCommitMessage } from '@git-nexus/governance-policy';
 import { MAIN_METHODS, WORKER_METHODS, channel } from '../shared/channels';
 
@@ -9,6 +9,12 @@ const remote = Object.fromEntries(
 
 const api = {
   ...remote,
+  // Evento (não é chamada com resposta): progresso do download da atualização.
+  onUpdateProgress: (cb: (p: UpdateProgress) => void) => {
+    const handler = (_e: unknown, p: UpdateProgress) => cb(p);
+    ipcRenderer.on(channel('updateProgress'), handler);
+    return () => ipcRenderer.removeListener(channel('updateProgress'), handler);
+  },
   // Síncrono e sem I/O: o linter roda direto no preload para feedback em tempo de digitação.
   validateCommitMessage: (input: ConventionalCommitInput, policy?: CommitPolicy) =>
     validateCommitMessage(input, policy),

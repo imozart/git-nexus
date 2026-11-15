@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkForUpdate } from '../src/entrypoints/update';
-import { compareVersions, isAllowedUpdateUrl, pickAsset, type ReleaseAsset } from '../src/shared/update';
+import { compareVersions, findSha256, installPlan, isAllowedUpdateUrl, isSafeAssetName, pickAsset, type ReleaseAsset } from '../src/shared/update';
 
 const A = (name: string): ReleaseAsset => ({ name, browser_download_url: `https://github.com/imozart/git-nexus/releases/download/v1.3.0/${name}` });
 const ASSETS = [
@@ -56,6 +56,38 @@ describe('isAllowedUpdateUrl', () => {
   });
 });
 
+describe('installPlan', () => {
+  const win = { platform: 'win32', portable: false, appImage: false };
+  it('Windows instalado: instalador; portátil, macOS e pacotes de distro ficam manuais', () => {
+    expect(installPlan('GitNexus-1.3.0-win-x64-setup.exe', win)).toBe('installer');
+    expect(installPlan('GitNexus-1.3.0-win-x64-setup.exe', { ...win, portable: true })).toBe('manual');
+    expect(installPlan('GitNexus-1.3.0-win-x64.zip', win)).toBe('manual');
+    expect(installPlan('GitNexus-1.3.0-mac-arm64.dmg', { platform: 'darwin', portable: false, appImage: false })).toBe('manual');
+    expect(installPlan('GitNexus-1.3.0-linux-amd64.deb', { platform: 'linux', portable: false, appImage: false })).toBe('manual');
+  });
+  it('Linux: só troca o AppImage quando o app realmente roda de um AppImage', () => {
+    expect(installPlan('GitNexus-1.3.0-linux-x86_64.AppImage', { platform: 'linux', portable: false, appImage: true })).toBe('appimage');
+    expect(installPlan('GitNexus-1.3.0-linux-x86_64.AppImage', { platform: 'linux', portable: false, appImage: false })).toBe('manual');
+    expect(installPlan(undefined, win)).toBe('manual');
+  });
+});
+
+describe('findSha256 / isSafeAssetName', () => {
+  const H1 = 'a'.repeat(64);
+  const H2 = 'B'.repeat(64);
+  const sums = H1 + '  GitNexus-1.3.0-win-x64-setup.exe\r\n' + H2 + ' *GitNexus-1.3.0-win-x64.zip\nlixo\n';
+  it('lê o formato do sha256sum (texto e binário, CRLF) e devolve em minúsculas', () => {
+    expect(findSha256(sums, 'GitNexus-1.3.0-win-x64-setup.exe')).toBe(H1);
+    expect(findSha256(sums, 'GitNexus-1.3.0-win-x64.zip')).toBe(H2.toLowerCase());
+    expect(findSha256(sums, 'outro.exe')).toBeNull();
+    expect(findSha256(sums, 'GitNexus-1.3.0-win-x64')).toBeNull(); // casa o nome inteiro, não prefixo
+  });
+  it('só aceita nomes de arquivo simples', () => {
+    expect(isSafeAssetName('GitNexus-1.3.0-win-x64-setup.exe')).toBe(true);
+    for (const bad of ['..\\x.exe', '../x.exe', 'a/b.exe', 'a b.exe', '', '.hidden', 'a..b/../c']) expect(isSafeAssetName(bad)).toBe(false);
+  });
+});
+
 describe('checkForUpdate (fetch simulado)', () => {
   const ctx = { current: '1.2.0', platform: 'win32', arch: 'x64', portable: false };
   const reply = (status: number, body?: unknown) => (async () => ({ ok: status >= 200 && status < 300, status, json: async () => body })) as unknown as typeof fetch;
@@ -79,6 +111,14 @@ describe('checkForUpdate (fetch simulado)', () => {
     });
     expect(r.downloadUrl).toContain('/releases/download/v1.3.0/');
     expect(r.notes).toContain('Novidades');
+  });
+
+  it('oferece instalar dentro do app só quando a release publica o SHA256SUMS.txt', async () => {
+    const r = await checkForUpdate({ ...ctx, fetchImpl: reply(200, release()) });
+    expect(r.install).toBe('installer');
+    expect(r.sumsUrl).toContain('/SHA256SUMS.txt');
+    const semHash = await checkForUpdate({ ...ctx, fetchImpl: reply(200, release({ assets: ASSETS.filter((a) => a.name !== 'SHA256SUMS.txt') })) });
+    expect(semHash.install).toBe('manual');
   });
 
   it('portátil recebe o ZIP', async () => {
