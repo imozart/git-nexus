@@ -70,6 +70,9 @@ jobs:
     needs: [version, quality]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    env:
+      # A assinatura do Windows (SignPath Foundation) só roda quando o secret e a variável abaixo existem (veja docs/CODE_SIGNING.md).
+      SIGN_ENABLED: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && secrets.SIGNPATH_API_TOKEN != '' }}
     defaults:
       run:
         shell: bash # no Windows o padrão é PowerShell, onde "$VERSION" não lê variável de ambiente
@@ -106,6 +109,59 @@ jobs:
 
       - name: Verificar que o app é somente 64 bits
         run: node scripts/verify-arch.mjs apps/studio/release ${{ contains(matrix.id, 'arm64') && 'arm64' || 'x64' }}
+
+      # ---- Assinatura de código do Windows (SignPath Foundation) --------------------------------
+      # Assina o instalador e o GitNexus.exe do pacote portátil. Sem a configuração, estas etapas são ignoradas
+      # e os binários seguem sem assinatura (SmartScreen avisa).
+      - name: Windows - separar os arquivos a assinar
+        if: runner.os == 'Windows' && env.SIGN_ENABLED == 'true'
+        run: |
+          UNPACKED="${{ contains(matrix.id, 'arm64') && 'win-arm64-unpacked' || 'win-unpacked' }}"
+          mkdir -p sign-in
+          cp apps/studio/release/GitNexus-*-setup.exe sign-in/
+          cp "apps/studio/release/$UNPACKED/GitNexus.exe" sign-in/GitNexus.exe
+          ls -l sign-in
+
+      - name: Windows - enviar para assinatura
+        id: unsigned
+        if: runner.os == 'Windows' && env.SIGN_ENABLED == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-${{ matrix.id }}
+          path: sign-in
+          retention-days: 1
+
+      - name: Windows - assinar (SignPath)
+        if: runner.os == 'Windows' && env.SIGN_ENABLED == 'true'
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'git-nexus' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: sign-out
+
+      - name: Windows - aplicar os arquivos assinados e conferir a assinatura
+        if: runner.os == 'Windows' && env.SIGN_ENABLED == 'true'
+        shell: pwsh
+        run: |
+          $rel = 'apps/studio/release'
+          $unpacked = "$rel/${{ contains(matrix.id, 'arm64') && 'win-arm64-unpacked' || 'win-unpacked' }}"
+          $setup = Get-ChildItem sign-out -Filter '*-setup.exe' | Select-Object -First 1
+          if (-not $setup -or -not (Test-Path sign-out/GitNexus.exe)) { throw 'O SignPath não devolveu os arquivos assinados.' }
+          Copy-Item sign-out/GitNexus.exe "$unpacked/GitNexus.exe" -Force
+          Copy-Item $setup.FullName "$rel/$($setup.Name)" -Force
+          # o ZIP portátil é refeito com o GitNexus.exe assinado (mesma estrutura: o conteúdo da pasta na raiz)
+          $zip = Get-ChildItem $rel -Filter 'GitNexus-*-win-*.zip' | Where-Object { $_.Name -notmatch 'setup' } | Select-Object -First 1
+          Remove-Item $zip.FullName
+          Compress-Archive -Path "$unpacked/*" -DestinationPath $zip.FullName
+          foreach ($f in @("$unpacked/GitNexus.exe", "$rel/$($setup.Name)")) {
+            $s = Get-AuthenticodeSignature $f
+            if ($s.Status -ne 'Valid') { throw "Assinatura inválida em ${f}: $($s.Status)" }
+            Write-Host "OK: $f assinado por $($s.SignerCertificate.Subject)"
+          }
 
       - uses: actions/upload-artifact@v7
         with:
