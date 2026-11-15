@@ -75,3 +75,9 @@ O workflow **Tamanho do PR** (`pr-size.yml`) soma as linhas adicionadas + removi
 | `tamanho: XL` | mais de 500: considere dividir o PR |
 
 Lockfiles (`pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`), snapshots e arquivos `.min.js/.min.css` não entram na conta. Faixas em `scripts/lib/pr-size.mjs`.
+
+## Conflitos
+
+O workflow **Conflitos nos PRs** (`pr-conflicts.yml`) marca com `conflito` todo PR aberto que não dá merge limpo na `main` e tira a label quando o conflito some.
+Roda a cada push na `main` (é quando os outros PRs passam a conflitar, principalmente nas pilhas) e quando um PR é aberto ou atualizado.
+O GitHub calcula a mergeabilidade sob demanda: o script consulta de novo (até 6 vezes, de 5 em 5 segundos) enquanto a resposta for `UNKNOWN`, e nunca muda a label sem uma resposta definitiva.
