@@ -1,0 +1,36 @@
+name: Nome da branch
+
+# Branch no formato "tipo/descricao-curta" (feat/, fix/, ci/, docs/ ...), com o mesmo tipo do título do PR.
+# Regras em scripts/lib/branch-name.mjs. Branches de bots (dependabot/, renovate/) e de release (release/) ficam de fora.
+# Sem filtro de pastas de propósito: se virar verificação obrigatória do ruleset, precisa reportar em todo PR.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+concurrency:
+  group: branch-name-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  branch:
+    name: Nome da branch (tipo/descrição)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .node-version
+      - name: Conferir o nome da branch
+        env:
+          # por variável de ambiente: nome da branch e título são texto do usuário e nunca entram interpolados no script
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: node scripts/check-branch-name.mjs

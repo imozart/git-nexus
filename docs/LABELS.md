@@ -50,3 +50,14 @@ O workflow **Labels do PR (tipo)** (`pr-labels.yml`) lê o título do PR e aplic
 (botão *Generate release notes* na tela de release, ou `gh release create --generate-notes`). Usa os mesmos títulos e a mesma ordem
 das seções do pipeline (`scripts/lib/release-core.mjs`), e os bots (`dependabot`, `github-actions`) ficam de fora.
 As notas publicadas pelo `release.yml` continuam saindo de `scripts/release-info.mjs` (lê os commits); este arquivo vale para as notas geradas pelo GitHub.
+
+## Nome da branch
+
+O workflow **Nome da branch** (`branch-name.yml`, check `Nome da branch (tipo/descrição)`) confere o nome da branch do PR:
+
+- formato `tipo/descricao-curta`, em minúsculas (letras, números, `.`, `_`, `-`, e `/` para subpastas), até 60 caracteres;
+- tipos aceitos: `feat`, `fix`, `hotfix` (vale como `fix`), `perf`, `refactor`, `docs`, `test`, `build`, `ci`, `style`, `chore`, `revert`;
+- o tipo da branch precisa ser o **mesmo do título** do PR (`feat/painel-de-log` com `feat(log): …`); título sem tipo válido não gera erro aqui, quem cobra é o check do título;
+- `dependabot/…`, `renovate/…` e `release/…` ficam de fora.
+
+Para tornar a regra obrigatória, acrescente o check ao ruleset da `main`.
