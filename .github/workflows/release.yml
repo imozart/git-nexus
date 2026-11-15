@@ -3,6 +3,9 @@ name: Release
 # A cada merge (push) na main: calcula a versão, compila para Windows/macOS/Linux
 # e publica uma Release no GitHub com as notas geradas a partir dos commits.
 # Para pular uma release, inclua [skip release] na mensagem do commit.
+# Nem todo merge publica: só quando algum commit desde a última versão muda o app (feat, fix, perf, refactor, build, breaking ou fora do
+# padrão). Merge só de docs/test/ci/style/chore não gera versão nem instaladores; esses commits entram no changelog da próxima release.
+# Execução manual (Run workflow) publica sempre.
 # Canais: stable (padrão, a cada merge) e beta (só manual: Actions > Release > Run workflow > channel = beta). O beta sai como
 # pré-lançamento (vX.Y.Z-beta.N): não vira "última versão", não gera manifestos de pacote e não aparece como atualização no app.
 # Depois de uma release ESTÁVEL, o job "Registrar a versão e o CHANGELOG" (release-sync.yml) grava a versão nos package.json e a entrada
@@ -44,6 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
+      release: ${{ steps.next.outputs.release }} # false = só docs/test/ci/chore desde a última versão: o resto do pipeline é pulado
       version: ${{ steps.next.outputs.version }}
       tag: ${{ steps.next.outputs.tag }}
       prerelease: ${{ steps.next.outputs.prerelease }}
@@ -60,16 +64,20 @@ jobs:
         env:
           BUMP: ${{ inputs.bump || 'auto' }}
           CHANNEL: ${{ inputs.channel || 'stable' }}
-        run: node scripts/release-info.mjs next --bump "$BUMP" --channel "$CHANNEL"
+          # execução manual publica sempre; no push, só se algum commit muda o app (scripts/lib/release-core.mjs: shouldRelease)
+          FORCE: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          args=(--bump "$BUMP" --channel "$CHANNEL")
+          if [ "$FORCE" = "true" ]; then args+=(--force); fi
+          node scripts/release-info.mjs next "${args[@]}"
 
   # 2) Barreira de qualidade: não publica se typecheck ou testes falharem.
   quality:
     name: Typecheck e testes
-    # Pula: [skip release] e atualizações de dependência de desenvolvimento / de actions (o Dependabot as junta sozinho; não valem uma release).
-    # Manual (workflow_dispatch) sempre roda. Os campos abaixo vêm da mensagem do merge, que carrega o título do PR.
-    if: >-
-      github.event_name == 'workflow_dispatch' || !(contains(github.event.head_commit.message, '[skip release]')
-      || contains(github.event.head_commit.message, 'ci(deps)') || contains(github.event.head_commit.message, 'chore(deps-dev)'))
+    # Espera o cálculo da versão: se o job "Calcular versão" foi pulado ([skip release] etc.) este também é, e se ele decidiu que não há o
+    # que publicar (release=false: só docs/test/ci/chore), os testes da release não rodam (o CI do PR já os rodou).
+    needs: version
+    if: ${{ needs.version.outputs.release == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

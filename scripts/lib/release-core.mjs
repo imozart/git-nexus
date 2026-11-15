@@ -60,6 +60,18 @@ export function decideBump(commits) {
   return 'patch';
 }
 
+/**
+ * Tipos de commit que mudam o que chega ao usuário (código do app, pacotes e dependências de produção). Os demais (docs, test, ci, style,
+ * chore) só mexem em documentação, testes, pipelines e ferramentas: a versão não muda e não há o que baixar. `other` (commit fora do
+ * padrão) conta, porque não dá para saber o que ele faz.
+ */
+export const RELEASE_TYPES = ['feat', 'fix', 'perf', 'refactor', 'build', 'other'];
+
+/** Algum commit pede uma release? (breaking sempre pede.) Sem commits, não. */
+export function shouldRelease(commits) {
+  return commits.some((c) => c.breaking || RELEASE_TYPES.includes(c.type));
+}
+
 export function bumpVersion(base, bump) {
   const [maj, min, pat] = base.split('.').map(Number);
   if (bump === 'major') return `${maj + 1}.0.0`;
