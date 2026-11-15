@@ -72,6 +72,7 @@ function globalCommands(): Command[] {
       { id: 'view.merge', title: 'Abrir Conflitos', group: 'Navegação', keywords: 'merge resolver', when: inRepo, run: () => ws.open('merge', repo) },
       { id: 'tools.ops', title: 'Ferramentas: histórico de operações (desfazer)', group: 'Ferramentas', keywords: 'undo reflog', when: inRepo, run: () => ws.openTools(repo, 'ops') },
       { id: 'tools.stash', title: 'Ferramentas: stash', group: 'Ferramentas', keywords: 'guardar shelf', when: inRepo, run: () => ws.openTools(repo, 'stash') },
+      { id: 'tools.rebase', title: 'Ferramentas: rebase interativo', group: 'Ferramentas', keywords: 'squash reordenar reword fixup drop reescrever', when: inRepo, run: () => ws.openTools(repo, 'rebase') },
       { id: 'tools.file', title: 'Ferramentas: histórico de arquivo e blame', group: 'Ferramentas', keywords: 'autoria anotar', when: inRepo, run: () => ws.openTools(repo, 'file') },
     );
   }

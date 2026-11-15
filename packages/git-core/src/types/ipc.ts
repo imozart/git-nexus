@@ -219,6 +219,47 @@ export interface SyncResult {
   message: string;
 }
 
+export type RebaseAction = 'pick' | 'reword' | 'squash' | 'fixup' | 'drop';
+
+/** Um passo do rebase interativo, na ordem em que será aplicado (do mais antigo ao mais novo). */
+export interface RebaseItem {
+  hash: string;
+  action: RebaseAction;
+  /** Nova mensagem: obrigatória em `reword`; em `pick` (ou no grupo de squash/fixup) substitui a mensagem final. */
+  message?: string;
+}
+
+export interface RebaseCommit extends CommitInfo {
+  /** Já está em alguma branch remota: reescrever exigirá push --force. */
+  published: boolean;
+}
+
+export interface RebasePlan {
+  /** Commit-base completo (não é reescrito). */
+  base: string;
+  branch: string;
+  /** Do mais antigo para o mais novo. */
+  commits: RebaseCommit[];
+  hasMerges: boolean;
+}
+
+export interface RebaseState {
+  inProgress: boolean;
+  step: number;
+  total: number;
+  branch: string;
+  /** Arquivos em conflito no passo atual. */
+  conflicted: string[];
+}
+
+export interface RebaseResult {
+  status: 'done' | 'stopped' | 'aborted';
+  message: string;
+  /** Referência com o estado anterior ao rebase. */
+  backup?: string;
+  state: RebaseState;
+}
+
 export type SecretFindingKind = 'secret' | 'sensitive-file' | 'large-file';
 
 export interface SecretFinding {
@@ -341,6 +382,14 @@ export interface GitNexusApi extends GitNexusIPC {
   getOperations(repoPath: string, limit?: number): Promise<GitOperation[]>;
   /** Volta ao estado anterior à operação `id` (e às mais novas). */
   undoOperation(repoPath: string, id: string): Promise<UndoResult>;
+
+  // Rebase interativo visual
+  getRebasePlan(repoPath: string, base: string): Promise<RebasePlan>;
+  getRebaseState(repoPath: string): Promise<RebaseState>;
+  startRebase(repoPath: string, base: string, items: RebaseItem[]): Promise<RebaseResult>;
+  continueRebase(repoPath: string): Promise<RebaseResult>;
+  skipRebase(repoPath: string): Promise<RebaseResult>;
+  abortRebase(repoPath: string): Promise<RebaseResult>;
 
   // Painel de repositórios: resumo, fetch e pull (somente fast-forward)
   getRepoSummary(repoPath: string): Promise<RepoSummary>;

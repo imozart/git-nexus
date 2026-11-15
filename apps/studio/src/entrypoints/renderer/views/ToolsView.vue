@@ -5,6 +5,7 @@ import type { RepositoryMeta } from '@git-nexus/git-core/pure';
 import OperationsPanel from '../components/tools/OperationsPanel.vue';
 import StashPanel from '../components/tools/StashPanel.vue';
 import FilePanel from '../components/tools/FilePanel.vue';
+import RebasePanel from '../components/tools/RebasePanel.vue';
 import { useWorkspaceStore } from '../stores/workspace';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
@@ -15,6 +16,7 @@ const SECTIONS: Array<{ id: string; title: string; component: Component }> = [
   { id: 'ops', title: 'Operações', component: OperationsPanel },
   { id: 'stash', title: 'Stash', component: StashPanel },
   { id: 'file', title: 'Arquivo (histórico e blame)', component: FilePanel },
+  { id: 'rebase', title: 'Rebase interativo', component: RebasePanel },
 ];
 
 const KEY = 'gitnexus.toolsSection';
