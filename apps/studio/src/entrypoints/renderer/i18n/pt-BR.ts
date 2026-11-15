@@ -18,6 +18,8 @@ const ptBR = {
   'core.commands': 'Comandos',
   'core.commandsTitle': 'Paleta de comandos',
   'core.language': 'Idioma',
+  'combo.none': 'Nada encontrado.',
+  'combo.more': '+ {n} resultado… continue digitando para filtrar|+ {n} resultados… continue digitando para filtrar',
   'log.title': 'Log do Git',
   'log.count': '{n} comando|{n} comandos',
   'log.expand': 'Mostrar o log do Git',

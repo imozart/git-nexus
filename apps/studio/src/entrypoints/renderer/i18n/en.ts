@@ -20,6 +20,8 @@ const en: Partial<Record<MessageKey, string>> = {
   'core.commands': 'Commands',
   'core.commandsTitle': 'Command palette',
   'core.language': 'Language',
+  'combo.none': 'Nothing found.',
+  'combo.more': '+ {n} more result… keep typing to narrow down|+ {n} more results… keep typing to narrow down',
   'log.title': 'Git log',
   'log.count': '{n} command|{n} commands',
   'log.expand': 'Show the Git log',

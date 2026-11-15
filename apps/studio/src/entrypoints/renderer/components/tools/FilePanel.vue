@@ -4,6 +4,7 @@ import { GnButton } from '@git-nexus/ui-kit';
 import type { BlameLine, CommitInfo, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
+import ComboBox from '../ComboBox.vue';
 import { dateLocale, t } from '../../i18n';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
@@ -83,16 +84,8 @@ onMounted(async () => {
 <template>
   <div class="fp">
     <header class="fp__bar">
-      <input
-        v-model="file"
-        class="fp__file"
-        list="fp-files"
-        :placeholder="t('fp.filePh')"
-        spellcheck="false"
-        @keydown.enter="load"
-        @change="load"
-      />
-      <datalist id="fp-files"><option v-for="f in tracked" :key="f" :value="f" /></datalist>
+      <!-- Combobox com busca: mostra só os primeiros resultados (o <datalist> nativo criava um item por arquivo e travava o app em repositórios grandes) -->
+      <ComboBox v-model="file" class="fp__file" searchable mono :options="tracked" :placeholder="t('fp.filePh')" :aria-label="t('fp.filePh')" @commit="load" />
       <span class="seg">
         <button type="button" :class="{ on: mode === 'history' }" @click="mode = 'history'">{{ t('fp.history') }}</button>
         <button type="button" :class="{ on: mode === 'blame' }" @click="mode = 'blame'">{{ t('gv.blame') }}</button>
