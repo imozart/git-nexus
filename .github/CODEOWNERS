@@ -1,0 +1,21 @@
+# Donos do código: o GitHub pede a revisão destes donos automaticamente quando um PR muda os arquivos correspondentes.
+# Vale a ÚLTIMA linha que casa com o arquivo; por isso as regras específicas vêm depois da regra geral.
+# Hoje é uma pessoa só; ao entrar mais gente, troque @imozart por um time (ex.: @imozart/mantenedores) por área.
+# Para tornar a revisão do dono OBRIGATÓRIA, ative "Require review from Code Owners" no ruleset da main (hoje não é exigido).
+
+# Geral
+*                                  @imozart
+
+# Aplicativo e interface
+/apps/studio/                      @imozart
+/apps/ui-kit/                      @imozart
+
+# Núcleo de Git e governança (mexem em dados do usuário e na política de commits)
+/packages/git-core/                @imozart
+/packages/governance-policy/       @imozart
+
+# Pipelines, release e assinatura (mexem em segredos, tokens e no que é publicado)
+/.github/                          @imozart
+/scripts/                          @imozart
+/docs/CODE_SIGNING.md              @imozart
+/docs/CODE_SIGNING_POLICY.md       @imozart
