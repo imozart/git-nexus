@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { GnTabs, type GnTab } from '@git-nexus/ui-kit';
-import { LOCALES, locale, setLocale, t, type Locale } from './i18n';
+import { t } from './i18n';
+import LanguagePicker from './components/LanguagePicker.vue';
 import { useCommandsStore, shortcutLabel } from './stores/commands';
 import { useUpdateStore } from './stores/update';
 import { HOME_TAB, useWorkspaceStore } from './stores/workspace';
@@ -30,9 +31,7 @@ const tabs = computed<GnTab[]>(() =>
   <div class="core">
     <div class="core__top">
       <GnTabs class="core__tabs" :tabs="tabs" :model-value="ws.activeId" @update:model-value="ws.activeId = $event" @close="ws.close" />
-      <select class="core__lang" :value="locale" :title="t('core.language')" :aria-label="t('core.language')" @change="setLocale(($event.target as HTMLSelectElement).value as Locale)">
-        <option v-for="l in LOCALES" :key="l.id" :value="l.id">{{ l.label }}</option>
-      </select>
+      <LanguagePicker />
       <button type="button" class="core__cmd" :title="t('core.commandsTitle')" @click="cmds.open()">
         {{ t('core.commands') }} <kbd>{{ shortcutLabel('Mod+K') }}</kbd>
       </button>
@@ -85,7 +84,6 @@ const tabs = computed<GnTab[]>(() =>
   height: 100%;
   &__top { display: flex; align-items: stretch; background: var(--gn-bg); }
   &__tabs { flex: 1; min-width: 0; }
-  &__lang { margin: 6px 0 6px 10px; padding: 0 6px; font: inherit; font-size: 12px; color: var(--gn-muted); background: var(--gn-surface); border: 1px solid var(--gn-border); border-radius: var(--gn-radius); }
   &__cmd { margin: 6px 10px; padding: 0 10px; display: inline-flex; align-items: center; gap: 8px; font: inherit; font-size: 12px; color: var(--gn-muted); background: var(--gn-surface); border: 1px solid var(--gn-border); border-radius: var(--gn-radius); cursor: pointer; &:hover { color: var(--gn-text); border-color: var(--gn-accent); } kbd { font-family: var(--gn-mono); font-size: 11px; } }
   &__panes { flex: 1; min-height: 0; background: var(--gn-surface); }
   &__pane { height: 100%; overflow: auto; }
