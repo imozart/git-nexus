@@ -81,3 +81,13 @@ Lockfiles (`pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`), snapshots e arqu
 O workflow **Conflitos nos PRs** (`pr-conflicts.yml`) marca com `conflito` todo PR aberto que não dá merge limpo na `main` e tira a label quando o conflito some.
 Roda a cada push na `main` (é quando os outros PRs passam a conflitar, principalmente nas pilhas) e quando um PR é aberto ou atualizado.
 O GitHub calcula a mergeabilidade sob demanda: o script consulta de novo (até 6 vezes, de 5 em 5 segundos) enquanto a resposta for `UNKNOWN`, e nunca muda a label sem uma resposta definitiva.
+
+## Pilhas de PRs (ordem de merge)
+
+O workflow **Ordem de merge das pilhas** (`pr-stack.yml`) detecta PRs empilhados: o PR P depende do PR Q (aberto) quando a ponta da branch de Q está entre os commits de P em relação à `main`.
+Para cada PR dependente ele aplica a label `bloqueado` e mantém **um** comentário com a ordem de merge (o PR atual em destaque).
+A cada abertura, atualização ou fechamento de PR, **todos** os abertos são reavaliados: quando o PR de baixo é mergeado, os de cima perdem a label e o comentário sozinhos.
+
+- A label `bloqueado` é gerenciada pela automação: ela remove quando não há mais dependência. Para um bloqueio manual, use outra label.
+- O comentário é identificado por uma marca invisível no início; títulos de PR entram sem `@menção` e em uma linha só.
+- Funciona com merge commit (o modo usado neste repositório). Com *squash* ou *rebase* as pontas das branches deixam de ser ancestrais depois do merge, mas isso só afeta PRs de cima que ainda não foram reescritos.
