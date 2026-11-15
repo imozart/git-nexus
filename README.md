@@ -133,6 +133,15 @@ O app avisa quando existe uma versão nova: **8 segundos depois de abrir** (para
 
 Hoje os executáveis do Windows **não são assinados**, então o SmartScreen avisa na primeira abertura ("Mais informações" → "Executar assim mesmo"). O pipeline já está pronto para assinar pelo **SignPath Foundation** (gratuito para código aberto): o passo a passo está em [`docs/CODE_SIGNING.md`](docs/CODE_SIGNING.md) e a política pública em [`docs/CODE_SIGNING_POLICY.md`](docs/CODE_SIGNING_POLICY.md). Sem a configuração, o build segue normalmente sem assinatura.
 
+## Verificar uma release
+
+Toda release traz, além dos pacotes:
+
+- `SHA256SUMS.txt`: o SHA-256 de cada arquivo (`sha256sum --check SHA256SUMS.txt`; no Windows, `Get-FileHash <arquivo>`).
+- `GitNexus-<versão>-sbom.cdx.json`: a **lista de componentes** (SBOM, CycloneDX) do app, gerada do lockfile. Cobre tudo o que o lockfile resolve, inclusive ferramentas de build; o pacote final embute só o que o vite junta mais o Electron.
+- **Proveniência assinada** (releases publicadas com o repositório público): prova de qual commit e workflow geraram cada arquivo. Confira com
+  `gh attestation verify <arquivo> --repo imozart/git-nexus`. Se o arquivo foi trocado ou não veio deste repositório, o comando falha.
+
 ## Licença
 
 GitNexus é software livre, distribuído sob a **GNU General Public License v3.0 (somente a versão 3)**. Veja o arquivo [`LICENSE`](LICENSE). Você pode usar, estudar, modificar e redistribuir, inclusive comercialmente, desde que mantenha a mesma licença nas versões distribuídas e disponibilize o código-fonte delas.

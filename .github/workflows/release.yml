@@ -235,6 +235,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: write
+      id-token: write # proveniência (attest-build-provenance): assinatura sem chave, via OIDC
+      attestations: write
     env:
       GH_TOKEN: ${{ github.token }}
       TAG: ${{ needs.version.outputs.tag }}
@@ -255,12 +257,26 @@ jobs:
           merge-multiple: true
           path: dist
 
+      # SBOM (lista de componentes) em CycloneDX, gerada do lockfile (não precisa instalar nada). Entra no SHA256SUMS e na release.
+      # Escopo: tudo o que o lockfile do app resolve, inclusive ferramentas de build; o pacote final embute só o que o vite junta + o Electron.
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - name: SBOM (CycloneDX)
+        run: pnpm --filter @git-nexus/studio sbom --sbom-format cyclonedx --sbom-type application --lockfile-only --out "dist/GitNexus-${VERSION}-sbom.cdx.json"
+
       - name: Checksums SHA-256
         working-directory: dist
         run: |
           ls -lh
           sha256sum -- * > SHA256SUMS.txt
           cat SHA256SUMS.txt
+
+      # Proveniência assinada de cada arquivo (quem, de qual commit e workflow o gerou). Confira com: gh attestation verify <arquivo> --repo <dono/repo>
+      # Só em repositório público: em privado o GitHub exige o plano Enterprise para atestações.
+      - name: Atestar a proveniência dos pacotes
+        if: ${{ !github.event.repository.private }}
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: dist/SHA256SUMS.txt
 
       - name: Gerar notas da release
         run: |
