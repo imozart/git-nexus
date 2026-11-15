@@ -19,6 +19,7 @@ import {
   typeFromBranch,
 } from '@git-nexus/governance-policy';
 import { api, errMsg, isHookRejection, stripHookPrefix } from '../api';
+import { t } from '../i18n';
 
 const props = defineProps<{ repoPath: string; branch: string; stagedCount: number }>();
 const emit = defineEmits<{ (e: 'committed', hash: string): void }>();
@@ -52,18 +53,7 @@ async function loadTeamPolicy(): Promise<void> {
 }
 
 // --- Formulário -------------------------------------------------------------------------
-const TYPE_HINT: Record<ConventionalCommitType, string> = {
-  feat: 'Nova funcionalidade',
-  fix: 'Correção de bug',
-  docs: 'Documentação',
-  style: 'Formatação (sem mudar lógica)',
-  refactor: 'Refatoração',
-  perf: 'Melhoria de performance',
-  test: 'Testes',
-  build: 'Build / dependências',
-  ci: 'Integração contínua',
-  chore: 'Tarefas diversas',
-};
+const typeHint = (ty: ConventionalCommitType) => t(`commit.type.${ty}` as const);
 
 const form = reactive({
   type: 'feat' as ConventionalCommitType,
@@ -84,12 +74,12 @@ function applyBranchHints(): void {
     ticketHint.value = '';
     return;
   }
-  const t = ticketFromBranch(props.branch, policy.value.ticketPattern);
-  if (t && (!form.ticketNumber || autoTicket.value)) {
-    form.ticketNumber = t;
+  const found = ticketFromBranch(props.branch, policy.value.ticketPattern);
+  if (found && (!form.ticketNumber || autoTicket.value)) {
+    form.ticketNumber = found;
     autoTicket.value = true;
-    ticketHint.value = `Ticket ${t} tirado da branch "${props.branch}".`;
-  } else if (!t && autoTicket.value) {
+    ticketHint.value = t('commit.ticketFromBranchHint', { ticket: found, branch: props.branch });
+  } else if (!found && autoTicket.value) {
     form.ticketNumber = '';
     autoTicket.value = false;
     ticketHint.value = '';
@@ -175,7 +165,7 @@ async function commitAnyway(): Promise<void> {
 async function doCommit(): Promise<void> {
   try {
     const r = await api.executeCommit(props.repoPath, input.value, { ...policy.value });
-    output.value = { ok: true, text: `Commit ${r.commitHash.slice(0, 7)} criado.\n\n${r.output}`.trim() };
+    output.value = { ok: true, text: `${t('commit.created', { hash: r.commitHash.slice(0, 7) })}\n\n${r.output}`.trim() };
     form.subject = '';
     form.body = '';
     form.breakingChanges = '';
@@ -205,7 +195,7 @@ async function saveTeamPolicy(): Promise<void> {
       secrets: { mode: 'warn' },
     });
     await loadTeamPolicy();
-    policyNote.value = 'Arquivo .gitnexus.json criado. Faça o commit dele para que todo o time use a mesma política.';
+    policyNote.value = t('commit.policySaved');
   } catch (e) {
     policyNote.value = errMsg(e);
   }
@@ -215,14 +205,14 @@ async function saveTeamPolicy(): Promise<void> {
 <template>
   <form class="cf" @submit.prevent="submit" @keydown.ctrl.enter.prevent="submit" @keydown.meta.enter.prevent="submit">
     <div class="cf__title">
-      <h3>Novo commit</h3>
-      <GnButton size="sm" type="button" @click="showPolicy = !showPolicy">Política</GnButton>
+      <h3>{{ t('commit.title') }}</h3>
+      <GnButton size="sm" type="button" @click="showPolicy = !showPolicy">{{ t('commit.policy') }}</GnButton>
     </div>
 
-    <div v-if="teamLocked" class="cf__team" title="Definida em .gitnexus.json na raiz do repositório">
-      🛡 Política do time ativa
-      <small v-if="policy.types?.length">· tipos: {{ policy.types.join(', ') }}</small>
-      <small v-if="policy.scopes?.length">· escopos: {{ policy.scopes.join(', ') }}</small>
+    <div v-if="teamLocked" class="cf__team" :title="t('commit.teamTitle')">
+      {{ t('commit.teamActive') }}
+      <small v-if="policy.types?.length">{{ t('commit.teamTypes', { list: policy.types.join(', ') }) }}</small>
+      <small v-if="policy.scopes?.length">{{ t('commit.teamScopes', { list: policy.scopes.join(', ') }) }}</small>
     </div>
     <ul v-if="team?.errors.length" class="cf__teamerr">
       <li v-for="er in team.errors" :key="er">⚠ {{ er }}</li>
@@ -230,96 +220,103 @@ async function saveTeamPolicy(): Promise<void> {
 
     <fieldset v-if="showPolicy" class="cf__policy">
       <template v-if="teamLocked">
-        <small class="muted">
-          Este repositório tem política própria (.gitnexus.json); ela prevalece sobre a configuração local. Para mudar,
-          edite o arquivo e faça o commit.
+        <small class="muted">{{ t('commit.teamNote') }}</small>
+        <small>
+          {{
+            t('commit.teamSummary', {
+              max: policy.maxSubjectLength,
+              scope: policy.scopeRequired ? t('commit.required') : t('commit.optional'),
+              ticket: policy.ticketRequired ? t('commit.required') : t('commit.optional'),
+              pattern: policy.ticketPattern,
+              secrets: team?.secrets.mode ?? '',
+            })
+          }}
         </small>
-        <small>Título até {{ policy.maxSubjectLength }} caracteres · escopo {{ policy.scopeRequired ? 'obrigatório' : 'opcional' }} · ticket {{ policy.ticketRequired ? 'obrigatório' : 'opcional' }} ({{ policy.ticketPattern }}) · scanner de segredos: {{ team?.secrets.mode }}</small>
       </template>
       <template v-else>
-        <label><input v-model="localPolicy.scopeRequired" type="checkbox" /> Escopo obrigatório</label>
-        <label><input v-model="localPolicy.ticketRequired" type="checkbox" /> Ticket obrigatório</label>
-        <label><input v-model="localPolicy.ticketFromBranch" type="checkbox" /> Ticket pelo nome da branch</label>
+        <label><input v-model="localPolicy.scopeRequired" type="checkbox" /> {{ t('commit.scopeRequired') }}</label>
+        <label><input v-model="localPolicy.ticketRequired" type="checkbox" /> {{ t('commit.ticketRequired') }}</label>
+        <label><input v-model="localPolicy.ticketFromBranch" type="checkbox" /> {{ t('commit.ticketFromBranch') }}</label>
         <label>
-          Regex do ticket
+          {{ t('commit.ticketRegex') }}
           <input v-model="localPolicy.ticketPattern" :class="{ bad: !patternValid }" spellcheck="false" />
         </label>
-        <small v-if="!patternValid" class="err">Regex inválida.</small>
-        <GnButton size="sm" type="button" @click="saveTeamPolicy">Salvar como política do time</GnButton>
-        <small class="muted">Cria o .gitnexus.json no repositório; ao commitá-lo, todo o time passa a seguir a mesma regra.</small>
+        <small v-if="!patternValid" class="err">{{ t('commit.regexInvalid') }}</small>
+        <GnButton size="sm" type="button" @click="saveTeamPolicy">{{ t('commit.savePolicy') }}</GnButton>
+        <small class="muted">{{ t('commit.savePolicyHelp') }}</small>
       </template>
       <small v-if="policyNote" class="muted">{{ policyNote }}</small>
     </fieldset>
 
     <div class="cf__field">
-      <span class="cf__label">Tipo</span>
+      <span class="cf__label">{{ t('commit.type') }}</span>
       <div class="cf__types">
         <button
-          v-for="t in allowedTypes"
-          :key="t"
+          v-for="ty in allowedTypes"
+          :key="ty"
           type="button"
           class="chip"
-          :class="{ 'chip--on': form.type === t }"
-          :title="TYPE_HINT[t]"
-          @click="form.type = t"
+          :class="{ 'chip--on': form.type === ty }"
+          :title="typeHint(ty)"
+          @click="form.type = ty"
         >
-          {{ t }}
+          {{ ty }}
         </button>
       </div>
-      <small class="muted">{{ TYPE_HINT[form.type] }}</small>
+      <small class="muted">{{ typeHint(form.type) }}</small>
     </div>
 
     <div class="cf__row">
       <label class="cf__field">
-        <span class="cf__label">Escopo {{ policy.scopeRequired ? '*' : '(opcional)' }}</span>
-        <input v-model="form.scope" list="cf-scopes" placeholder="ex.: auth" spellcheck="false" />
+        <span class="cf__label">{{ t('commit.scope') }} {{ policy.scopeRequired ? '*' : `(${t('commit.optional')})` }}</span>
+        <input v-model="form.scope" list="cf-scopes" :placeholder="t('commit.scopePh')" spellcheck="false" />
         <datalist v-if="policy.scopes?.length" id="cf-scopes">
           <option v-for="s in policy.scopes" :key="s" :value="s" />
         </datalist>
       </label>
       <label class="cf__field">
-        <span class="cf__label">Ticket {{ policy.ticketRequired ? '*' : '(opcional)' }}</span>
-        <input v-model="form.ticketNumber" placeholder="ex.: ABC-123" spellcheck="false" />
+        <span class="cf__label">{{ t('commit.ticket') }} {{ policy.ticketRequired ? '*' : `(${t('commit.optional')})` }}</span>
+        <input v-model="form.ticketNumber" :placeholder="t('commit.ticketPh')" spellcheck="false" />
       </label>
     </div>
     <small v-if="ticketHint && autoTicket" class="muted">{{ ticketHint }}</small>
 
     <label class="cf__field">
       <span class="cf__label">
-        Título *
+        {{ t('commit.subject') }}
         <span class="counter" :class="{ 'counter--over': subjectLen > policy.maxSubjectLength }">
           {{ subjectLen }}/{{ policy.maxSubjectLength }}
         </span>
       </span>
-      <input v-model="form.subject" placeholder="resumo imperativo e curto" />
+      <input v-model="form.subject" :placeholder="t('commit.subjectPh')" />
     </label>
 
     <label class="cf__field">
-      <span class="cf__label">Corpo (opcional)</span>
-      <textarea v-model="form.body" rows="3" placeholder="Contexto: o quê e por quê."></textarea>
+      <span class="cf__label">{{ t('commit.body') }}</span>
+      <textarea v-model="form.body" rows="3" :placeholder="t('commit.bodyPh')"></textarea>
     </label>
 
     <label class="cf__field">
-      <span class="cf__label">Breaking changes (opcional)</span>
-      <textarea v-model="form.breakingChanges" rows="2" placeholder="Descreva a quebra de compatibilidade."></textarea>
+      <span class="cf__label">{{ t('commit.breaking') }}</span>
+      <textarea v-model="form.breakingChanges" rows="2" :placeholder="t('commit.breakingPh')"></textarea>
     </label>
 
     <div class="cf__lint" :class="{ ok: validation.isValid }">
-      <template v-if="validation.isValid">✔ Mensagem 100% em conformidade.</template>
+      <template v-if="validation.isValid">{{ t('commit.ok') }}</template>
       <ul v-else-if="touched">
         <li v-for="er in validation.errors" :key="er">✖ {{ er }}</li>
       </ul>
-      <template v-else>Preencha o formulário para habilitar o commit.</template>
+      <template v-else>{{ t('commit.fill') }}</template>
     </div>
 
     <details class="cf__preview">
-      <summary>Pré-visualizar mensagem</summary>
+      <summary>{{ t('commit.preview') }}</summary>
       <pre>{{ preview }}</pre>
     </details>
 
     <div v-if="secretReport" class="cf__secrets" role="alert">
       <strong>
-        {{ secretReport.mode === 'block' ? '⛔ Commit bloqueado pela política do time' : '⚠ Possível vazamento de dados sensíveis' }}
+        {{ secretReport.mode === 'block' ? t('commit.secretsBlocked') : t('commit.secretsWarn') }}
       </strong>
       <ul>
         <li v-for="(f, i) in secretReport.findings" :key="i">
@@ -327,25 +324,22 @@ async function saveTeamPolicy(): Promise<void> {
           <code v-if="f.kind === 'secret'">{{ f.preview }}</code>
         </li>
       </ul>
-      <small class="muted">
-        Remova o dado do stage, ou, se for falso positivo, adicione <code>gitnexus:allow-secret</code> na linha ou o caminho
-        em <code>secrets.ignorePaths</code> do .gitnexus.json.
-      </small>
+      <small class="muted">{{ t('commit.secretsHelp') }}</small>
       <div class="cf__secrets-actions">
-        <GnButton size="sm" type="button" @click="secretReport = null">Voltar e revisar</GnButton>
+        <GnButton size="sm" type="button" @click="secretReport = null">{{ t('commit.back') }}</GnButton>
         <GnButton v-if="secretReport.mode !== 'block'" size="sm" variant="danger" type="button" @click="commitAnyway">
-          Commitar mesmo assim
+          {{ t('commit.anyway') }}
         </GnButton>
       </div>
     </div>
 
     <GnButton variant="primary" type="submit" :disabled="!canCommit" title="Ctrl+Enter">
-      {{ committing ? 'Verificando e executando commit…' : `Commit (${stagedCount} arquivo(s))` }}
+      {{ committing ? t('commit.submitting') : t('commit.submit', { n: stagedCount }) }}
     </GnButton>
-    <small v-if="stagedCount === 0" class="muted">Faça stage de ao menos um arquivo.</small>
+    <small v-if="stagedCount === 0" class="muted">{{ t('commit.needStage') }}</small>
 
     <div v-if="output" class="cf__out" :class="output.ok ? 'cf__out--ok' : 'cf__out--err'">
-      <strong>{{ output.ok ? 'Commit concluído' : 'Commit rejeitado — saída do git / hooks' }}</strong>
+      <strong>{{ output.ok ? t('commit.done') : t('commit.rejected') }}</strong>
       <pre>{{ output.text }}</pre>
     </div>
   </form>

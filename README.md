@@ -71,6 +71,10 @@ scoop bucket add gitnexus https://github.com/imozart/scoop-gitnexus && scoop ins
 brew install --cask imozart/gitnexus/gitnexus   # macOS
 ```
 
+## Idiomas
+
+**Português (Brasil)** e **English**, com troca **na hora** (seletor ao lado de *Comandos* ou pela paleta). Na primeira abertura vale o idioma do sistema. Já estão traduzidos: abas, tela inicial, paleta de comandos e todos os comandos, aviso de atualização e o formulário de commit; as demais telas (staging, grafo, conflitos e Ferramentas) ainda aparecem em português, e as chaves ausentes nunca quebram a interface (caem no português). Veja [`docs/I18N.md`](docs/I18N.md) para traduzir mais telas ou adicionar um idioma; os testes impedem chaves faltando, mortas ou com variáveis diferentes.
+
 ## Atualizações
 
 O app avisa quando existe uma versão nova: **8 segundos depois de abrir** (para não atrasar a abertura) e depois **a cada 12 horas**, ele consulta a última release pública do GitHub e, se for maior que a versão em uso, mostra uma faixa no topo: *Nova versão X disponível (você usa Y)*, com **Baixar**, **Ver novidades**, **Depois** (volta a avisar na próxima abertura) e **Ignorar esta versão**.

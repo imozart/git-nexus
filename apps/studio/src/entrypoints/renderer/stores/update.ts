@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import type { UpdateInfo } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
+import { t } from '../i18n';
 
 const ENABLED_KEY = 'gitnexus.updateCheck';
 const SKIP_KEY = 'gitnexus.skipVersion';
@@ -35,8 +36,8 @@ export const useUpdateStore = defineStore('update', () => {
       if (manual) {
         dismissed.value = false;
         if (info.value.status === 'available') skipped.value = '';
-        else if (info.value.status === 'up-to-date') say(`Você já usa a versão mais recente (${info.value.current}).`);
-        else say(info.value.message ?? 'Não foi possível verificar atualizações.');
+        else if (info.value.status === 'up-to-date') say(t('update.upToDate', { current: info.value.current }));
+        else say(info.value.message ?? t('update.failed'));
       }
     } catch (e) {
       if (manual) say(errMsg(e));
@@ -54,7 +55,7 @@ export const useUpdateStore = defineStore('update', () => {
   function setEnabled(v: boolean): void {
     enabled.value = v;
     localStorage.setItem(ENABLED_KEY, v ? '1' : '0');
-    say(v ? 'Verificação automática de atualizações ligada.' : 'Verificação automática de atualizações desligada.');
+    say(v ? t('update.autoOn') : t('update.autoOff'));
   }
   async function download(): Promise<void> {
     const i = info.value;

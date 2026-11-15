@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import type { RepoSummary, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
+import { t } from '../i18n';
 
 export const useRepositoriesStore = defineStore('repositories', () => {
   const repos = ref<RepositoryMeta[]>([]);
@@ -89,7 +90,7 @@ export const useRepositoriesStore = defineStore('repositories', () => {
     report.value = { title, items: items.sort((a, b) => Number(a.ok) - Number(b.ok) || a.name.localeCompare(b.name)) };
   }
 
-  const fetchAll = () => runBatch('Buscar de todos os remotos', [...repos.value], 'fetch');
+  const fetchAll = () => runBatch(t('batch.fetch'), [...repos.value], 'fetch');
 
   /** Pull só onde é seguro: tem upstream, está atrás, não está à frente (sem divergência) e a árvore está limpa. */
   function pullSafe(): Promise<void> {
@@ -97,7 +98,7 @@ export const useRepositoriesStore = defineStore('repositories', () => {
       const s = summaries.value[r.id];
       return isOk(s) && !!s.upstream && !s.detached && s.behind > 0 && s.ahead === 0 && !isDirty(s);
     });
-    return runBatch('Atualizar (pull fast-forward) onde é seguro', safe, 'pull');
+    return runBatch(t('batch.pull'), safe, 'pull');
   }
 
   async function run<T>(fn: () => Promise<T>): Promise<T | undefined> {
@@ -121,7 +122,7 @@ export const useRepositoriesStore = defineStore('repositories', () => {
   async function scanPaths(dirs: string[]): Promise<void> {
     const found = await run(() => api.scanDirectories(dirs));
     if (found) {
-      message.value = { kind: 'info', text: `${found.length} repositório(s) encontrado(s).` };
+      message.value = { kind: 'info', text: t('repos.found', { n: found.length }) };
       await load();
     }
   }
@@ -134,7 +135,7 @@ export const useRepositoriesStore = defineStore('repositories', () => {
   async function addPath(path: string): Promise<void> {
     const meta = await run(() => api.addRepositoryPath(path.trim()));
     if (meta) {
-      message.value = { kind: 'info', text: `Repositório "${meta.name}" adicionado.` };
+      message.value = { kind: 'info', text: t('repos.added', { name: meta.name }) };
       await load();
     }
   }
