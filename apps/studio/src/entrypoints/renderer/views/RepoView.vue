@@ -13,6 +13,7 @@ import ConfirmDialog from '../components/ConfirmDialog.vue';
 import ContextMenu, { type MenuItem } from '../components/ContextMenu.vue';
 import DiffView from '../components/DiffView.vue';
 import GitLogPanel from '../components/GitLogPanel.vue';
+import ToolStripe, { type StripeItem } from '../components/ToolStripe.vue';
 import SideBySideDiff from '../components/SideBySideDiff.vue';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
@@ -33,6 +34,7 @@ const COMMIT_KEY = 'gitnexus.showCommitPanel';
 const COLLAPSE_KEY = 'gitnexus.collapseUnchanged';
 const SOURCE_KEY = 'gitnexus.diffSource';
 const LOG_KEY = 'gitnexus.showGitLog';
+const FILES_KEY = 'gitnexus.showFilesPanel';
 /** O que comparar: tudo o que mudou (HEAD x disco), só o que falta incluir (índice x disco) ou o que vai no commit (HEAD x índice). */
 type Source = 'head' | 'index' | 'staged';
 const SOURCES: Array<{ id: Source; label: MessageKey; hint: MessageKey }> = [
@@ -54,6 +56,32 @@ watch(source, (v) => {
   void loadDiff();
 });
 watch(showCommit, (v) => localStorage.setItem(COMMIT_KEY, v ? '1' : '0'));
+/** Lista de arquivos (esquerda): as duas faixas laterais mostram o NOME de cada painel e recolhem/abrem ao clicar. */
+const showFiles = ref(localStorage.getItem(FILES_KEY) !== '0');
+watch(showFiles, (v) => localStorage.setItem(FILES_KEY, v ? '1' : '0'));
+const columns = computed(() => [showFiles.value && '300px', 'minmax(0, 1fr)', showCommit.value && '360px'].filter(Boolean).join(' '));
+const leftStripe = computed<StripeItem[]>(() => [
+  {
+    id: 'files',
+    label: t('rv.stripe.files'),
+    active: showFiles.value,
+    badge: entries.value.length + conflicted.value.length,
+    title: showFiles.value ? t('rv.hideFilesPanel') : t('rv.showFilesPanel'),
+  },
+]);
+const rightStripe = computed<StripeItem[]>(() => [
+  {
+    id: 'commit',
+    label: t('rv.stripe.commit'),
+    active: showCommit.value,
+    badge: stagedCount.value,
+    title: showCommit.value ? t('rv.hideCommitPanel') : t('rv.showCommitPanel'),
+  },
+]);
+function onStripe(id: string): void {
+  if (id === 'files') showFiles.value = !showFiles.value;
+  else showCommit.value = !showCommit.value;
+}
 /** Log do Git (parte de baixo): aberto ou recolhido em uma barra. */
 const showLog = ref(localStorage.getItem(LOG_KEY) === '1');
 watch(showLog, (v) => localStorage.setItem(LOG_KEY, v ? '1' : '0'));
@@ -256,6 +284,7 @@ function repoCommands(): Command[] {
       },
     },
     { id: 'rv.toggleCommit', title: t('rv.cmd.toggleCommit'), group: gStaging, shortcut: 'Mod+Shift+B', when, run: () => (showCommit.value = !showCommit.value) },
+    { id: 'rv.toggleFiles', title: t('rv.cmd.toggleFiles'), group: gStaging, shortcut: 'Mod+Shift+E', keywords: 'arquivos files lista list painel panel', when, run: () => (showFiles.value = !showFiles.value) },
     { id: 'rv.toggleLog', title: t('log.cmd.toggle'), group: gRepo, shortcut: 'Mod+Shift+L', keywords: 'log comandos commands console', when, run: () => (showLog.value = !showLog.value) },
     { id: 'rv.fetch', title: t('rv.cmd.fetch'), group: gRepo, keywords: 'remoto', when, run: () => syncThis('fetch') },
     { id: 'rv.pull', title: t('rv.cmd.pull'), group: gRepo, keywords: 'remoto', when, run: () => syncThis('pull') },
@@ -547,85 +576,86 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
       <GnButton size="sm" @click="notice = null">×</GnButton>
     </div>
 
-    <div class="rv__body" :style="{ gridTemplateColumns: `300px minmax(0, 1fr) ${showCommit ? '360px' : '0px'}` }">
-      <aside class="rv__files">
-        <ChangesTree
-          :entries="entries"
-          :conflicted="conflicted"
-          :active-path="active"
-          @open="open"
-          @toggle="onToggle"
-          @move="onMove"
-          @menu="menu = $event"
-          @resolve="ws.open('merge', repo)"
-        />
-      </aside>
+    <div class="rv__main">
+      <ToolStripe side="left" :items="leftStripe" @toggle="onStripe" />
+      <div class="rv__body" :style="{ gridTemplateColumns: columns }">
+        <aside v-show="showFiles" class="rv__files">
+          <ChangesTree
+            :entries="entries"
+            :conflicted="conflicted"
+            :active-path="active"
+            @open="open"
+            @toggle="onToggle"
+            @move="onMove"
+            @menu="menu = $event"
+            @resolve="ws.open('merge', repo)"
+          />
+        </aside>
 
-      <main class="rv__diff">
-        <div class="rv__toolbar">
-          <GnButton size="sm" :disabled="!nav.prevDiff" :title="t('rv.prevDiffTip')" :aria-label="t('rv.cmd.prevDiff')" @click="goDiff(-1)">↑</GnButton>
-          <GnButton size="sm" :disabled="!nav.nextDiff" :title="t('rv.nextDiffTip')" :aria-label="t('rv.cmd.nextDiff')" @click="goDiff(1)">↓</GnButton>
-          <span class="sepv" />
-          <GnButton size="sm" :disabled="!nav.prevFile" :title="t('rv.prevFileTip')" :aria-label="t('rv.cmd.prevFile')" @click="goFile(-1)">←</GnButton>
-          <GnButton size="sm" :disabled="!nav.nextFile" :title="t('rv.nextFileTip')" :aria-label="t('rv.cmd.nextFile')" @click="goFile(1)">→</GnButton>
-          <span v-if="active" class="muted">{{ t('rv.fileOf', { i: activeIndex + 1, n: ordered.length }) }}</span>
-          <template v-if="active">
+        <main class="rv__diff">
+          <div class="rv__toolbar">
+            <GnButton size="sm" :disabled="!nav.prevDiff" :title="t('rv.prevDiffTip')" :aria-label="t('rv.cmd.prevDiff')" @click="goDiff(-1)">↑</GnButton>
+            <GnButton size="sm" :disabled="!nav.nextDiff" :title="t('rv.nextDiffTip')" :aria-label="t('rv.cmd.nextDiff')" @click="goDiff(1)">↓</GnButton>
             <span class="sepv" />
-            <span class="muted">{{ curDiff >= 0 ? t('rv.diffOf', { i: curDiff + 1, n: diffCount }) : t('rv.diffCount', { n: diffCount }) }}</span>
-            <template v-if="showSplit">
-              <span class="stat stat--add">+{{ stats.added }}</span>
-              <span class="stat stat--del">−{{ stats.removed }}</span>
+            <GnButton size="sm" :disabled="!nav.prevFile" :title="t('rv.prevFileTip')" :aria-label="t('rv.cmd.prevFile')" @click="goFile(-1)">←</GnButton>
+            <GnButton size="sm" :disabled="!nav.nextFile" :title="t('rv.nextFileTip')" :aria-label="t('rv.cmd.nextFile')" @click="goFile(1)">→</GnButton>
+            <span v-if="active" class="muted">{{ t('rv.fileOf', { i: activeIndex + 1, n: ordered.length }) }}</span>
+            <template v-if="active">
+              <span class="sepv" />
+              <span class="muted">{{ curDiff >= 0 ? t('rv.diffOf', { i: curDiff + 1, n: diffCount }) : t('rv.diffCount', { n: diffCount }) }}</span>
+              <template v-if="showSplit">
+                <span class="stat stat--add">+{{ stats.added }}</span>
+                <span class="stat stat--del">−{{ stats.removed }}</span>
+              </template>
             </template>
+            <span class="spacer" />
+            <label v-if="showSplit" class="muted opt"><input v-model="collapse" type="checkbox" /> {{ t('rv.collapseUnchanged') }}</label>
+            <span class="seg" :title="t('rv.whatToCompare')">
+              <button v-for="o in SOURCES" :key="o.id" type="button" :class="{ on: source === o.id }" :title="t(o.hint)" @click="source = o.id">
+                {{ t(o.label) }}
+              </button>
+            </span>
+            <span class="seg">
+              <button type="button" :class="{ on: viewMode === 'split' }" @click="viewMode = 'split'">{{ t('rv.split') }}</button>
+              <button type="button" :class="{ on: viewMode === 'unified' }" @click="viewMode = 'unified'">{{ t('rv.unified') }}</button>
+            </span>
+          </div>
+
+          <div v-if="!active || !activeEntry" class="muted placeholder">{{ t('rv.selectFile') }}</div>
+          <template v-else>
+            <div class="rv__difftitle">
+              <span class="rv__file">{{ activeEntry.path }}</span>
+              <GnBadge :tone="isUntracked(activeEntry) ? 'warn' : 'accent'">{{ statusLabel(statusLetter(activeEntry)) }}</GnBadge>
+              <GnBadge :tone="checkState(activeEntry) === 'checked' ? 'success' : 'neutral'">
+                {{ checkState(activeEntry) === 'checked' ? t('tree.stateChecked') : checkState(activeEntry) === 'partial' ? t('tree.statePartial') : t('tree.statePending') }}
+              </GnBadge>
+            </div>
+            <div class="rv__diffbody">
+              <SideBySideDiff
+                v-if="showSplit && sides"
+                ref="splitRef"
+                :old-text="sides.oldText"
+                :new-text="sides.newText"
+                :can-discard="source !== 'staged'"
+                :stage-action="stageAction"
+                :collapse="collapse"
+                :old-label="labels[0]!"
+                :new-label="labels[1]!"
+                @discard="onDiscardLines"
+                @stage-lines="onStageLines"
+                @stats="stats = $event"
+                @current="curDiff = $event"
+              />
+              <DiffView v-else ref="unifiedRef" :diff="diffText || t('rv.noDiff')" @current="curDiff = $event" />
+            </div>
           </template>
-          <span class="spacer" />
-          <label v-if="showSplit" class="muted opt"><input v-model="collapse" type="checkbox" /> {{ t('rv.collapseUnchanged') }}</label>
-          <span class="seg" :title="t('rv.whatToCompare')">
-            <button v-for="o in SOURCES" :key="o.id" type="button" :class="{ on: source === o.id }" :title="t(o.hint)" @click="source = o.id">
-              {{ t(o.label) }}
-            </button>
-          </span>
-          <span class="seg">
-            <button type="button" :class="{ on: viewMode === 'split' }" @click="viewMode = 'split'">{{ t('rv.split') }}</button>
-            <button type="button" :class="{ on: viewMode === 'unified' }" @click="viewMode = 'unified'">{{ t('rv.unified') }}</button>
-          </span>
-          <GnButton size="sm" :title="showCommit ? t('rv.hideCommitPanel') : t('rv.showCommitPanel')" @click="showCommit = !showCommit">
-            {{ showCommit ? t('rv.hideCommit') : t('rv.showCommit') }}
-          </GnButton>
-        </div>
+        </main>
 
-        <div v-if="!active || !activeEntry" class="muted placeholder">{{ t('rv.selectFile') }}</div>
-        <template v-else>
-          <div class="rv__difftitle">
-            <span class="rv__file">{{ activeEntry.path }}</span>
-            <GnBadge :tone="isUntracked(activeEntry) ? 'warn' : 'accent'">{{ statusLabel(statusLetter(activeEntry)) }}</GnBadge>
-            <GnBadge :tone="checkState(activeEntry) === 'checked' ? 'success' : 'neutral'">
-              {{ checkState(activeEntry) === 'checked' ? t('tree.stateChecked') : checkState(activeEntry) === 'partial' ? t('tree.statePartial') : t('tree.statePending') }}
-            </GnBadge>
-          </div>
-          <div class="rv__diffbody">
-            <SideBySideDiff
-              v-if="showSplit && sides"
-              ref="splitRef"
-              :old-text="sides.oldText"
-              :new-text="sides.newText"
-              :can-discard="source !== 'staged'"
-              :stage-action="stageAction"
-              :collapse="collapse"
-              :old-label="labels[0]!"
-              :new-label="labels[1]!"
-              @discard="onDiscardLines"
-              @stage-lines="onStageLines"
-              @stats="stats = $event"
-              @current="curDiff = $event"
-            />
-            <DiffView v-else ref="unifiedRef" :diff="diffText || t('rv.noDiff')" @current="curDiff = $event" />
-          </div>
-        </template>
-      </main>
-
-      <aside v-show="showCommit" class="rv__commit">
-        <CommitForm :repo-path="repo.path" :branch="branch" :staged-count="stagedCount" @committed="onCommitted" />
-      </aside>
+        <aside v-show="showCommit" class="rv__commit">
+          <CommitForm :repo-path="repo.path" :branch="branch" :staged-count="stagedCount" @committed="onCommitted" />
+        </aside>
+      </div>
+      <ToolStripe side="right" :items="rightStripe" @toggle="onStripe" />
     </div>
 
     <GitLogPanel v-model:open="showLog" :repo-path="repo.path" />
@@ -661,7 +691,8 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
     background: rgba(79, 134, 247, 0.14); border-bottom: 1px solid var(--gn-border);
     > span { flex: 1; }
   }
-  &__body { flex: 1; min-height: 0; display: grid; }
+  &__main { flex: 1; min-height: 0; display: flex; }
+  &__body { flex: 1; min-width: 0; min-height: 0; display: grid; }
   &__files { border-right: 1px solid var(--gn-border); min-width: 0; min-height: 0; overflow: hidden; }
   &__diff { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   &__toolbar {
