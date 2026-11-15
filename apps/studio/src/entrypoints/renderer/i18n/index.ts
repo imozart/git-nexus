@@ -1,10 +1,10 @@
 // i18n do renderer: idioma reativo (troca na hora, sem recarregar) e `t()` para templates e scripts.
 import { computed, ref, watch } from 'vue';
-import { LOCALES, pickLocale, translate, type Dict, type Locale, type Vars } from './core';
+import { LOCALES, pickLocale, translate, type Dict, type FlagCode, type Locale, type Vars } from './core';
 import en from './en';
 import ptBR, { type MessageKey } from './pt-BR';
 
-export { LOCALES, type Locale };
+export { LOCALES, type FlagCode, type Locale };
 export type { MessageKey };
 
 const DICTS: Record<Locale, Dict> = { 'pt-BR': ptBR as Dict, en: en as Dict };

@@ -4,9 +4,13 @@ export type Locale = 'pt-BR' | 'en';
 export type Dict = Record<string, string>;
 export type Vars = Record<string, string | number>;
 
-export const LOCALES: Array<{ id: Locale; label: string }> = [
-  { id: 'pt-BR', label: 'Português (Brasil)' },
-  { id: 'en', label: 'English' },
+/** Bandeira de cada idioma (desenhada por `FlagIcon.vue`; o Windows não renderiza emoji de bandeira). */
+export type FlagCode = 'br' | 'us';
+
+/** `label` é o nome do idioma NELE MESMO (não se traduz); `short` é o código curto mostrado no botão. */
+export const LOCALES: Array<{ id: Locale; label: string; short: string; flag: FlagCode }> = [
+  { id: 'pt-BR', label: 'Português (Brasil)', short: 'PT', flag: 'br' },
+  { id: 'en', label: 'English', short: 'EN', flag: 'us' },
 ];
 
 /** Idioma inicial: o salvo, senão o do sistema (qualquer "pt" → pt-BR) e, por último, inglês. */
