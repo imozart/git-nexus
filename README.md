@@ -216,6 +216,7 @@ Cada merge na `main` dispara `.github/workflows/release.yml`:
 
 Detalhes:
 - **Pular release:** inclua `[skip release]` na mensagem do commit.
+- **Changelog:** o [`CHANGELOG.md`](CHANGELOG.md) é gerado a cada release estável (mesmo commit `chore(release)` que grava a versão); não edite à mão. Detalhes em [docs/AUTOMATION.md](docs/AUTOMATION.md).
 - **Release manual / forçar incremento:** Actions → *Release* → *Run workflow* (campo `bump`).
 - **Beta:** no mesmo botão, `channel = beta` publica `vX.Y.Z-beta.N` como pré-lançamento (não vira “última versão”, não gera manifestos e não aparece como atualização no app).
 - **Bots, betas e a versão no `package.json`:** como funcionam e o que configurar no GitHub: [`docs/AUTOMATION.md`](docs/AUTOMATION.md).

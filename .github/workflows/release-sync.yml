@@ -1,0 +1,99 @@
+name: Registrar a release no código
+
+# Depois de uma release ESTÁVEL, grava no código-fonte o que a release publicou, num commit só na main:
+#   1. a versão nos package.json do monorepo (scripts/bump-version.mjs), para o código, a tag e o app dizerem a mesma versão;
+#   2. a entrada da versão no CHANGELOG.md (scripts/changelog.mjs), gerada dos commits (Conventional Commits) desde a estável anterior.
+# Mensagem do commit: "chore(release): vX.Y.Z [skip release]". O [skip release] evita que ele dispare outra release, e o cálculo de
+# versão e de notas ignora commits chore(release).
+#
+# Chamado pelo release.yml (job "Registrar a release no código"); também roda à mão (Actions > Registrar a release no código > Run workflow)
+# para consertar uma versão que ficou de fora. Reexecutar é seguro: sem mudança, não gera commit.
+# Não bloqueia nada: se não conseguir gravar na main, a release continua publicada e o aviso aparece no log.
+#
+# Precisa poder gravar na main: se ela passar a exigir pull request, use o secret RELEASE_PUSH_TOKEN (token de um admin que está na
+# lista de bypass do ruleset; docs/AUTOMATION.md). Sem ele usa o token do workflow.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Versão estável já publicada (X.Y.Z, sem o "v")
+        type: string
+        required: true
+    secrets:
+      RELEASE_PUSH_TOKEN:
+        description: Token de quem pode gravar na main protegida (opcional)
+        required: false
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Versão estável já publicada (X.Y.Z, sem o "v"); a tag vX.Y.Z precisa existir
+        type: string
+        required: true
+
+# Um registro por vez (dois merges seguidos não disputam o push na main). Grupo diferente do "release" de quem chama: o mesmo
+# nome travaria a própria execução.
+concurrency:
+  group: release-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Gravar versão e CHANGELOG na main
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      # por variável de ambiente: o valor vem de um campo digitável (execução manual) e nunca é interpolado dentro do script
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          # histórico e tags inteiros: o CHANGELOG é montado dos commits entre as tags
+          fetch-depth: 0
+          fetch-tags: true
+          # RELEASE_PUSH_TOKEN (opcional): token de quem pode furar o ruleset da main (veja docs/AUTOMATION.md). Sem ele usa o token do workflow.
+          token: ${{ secrets.RELEASE_PUSH_TOKEN || github.token }}
+          persist-credentials: true # este job precisa gravar na main; só roda scripts do próprio repositório
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .node-version
+
+      - name: Conferir a versão
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Versão inválida: informe X.Y.Z (estável), sem v nem sufixo beta."
+            exit 1
+          fi
+
+      - name: Gravar a versão nos package.json
+        run: node scripts/bump-version.mjs --version "$VERSION"
+
+      # Não deixa de gravar a versão se o changelog falhar (ex.: tag ainda não visível): a próxima release completa o que faltou.
+      - name: Atualizar o CHANGELOG.md
+        continue-on-error: true
+        run: node scripts/changelog.mjs --version "$VERSION" --repo "$GITHUB_REPOSITORY"
+
+      - name: Commit na main
+        continue-on-error: true # sem permissão de gravar na main, avisa mas não deixa a execução vermelha
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md package.json "apps/*/package.json" "packages/*/package.json"
+          if git diff --cached --quiet; then
+            echo "Nada a registrar: versão e CHANGELOG já estão em dia."
+            exit 0
+          fi
+          git commit -m "chore(release): v$VERSION [skip release]"
+          for _ in 1 2 3; do
+            git push origin HEAD:main && exit 0
+            # a main andou (ou a regra exige PR): atualiza e tenta de novo
+            git pull --rebase origin main || break
+          done
+          echo "::warning::Não foi possível gravar a release na main (a main exige pull request?). Crie o secret RELEASE_PUSH_TOKEN (veja docs/AUTOMATION.md) ou rode: node scripts/bump-version.mjs --version $VERSION && node scripts/changelog.mjs --version $VERSION"
+          exit 1

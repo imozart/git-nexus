@@ -104,3 +104,48 @@ describe('actions de terceiros nos workflows novos', () => {
     }
   });
 });
+
+describe('registro da release no código (release-sync.yml)', () => {
+  const sync = workflows.find((w) => w.file === 'release-sync.yml')!;
+  const release = workflows.find((w) => w.file === 'release.yml')!;
+
+  it('é um workflow reutilizável e também roda à mão, com a versão como entrada', () => {
+    expect(sync.text).toMatch(/^ {2}workflow_call:/m);
+    expect(sync.text).toMatch(/^ {2}workflow_dispatch:/m);
+    expect(sync.text.match(/^ {6}version:/gm)?.length).toBe(2);
+    expect(sync.text).toMatch(/RELEASE_PUSH_TOKEN:\n\s+description:[^\n]*\n\s+required: false/);
+  });
+
+  it('o release.yml chama o workflow só para release estável e repassa o token', () => {
+    const job = jobs(release.text).find((j) => j.name === 'sync-version')!;
+    expect(job.body).toContain('uses: ./.github/workflows/release-sync.yml');
+    expect(job.body).toContain("needs.version.outputs.prerelease != 'true'");
+    expect(job.body).toContain('RELEASE_PUSH_TOKEN: ${{ secrets.RELEASE_PUSH_TOKEN }}');
+    expect(job.body).toContain('needs: [version, release]');
+  });
+
+  it('a versão (campo digitável) nunca é interpolada em um script: entra por variável de ambiente', () => {
+    for (const line of sync.text.split('\n')) {
+      if (/^\s*#/.test(line) || /^\s+VERSION: /.test(line)) continue;
+      expect(line, line).not.toContain('inputs.version');
+    }
+    expect(sync.text).toMatch(/^ {6}VERSION: \$\{\{ inputs\.version \}\}/m);
+  });
+
+  it('busca o histórico e as tags (o changelog sai dos commits entre as tags) antes de gerar o arquivo', () => {
+    expect(sync.text).toContain('fetch-depth: 0');
+    expect(sync.text).toContain('fetch-tags: true');
+    expect(sync.text.indexOf('fetch-tags: true')).toBeLessThan(sync.text.indexOf('run: node scripts/changelog.mjs'));
+  });
+
+  it('versão e CHANGELOG vão no mesmo commit chore(release) com [skip release], e sem mudança não há commit', () => {
+    expect(sync.text).toContain('git add CHANGELOG.md package.json');
+    expect(sync.text).toContain('chore(release): v$VERSION [skip release]');
+    expect(sync.text).toContain('git diff --cached --quiet');
+  });
+
+  it('o grupo de concorrência é diferente do "release" de quem chama (o mesmo nome travaria a execução)', () => {
+    expect(sync.text).toMatch(/group: release-sync/);
+    expect(sync.text).not.toMatch(/group: release\s*$/m);
+  });
+});
