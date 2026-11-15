@@ -1,0 +1,61 @@
+name: Teste de fumaça
+
+# Compila o app, empacota (sem instalador) e ABRE de verdade num display virtual (xvfb). O build só verifica que compila;
+# aqui se verifica que o app inicia: a janela abre, a interface monta e a ponte preload -> processo principal -> worker responde.
+# O app encerra sozinho com código 0 (ok), 1 (falha) ou 2 (tempo esgotado) quando GITNEXUS_SMOKE=1 (apps/studio/src/entrypoints/smoke.ts).
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Teste de fumaça do app empacotado
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Cache do Electron
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: electron-${{ runner.os }}-
+
+      - run: pnpm install --frozen-lockfile
+      - name: Compilar (esbuild + vite)
+        run: pnpm --filter @git-nexus/studio build
+      - name: Empacotar (electron-builder --dir)
+        run: pnpm --filter @git-nexus/studio exec electron-builder --linux --x64 --dir --publish never
+
+      - name: Display virtual
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      # --no-sandbox: o chrome-sandbox do build descompactado não tem o bit SUID, que o runner não concede (só aqui no teste).
+      # --disable-gpu: sem GPU no runner. timeout: rede de segurança além dos 45 s do próprio app.
+      - name: Abrir o app e conferir que responde
+        env:
+          GITNEXUS_SMOKE: '1'
+        run: |
+          export GITNEXUS_DATA_DIR="$RUNNER_TEMP/gitnexus-data"
+          timeout 120 xvfb-run -a --server-args="-screen 0 1280x800x24" \
+            apps/studio/release/linux-unpacked/gitnexus --no-sandbox --disable-gpu 2>&1 | tee "$RUNNER_TEMP/smoke.log"
+          # o código de saída do app (e não o do tee) decide
+          code=${PIPESTATUS[0]}
+          grep -q GITNEXUS_SMOKE_OK "$RUNNER_TEMP/smoke.log" && [ "$code" -eq 0 ]
