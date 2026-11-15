@@ -113,6 +113,38 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      # O download do Electron e das ferramentas do electron-builder (NSIS, etc.) é o trecho mais lento de cada build.
+      - name: Cache do Electron (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          # uma chave por pacote: x64 e ARM64 baixam binários diferentes do Electron e não podem disputar o mesmo cache
+          key: electron-${{ matrix.id }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: electron-${{ matrix.id }}-
+      - name: Cache do Electron (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          # uma chave por pacote: x64 e ARM64 baixam binários diferentes do Electron e não podem disputar o mesmo cache
+          key: electron-${{ matrix.id }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: electron-${{ matrix.id }}-
+      - name: Cache do Electron (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          # uma chave por pacote: x64 e ARM64 baixam binários diferentes do Electron e não podem disputar o mesmo cache
+          key: electron-${{ matrix.id }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: electron-${{ matrix.id }}-
+
       - name: Dependências de empacotamento (rpm)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y rpm
