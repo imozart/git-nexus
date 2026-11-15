@@ -2,7 +2,7 @@
 // Calcula a próxima versão (SemVer via Conventional Commits) e gera as notas da release.
 // Sem dependências: roda no GitHub Actions e localmente.
 //
-//   node scripts/release-info.mjs next  [--bump auto|major|minor|patch]
+//   node scripts/release-info.mjs next  [--bump auto|major|minor|patch] [--channel stable|beta]
 //   node scripts/release-info.mjs notes --version 1.2.3 [--repo dono/repo] [--assets pasta] [--out notas.md]
 //
 // Regras de versão (a cada merge na main sai uma release):
@@ -16,7 +16,7 @@ import { appendFileSync, readdirSync, readFileSync, statSync, writeFileSync } fr
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { computeNext, latestTag, parseCommit, renderNotes } from './lib/release-core.mjs';
+import { computeBeta, computeNext, isReleaseCommit, latestTag, parseCommit, renderNotes } from './lib/release-core.mjs';
 
 // A lógica pura (versão e notas) vive em lib/release-core.mjs; reexportada aqui para manter a API.
 export * from './lib/release-core.mjs';
@@ -33,7 +33,8 @@ export function readCommits(range) {
     .map((rec) => {
       const [hash, author, subject, body] = rec.split('\x1f');
       return parseCommit({ hash, author, subject, body });
-    });
+    })
+    .filter((c) => !isReleaseCommit(c)); // o commit de "registrar a versão" não é mudança do produto
 }
 
 // ---------------------------------------------------------------- CLI
@@ -55,12 +56,16 @@ function main() {
 
   if (cmd === 'next') {
     const initial = JSON.parse(readFileSync('package.json', 'utf8')).version;
-    const info = computeNext({ tags, commits, bumpOverride: arg('bump', 'auto'), initialVersion: initial });
+    const channel = arg('channel', 'stable');
+    if (channel !== 'stable' && channel !== 'beta') throw new Error('--channel deve ser stable ou beta');
+    const info = (channel === 'beta' ? computeBeta : computeNext)({ tags, commits, bumpOverride: arg('bump', 'auto'), initialVersion: initial });
     console.log(JSON.stringify({ ...info, commits: commits.length }, null, 2));
     setOutput('version', info.version);
     setOutput('tag', `v${info.version}`);
     setOutput('previous', info.previous ?? '');
     setOutput('bump', info.bump);
+    setOutput('channel', channel);
+    setOutput('prerelease', channel === 'beta' ? 'true' : 'false');
     return;
   }
 
@@ -94,7 +99,9 @@ function main() {
       stats,
       sha: git('rev-parse', 'HEAD'),
     });
-    writeFileSync(arg('out', 'RELEASE_NOTES.md'), md, 'utf8');
+    const beta = /-beta\.\d+$/.test(version);
+    const banner = beta ? '> ⚠️ **Versão beta (pré-lançamento).** Serve para testar o que vem aí e pode ter defeitos. Quem quer estabilidade deve usar a última versão estável; esta não aparece como atualização no app.\n\n' : '';
+    writeFileSync(arg('out', 'RELEASE_NOTES.md'), banner + md, 'utf8');
     console.log(`Notas geradas (${commits.length} commits).`);
     return;
   }

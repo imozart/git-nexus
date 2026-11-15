@@ -3,6 +3,9 @@ name: Release
 # A cada merge (push) na main: calcula a versão, compila para Windows/macOS/Linux
 # e publica uma Release no GitHub com as notas geradas a partir dos commits.
 # Para pular uma release, inclua [skip release] na mensagem do commit.
+# Canais: stable (padrão, a cada merge) e beta (só manual: Actions > Release > Run workflow > channel = beta). O beta sai como
+# pré-lançamento (vX.Y.Z-beta.N): não vira "última versão", não gera manifestos de pacote e não aparece como atualização no app.
+# Depois de uma release ESTÁVEL, o job "Registrar a versão" grava a versão nos package.json da main (commit chore(release)).
 
 on:
   push:
@@ -14,6 +17,11 @@ on:
         type: choice
         options: [auto, patch, minor, major]
         default: auto
+      channel:
+        description: Canal (stable = release normal; beta = pré-lançamento vX.Y.Z-beta.N)
+        type: choice
+        options: [stable, beta]
+        default: stable
 
 # Uma release por vez: um segundo merge espera o anterior terminar (e herda os commits não lançados).
 concurrency:
@@ -27,12 +35,17 @@ jobs:
   # 1) Descobre a próxima versão a partir da última tag vX.Y.Z + commits desde então.
   version:
     name: Calcular versão
-    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip release]')
+    # Pula: [skip release] e atualizações de dependência de desenvolvimento / de actions (o Dependabot as junta sozinho; não valem uma release).
+    # Manual (workflow_dispatch) sempre roda. Os campos abaixo vêm da mensagem do merge, que carrega o título do PR.
+    if: >-
+      github.event_name == 'workflow_dispatch' || !(contains(github.event.head_commit.message, '[skip release]')
+      || contains(github.event.head_commit.message, 'ci(deps)') || contains(github.event.head_commit.message, 'chore(deps-dev)'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
       version: ${{ steps.next.outputs.version }}
       tag: ${{ steps.next.outputs.tag }}
+      prerelease: ${{ steps.next.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -45,12 +58,17 @@ jobs:
         id: next
         env:
           BUMP: ${{ inputs.bump || 'auto' }}
-        run: node scripts/release-info.mjs next --bump "$BUMP"
+          CHANNEL: ${{ inputs.channel || 'stable' }}
+        run: node scripts/release-info.mjs next --bump "$BUMP" --channel "$CHANNEL"
 
   # 2) Barreira de qualidade: não publica se typecheck ou testes falharem.
   quality:
     name: Typecheck e testes
-    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip release]')
+    # Pula: [skip release] e atualizações de dependência de desenvolvimento / de actions (o Dependabot as junta sozinho; não valem uma release).
+    # Manual (workflow_dispatch) sempre roda. Os campos abaixo vêm da mensagem do merge, que carrega o título do PR.
+    if: >-
+      github.event_name == 'workflow_dispatch' || !(contains(github.event.head_commit.message, '[skip release]')
+      || contains(github.event.head_commit.message, 'ci(deps)') || contains(github.event.head_commit.message, 'chore(deps-dev)'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -189,6 +207,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       TAG: ${{ needs.version.outputs.tag }}
       VERSION: ${{ needs.version.outputs.version }}
+      PRERELEASE: ${{ needs.version.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -228,11 +247,17 @@ jobs:
             --title "GitNexus $TAG" \
             --notes-file RELEASE_NOTES.md \
             --target "$GITHUB_SHA"
-          gh release edit "$TAG" --draft=false --latest
+          if [ "$PRERELEASE" = "true" ]; then
+            # beta: pré-lançamento, nunca vira a "última versão" (é ela que o app e os gerenciadores de pacote seguem)
+            gh release edit "$TAG" --draft=false --prerelease --latest=false
+          else
+            gh release edit "$TAG" --draft=false --prerelease=false --latest
+          fi
 
       # Manifestos de winget/Scoop/Homebrew com os links e SHA-256 desta release (veja docs/PACKAGING.md).
       # Depois da publicação e sem bloquear: um problema aqui não desfaz a release.
       - name: Gerar manifestos dos gerenciadores de pacote
+        if: ${{ needs.version.outputs.prerelease != 'true' }}
         continue-on-error: true
         run: node scripts/gen-packaging.mjs --version "$VERSION" --repo "$GITHUB_REPOSITORY" --sums dist/SHA256SUMS.txt --out packaging-out
 
@@ -244,7 +269,52 @@ jobs:
           path: packaging-out
           retention-days: 30
 
-  # 5) Se qualquer etapa falhar, envia um e-mail com os detalhes (job, passo e trecho do log com o erro).
+  # 5) Grava a versão da release estável nos package.json da main (como o commit "bump version" de projetos como o Beekeeper Studio),
+  # para que o código-fonte, a tag e o app digam a mesma versão. Não bloqueia nada: se falhar, a release continua publicada.
+  # Precisa poder gravar na main: com a main exigindo pull request, use o secret RELEASE_PUSH_TOKEN (token de um admin que está na
+  # lista de bypass do ruleset; docs/AUTOMATION.md). [skip release] no commit evita que ele dispare outra release.
+  sync-version:
+    name: Registrar a versão no código
+    needs: [version, release]
+    if: ${{ needs.version.outputs.prerelease != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          # RELEASE_PUSH_TOKEN (opcional): token de quem pode furar o ruleset da main (veja docs/AUTOMATION.md). Sem ele usa o token do workflow.
+          token: ${{ secrets.RELEASE_PUSH_TOKEN || github.token }}
+          persist-credentials: true # este job precisa gravar na main; só roda scripts do próprio repositório
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+
+      - name: Gravar a versão nos package.json
+        id: bump
+        run: node scripts/bump-version.mjs --version "$VERSION"
+
+      - name: Commit na main
+        if: ${{ steps.bump.outputs.changed == 'true' }}
+        continue-on-error: true # sem permissão de gravar na main, avisa mas não deixa a execução vermelha
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json "apps/*/package.json" "packages/*/package.json"
+          git commit -m "chore(release): v$VERSION [skip release]"
+          for i in 1 2 3; do
+            git push origin HEAD:main && exit 0
+            # a main andou (ou a regra exige PR): atualiza e tenta de novo
+            git pull --rebase origin main || break
+          done
+          echo "::warning::Não foi possível gravar a versão na main (a main exige pull request?). Crie o secret RELEASE_PUSH_TOKEN (veja docs/AUTOMATION.md) ou rode: node scripts/bump-version.mjs --version $VERSION"
+          exit 1
+
+  # 6) Se qualquer etapa falhar, envia um e-mail com os detalhes (job, passo e trecho do log com o erro).
   # Requer: secrets MAIL_USERNAME e MAIL_PASSWORD (Gmail: senha de app) e a variável NOTIFY_EMAIL. Sem eles, só avisa no log.
   notify-failure:
     name: Notificar falha por e-mail

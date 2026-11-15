@@ -74,6 +74,22 @@ export function computeNext({ tags, commits, bumpOverride = 'auto', initialVersi
   return { previous: prev, version: bumpVersion(prev.slice(1), bump), bump };
 }
 
+// Beta (pré-lançamento): a versão que SAIRIA como estável + "-beta.N". N conta os betas já publicados dessa mesma base.
+// Ex.: estável prevista 1.3.0 e tag v1.3.0-beta.1 existente -> 1.3.0-beta.2. Tags beta nunca entram em latestTag/computeNext.
+const BETA_TAG = /^v(\d+\.\d+\.\d+)-beta\.(\d+)$/;
+
+export function computeBeta(opts) {
+  const next = computeNext(opts);
+  const n = opts.tags.reduce((max, t) => {
+    const m = BETA_TAG.exec(t);
+    return m && m[1] === next.version ? Math.max(max, Number(m[2])) : max;
+  }, 0);
+  return { ...next, stable: next.version, version: `${next.version}-beta.${n + 1}`, channel: 'beta' };
+}
+
+/** O commit é o que o pipeline grava depois de uma release (`chore(release): v1.2.3`)? Não entra em notas nem decide versão. */
+export const isReleaseCommit = (c) => c.type === 'chore' && c.scope === 'release';
+
 // ---------------------------------------------------------------- notas
 const fmtSize = (bytes) => (bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.ceil(bytes / 1024)} KB`);
 

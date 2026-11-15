@@ -187,7 +187,7 @@ Um arquivo `.gitnexus.json` na raiz do repositório define as regras de commit d
 
 Cada merge na `main` dispara `.github/workflows/release.yml`:
 
-1. **Versão** — `scripts/release-info.mjs` lê a última tag `vX.Y.Z` e os commits desde então (Conventional Commits): `!`/`BREAKING CHANGE` → **major**, `feat` → **minor**, qualquer outro → **patch**. Sem tags, a primeira release usa a versão do `package.json` raiz. A tag é a fonte da verdade; nenhum commit de versão volta para a main.
+1. **Versão** — `scripts/release-info.mjs` lê a última tag `vX.Y.Z` e os commits desde então (Conventional Commits): `!`/`BREAKING CHANGE` → **major**, `feat` → **minor**, qualquer outro → **patch**. Sem tags, a primeira release usa a versão do `package.json` raiz. A tag é a fonte da verdade e vai para o build; depois de publicar a release **estável**, o job *Registrar a versão no código* grava a mesma versão nos `package.json` da main (`chore(release): vX.Y.Z [skip release]`), para o código-fonte e a tag não divergirem.
 2. **Qualidade** — `typecheck` + `test` (a release não sai se falharem).
 3. **Build em paralelo** (6 jobs): Windows x64/ARM64, macOS Intel/Apple Silicon, Linux x64/ARM64.
 4. **Release** — notas agrupadas por tipo (novidades, correções, breaking changes…, com links para commits/PRs, ticket `Refs:` e autor), tabela de downloads, `SHA256SUMS.txt` e link de comparação com a versão anterior. A release é criada como rascunho, recebe todos os arquivos e só então é publicada.
@@ -201,6 +201,8 @@ Cada merge na `main` dispara `.github/workflows/release.yml`:
 Detalhes:
 - **Pular release:** inclua `[skip release]` na mensagem do commit.
 - **Release manual / forçar incremento:** Actions → *Release* → *Run workflow* (campo `bump`).
+- **Beta:** no mesmo botão, `channel = beta` publica `vX.Y.Z-beta.N` como pré-lançamento (não vira “última versão”, não gera manifestos e não aparece como atualização no app).
+- **Bots, betas e a versão no `package.json`:** como funcionam e o que configurar no GitHub: [`docs/AUTOMATION.md`](docs/AUTOMATION.md).
 - **PRs:** `.github/workflows/ci.yml` roda typecheck, testes e build (Ubuntu e Windows) antes do merge.
 - **Tudo ou nada:** se qualquer um dos 6 builds falhar, os demais são cancelados e nenhuma release é publicada.
 - **Aviso de falha por e-mail:** o job `notify-failure` envia o job, o passo e o trecho do log com o erro. Em *Settings → Secrets and variables → Actions*, crie os secrets `MAIL_USERNAME` (e-mail Gmail remetente) e `MAIL_PASSWORD` ([senha de app](https://myaccount.google.com/apppasswords), exige verificação em duas etapas) e a variável `NOTIFY_EMAIL` (destinatário). Sem eles, a falha só aparece no resumo da execução. Pré-visualizar: `node scripts/failure-report.mjs --repo dono/repo --run <id> --out relatorio.txt`.
