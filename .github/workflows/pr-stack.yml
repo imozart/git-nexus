@@ -1,0 +1,37 @@
+name: Ordem de merge das pilhas
+
+# PRs empilhados (cada branch parte da anterior, todos com base na main) precisam ser mergeados na ordem. Este workflow detecta
+# quando um PR contém os commits de outro PR aberto, marca com a label "bloqueado" e comenta a ordem de merge. Quando um PR da
+# pilha é mergeado ou fechado, reavalia todos: os de cima ficam livres sozinhos. Regras em scripts/lib/pr-stack.mjs.
+#
+# pull_request_target: o token pode escrever labels e comentários mesmo em PR de fork. Por isso o checkout é SEMPRE da branch
+# principal (o padrão desse evento) e nunca do código do PR; o workflow só compara commits pela API do GitHub.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, closed]
+
+concurrency:
+  group: pr-stack
+  cancel-in-progress: true # a rodada mais nova enxerga o estado mais novo
+
+permissions:
+  contents: read
+  pull-requests: write # label e comentários nos PRs
+
+jobs:
+  pilha:
+    name: Ordenar a pilha
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .node-version
+      - name: Detectar PRs empilhados
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/pr-stack.mjs
