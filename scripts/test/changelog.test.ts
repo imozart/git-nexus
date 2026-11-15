@@ -47,13 +47,25 @@ describe('renderEntryBody', () => {
   ];
   const body = renderEntryBody(commits, REPO);
 
-  it('mostra breaking, novidades, correções, docs e o que está fora do padrão, nesta ordem', () => {
+  it('mostra TODOS os tipos, na ordem das notas da release', () => {
     const headings = [...body.matchAll(/^### (.+)$/gm)].map((m) => m[1]);
-    expect(headings).toEqual(['⚠️ Mudanças que quebram compatibilidade', '✨ Novidades', '🐛 Correções', '📚 Documentação', '🔹 Outras alterações']);
+    expect(headings).toEqual([
+      '⚠️ Mudanças que quebram compatibilidade',
+      '✨ Novidades',
+      '🐛 Correções',
+      '📚 Documentação',
+      '🧪 Testes',
+      '🤖 CI/CD',
+      '🎨 Estilo',
+      '🧹 Manutenção',
+      '🔹 Outras alterações',
+    ]);
   });
 
-  it('esconde testes, CI, manutenção e estilo (ficam só nas notas da release)', () => {
-    for (const hidden of ['cobre o painel', 'ajusta o cache', 'limpa', 'formata']) expect(body).not.toContain(hidden);
+  it('nenhum commit some: testes, CI, estilo, manutenção e fora do padrão aparecem', () => {
+    for (const shown of ['cobre o painel', 'ajusta o cache', 'limpa', 'formata', 'Mensagem fora do padrão']) expect(body).toContain(shown);
+    // 9 commits na entrada = 9 linhas de item
+    expect(body.split(/\r?\n/).filter((l) => l.startsWith('- '))).toHaveLength(9);
   });
 
   it('linha com escopo, link do PR e do commit; breaking traz a nota', () => {
@@ -68,8 +80,14 @@ describe('renderEntryBody', () => {
     expect(plain).not.toContain('http');
   });
 
-  it('versão só com commits internos vira o aviso de manutenção', () => {
-    expect(renderEntryBody([commit('ci: x'), commit('test: y')], REPO)).toBe(EMPTY_ENTRY);
+  it('versão só com commits internos lista todos eles (não vira aviso vazio)', () => {
+    const only = renderEntryBody([commit('ci: x'), commit('test: y')], REPO);
+    expect(only).not.toBe(EMPTY_ENTRY);
+    expect(only).toContain('### 🧪 Testes');
+    expect(only).toContain('### 🤖 CI/CD');
+  });
+
+  it('só a versão sem nenhum commit (build manual) usa o aviso', () => {
     expect(renderEntryBody([], REPO)).toBe(EMPTY_ENTRY);
   });
 });

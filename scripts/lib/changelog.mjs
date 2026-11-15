@@ -8,13 +8,8 @@ import { groupCommits } from './release-core.mjs';
 
 export const CHANGELOG_FILE = 'CHANGELOG.md';
 
-/**
- * Seções que entram no changelog. Ficam de fora o que não muda nada para quem usa o app e já está nas notas completas de cada
- * release: testes, CI, estilo e manutenção interna. `other` (commit fora do padrão) entra para nada sumir sem querer.
- */
-export const VISIBLE = ['breaking', 'feat', 'fix', 'perf', 'refactor', 'docs', 'build', 'other'];
-
-export const EMPTY_ENTRY = '_Só manutenção interna: nenhuma mudança visível para quem usa o app. A lista completa está nas notas da release._';
+/** Versão sem nenhum commit entre a estável anterior e a tag (build manual): o único caso em que a entrada não tem seções. */
+export const EMPTY_ENTRY = '_Nenhuma alteração de código registrada nesta versão (build manual)._';
 
 const STABLE = /^\d+\.\d+\.\d+$/;
 const HEADING = /^## \[(\d+\.\d+\.\d+)\](?: - (\d{4}-\d{2}-\d{2}))?[ \t]*$/;
@@ -48,17 +43,16 @@ export function defaultPreamble(repo) {
   return [
     '# Changelog',
     '',
-    'Todas as mudanças relevantes do GitNexus, por versão. As versões seguem o [SemVer](https://semver.org/lang/pt-BR/) e o formato é inspirado no [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).',
+    'Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https://semver.org/lang/pt-BR/) e o formato é inspirado no [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).',
     '',
-    `Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit \`chore(release)\` que grava a versão: não é preciso editá-lo à mão. Ficam fora da lista os commits de testes, CI, estilo e manutenção interna; a lista completa, com os pacotes para baixar, está${releases}.`,
+    `Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit \`chore(release)\` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão${releases}.`,
   ].join('\n');
 }
 
-/** Corpo de uma versão: as seções visíveis (`### título`) com os commits, ou o aviso de "só manutenção". */
+/** Corpo de uma versão: TODOS os commits, em seções (`### título`) na ordem das notas da release; sem commits, o aviso de build manual. */
 export function renderEntryBody(commits, repo) {
   const out = [];
   for (const s of groupCommits(commits)) {
-    if (!VISIBLE.includes(s.id)) continue;
     out.push(`### ${s.title}`, '');
     for (const c of s.items) {
       const pr = c.pr ? (repo ? ` ([#${c.pr}](https://github.com/${repo}/pull/${c.pr}))` : ` (#${c.pr})`) : '';
