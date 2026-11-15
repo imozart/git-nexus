@@ -31,20 +31,43 @@ describe('versão do Node dos workflows', () => {
     for (const w of workflows) {
       expect(w.text, w.file).not.toMatch(/node-version:\s*['"]?\d/);
     }
-    const using = workflows.filter((w) => w.text.includes('node-version-file: .node-version'));
+    // direto (node-version-file) ou pela composite action .github/actions/setup, que por sua vez lê o .node-version
+    const using = workflows.filter((w) => w.text.includes('node-version-file: .node-version') || w.text.includes('uses: ./.github/actions/setup'));
     expect(using.length).toBeGreaterThanOrEqual(5);
   });
 
   it('o actions/setup-node vem depois do checkout no mesmo job (o arquivo precisa existir)', () => {
     for (const w of workflows) {
       for (const j of jobs(w.text)) {
-        const node = j.body.indexOf('node-version-file: .node-version');
-        if (node < 0) continue;
+        const marks = ['node-version-file: .node-version', 'uses: ./.github/actions/setup'].map((m) => j.body.indexOf(m)).filter((i) => i >= 0);
+        if (!marks.length) continue;
+        const node = Math.min(...marks);
         const checkout = j.body.indexOf('actions/checkout');
         expect(checkout, `${w.file} > ${j.name}: sem checkout antes do setup-node`).toBeGreaterThanOrEqual(0);
         expect(checkout, `${w.file} > ${j.name}`).toBeLessThan(node);
       }
     }
+  });
+});
+
+describe('composite action .github/actions/setup', () => {
+  const action = readFileSync(join(root, '.github', 'actions', 'setup', 'action.yml'), 'utf8').replace(/\r\n/g, '\n');
+
+  it('lê o .node-version, usa actions fixadas por SHA e tem o passo de instalação opcional', () => {
+    expect(action).toContain('node-version-file: .node-version');
+    for (const m of action.matchAll(/^\s*-?\s*uses:\s*(\S+)/gm)) expect(m[1], m[1]).toMatch(/@[0-9a-f]{40}$/);
+    expect(action).toContain("inputs.install == 'true'");
+    expect(action).toContain('pnpm install --frozen-lockfile');
+  });
+
+  it('os workflows não repetem mais o trecho pnpm + node: usam a action', () => {
+    for (const w of workflows) {
+      const uses = w.text.includes('uses: ./.github/actions/setup');
+      // quem instala pnpm direto (só a geração da SBOM na release) é o único caso permitido fora da composite
+      const raw = (w.text.match(/uses: pnpm\/action-setup/g) ?? []).length;
+      if (uses) expect(raw, w.file).toBeLessThanOrEqual(w.file === 'release.yml' ? 1 : 0);
+    }
+    expect(workflows.filter((w) => w.text.includes('uses: ./.github/actions/setup')).length).toBeGreaterThanOrEqual(7);
   });
 });
 
