@@ -5,6 +5,7 @@ import type { RebaseAction, RebasePlan, RebaseState, RepositoryMeta } from '@git
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { t, type MessageKey } from '../../i18n';
+import ComboBox from '../ComboBox.vue';
 import ConfirmDialog from '../ConfirmDialog.vue';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
@@ -41,6 +42,8 @@ const ACTIONS: Array<{ id: RebaseAction; label: MessageKey; hint: MessageKey }> 
   { id: 'drop', label: 'rb.drop', hint: 'rb.dropHint' },
 ];
 const actionHint = (id: RebaseAction): string => t(ACTIONS.find((a) => a.id === id)!.hint);
+/** Opções do combobox de ação: rótulo + a dica de cada ação ao lado. */
+const actionOptions = computed(() => ACTIONS.map((a) => ({ value: a.id, label: t(a.label), hint: t(a.hint) })));
 
 async function loadState(): Promise<void> {
   try {
@@ -264,9 +267,7 @@ onMounted(async () => {
             <button type="button" :disabled="i === 0" :title="t('rb.up')" :aria-label="t('rb.up')" @click="move(i, i - 1)">▲</button>
             <button type="button" :disabled="i === rows.length - 1" :title="t('rb.down')" :aria-label="t('rb.down')" @click="move(i, i + 1)">▼</button>
           </span>
-          <select :value="r.action" :title="actionHint(r.action)" @change="setAction(r, ($event.target as HTMLSelectElement).value as RebaseAction)">
-            <option v-for="a in ACTIONS" :key="a.id" :value="a.id" :title="t(a.hint)">{{ t(a.label) }}</option>
-          </select>
+          <ComboBox :model-value="r.action" :options="actionOptions" :title="actionHint(r.action)" :aria-label="actionHint(r.action)" @update:model-value="setAction(r, $event as RebaseAction)" />
           <span class="row__hash mono">{{ r.shortHash }}</span>
           <div class="row__main">
             <span class="row__sub" :title="r.subject">{{ r.subject }}</span>

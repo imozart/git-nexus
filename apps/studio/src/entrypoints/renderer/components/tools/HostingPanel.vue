@@ -4,6 +4,7 @@ import { GnBadge, GnButton } from '@git-nexus/ui-kit';
 import type { ChangeRequest, ChangeRequestState, CiState, CiStatus, HostingInfo, ProviderKind, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
+import ComboBox from '../ComboBox.vue';
 import { dateLocale, t, type MessageKey } from '../../i18n';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
@@ -253,9 +254,7 @@ onMounted(loadInfo);
             </label>
             <label>
               {{ t('hp.target') }}
-              <select v-model="form.base" @change="suggest">
-                <option v-for="b in [...new Set([info.defaultBranch, ...info.branches])]" :key="b" :value="b">{{ b }}</option>
-              </select>
+              <ComboBox v-model="form.base" block mono :options="[...new Set([info.defaultBranch, ...info.branches])]" :aria-label="t('hp.target')" @commit="suggest" />
             </label>
           </div>
           <p v-if="suggestion" class="muted small">

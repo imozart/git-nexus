@@ -22,6 +22,8 @@ const props = withDefaults(
     mono?: boolean;
     /** Botão arredondado como o seletor de idioma do cabeçalho. */
     pill?: boolean;
+    /** Ocupa a largura toda do contêiner (campo de formulário). */
+    block?: boolean;
     /** Lado em que a lista se alinha ao botão. */
     align?: 'left' | 'right';
     /** Máximo de itens na lista (só modo `searchable`). */
@@ -207,7 +209,7 @@ function toggle(): void {
 </script>
 
 <template>
-  <div ref="root" class="cbx" :class="{ 'cbx--mono': mono, 'cbx--pill': pill, 'cbx--open': open, 'cbx--field': searchable, 'cbx--disabled': disabled }">
+  <div ref="root" class="cbx" :class="{ 'cbx--mono': mono, 'cbx--pill': pill, 'cbx--block': block, 'cbx--open': open, 'cbx--field': searchable, 'cbx--disabled': disabled }">
     <template v-if="searchable">
       <input
         ref="field"
@@ -282,6 +284,8 @@ function toggle(): void {
 .cbx {
   position: relative; display: inline-flex; min-width: 0; font-size: 12px;
   &--field { display: flex; flex: 1; }
+  &--block { display: flex; width: 100%; }
+  &--block &__btn { flex: 1; justify-content: space-between; padding: 6px 9px; background: var(--gn-bg); font-size: 13px; }
   &--mono .cbx__btn, &--mono .cbx__input { font-family: var(--gn-mono); }
   &--disabled { opacity: 0.55; }
   &__btn {
