@@ -317,6 +317,23 @@ export interface UpdateInfo {
   publishedAt?: string;
   /** Motivo, quando `unavailable`. */
   message?: string;
+  /** `SHA256SUMS.txt` da release (necessário para instalar sem sair do app). */
+  sumsUrl?: string;
+  /** O que "Instalar e reiniciar" faz aqui: `installer` (Windows), `appimage` (Linux) ou `manual` (só abre o download). */
+  install?: 'installer' | 'appimage' | 'manual';
+}
+
+/** Progresso do download da atualização (`total` = 0 quando o servidor não informa o tamanho). */
+export interface UpdateProgress {
+  done: number;
+  total: number;
+}
+
+/** Resultado do download verificado: o arquivo conferido com o SHA-256 da release, pronto para instalar. */
+export interface UpdateDownload {
+  version: string;
+  assetName: string;
+  sha256: string;
 }
 
 export type ProviderKind = 'github' | 'gitlab';
@@ -579,6 +596,12 @@ export interface GitNexusApi extends GitNexusIPC {
   checkForUpdate(): Promise<UpdateInfo>;
   /** Abre uma página/arquivo da release no navegador (só endereços do GitHub do projeto). */
   openExternal(url: string): Promise<void>;
+  /** Baixa o pacote da última release e confere o SHA-256 contra o `SHA256SUMS.txt` da mesma release. Só vale se `install` != manual. */
+  downloadUpdate(): Promise<UpdateDownload>;
+  /** Instala o pacote baixado e reinicia o app (Windows: instalador silencioso; Linux: troca o AppImage). */
+  installUpdate(): Promise<void>;
+  /** Acompanha o progresso do download; devolve a função que cancela a assinatura. */
+  onUpdateProgress(cb: (p: UpdateProgress) => void): () => void;
 
   // Integração com o sistema (processo principal)
   copyText(text: string): Promise<void>;

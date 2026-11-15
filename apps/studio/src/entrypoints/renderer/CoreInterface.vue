@@ -41,9 +41,24 @@ const tabs = computed<GnTab[]>(() =>
       <span class="upd__msg">
         ⬆ <strong>{{ t('update.available', { version: upd.info.latest ?? '' }) }}</strong> <span class="upd__cur">{{ t('update.using', { current: upd.info.current }) }}</span>
       </span>
-      <button type="button" class="upd__btn upd__btn--primary" :title="upd.info.assetName ?? t('update.openPage')" @click="upd.download()">
+      <template v-if="upd.canInstall && upd.phase === 'idle'">
+        <button type="button" class="upd__btn upd__btn--primary" :title="t('update.installTitle')" @click="upd.downloadAndVerify()">{{ t('update.install') }}</button>
+        <button type="button" class="upd__btn" :title="upd.info.assetName ?? t('update.openPage')" @click="upd.download()">{{ t('update.download') }}</button>
+      </template>
+      <span v-else-if="upd.phase === 'downloading'" class="upd__prog" role="progressbar" :aria-valuenow="upd.percent" aria-valuemin="0" aria-valuemax="100">
+        {{ upd.percent > 0 ? t('update.downloadingPct', { pct: upd.percent }) : t('update.downloading') }}
+        <span class="upd__bar"><span class="upd__fill" :style="{ width: (upd.percent || 5) + '%' }" /></span>
+      </span>
+      <template v-else-if="upd.phase === 'ready' || upd.phase === 'installing'">
+        <span class="upd__ok">✔ {{ t('update.verified') }}</span>
+        <button type="button" class="upd__btn upd__btn--primary" :disabled="upd.phase === 'installing'" @click="upd.installAndRestart()">
+          {{ upd.phase === 'installing' ? t('update.installing') : t('update.restart') }}
+        </button>
+      </template>
+      <button v-else type="button" class="upd__btn upd__btn--primary" :title="upd.info.assetName ?? t('update.openPage')" @click="upd.download()">
         {{ upd.info.assetName ? t('update.download') : t('update.downloadPage') }}
       </button>
+      <span v-if="upd.flash" class="upd__err">{{ upd.flash }}</span>
       <button type="button" class="upd__btn" @click="upd.openNotes()">{{ t('update.notes') }}</button>
       <span class="upd__sp" />
       <button type="button" class="upd__btn" :title="t('update.laterTitle')" @click="upd.later()">{{ t('update.later') }}</button>
@@ -87,6 +102,11 @@ const tabs = computed<GnTab[]>(() =>
   &--info { background: var(--gn-surface-2); border-bottom-color: var(--gn-border); color: var(--gn-muted); }
   &__cur { color: var(--gn-muted); }
   &__sp { flex: 1; }
+  &__err { color: var(--gn-danger, #e5646b); }
+  &__ok { color: var(--gn-success, #4fb477); }
+  &__prog { display: inline-flex; align-items: center; gap: 8px; }
+  &__bar { display: inline-block; width: 140px; height: 6px; background: var(--gn-border); border-radius: 3px; overflow: hidden; }
+  &__fill { display: block; height: 100%; background: var(--gn-accent); transition: width 0.2s; }
   &__btn {
     font: inherit; font-size: 12px; padding: 3px 10px; color: var(--gn-text); background: var(--gn-surface);
     border: 1px solid var(--gn-border); border-radius: var(--gn-radius); cursor: pointer;

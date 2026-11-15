@@ -1,7 +1,7 @@
 // Verificação de atualização (processo principal). Uma única consulta GET à API pública do GitHub, sem enviar
 // nenhum dado do usuário nem identificador: só o User-Agent genérico exigido pela API.
 import type { UpdateInfo } from '@git-nexus/git-core/pure';
-import { UPDATE_REPO, compareVersions, pickAsset, type ReleaseAsset } from '../shared/update';
+import { SUMS_ASSET, UPDATE_REPO, compareVersions, installPlan, pickAsset, type ReleaseAsset } from '../shared/update';
 
 interface GithubRelease {
   tag_name: string;
@@ -18,6 +18,8 @@ export interface CheckContext {
   platform: string;
   arch: string;
   portable: boolean;
+  /** Linux: iniciado a partir de um AppImage (define se dá para atualizar sem sair do app). */
+  appImage?: boolean;
   /** Para testes. */
   fetchImpl?: typeof fetch;
   repo?: string;
@@ -45,6 +47,9 @@ export async function checkForUpdate(ctx: CheckContext): Promise<UpdateInfo> {
   if (cmp <= 0) return { status: 'up-to-date', current: ctx.current, latest: rel.tag_name.replace(/^v/, '') };
 
   const asset = pickAsset(rel.assets ?? [], { platform: ctx.platform, arch: ctx.arch, portable: ctx.portable });
+  const sums = (rel.assets ?? []).find((a) => a.name === SUMS_ASSET);
+  // Só oferece instalar dentro do app quando há hash para conferir; sem o SHA256SUMS.txt cai no download manual.
+  const install = sums ? installPlan(asset?.name, { platform: ctx.platform, portable: ctx.portable, appImage: ctx.appImage ?? false }) : 'manual';
   return {
     status: 'available',
     current: ctx.current,
@@ -54,5 +59,7 @@ export async function checkForUpdate(ctx: CheckContext): Promise<UpdateInfo> {
     assetName: asset?.name,
     notes: (rel.body ?? '').slice(0, 6000),
     publishedAt: rel.published_at ?? undefined,
+    sumsUrl: sums?.browser_download_url,
+    install,
   };
 }

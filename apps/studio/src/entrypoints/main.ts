@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { accessSync, constants, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -5,6 +6,7 @@ import { BrowserWindow, Menu, app, clipboard, dialog, ipcMain, shell, utilityPro
 import { WORKER_METHODS, channel, type UtilityRequest, type UtilityResponse } from '../shared/channels';
 import { isAllowedUpdateUrl } from '../shared/update';
 import { checkForUpdate } from './update';
+import { WINDOWS_INSTALLER_ARGS, downloadVerified, isReadyFile, replaceAppImage } from './installer';
 import { HostingService } from '../worker/hosting-service';
 import { SecureTokenStore } from './hosting-store';
 
@@ -111,12 +113,51 @@ ipcMain.handle(channel('hostingOpen'), async (_e, repoPath: string, url: string)
   await shell.openExternal(String(url));
 });
 
+function updateContext() {
+  return { current: app.getVersion(), platform: process.platform, arch: process.arch, portable: isPortable, appImage: Boolean(process.env.APPIMAGE) };
+}
+
 ipcMain.handle(channel('checkForUpdate'), () => {
   // Em desenvolvimento a versão do app não é a de uma release: não faz sentido comparar (a menos que se force por variável).
   if (!app.isPackaged && !process.env.GITNEXUS_UPDATE_REPO) {
     return { status: 'unavailable', current: app.getVersion(), message: 'Verificação desativada em desenvolvimento.' };
   }
-  return checkForUpdate({ current: app.getVersion(), platform: process.platform, arch: process.arch, portable: isPortable });
+  return checkForUpdate(updateContext());
+});
+
+// Atualização sem sair do app. O renderer não informa endereço nenhum: o processo principal consulta a release de novo,
+// baixa só o pacote que ele mesmo escolheu e confere o SHA-256 contra o SHA256SUMS.txt da mesma release.
+let downloadedUpdate: { file: string; kind: 'installer' | 'appimage'; version: string } | null = null;
+ipcMain.handle(channel('downloadUpdate'), async (e) => {
+  const info = await checkForUpdate(updateContext());
+  if (info.status !== 'available' || !info.downloadUrl || !info.assetName || !info.sumsUrl || !info.latest) throw new Error('Não há atualização para baixar.');
+  if (info.install !== 'installer' && info.install !== 'appimage') throw new Error('Este pacote precisa ser instalado manualmente.');
+  const r = await downloadVerified({
+    url: info.downloadUrl,
+    name: info.assetName,
+    sumsUrl: info.sumsUrl,
+    destDir: join(dataDir, 'updates'),
+    onProgress: (p) => {
+      if (!e.sender.isDestroyed()) e.sender.send(channel('updateProgress'), p);
+    },
+  });
+  downloadedUpdate = { file: r.file, kind: info.install, version: info.latest };
+  return { version: info.latest, assetName: info.assetName, sha256: r.sha256 };
+});
+ipcMain.handle(channel('installUpdate'), async () => {
+  const u = downloadedUpdate;
+  if (!u || !(await isReadyFile(u.file))) throw new Error('Baixe a atualização antes de instalar.');
+  if (u.kind === 'installer') {
+    // Instalador NSIS em modo silencioso (por usuário, sem administrador): atualiza no mesmo lugar e reabre o app.
+    spawn(u.file, [...WINDOWS_INSTALLER_ARGS], { detached: true, stdio: 'ignore' }).unref();
+    app.quit();
+    return;
+  }
+  const target = process.env.APPIMAGE;
+  if (!target) throw new Error('O AppImage atual não foi identificado.');
+  await replaceAppImage(u.file, target);
+  app.relaunch({ execPath: target, args: [] });
+  app.quit();
 });
 ipcMain.handle(channel('openExternal'), async (_e, url: string) => {
   if (!isAllowedUpdateUrl(String(url))) throw new Error('Endereço não permitido.');
