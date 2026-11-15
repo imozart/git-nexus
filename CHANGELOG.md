@@ -4,6 +4,16 @@ Todas as mudanças relevantes do GitNexus, por versão. As versões seguem o [Se
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Ficam fora da lista os commits de testes, CI, estilo e manutenção interna; a lista completa, com os pacotes para baixar, está em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.5.0] - 2026-11-15
+
+### ✨ Novidades
+
+- **ui:** todos os comboboxes seguem o padrão do seletor de idioma ([`a2e6872`](https://github.com/imozart/git-nexus/commit/a2e6872e2ef43af6e3ad89cb47d262a3d72709ab))
+
+### 🐛 Correções
+
+- **tools:** aba Arquivo travava em repositórios grandes (combobox com busca) ([`e61c6bf`](https://github.com/imozart/git-nexus/commit/e61c6bf57ff818821f761fc266cc6729a9432a29))
+
 ## [1.4.0] - 2026-11-15
 
 ### ✨ Novidades
@@ -74,6 +84,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.5.0]: https://github.com/imozart/git-nexus/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/imozart/git-nexus/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/imozart/git-nexus/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/imozart/git-nexus/compare/v1.1.0...v1.2.0
