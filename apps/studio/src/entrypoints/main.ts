@@ -3,6 +3,8 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { BrowserWindow, Menu, app, clipboard, dialog, ipcMain, shell, utilityProcess, type UtilityProcess } from 'electron';
 import { WORKER_METHODS, channel, type UtilityRequest, type UtilityResponse } from '../shared/channels';
+import { isAllowedUpdateUrl } from '../shared/update';
+import { checkForUpdate } from './update';
 
 // --- Portabilidade: dados ao lado do executável, nada no registro/AppData ---------------
 // Modo portátil: AppImage e ZIP/tar.gz (descompactados em pasta gravável).
@@ -36,7 +38,10 @@ function resolveDataDir(): string | null {
   if (existsSync(join(base, 'GitNexusData'))) return join(base, 'GitNexusData'); // opt-in explícito
   return !installed && isWritable(base) ? join(base, 'GitNexusData') : null;
 }
-const dataDir = resolveDataDir() ?? app.getPath('userData');
+const portableDir = resolveDataDir();
+const dataDir = portableDir ?? app.getPath('userData');
+/** Rodando como app portátil (dados ao lado do executável): a atualização sugerida é o ZIP/AppImage, não o instalador. */
+const isPortable = app.isPackaged && portableDir !== null;
 app.setPath('userData', dataDir);
 
 // --- UtilityProcess: todo trabalho pesado de Git ----------------------------------------
@@ -84,6 +89,17 @@ ipcMain.handle(channel('pickDirectories'), async (e) => {
   return r.canceled ? [] : r.filePaths;
 });
 
+ipcMain.handle(channel('checkForUpdate'), () => {
+  // Em desenvolvimento a versão do app não é a de uma release: não faz sentido comparar (a menos que se force por variável).
+  if (!app.isPackaged && !process.env.GITNEXUS_UPDATE_REPO) {
+    return { status: 'unavailable', current: app.getVersion(), message: 'Verificação desativada em desenvolvimento.' };
+  }
+  return checkForUpdate({ current: app.getVersion(), platform: process.platform, arch: process.arch, portable: isPortable });
+});
+ipcMain.handle(channel('openExternal'), async (_e, url: string) => {
+  if (!isAllowedUpdateUrl(String(url))) throw new Error('Endereço não permitido.');
+  await shell.openExternal(String(url));
+});
 ipcMain.handle(channel('copyText'), (_e, text: string) => clipboard.writeText(String(text)));
 ipcMain.handle(channel('showItemInFolder'), (_e, repoPath: string, file: string) =>
   shell.showItemInFolder(join(repoPath, file.replace(/\/$/, ''))),

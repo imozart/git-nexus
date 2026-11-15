@@ -6,6 +6,8 @@ import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { validateCommitMessage } from '@git-nexus/governance-policy';
 import { createHandlers } from '../../src/worker/handlers';
+import { checkForUpdate } from '../../src/entrypoints/update';
+import { isAllowedUpdateUrl } from '../../src/shared/update';
 
 const [, , root = 'dist/renderer', dataDir = '.harness-data', portArg = '5199'] = process.argv;
 const handlers = createHandlers(dataDir);
@@ -16,6 +18,25 @@ const MAIN_STUBS: Record<string, (...a: any[]) => unknown> = {
   copyText: (t: string) => void (clipboard = t),
   showItemInFolder: () => undefined,
   openPath: () => '',
+  // Atualização: usa o código real de verificação com uma "release" simulada pela variável GN_FAKE_RELEASE (JSON).
+  checkForUpdate: () =>
+    checkForUpdate({
+      current: process.env.GN_CURRENT_VERSION ?? '1.2.0',
+      platform: 'win32',
+      arch: 'x64',
+      portable: false,
+      fetchImpl: (async () => {
+        const raw = process.env.GN_FAKE_RELEASE;
+        return raw ? { ok: true, status: 200, json: async () => JSON.parse(raw) } : { ok: false, status: 404, json: async () => ({}) };
+      }) as unknown as typeof fetch,
+    }),
+  // Registra o endereço que o app pediria para abrir no navegador (o teste lê este arquivo).
+  openExternal: async (url: string) => {
+    if (!isAllowedUpdateUrl(String(url))) throw new Error('Endereço não permitido.');
+    const { mkdir, writeFile } = await import('node:fs/promises');
+    await mkdir(dataDir, { recursive: true });
+    await writeFile(join(dataDir, 'opened-url.txt'), String(url), 'utf8');
+  },
 };
 
 const METHODS = [...Object.keys(handlers), ...Object.keys(MAIN_STUBS)];

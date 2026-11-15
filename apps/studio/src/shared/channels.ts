@@ -56,7 +56,7 @@ export const WORKER_METHODS = [
 export type WorkerMethod = (typeof WORKER_METHODS)[number];
 
 /** Métodos tratados pelo processo principal (APIs nativas do Electron). */
-export const MAIN_METHODS = ['pickDirectories', 'copyText', 'showItemInFolder', 'openPath'] as const satisfies readonly (keyof GitNexusApi)[];
+export const MAIN_METHODS = ['pickDirectories', 'copyText', 'showItemInFolder', 'openPath', 'checkForUpdate', 'openExternal'] as const satisfies readonly (keyof GitNexusApi)[];
 export type MainMethod = (typeof MAIN_METHODS)[number];
 
 export const channel = (m: string) => `gitnexus:${m}`;

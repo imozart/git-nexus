@@ -59,6 +59,16 @@ A tela inicial mostra, para cada repositório catalogado: **branch**, **↑ comm
 - **Buscar / Pull** individuais em cada linha (o pull recusa quando a branch divergiu e explica o motivo).
 - **Só com pendências:** esconde os repositórios em dia.
 
+## Atualizações
+
+O app avisa quando existe uma versão nova: **8 segundos depois de abrir** (para não atrasar a abertura) e depois **a cada 12 horas**, ele consulta a última release pública do GitHub e, se for maior que a versão em uso, mostra uma faixa no topo: *Nova versão X disponível (você usa Y)*, com **Baixar**, **Ver novidades**, **Depois** (volta a avisar na próxima abertura) e **Ignorar esta versão**.
+
+- **Baixar** abre no navegador o pacote certo para o seu sistema: instalador (ou ZIP, se você usa a versão portátil) no Windows, DMG no macOS, AppImage no Linux, sempre da arquitetura certa. Sem pacote compatível, abre a página da release.
+- **Privacidade:** é uma única requisição GET à API pública do GitHub, sem enviar nenhum dado seu nem identificador (só o `User-Agent` genérico `GitNexus-update-check`). Só são abertos endereços `https://github.com/imozart/git-nexus/…`.
+- Pela paleta (Ctrl+K): *Verificar atualizações do GitNexus* (consulta na hora, mesmo para uma versão ignorada) e *Desligar/Ligar a verificação automática*.
+- Não instala sozinho: a instalação continua sendo um passo seu (abrir o instalador ou extrair o ZIP). Isso vale para todos os formatos, inclusive o portátil.
+- Precisa que o repositório seja **público**; com repositório privado a consulta retorna "não encontrado" e o app segue normalmente, sem avisos. Em desenvolvimento a verificação fica desativada.
+
 ## Licença
 
 GitNexus é software livre, distribuído sob a **GNU General Public License v3.0 (somente a versão 3)**. Veja o arquivo [`LICENSE`](LICENSE). Você pode usar, estudar, modificar e redistribuir, inclusive comercialmente, desde que mantenha a mesma licença nas versões distribuídas e disponibilize o código-fonte delas.
