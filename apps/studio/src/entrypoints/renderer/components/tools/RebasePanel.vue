@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { GnBadge, GnButton } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnButtonGroup, GnIcon, GnIconButton } from '@git-nexus/ui-kit';
 import type { RebaseAction, RebasePlan, RebaseState, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -218,10 +218,12 @@ onMounted(async () => {
       </template>
       <p v-else class="muted">{{ t('rb.noConflicts') }}</p>
       <div class="rb__btns">
-        <GnButton size="sm" variant="primary" :disabled="busy" @click="ws.open('merge', repo)">{{ t('rb.resolveConflicts') }}</GnButton>
-        <GnButton size="sm" :disabled="busy || state.conflicted.length > 0" @click="proceed('continue')">{{ t('rb.continue') }}</GnButton>
-        <GnButton size="sm" :disabled="busy" :title="t('rb.skipTip')" @click="proceed('skip')">{{ t('rb.skip') }}</GnButton>
-        <GnButton size="sm" variant="danger" :disabled="busy" @click="askAbort">{{ t('rb.abort') }}</GnButton>
+        <GnButton size="sm" variant="primary" tone="warn" :disabled="busy" @click="ws.open('merge', repo)">{{ t('rb.resolveConflicts') }}</GnButton>
+        <GnButton size="sm" tone="success" :disabled="busy || state.conflicted.length > 0" @click="proceed('continue')">
+          <GnIcon name="check" />{{ t('rb.continue') }}
+        </GnButton>
+        <GnButton size="sm" tone="warn" :disabled="busy" :title="t('rb.skipTip')" @click="proceed('skip')">{{ t('rb.skip') }}</GnButton>
+        <GnButton size="sm" variant="danger" :disabled="busy" @click="askAbort"><GnIcon name="x" />{{ t('rb.abort') }}</GnButton>
       </div>
     </section>
 
@@ -263,10 +265,10 @@ onMounted(async () => {
           @dragend="dragFrom = dragOver = -1"
         >
           <span class="row__grip" :title="t('rb.dragTip')">⠿</span>
-          <span class="row__mv">
-            <button type="button" :disabled="i === 0" :title="t('rb.up')" :aria-label="t('rb.up')" @click="move(i, i - 1)">▲</button>
-            <button type="button" :disabled="i === rows.length - 1" :title="t('rb.down')" :aria-label="t('rb.down')" @click="move(i, i + 1)">▼</button>
-          </span>
+          <GnButtonGroup class="row__mv">
+            <GnIconButton icon="up" :disabled="i === 0" :label="t('rb.up')" @click="move(i, i - 1)" />
+            <GnIconButton icon="down" :disabled="i === rows.length - 1" :label="t('rb.down')" @click="move(i, i + 1)" />
+          </GnButtonGroup>
           <ComboBox :model-value="r.action" :options="actionOptions" :title="actionHint(r.action)" :aria-label="actionHint(r.action)" @update:model-value="setAction(r, $event as RebaseAction)" />
           <span class="row__hash mono">{{ r.shortHash }}</span>
           <div class="row__main">
@@ -287,7 +289,9 @@ onMounted(async () => {
 
       <p v-if="problem" class="err">{{ problem }}</p>
       <div class="rb__btns">
-        <GnButton variant="primary" :disabled="busy || !!problem || !changed || plan.hasMerges" @click="askRun">{{ t('rb.runEllipsis') }}</GnButton>
+        <GnButton variant="primary" tone="warn" :disabled="busy || !!problem || !changed || plan.hasMerges" @click="askRun">
+          <GnIcon name="alert" />{{ t('rb.runEllipsis') }}
+        </GnButton>
         <span v-if="!changed" class="muted">{{ t('rb.changeToEnable') }}</span>
       </div>
     </section>
@@ -324,7 +328,7 @@ onMounted(async () => {
   &--sq { margin-left: 28px; border-left: 3px solid var(--gn-accent); }
   &--over { border-color: var(--gn-accent); box-shadow: 0 -2px 0 var(--gn-accent); }
   &__grip { color: var(--gn-muted); user-select: none; padding-top: 3px; }
-  &__mv { display: flex; flex-direction: column; button { background: none; border: none; color: var(--gn-muted); font-size: 9px; line-height: 1.1; padding: 0 3px; cursor: pointer; &:hover:not(:disabled) { color: var(--gn-text); } &:disabled { opacity: 0.25; cursor: default; } } }
+  &__mv { align-self: flex-start; }
   &__hash { color: var(--gn-muted); padding-top: 3px; }
   &__main { flex: 1; min-width: 0; display: grid; gap: 6px; }
   &__sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-top: 3px; }

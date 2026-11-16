@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { GnBadge, GnButton } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnSegmented } from '@git-nexus/ui-kit';
 import type { BumpChoice, ReleaseInfo, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -24,6 +24,7 @@ const BUMPS: Array<{ id: BumpChoice; label: MessageKey; hint: MessageKey }> = [
   { id: 'major', label: 'ver.major', hint: 'ver.majorHint' },
 ];
 const BUMP_TONE = { initial: 'accent', major: 'danger', minor: 'success', patch: 'neutral' } as const;
+const bumpOptions = computed(() => BUMPS.map((b) => ({ value: b.id, label: t(b.label), title: t(b.hint) })));
 const BUMP_LABEL: Record<ReleaseInfo['bump'], MessageKey> = { initial: 'ver.initial', major: 'ver.major', minor: 'ver.minor', patch: 'ver.patch' };
 
 async function load(): Promise<void> {
@@ -119,9 +120,7 @@ onMounted(load);
 
         <div class="vp__ctl">
           <span class="muted">{{ t('ver.increment') }}</span>
-          <span class="seg">
-            <button v-for="b in BUMPS" :key="b.id" type="button" :class="{ on: bump === b.id }" :title="t(b.hint)" @click="bump = b.id">{{ t(b.label) }}</button>
-          </span>
+          <GnSegmented v-model="bump" :options="bumpOptions" :aria-label="t('ver.increment')" />
           <span class="spacer" />
           <GnButton size="sm" :disabled="!info.commitCount" @click="copy">{{ t('ver.copyNotes') }}</GnButton>
           <GnButton size="sm" :disabled="!info.commitCount" :title="t('ver.saveChangelogTip')" @click="saveChangelog">{{ t('ver.saveChangelog') }}</GnButton>
@@ -169,10 +168,6 @@ onMounted(load);
 }
 .box { border: 1px solid var(--gn-border); border-radius: var(--gn-radius); padding: 12px 14px; p { margin: 6px 0 0; } }
 .sec { h3 { margin: 6px 0; font-size: 14px; } ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; } }
-.seg {
-  display: inline-flex; border: 1px solid var(--gn-border); border-radius: var(--gn-radius); overflow: hidden;
-  button { padding: 3px 11px; font: inherit; font-size: 12px; color: var(--gn-muted); background: none; border: none; cursor: pointer; &.on { background: var(--gn-accent); color: #fff; } }
-}
 code { font-family: var(--gn-mono); font-size: 12px; }
 .tk { margin-left: 6px; padding: 0 5px; border: 1px solid var(--gn-border); border-radius: 4px; }
 .meta { font-size: 12px; }

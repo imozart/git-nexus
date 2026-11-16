@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { GnButton } from '@git-nexus/ui-kit';
+import { GnButton, GnSegmented } from '@git-nexus/ui-kit';
 import type { BlameLine, CommitInfo, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -13,6 +13,10 @@ const ws = useWorkspaceStore();
 const tracked = ref<string[]>([]);
 const file = ref('');
 const mode = ref<'history' | 'blame'>('history');
+const modeOptions = computed(() => [
+  { value: 'history' as const, label: t('fp.history') },
+  { value: 'blame' as const, label: t('gv.blame') },
+]);
 const history = ref<CommitInfo[]>([]);
 const blame = ref<BlameLine[]>([]);
 const selectedHash = ref('');
@@ -86,10 +90,7 @@ onMounted(async () => {
     <header class="fp__bar">
       <!-- Combobox com busca: mostra só os primeiros resultados (o <datalist> nativo criava um item por arquivo e travava o app em repositórios grandes) -->
       <ComboBox v-model="file" class="fp__file" searchable mono :options="tracked" :placeholder="t('fp.filePh')" :aria-label="t('fp.filePh')" @commit="load" />
-      <span class="seg">
-        <button type="button" :class="{ on: mode === 'history' }" @click="mode = 'history'">{{ t('fp.history') }}</button>
-        <button type="button" :class="{ on: mode === 'blame' }" @click="mode = 'blame'">{{ t('gv.blame') }}</button>
-      </span>
+      <GnSegmented v-model="mode" :options="modeOptions" :aria-label="t('fp.modeAria')" />
       <GnButton size="sm" :disabled="loading || !file.trim()" @click="load">{{ t('rv.refresh') }}</GnButton>
     </header>
 
@@ -147,10 +148,6 @@ onMounted(async () => {
   &__body { flex: 1; min-height: 0; display: flex; }
   &__list { flex: 1; overflow: auto; min-width: 0; font-size: 12.5px; }
   &__side { width: 460px; border-left: 1px solid var(--gn-border); padding: 12px 14px; overflow: auto; h4 { margin: 0 0 4px; font-size: 13px; } p { margin: 0 0 8px; font-size: 12px; } }
-}
-.seg {
-  display: inline-flex; border: 1px solid var(--gn-border); border-radius: var(--gn-radius); overflow: hidden;
-  button { padding: 3px 12px; font: inherit; font-size: 12px; color: var(--gn-muted); background: none; border: none; cursor: pointer; &.on { background: var(--gn-accent); color: #fff; } }
 }
 .hrow {
   display: flex; gap: 10px; align-items: center; padding: 5px 14px; cursor: pointer;

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { GnBadge, GnButton } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnIconButton } from '@git-nexus/ui-kit';
 import { buildGraph, type CiStatus, type CommitDetail, type CommitInfo, type HistorySearchMode, type RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { useWorkspaceStore } from '../stores/workspace';
@@ -117,7 +117,7 @@ watch(() => ws.versions[props.repo.id], load);
       <strong>{{ repo.name }}</strong>
       <span class="muted">{{ results ? t('gv.results', { n: results.length }) : t('gv.commitsAll', { n: commits.length }) }}</span>
       <span class="spacer" />
-      <GnButton size="sm" tone="accent" :disabled="loading" @click="load">{{ t('rv.refresh') }}</GnButton>
+      <GnButton size="sm" :disabled="loading" @click="load">{{ t('rv.refresh') }}</GnButton>
       <GnButton size="sm" tone="accent" @click="ws.open('repo', repo)">{{ t('gv.backToStaging') }}</GnButton>
     </header>
     <form class="gv__search" @submit.prevent="runSearch">
@@ -126,7 +126,7 @@ watch(() => ws.versions[props.repo.id], load);
       <input v-model="q.author" :placeholder="t('gv.authorPh')" spellcheck="false" />
       <input v-model="q.path" :placeholder="t('gv.pathPh')" spellcheck="false" />
       <input v-model="q.since" :placeholder="t('gv.sincePh')" spellcheck="false" />
-      <GnButton size="sm" variant="primary" type="submit" :disabled="searching || !hasFilter">{{ t('gv.search') }}</GnButton>
+      <GnButton size="sm" tone="accent" type="submit" :disabled="searching || !hasFilter">{{ t('gv.search') }}</GnButton>
       <GnButton v-if="results" size="sm" type="button" @click="clearSearch">{{ t('gv.clear') }}</GnButton>
     </form>
     <p v-if="error" class="err">{{ error }}</p>
@@ -192,9 +192,9 @@ watch(() => ws.versions[props.repo.id], load);
         </dl>
         <div v-if="ci" class="gv__ci">
           <GnBadge :tone="CI_TONE[ci.state]" :title="ci.checks.map((c) => `${c.name}: ${c.state}`).join('\n')">{{ t(CI_TEXT[ci.state]) }}</GnBadge>
-          <GnButton v-if="failUrl" size="sm" @click="api.hostingOpen(repo.path, failUrl!)">{{ t('gv.seeFailure') }}</GnButton>
+          <GnButton v-if="failUrl" size="sm" tone="danger" @click="api.hostingOpen(repo.path, failUrl!)">{{ t('gv.seeFailure') }}</GnButton>
         </div>
-        <GnButton size="sm" class="gv__rb" :title="t('gv.rebaseTip')" @click="ws.openTools(repo, 'rebase', selected.hash)">
+        <GnButton size="sm" tone="warn" class="gv__rb" :title="t('gv.rebaseTip')" @click="ws.openTools(repo, 'rebase', selected.hash)">
           {{ t('gv.rebaseHere') }}
         </GnButton>
         <pre v-if="detail && detail.message.includes('\n')" class="gv__msg">{{ detail.message }}</pre>
@@ -203,8 +203,8 @@ watch(() => ws.versions[props.repo.id], load);
           <li v-for="f in detail.files" :key="f.path" :class="{ on: diffFile === f.path }" @click="showFile(f.path)">
             <GnBadge :tone="f.status === 'D' ? 'danger' : f.status === 'A' ? 'success' : 'accent'">{{ STATUS[f.status] ? t(STATUS[f.status]!) : f.status }}</GnBadge>
             <span class="gv__fpath" :title="f.path">{{ f.path }}</span>
-            <button type="button" class="gv__mini" :title="t('gv.fileHistory')" @click.stop="ws.openTools(repo, 'file', f.path, 'history')">⏱</button>
-            <button type="button" class="gv__mini" :title="t('gv.blame')" @click.stop="ws.openTools(repo, 'file', f.path, 'blame')">👤</button>
+            <GnIconButton icon="history" :label="t('gv.fileHistory')" @click.stop="ws.openTools(repo, 'file', f.path, 'history')" />
+            <GnIconButton icon="person" :label="t('gv.blame')" @click.stop="ws.openTools(repo, 'file', f.path, 'blame')" />
           </li>
         </ul>
         <pre v-if="diffFile" class="gv__diff"><template v-for="(l, i) in diffText.split('\n')" :key="i"><span :class="l.startsWith('+') && !l.startsWith('+++') ? 'a' : l.startsWith('-') && !l.startsWith('---') ? 'd' : l.startsWith('@@') ? 'h' : ''">{{ l }}
@@ -227,7 +227,6 @@ watch(() => ws.versions[props.repo.id], load);
   &__msg { white-space: pre-wrap; font-family: var(--gn-mono); font-size: 12px; background: var(--gn-bg); padding: 8px 10px; border-radius: var(--gn-radius); margin: 10px 0 0; }
   &__files { list-style: none; margin: 6px 0 0; padding: 0; li { display: flex; align-items: center; gap: 6px; padding: 3px 4px; cursor: pointer; font-size: 12px; border-radius: 4px; &:hover, &.on { background: var(--gn-surface-2); } } }
   &__fpath { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--gn-mono); }
-  &__mini { background: none; border: none; cursor: pointer; padding: 0 2px; opacity: 0.7; &:hover { opacity: 1; } }
   &__diff { margin: 8px 0 0; padding: 8px 10px; background: var(--gn-bg); border: 1px solid var(--gn-border); border-radius: var(--gn-radius); font-family: var(--gn-mono); font-size: 11.5px; overflow: auto; max-height: 340px; .a { color: var(--gn-success); } .d { color: var(--gn-danger); } .h { color: var(--gn-accent); } }
   &__detail { width: 420px; border-left: 1px solid var(--gn-border); padding: 14px; overflow: auto; h3 { margin: 0 0 10px; font-size: 14px; } }
 }

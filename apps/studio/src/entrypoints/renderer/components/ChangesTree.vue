@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
-import { GnButton } from '@git-nexus/ui-kit';
+import { GnButton, GnIcon } from '@git-nexus/ui-kit';
 import type { FileEntry } from '@git-nexus/git-core/pure';
 import { checkState, groupEntries, hasStaged, splitPath, statusLabel, statusLetter, type CheckState } from '../changes';
 import { t } from '../i18n';
@@ -254,7 +254,7 @@ watch(
         @auxclick.middle.prevent="openGroupMenu($event, g)"
         @contextmenu.prevent="openGroupMenu($event, g)"
       >
-        <button class="chev" type="button" :class="{ 'chev--closed': collapsed[g] }" :aria-label="collapsed[g] ? t('tree.expand') : t('tree.collapse')" @click="collapsed[g] = !collapsed[g]">▾</button>
+        <button class="chev" type="button" :class="{ 'chev--closed': collapsed[g] }" :aria-label="collapsed[g] ? t('tree.expand') : t('tree.collapse')" @click="collapsed[g] = !collapsed[g]"><GnIcon name="chevron-down" /></button>
         <input
           type="checkbox"
           class="cb"

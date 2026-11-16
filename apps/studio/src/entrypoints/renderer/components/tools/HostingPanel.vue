@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { GnBadge, GnButton } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnSegmented } from '@git-nexus/ui-kit';
 import type { ChangeRequest, ChangeRequestState, CiState, CiStatus, HostingInfo, ProviderKind, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -69,6 +69,16 @@ const state = ref<ChangeRequestState>('open');
 const items = ref<ChangeRequest[]>([]);
 const ci = reactive(new Map<string, CiStatus | 'loading' | 'error'>());
 const STATE_LABEL: Record<ChangeRequestState, MessageKey> = { open: 'hp.state.open', merged: 'hp.state.merged', closed: 'hp.state.closed' };
+const stateOptions = computed(() => (Object.keys(STATE_LABEL) as ChangeRequestState[]).map((k) => ({ value: k, label: t(STATE_LABEL[k]) })));
+const modeOptions = computed(() => [
+  { value: 'list' as const, label: t('hp.list') },
+  { value: 'create' as const, label: t('hp.createCr', { cr: crShort.value }) },
+]);
+/** "Criar" não só troca a aba: prepara o formulário (base, sugestão de título), então passa por startCreate. */
+function onMode(v: 'list' | 'create'): void {
+  if (v === 'create') void startCreate();
+  else mode.value = 'list';
+}
 const STATE_ONE: Record<ChangeRequestState, MessageKey> = { open: 'hp.none.open', merged: 'hp.none.merged', closed: 'hp.none.closed' };
 const STATE_BADGE: Record<ChangeRequestState, MessageKey> = { open: 'hp.badge.open', merged: 'hp.badge.merged', closed: 'hp.badge.closed' };
 
@@ -198,15 +208,10 @@ onMounted(loadInfo);
 
     <template v-if="info?.supported && info.hasToken">
       <div class="hp__bar">
-        <span class="seg">
-          <button type="button" :class="{ on: mode === 'list' }" @click="mode = 'list'">{{ t('hp.list') }}</button>
-          <button type="button" :class="{ on: mode === 'create' }" @click="startCreate">{{ t('hp.createCr', { cr: crShort }) }}</button>
-        </span>
-        <span v-if="mode === 'list'" class="seg">
-          <button v-for="(l, k) in STATE_LABEL" :key="k" type="button" :class="{ on: state === k }" @click="state = k">{{ t(l) }}</button>
-        </span>
+        <GnSegmented :model-value="mode" :options="modeOptions" :aria-label="t('hp.modeAria')" @update:model-value="onMode" />
+        <GnSegmented v-if="mode === 'list'" v-model="state" :options="stateOptions" :aria-label="t('hp.stateAria')" />
         <span class="spacer" />
-        <GnButton size="sm" :title="t('hp.disconnectTip')" @click="disconnect">{{ t('hp.disconnect') }}</GnButton>
+        <GnButton size="sm" tone="danger" :title="t('hp.disconnectTip')" @click="disconnect">{{ t('hp.disconnect') }}</GnButton>
       </div>
 
       <!-- lista -->
@@ -233,9 +238,9 @@ onMounted(loadInfo);
               >
                 {{ t(CI_LABEL[(ciOf(it.sha) as CiStatus).state]) }}
               </GnBadge>
-              <GnButton v-if="firstFailing(ciOf(it.sha) as CiStatus | undefined)" size="sm" @click="open(firstFailing(ciOf(it.sha) as CiStatus)!)">{{ t('gv.seeFailure') }}</GnButton>
+              <GnButton v-if="firstFailing(ciOf(it.sha) as CiStatus | undefined)" size="sm" tone="danger" @click="open(firstFailing(ciOf(it.sha) as CiStatus)!)">{{ t('gv.seeFailure') }}</GnButton>
             </span>
-            <GnButton size="sm" @click="open(it.url)">{{ t('hp.open') }}</GnButton>
+            <GnButton size="sm" tone="accent" @click="open(it.url)">{{ t('hp.open') }}</GnButton>
           </li>
         </ul>
       </section>
@@ -278,7 +283,7 @@ onMounted(loadInfo);
             <GnButton size="sm" type="button" @click="suggest">{{ t('hp.regenerate') }}</GnButton>
           </div>
           <div class="hp__opts">
-            <GnButton type="submit" variant="primary" :disabled="creating || !form.title.trim() || !suggestion">
+            <GnButton type="submit" variant="primary" tone="success" :disabled="creating || !form.title.trim() || !suggestion">
               {{ creating ? t('hp.creating') : t('hp.createCr', { cr: crShort }) }}
             </GnButton>
           </div>
@@ -310,10 +315,6 @@ onMounted(loadInfo);
   &__t { display: flex; align-items: center; gap: 8px; strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
   &__m { font-size: 11px; margin-top: 2px; }
   &__ci { display: flex; align-items: center; gap: 6px; min-width: 130px; justify-content: flex-end; }
-}
-.seg {
-  display: inline-flex; border: 1px solid var(--gn-border); border-radius: var(--gn-radius); overflow: hidden;
-  button { padding: 3px 12px; font: inherit; font-size: 12px; color: var(--gn-muted); background: none; border: none; cursor: pointer; &.on { background: var(--gn-accent); color: #fff; } }
 }
 .chk { display: inline-flex !important; align-items: center; gap: 6px; flex-direction: row; }
 .mono { font-family: var(--gn-mono); font-size: 12px; }

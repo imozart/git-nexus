@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { GnBadge, GnButton } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnButtonGroup, GnIconButton, GnSegmented } from '@git-nexus/ui-kit';
 import type { FileEntry, FileSides, RebaseState, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { checkState, groupEntries, hasStaged, isUntracked, statusLabel, statusLetter } from '../changes';
@@ -44,7 +44,12 @@ const SOURCES: Array<{ id: Source; label: MessageKey; hint: MessageKey }> = [
 ];
 const stored = localStorage.getItem(SOURCE_KEY);
 const source = ref<Source>(stored === 'index' || stored === 'staged' ? stored : 'head');
+const sourceOptions = computed(() => SOURCES.map((o) => ({ value: o.id, label: t(o.label), title: t(o.hint) })));
 const viewMode = ref<'split' | 'unified'>(localStorage.getItem(MODE_KEY) === 'unified' ? 'unified' : 'split');
+const viewOptions = computed(() => [
+  { value: 'split' as const, label: t('rv.split') },
+  { value: 'unified' as const, label: t('rv.unified') },
+]);
 const showCommit = ref(localStorage.getItem(COMMIT_KEY) !== '0');
 const collapse = ref(localStorage.getItem(COLLAPSE_KEY) !== '0');
 watch(viewMode, (m) => {
@@ -556,7 +561,7 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
         <span class="muted rv__path">{{ repo.path }}</span>
       </div>
       <div class="rv__btns">
-        <GnButton size="sm" tone="accent" :disabled="loading" @click="refresh()">{{ t('rv.refresh') }}</GnButton>
+        <GnButton size="sm" :disabled="loading" @click="refresh()">{{ t('rv.refresh') }}</GnButton>
         <GnButton size="sm" tone="accent" @click="ws.open('graph', repo)">{{ t('rv.graph') }}</GnButton>
         <GnButton size="sm" tone="accent" @click="ws.open('tools', repo)">{{ t('rv.tools') }}</GnButton>
         <GnButton size="sm" :tone="conflicted.length ? 'warn' : 'neutral'" :variant="conflicted.length ? 'primary' : 'ghost'" @click="ws.open('merge', repo)">
@@ -567,13 +572,13 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
 
     <div v-if="rebase?.inProgress" class="rv__rebase">
       <span>⇅ {{ t('rv.rebaseRunning', { step: rebase.step, total: rebase.total }) }}{{ rebase.conflicted.length ? t('rv.rebaseConflicts', { n: rebase.conflicted.length }) : '' }}.</span>
-      <GnButton size="sm" variant="primary" @click="ws.openTools(repo, 'rebase')">{{ t('rv.openRebase') }}</GnButton>
+      <GnButton size="sm" variant="primary" tone="warn" @click="ws.openTools(repo, 'rebase')">{{ t('rv.openRebase') }}</GnButton>
     </div>
     <p v-if="error" class="rv__error">{{ error }}</p>
     <div v-if="notice" class="rv__notice">
       <span>{{ notice.text }}</span>
-      <GnButton v-if="notice.undo" size="sm" variant="primary" @click="runUndo">{{ t('rv.undo') }}</GnButton>
-      <GnButton size="sm" @click="notice = null">×</GnButton>
+      <GnButton v-if="notice.undo" size="sm" tone="warn" @click="runUndo">{{ t('rv.undo') }}</GnButton>
+      <GnIconButton icon="x" :label="t('home.close')" @click="notice = null" />
     </div>
 
     <div class="rv__main">
@@ -594,14 +599,18 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
 
         <main class="rv__diff">
           <div class="rv__toolbar">
-            <GnButton size="sm" :disabled="!nav.prevDiff" :title="t('rv.prevDiffTip')" :aria-label="t('rv.cmd.prevDiff')" @click="goDiff(-1)">↑</GnButton>
-            <GnButton size="sm" :disabled="!nav.nextDiff" :title="t('rv.nextDiffTip')" :aria-label="t('rv.cmd.nextDiff')" @click="goDiff(1)">↓</GnButton>
-            <span class="sepv" />
-            <GnButton size="sm" :disabled="!nav.prevFile" :title="t('rv.prevFileTip')" :aria-label="t('rv.cmd.prevFile')" @click="goFile(-1)">←</GnButton>
-            <GnButton size="sm" :disabled="!nav.nextFile" :title="t('rv.nextFileTip')" :aria-label="t('rv.cmd.nextFile')" @click="goFile(1)">→</GnButton>
+            <!-- cada contador junto do par que ele descreve: arquivo (← →) e, depois, diferença (↑ ↓) -->
+            <GnButtonGroup :label="t('rv.navFiles')">
+              <GnIconButton icon="left" :disabled="!nav.prevFile" :title="t('rv.prevFileTip')" :label="t('rv.cmd.prevFile')" @click="goFile(-1)" />
+              <GnIconButton icon="right" :disabled="!nav.nextFile" :title="t('rv.nextFileTip')" :label="t('rv.cmd.nextFile')" @click="goFile(1)" />
+            </GnButtonGroup>
             <span v-if="active" class="muted">{{ t('rv.fileOf', { i: activeIndex + 1, n: ordered.length }) }}</span>
+            <span class="sepv" />
+            <GnButtonGroup :label="t('rv.navDiffs')">
+              <GnIconButton icon="up" :disabled="!nav.prevDiff" :title="t('rv.prevDiffTip')" :label="t('rv.cmd.prevDiff')" @click="goDiff(-1)" />
+              <GnIconButton icon="down" :disabled="!nav.nextDiff" :title="t('rv.nextDiffTip')" :label="t('rv.cmd.nextDiff')" @click="goDiff(1)" />
+            </GnButtonGroup>
             <template v-if="active">
-              <span class="sepv" />
               <span class="muted">{{ curDiff >= 0 ? t('rv.diffOf', { i: curDiff + 1, n: diffCount }) : t('rv.diffCount', { n: diffCount }) }}</span>
               <template v-if="showSplit">
                 <span class="stat stat--add">+{{ stats.added }}</span>
@@ -610,15 +619,8 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
             </template>
             <span class="spacer" />
             <label v-if="showSplit" class="muted opt"><input v-model="collapse" type="checkbox" /> {{ t('rv.collapseUnchanged') }}</label>
-            <span class="seg" :title="t('rv.whatToCompare')">
-              <button v-for="o in SOURCES" :key="o.id" type="button" :class="{ on: source === o.id }" :title="t(o.hint)" @click="source = o.id">
-                {{ t(o.label) }}
-              </button>
-            </span>
-            <span class="seg">
-              <button type="button" :class="{ on: viewMode === 'split' }" @click="viewMode = 'split'">{{ t('rv.split') }}</button>
-              <button type="button" :class="{ on: viewMode === 'unified' }" @click="viewMode = 'unified'">{{ t('rv.unified') }}</button>
-            </span>
+            <GnSegmented v-model="source" :options="sourceOptions" :aria-label="t('rv.whatToCompare')" :title="t('rv.whatToCompare')" />
+            <GnSegmented v-model="viewMode" :options="viewOptions" :aria-label="t('rv.viewMode')" />
           </div>
 
           <div v-if="!active || !activeEntry" class="muted placeholder">{{ t('rv.selectFile') }}</div>
@@ -712,15 +714,6 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
 .sepv { width: 1px; height: 18px; background: var(--gn-border); margin: 0 4px; }
 .stat { font-family: var(--gn-mono); font-size: 12px; &--add { color: var(--gn-success); } &--del { color: var(--gn-danger); } }
 .opt { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer; }
-.seg {
-  display: inline-flex; border: 1px solid var(--gn-border); border-radius: var(--gn-radius); overflow: hidden;
-  button {
-    padding: 2px 10px; font: inherit; font-size: 12px; color: var(--gn-muted);
-    background: none; border: none; cursor: pointer;
-    &.on { background: var(--gn-accent); color: #fff; }
-    &:not(.on):hover { color: var(--gn-text); }
-  }
-}
 .spacer { flex: 1; }
 .muted { color: var(--gn-muted); font-size: 12px; }
 .placeholder { padding: 40px; text-align: center; }

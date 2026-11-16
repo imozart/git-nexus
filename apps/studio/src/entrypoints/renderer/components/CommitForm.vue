@@ -324,7 +324,7 @@ async function saveTeamPolicy(): Promise<void> {
       </ul>
       <small class="muted">{{ t('commit.secretsHelp') }}</small>
       <div class="cf__secrets-actions">
-        <GnButton size="sm" type="button" @click="secretReport = null">{{ t('commit.back') }}</GnButton>
+        <GnButton size="sm" variant="primary" type="button" @click="secretReport = null">{{ t('commit.back') }}</GnButton>
         <GnButton v-if="secretReport.mode !== 'block'" size="sm" variant="danger" type="button" @click="commitAnyway">
           {{ t('commit.anyway') }}
         </GnButton>
