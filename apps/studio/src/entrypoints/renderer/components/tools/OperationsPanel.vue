@@ -99,6 +99,7 @@ watch(() => ws.versions[props.repo.id], load);
         <GnButton
           size="sm"
           :variant="i === 0 ? 'primary' : 'ghost'"
+          tone="warn"
           :disabled="!o.undoable"
           :title="o.undoable ? t('ops.undoTip') : o.undoReason"
           @click="confirm = o"

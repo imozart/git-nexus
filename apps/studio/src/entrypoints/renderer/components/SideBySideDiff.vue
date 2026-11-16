@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import { applyDiscard, applyStage, blockRows, diffLines, splitLines, type DiffRow } from '@git-nexus/git-core/pure';
+import { GnIcon } from '@git-nexus/ui-kit';
 import { t } from '../i18n';
 
 const props = defineProps<{
@@ -171,35 +172,44 @@ const KIND_CLASS: Record<DiffRow['kind'], string> = { eq: '', change: 'row--chan
           <span class="code" :class="{ 'code--empty': it.row.oldText === undefined }">{{ it.row.oldText }}</span>
           <span class="ctrl">
             <template v-if="stageAction && it.row.kind !== 'eq'">
-              <button
-                v-if="isFirstOfBlock(it.idx)"
-                class="ctrl__btn ctrl__btn--stage ctrl__btn--block"
-                type="button"
-                :title="stageAction === 'stage' ? t('sbs.stageBlock') : t('sbs.unstageBlock')"
-                @click="stageBlock(it.row.block)"
-              >
-                {{ stageAction === 'stage' ? '⊕' : '⊖' }}
-              </button>
-              <button
-                class="ctrl__btn ctrl__btn--stage"
-                type="button"
-                :title="stageAction === 'stage' ? t('sbs.stageLine') : t('sbs.unstageLine')"
-                @click="stageRow(it.idx)"
-              >
-                {{ stageAction === 'stage' ? '+' : '−' }}
-              </button>
-            </template>
-            <template v-if="canDiscard && it.row.kind !== 'eq'">
+              <!-- incluir no commit = verde; retirar do commit não é positivo nem perigoso: neutro -->
               <button
                 v-if="isFirstOfBlock(it.idx)"
                 class="ctrl__btn ctrl__btn--block"
+                :class="stageAction === 'stage' ? 'ctrl__btn--stage' : 'ctrl__btn--unstage'"
+                type="button"
+                :title="stageAction === 'stage' ? t('sbs.stageBlock') : t('sbs.unstageBlock')"
+                :aria-label="stageAction === 'stage' ? t('sbs.stageBlock') : t('sbs.unstageBlock')"
+                @click="stageBlock(it.row.block)"
+              >
+                <GnIcon :name="stageAction === 'stage' ? 'plus' : 'minus'" />
+              </button>
+              <button
+                class="ctrl__btn"
+                :class="stageAction === 'stage' ? 'ctrl__btn--stage' : 'ctrl__btn--unstage'"
+                type="button"
+                :title="stageAction === 'stage' ? t('sbs.stageLine') : t('sbs.unstageLine')"
+                :aria-label="stageAction === 'stage' ? t('sbs.stageLine') : t('sbs.unstageLine')"
+                @click="stageRow(it.idx)"
+              >
+                <GnIcon :name="stageAction === 'stage' ? 'plus' : 'minus'" />
+              </button>
+            </template>
+            <template v-if="canDiscard && it.row.kind !== 'eq'">
+              <!-- descartar apaga alterações: vermelho (esmaecido no bloco, que apaga mais); a seta aponta de onde o conteúdo volta (esquerda) -->
+              <button
+                v-if="isFirstOfBlock(it.idx)"
+                class="ctrl__btn ctrl__btn--block ctrl__btn--discard-block"
                 type="button"
                 :title="t('sbs.discardBlock')"
+                :aria-label="t('sbs.discardBlock')"
                 @click="discardBlock(it.row.block)"
               >
-                »
+                <GnIcon name="arrow-right" />
               </button>
-              <button class="ctrl__btn" type="button" :title="t('sbs.discardLine')" @click="discardRow(it.idx)">›</button>
+              <button class="ctrl__btn" type="button" :title="t('sbs.discardLine')" :aria-label="t('sbs.discardLine')" @click="discardRow(it.idx)">
+                <GnIcon name="arrow-right" />
+              </button>
             </template>
           </span>
           <span class="no">{{ it.row.newNo }}</span>
@@ -247,21 +257,25 @@ const KIND_CLASS: Record<DiffRow['kind'], string> = { eq: '', change: 'row--chan
   background: var(--gn-bg);
   border-left: 1px solid var(--gn-border);
   border-right: 1px solid var(--gn-border);
+  // Cores: descartar (padrão) = cinza e vermelho no hover; incluir no commit = verde; retirar do commit = neutro. No hover o texto é escuro
+  // (o branco sobre o verde ou o vermelho dava menos de 3:1). Bloco = contorno, para diferenciar do botão de uma linha.
   &__btn {
-    width: 20px;
-    height: 18px;
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 20px;
     padding: 0;
-    line-height: 1;
-    font: inherit;
-    font-weight: 700;
+    font-size: 13px;
     color: var(--gn-muted);
     background: none;
     border: 1px solid transparent;
     border-radius: 4px;
     cursor: pointer;
-    &:hover { color: #fff; background: var(--gn-danger); }
-    &--block { color: var(--gn-accent); }
-    &--stage { color: var(--gn-success); &:hover { color: #fff; background: var(--gn-success); } }
+    &:hover { color: #200a09; background: var(--gn-danger); }
+    &--block { border-color: currentColor; }
+    &--discard-block { color: color-mix(in srgb, var(--gn-danger) 70%, var(--gn-muted)); }
+    &--stage { color: var(--gn-success); &:hover { color: #0d1a11; background: var(--gn-success); } }
+    &--unstage:hover { color: var(--gn-text); background: var(--gn-surface-2); }
   }
 }
 // diferença atual (navegação ↑/↓)

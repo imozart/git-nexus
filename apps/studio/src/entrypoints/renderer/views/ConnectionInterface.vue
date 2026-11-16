@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { GnBadge, GnButton } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnIconButton } from '@git-nexus/ui-kit';
 import type { RepoSummary, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { dateLocale, t } from '../i18n';
 import { useRepositoriesStore } from '../stores/repositories';
@@ -72,7 +72,7 @@ const fmt = (ts: number) => (ts ? new Date(ts).toLocaleString(dateLocale.value) 
     <div class="conn__bar">
       <input v-model="store.query" class="conn__search" :placeholder="t('home.search')" />
       <label class="muted opt"><input v-model="store.onlyPending" type="checkbox" /> {{ t('home.onlyPending') }}</label>
-      <GnButton size="sm" tone="accent" :disabled="!!store.progress" @click="store.refreshSummaries()">{{ t('home.refreshStatus') }}</GnButton>
+      <GnButton size="sm" :disabled="!!store.progress" @click="store.refreshSummaries()">{{ t('home.refreshStatus') }}</GnButton>
       <GnButton size="sm" tone="accent" :disabled="!!store.progress" :title="t('home.fetchAllTitle')" @click="store.fetchAll()">{{ t('home.fetchAll') }}</GnButton>
       <GnButton size="sm" variant="primary" :disabled="!!store.progress" :title="t('home.pullSafeTitle')" @click="store.pullSafe()">
         {{ t('home.pullSafe') }}
@@ -122,12 +122,10 @@ const fmt = (ts: number) => (ts ? new Date(ts).toLocaleString(dateLocale.value) 
           <div class="muted repo__time">{{ fmt(r.lastOpenedAt) }}</div>
         </div>
         <div class="repo__btns">
-          <GnButton size="sm" variant="primary" @click="open(r)">{{ t('home.open') }}</GnButton>
-          <GnButton size="sm" tone="accent" :disabled="!!store.working[r.id]" :title="t('home.fetchTitle')" @click="store.syncOne(r, 'fetch')">{{ t('home.fetch') }}</GnButton>
+          <GnButton size="sm" tone="accent" @click="open(r)">{{ t('home.open') }}</GnButton>
+          <GnButton size="sm" :disabled="!!store.working[r.id]" :title="t('home.fetchTitle')" @click="store.syncOne(r, 'fetch')">{{ t('home.fetch') }}</GnButton>
           <GnButton size="sm" tone="accent" :disabled="!!store.working[r.id] || !sum(r)?.upstream" :title="t('home.pullTitle')" @click="pullOne(r)">{{ t('home.pull') }}</GnButton>
-          <GnButton size="sm" variant="danger" :title="t('home.removeTitle')" @click="remove(r)">
-            {{ t('home.remove') }}
-          </GnButton>
+          <GnIconButton icon="trash" tone="danger" :label="t('home.remove')" :title="t('home.removeTitle')" @click="remove(r)" />
         </div>
       </li>
     </ul>

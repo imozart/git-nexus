@@ -237,7 +237,7 @@ watch(() => ws.versions[props.repo.id], load);
           </template>
         </header>
         <div class="st__actions">
-          <GnButton size="sm" variant="primary" @click="apply(true)" :title="t('stash.applyDropTip')">{{ t('stash.applyDrop') }}</GnButton>
+          <GnButton size="sm" tone="accent" @click="apply(true)" :title="t('stash.applyDropTip')">{{ t('stash.applyDrop') }}</GnButton>
           <GnButton size="sm" @click="apply(false)" :title="t('stash.applyKeepTip')">{{ t('stash.applyKeep') }}</GnButton>
           <GnButton size="sm" variant="danger" @click="askDrop">{{ t('stash.drop') }}</GnButton>
         </div>

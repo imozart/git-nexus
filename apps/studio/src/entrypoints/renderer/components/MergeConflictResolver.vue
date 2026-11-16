@@ -72,7 +72,7 @@ const noBase = computed(() => props.block.base === '');
         <GnButton size="sm" @click="chooseAll('theirs')">{{ t('mcr.theirsShort') }}</GnButton>
         <GnButton size="sm" @click="chooseAll('both')">{{ t('mcr.both') }}</GnButton>
       </template>
-      <GnButton size="sm" variant="ghost" @click="reset">{{ t('mcr.reset') }}</GnButton>
+      <GnButton size="sm" variant="ghost" tone="warn" @click="reset">{{ t('mcr.reset') }}</GnButton>
     </div>
 
     <div v-if="regions.length" class="mcr__blocks">
@@ -96,7 +96,7 @@ const noBase = computed(() => props.block.base === '');
         {{ t('mcr.locked') }}
       </span>
       <span v-else class="ok">{{ t('mcr.ready') }}</span>
-      <GnButton variant="primary" :disabled="locked || busy" @click="emit('resolve', result)">
+      <GnButton variant="primary" tone="success" :disabled="locked || busy" @click="emit('resolve', result)">
         {{ t('mcr.markResolved') }}
       </GnButton>
     </div>
