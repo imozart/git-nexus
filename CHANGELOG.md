@@ -4,6 +4,26 @@ Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https:/
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.9.0] - 2026-11-16
+
+### ✨ Novidades
+
+- **ui:** botões por contexto, navegação do diff agrupada, seletores e ícones padronizados ([`203976e`](https://github.com/imozart/git-nexus/commit/203976ee739304dc4e082da416cbe5b92287806d))
+- **ui-kit:** GnIcon, GnIconButton, GnButtonGroup e GnSegmented; botão leve colorido e azul sólido acessível ([`a66034c`](https://github.com/imozart/git-nexus/commit/a66034c5de7c4433804fc7662657d8610712bf6e))
+
+### ♻️ Refatorações
+
+- **update:** faixa de atualização usa GnButton, no padrão de cores dos botões ([`9fd2a13`](https://github.com/imozart/git-nexus/commit/9fd2a13deaf79fa8d6eaf4c30c1a8e1192d160bd))
+
+### 📚 Documentação
+
+- **ui:** guia dos componentes Gn*, regras de cor e ícones, e teste que impede regressão ([`7347b8e`](https://github.com/imozart/git-nexus/commit/7347b8ecca5ef17c1a431b0e694a56705bd9c8a0))
+
+### 🧪 Testes
+
+- **ui:** CoreInterface tem 9 botões crus na main (a faixa ganhou Baixar manualmente no estado pronto) ([`a3f4af5`](https://github.com/imozart/git-nexus/commit/a3f4af577fc9c95568bcdab1ab62fe1c7b1b057e))
+- **ui:** azul sólido do botão passa a ser o --gn-accent-solid no teste de tons ([`a6bd88e`](https://github.com/imozart/git-nexus/commit/a6bd88ea4c4390d60c9c456d5a90d39c00374a10))
+
 ## [1.8.2] - 2026-11-16
 
 ### 🐛 Correções
@@ -211,6 +231,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.9.0]: https://github.com/imozart/git-nexus/compare/v1.8.2...v1.9.0
 [1.8.2]: https://github.com/imozart/git-nexus/compare/v1.8.1...v1.8.2
 [1.8.1]: https://github.com/imozart/git-nexus/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/imozart/git-nexus/compare/v1.7.0...v1.8.0
