@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:ui": "pnpm --filter @git-nexus/studio ui-test",
+    "test:e2e": "pnpm --filter @git-nexus/studio e2e",
     "dist": "pnpm --filter @git-nexus/studio dist"
   },
   "devDependencies": {

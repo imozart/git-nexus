@@ -1,5 +1,6 @@
-// Utilitários dos testes de interface: conecta ao navegador (headless) por CDP e oferece ações/verificações simples.
-// Quem sobe o harness e o navegador é o run.mjs; cada teste (tests/*.mjs) só usa `connect`.
+// Utilitários dos testes de interface: conecta ao navegador (headless) ou à janela real do Electron por CDP e oferece ações/verificações simples.
+// Quem sobe o harness e o navegador é o run.mjs; quem abre o app empacotado é o run-electron.mjs; cada teste só usa `connect`.
+// Janela real (run-electron.mjs): GN_UI_REAL=1 não força o tamanho da janela e GN_UI_URL_MATCH escolhe a página (o app carrega file://).
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -27,6 +28,8 @@ export function mkRepo(root, name, { branch = 'main', files = { 'a.txt': 'um\n' 
 
 const CDP_PORT = Number(process.env.GN_UI_CDP_PORT ?? 9400);
 const APP_PORT = Number(process.env.GN_UI_APP_PORT ?? 5199);
+const REAL = process.env.GN_UI_REAL === '1';
+const URL_MATCH = process.env.GN_UI_URL_MATCH ?? String(APP_PORT);
 
 export async function connect(OUT, results) {
   mkdirSync(OUT, { recursive: true });
@@ -34,7 +37,7 @@ export async function connect(OUT, results) {
   const target = await (async () => {
     for (let i = 0; i < 60; i++) {
       try {
-        const t = (await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json()).find((x) => x.type === 'page' && x.url.includes(String(APP_PORT)));
+        const t = (await (await fetch(`http://127.0.0.1:${CDP_PORT}/json`)).json()).find((x) => x.type === 'page' && x.url.includes(URL_MATCH));
         if (t) return t;
       } catch {
         /* navegador ainda subindo */
@@ -47,12 +50,16 @@ export async function connect(OUT, results) {
   await new Promise((res) => (ws.onopen = res));
   let id = 0;
   const waiters = new Map();
+  /** Erros da página desde que a conexão abriu: exceção não tratada, console.error e entradas de log de nível error. */
+  const pageErrors = [];
   ws.onmessage = (m) => {
     const d = JSON.parse(m.data);
     if (d.id && waiters.has(d.id)) {
       waiters.get(d.id)(d);
       waiters.delete(d.id);
-    }
+    } else if (d.method === 'Runtime.exceptionThrown') pageErrors.push(d.params.exceptionDetails?.exception?.description ?? d.params.exceptionDetails?.text ?? 'exceção');
+    else if (d.method === 'Runtime.consoleAPICalled' && d.params.type === 'error') pageErrors.push(d.params.args?.map((a) => a.value ?? a.description).join(' '));
+    else if (d.method === 'Log.entryAdded' && d.params.entry.level === 'error') pageErrors.push(`${d.params.entry.text} ${d.params.entry.url ?? ''}`.trim());
   };
   const send = (method, params = {}) =>
     new Promise((res, rej) => {
@@ -106,7 +113,9 @@ export async function connect(OUT, results) {
   };
   await send('Page.enable');
   await send('Runtime.enable');
-  await send('Emulation.setDeviceMetricsOverride', { width: 1500, height: 900, deviceScaleFactor: 1, mobile: false });
+  await send('Log.enable');
+  // no navegador headless a tela é fixa em 1500x900; na janela real do Electron vale o tamanho que o app abriu
+  if (!REAL) await send('Emulation.setDeviceMetricsOverride', { width: 1500, height: 900, deviceScaleFactor: 1, mobile: false });
   // partida a frio (navegador novo, máquina lenta): só segue quando a interface montou
   for (let i = 0; i < 80; i++) {
     try {
@@ -141,6 +150,8 @@ export async function connect(OUT, results) {
     until,
     check,
     openRepo,
+    /** Erros da página até agora (vazio = nenhum). */
+    errors: () => [...pageErrors],
     /** Encerra com código 1 se alguma verificação falhou. O resultado também sai em JSON no stdout para o run.mjs. */
     close: () => {
       ws.close();

@@ -9,19 +9,19 @@
 // Variáveis: CHROME_PATH (navegador), GN_UI_OUT (pasta das capturas de tela), GN_UI_APP_PORT / GN_UI_CDP_PORT.
 // Um arquivo que falha é repetido UMA vez (partida a frio de navegador em máquina lenta dá falso negativo); falhou duas vezes, falhou.
 
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
+import { killTree, sleep, waitFor } from './proc.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const studio = resolve(here, '..', '..');
 const APP_PORT = Number(process.env.GN_UI_APP_PORT ?? 5199);
 const CDP_PORT = Number(process.env.GN_UI_CDP_PORT ?? 9400);
 const OUT = process.env.GN_UI_OUT ?? join(tmpdir(), 'gitnexus-ui-tests');
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function findBrowser() {
   const candidates = [
@@ -39,32 +39,6 @@ function findBrowser() {
   const found = candidates.find((p) => existsSync(p));
   if (!found) throw new Error('Nenhum Chrome/Edge encontrado. Defina CHROME_PATH com o caminho do executável.');
   return found;
-}
-
-/** Encerra o processo e os filhos (o Chrome e o Edge criam vários processos). */
-function killTree(child) {
-  if (!child?.pid) return;
-  if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
-  else {
-    try {
-      process.kill(-child.pid, 'SIGKILL');
-    } catch {
-      child.kill('SIGKILL');
-    }
-  }
-}
-
-async function waitFor(url, what, ms = 30000) {
-  const end = Date.now() + ms;
-  while (Date.now() < end) {
-    try {
-      if ((await fetch(url)).ok) return;
-    } catch {
-      /* ainda subindo */
-    }
-    await sleep(300);
-  }
-  throw new Error(`${what} não respondeu em ${ms / 1000}s (${url})`);
 }
 
 /** Roda um arquivo de teste com harness e navegador novos. Devolve `{ ok, checks, lines }`. */
@@ -158,6 +132,7 @@ async function main() {
     let r = await runOne({ file, work, harness, dist, browser });
     if (!r.ok) {
       console.log(`↻ ${file} falhou; repetindo uma vez (partida a frio dá falso negativo)`);
+      for (const l of r.lines) console.log(l); // o motivo da 1ª tentativa também importa: uma falha que só a repetição esconde é instabilidade
       r = await runOne({ file, work, harness, dist, browser });
     }
     console.log(`${r.ok ? '✔' : '✘'} ${file} (${r.checks} verificações)`);

@@ -18,7 +18,8 @@
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "ui-test": "node scripts/ui-tests/run.mjs",
     "dist": "pnpm build && electron-builder --win",
-    "pack:dir": "pnpm build && electron-builder --dir"
+    "pack:dir": "pnpm build && electron-builder --dir",
+    "e2e": "node scripts/ui-tests/run-electron.mjs"
   },
   "devDependencies": {
     "@codemirror/commands": "^6.11.1",
