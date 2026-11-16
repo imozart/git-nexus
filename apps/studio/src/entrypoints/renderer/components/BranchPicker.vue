@@ -31,6 +31,9 @@ const loading = ref(false);
 const busy = ref(false);
 const data = ref<BranchList | null>(null);
 const q = ref('');
+/** Filtro "Só desatualizadas": locais atrás do remoto, divergidas ou com a remota apagada. */
+const onlyStale = ref(false);
+const isStale = (b: BranchInfo) => b.kind === 'local' && (b.gone || b.behind > 0);
 const error = ref('');
 const trigger = ref<HTMLElement | null>(null);
 const panel = ref<HTMLElement | null>(null);
@@ -74,17 +77,19 @@ const sections = computed<Section[]>(() => {
   if (!d) return [];
   const byName = new Map(d.locals.map((b) => [b.name, b]));
   const out: Section[] = [];
-  const recent = needle.value ? [] : d.recent.map((n) => byName.get(n)).filter((b): b is BranchInfo => !!b);
+  const recent = needle.value ? [] : d.recent.map((n) => byName.get(n)).filter((b): b is BranchInfo => !!b && (!onlyStale.value || isStale(b)));
   if (recent.length) out.push({ id: 'recent', title: t('bp.recent'), count: recent.length, groups: [{ key: 'recent', rows: recent }] });
-  const locals = d.locals.filter(matches);
+  const locals = d.locals.filter((b) => matches(b) && (!onlyStale.value || isStale(b)));
   if (locals.length) out.push({ id: 'local', title: t('bp.local'), count: locals.length, groups: [{ key: 'local', rows: locals }] });
-  const remoteGroups = d.remoteNames
+  const remoteGroups = onlyStale.value
+    ? [] // "desatualizada" só faz sentido numa branch local
+    : d.remoteNames
     .map((remote) => ({ key: `remote:${remote}`, title: remote, rows: d.remotes.filter((b) => b.remote === remote && matches(b)) }))
     .filter((g) => g.rows.length);
   if (remoteGroups.length) out.push({ id: 'remote', title: t('bp.remote'), count: remoteGroups.reduce((n, g) => n + g.rows.length, 0), groups: remoteGroups });
   return out;
 });
-const isOpen = (id: SectionId) => !!needle.value || expanded.value[id];
+const isOpen = (id: SectionId) => !!needle.value || onlyStale.value || expanded.value[id];
 function toggleSection(id: SectionId): void {
   expanded.value = { ...expanded.value, [id]: !expanded.value[id] };
   localStorage.setItem(EXPANDED_KEY, JSON.stringify(expanded.value));
@@ -118,6 +123,7 @@ function placePanel(): void {
 async function toggle(): Promise<void> {
   if (open.value) return closeAll();
   q.value = '';
+  onlyStale.value = false;
   error.value = '';
   fly.value = null;
   placePanel();
@@ -390,6 +396,7 @@ onBeforeUnmount(() => {
         </div>
         <p v-if="error" class="bp__err" role="alert">{{ error }}</p>
 
+        <label class="bp__opt" :title="t('bp.onlyStaleTip')"><input v-model="onlyStale" type="checkbox" data-nav data-testid="stale-filter" /> {{ t('bp.onlyStale') }}</label>
         <div class="bp__scroll">
           <template v-if="!needle">
             <button type="button" class="bp__item" data-nav :disabled="busy || loading" :title="t('bp.updateTip')" @click="doUpdate()">
@@ -410,6 +417,7 @@ onBeforeUnmount(() => {
 
           <p v-if="loading && !data" class="bp__muted">{{ t('bp.loading') }}</p>
           <p v-else-if="needle && !sections.length" class="bp__muted">{{ t('bp.noMatch', { q: q.trim() }) }}</p>
+          <p v-else-if="onlyStale && !sections.length" class="bp__muted" data-testid="stale-none">{{ t('bp.noStale') }}</p>
 
           <section v-for="s in sections" :key="s.id">
             <button type="button" class="bp__sec" data-nav :aria-expanded="isOpen(s.id)" @click="toggleSection(s.id)">
@@ -442,9 +450,7 @@ onBeforeUnmount(() => {
                       <template v-else>{{ p }}</template>
                     </template>
                   </span>
-                  <GnBadge v-if="b.ahead" tone="success" :title="t('bp.ahead', { n: b.ahead })">↑{{ b.ahead }}</GnBadge>
-                  <GnBadge v-if="b.behind" tone="warn" :title="t('bp.behind', { n: b.behind })">↓{{ b.behind }}</GnBadge>
-                  <GnBadge v-if="b.gone" tone="danger" :title="t('bp.gone')">!</GnBadge>
+                  <SyncIndicator v-if="b.kind === 'local'" :sync="b" hide-no-upstream />
                   <GnIcon class="bp__more" name="chevron-right" />
                 </button>
               </div>

@@ -44,7 +44,7 @@ t.check('desligada: sem indicador no botão', (await t.count('.bp__btn .sync')) 
 await t.ev(`document.querySelector('.bp__btn').click()`);
 await t.until(`document.querySelector('.bp__panel [data-testid="auto-fetch"]')`, 8000);
 t.check('a caixa "Buscar automaticamente" está no painel, desmarcada', (await t.ev(`document.querySelector('[data-testid="auto-fetch"]').checked`)) === false);
-t.check('o rótulo está em português', /Buscar automaticamente/.test((await t.ev(`document.querySelector('.bp__opt').textContent`)) ?? ''));
+t.check('o rótulo está em português', /Buscar automaticamente/.test((await t.ev(`document.querySelector('[data-testid="auto-fetch"]').closest('label').textContent`)) ?? ''));
 
 // --- liga: a preferência é lembrada e o próximo foco da janela busca sozinho ----------------------------------------------------
 await t.ev(`document.querySelector('[data-testid="auto-fetch"]').click()`);

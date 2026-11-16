@@ -1,19 +1,20 @@
 <script setup lang="ts">
 // Indicador de sincronização de uma branch com o remoto: `↓N` (commits do remoto que ainda não vieram, âmbar) e `↑N` (commits locais ainda
 // não enviados, verde). Em dia não mostra nada. Divergida mostra os dois e um `!`; sem upstream, um ∅ neutro; remota apagada, um `!` vermelho.
-// Só texto (nada de ícone SVG) e sempre com o significado no tooltip: a informação não pode depender só da cor.
+// Só texto (nada de ícone SVG) e sempre com o significado no tooltip e no nome acessível (role=img): a informação não depende só da cor.
 import { computed } from 'vue';
 import { GnBadge } from '@git-nexus/ui-kit';
 import { syncState, type SyncInfo } from '@git-nexus/git-core/pure';
 import { syncText } from '../sync';
 
-const props = defineProps<{ sync: SyncInfo | null }>();
+/** `hideNoUpstream`: em listas, onde quase toda branch local nova não tem upstream, o ∅ só faria ruído. */
+const props = defineProps<{ sync: SyncInfo | null; hideNoUpstream?: boolean }>();
 const state = computed(() => (props.sync ? syncState(props.sync) : null));
 const title = computed(() => syncText(props.sync));
 </script>
 
 <template>
-  <span v-if="sync && state && state !== 'in-sync' && state !== 'detached'" class="sync" :data-sync="state" :title="title" aria-hidden="true">
+  <span v-if="sync && state && state !== 'in-sync' && state !== 'detached' && !(hideNoUpstream && state === 'no-upstream')" class="sync" :data-sync="state" :title="title" role="img" :aria-label="title">
     <GnBadge v-if="sync.behind > 0" tone="warn" class="sync__behind">↓{{ sync.behind }}</GnBadge>
     <GnBadge v-if="sync.ahead > 0" tone="success" class="sync__ahead">↑{{ sync.ahead }}</GnBadge>
     <GnBadge v-if="state === 'diverged'" tone="warn" class="sync__alert">!</GnBadge>

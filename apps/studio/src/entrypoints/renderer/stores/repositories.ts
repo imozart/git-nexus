@@ -58,7 +58,7 @@ export const useRepositoriesStore = defineStore('repositories', () => {
   /** Precisa de atenção: alterações locais, commits para enviar/receber ou conflitos. */
   const needsAttention = (r: RepositoryMeta) => {
     const s = summaries.value[r.id];
-    return !s || !isOk(s) || isDirty(s) || s.untracked > 0 || s.ahead > 0 || s.behind > 0;
+    return !s || !isOk(s) || isDirty(s) || s.untracked > 0 || s.ahead > 0 || s.behind > 0 || s.gone;
   };
 
   async function syncOne(r: RepositoryMeta, kind: 'fetch' | 'pull'): Promise<{ ok: boolean; message: string }> {
