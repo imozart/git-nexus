@@ -2,7 +2,7 @@
 // Calcula a próxima versão (SemVer via Conventional Commits) e gera as notas da release.
 // Sem dependências: roda no GitHub Actions e localmente.
 //
-//   node scripts/release-info.mjs next  [--bump auto|major|minor|patch] [--channel stable|beta]
+//   node scripts/release-info.mjs next  [--bump auto|major|minor|patch] [--channel stable|beta] [--force]
 //   node scripts/release-info.mjs notes --version 1.2.3 [--repo dono/repo] [--assets pasta] [--out notas.md]
 //
 // Regras de versão (a cada merge na main sai uma release):
@@ -10,13 +10,17 @@
 //   feat                                  -> minor
 //   qualquer outra coisa                  -> patch
 // A tag `vX.Y.Z` é a fonte da verdade; sem tags, a primeira versão é a do package.json raiz.
+//
+// Nem todo merge vira release: só quando há commit que muda o app (feat, fix, perf, refactor, build, breaking ou fora do padrão).
+// Só docs/test/ci/style/chore não publicam nada (saída `release=false`); esses commits entram no changelog da próxima release real.
+// `--force` (execução manual) publica sempre.
 
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { computeBeta, computeNext, isReleaseCommit, latestTag, parseCommit, renderNotes } from './lib/release-core.mjs';
+import { computeBeta, computeNext, isReleaseCommit, latestTag, parseCommit, renderNotes, shouldRelease } from './lib/release-core.mjs';
 
 // A lógica pura (versão e notas) vive em lib/release-core.mjs; reexportada aqui para manter a API.
 export * from './lib/release-core.mjs';
@@ -59,7 +63,12 @@ function main() {
     const channel = arg('channel', 'stable');
     if (channel !== 'stable' && channel !== 'beta') throw new Error('--channel deve ser stable ou beta');
     const info = (channel === 'beta' ? computeBeta : computeNext)({ tags, commits, bumpOverride: arg('bump', 'auto'), initialVersion: initial });
-    console.log(JSON.stringify({ ...info, commits: commits.length }, null, 2));
+    // primeira release (sem tag) e execução manual (--force) sempre publicam; o resto só se algum commit muda o app
+    const release = process.argv.includes('--force') || !prev || shouldRelease(commits);
+    const reason = release ? '' : `Só há commits de documentação, testes, CI, estilo ou manutenção desde ${prev}: sem release (entram no changelog da próxima).`;
+    console.log(JSON.stringify({ ...info, commits: commits.length, release, ...(reason && { reason }) }, null, 2));
+    if (reason) console.log(`::notice title=Sem release::${reason}`);
+    setOutput('release', release ? 'true' : 'false');
     setOutput('version', info.version);
     setOutput('tag', `v${info.version}`);
     setOutput('previous', info.previous ?? '');
