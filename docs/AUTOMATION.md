@@ -13,16 +13,21 @@ Nenhum deles "decide" sozinho além do que você configurou: um bot só abre PR,
 
 ## Merge automático (como funciona e o que o projeto faz)
 
-> O Dependabot e o workflow de merge automático chegam com o PR de preparação do repositório público (`.github/dependabot.yml`,
-> `dependabot-automerge.yml`, `PUBLISHING_CHECKLIST.md`). Esta página já descreve o conjunto.
+> O **Dependabot** (`.github/dependabot.yml`) já está ligado. O workflow de **merge automático** (`dependabot-automerge.yml`) e o `PUBLISHING_CHECKLIST.md`
+> chegam com o PR de preparação do repositório público, porque o auto-merge só faz sentido com um ruleset que exija os checks (hoje o repositório é
+> privado, sem ruleset). Esta página já descreve o conjunto.
 
-1. O **Dependabot** (`.github/dependabot.yml`) abre PRs semanais de atualização de dependências e de actions.
+1. O **Dependabot** (`.github/dependabot.yml`) abre PRs semanais (segunda, 09:00 de Brasília) de atualização de dependências e de actions, agrupados
+   (`codemirror`, `vue`, `electron`, `ferramentas`, `actions`), com espera de 7 dias depois do lançamento de cada versão (`cooldown`) e a label `dependências`.
+   Os títulos seguem o Conventional Commits: `chore(deps-dev)` para dependências de desenvolvimento e `ci(deps)` para actions; `build(deps)` ficaria para
+   dependência de produção (hoje não há nenhuma: o Vite empacota tudo, então tudo, inclusive Vue e CodeMirror, é de desenvolvimento).
 2. O workflow `dependabot-automerge.yml` olha o PR (`dependabot/fetch-metadata`) e, se for **patch ou minor**, liga o **auto-merge** do GitHub
    (`gh pr merge --auto`). Atualizações **major** e o **Electron** ficam para você revisar.
 3. O auto-merge **não** junta na hora: o GitHub espera as verificações **obrigatórias** do ruleset da `main` (CI no Ubuntu e no Windows e
    CodeQL) ficarem verdes. Se alguma falhar, o PR fica aberto. Por isso o ruleset precisa existir antes (veja `PUBLISHING_CHECKLIST.md`). Ligue o recurso com `gh repo edit imozart/git-nexus --enable-auto-merge --delete-branch-on-merge`.
-4. Depois do merge, o pipeline de release **não** gera uma versão nova só por causa de `ci(deps)` ou `chore(deps-dev)` (dependência de
-   desenvolvimento e actions); bumps de dependências de runtime (`chore(deps)`) viram release normalmente.
+4. Depois do merge, o pipeline de release **não** gera uma versão nova só por causa de `ci(deps)` ou `chore(deps-dev)`: atualização de dependência não é mudança do
+   app. Ela entra na próxima release de verdade (e no `CHANGELOG.md` dela). Só `build(deps)` (produção) publica sozinho. Consequência: uma correção de segurança
+   em Vue ou CodeMirror só chega ao usuário na próxima release; para ela sair já, use *Actions → Release → Run workflow* (a execução manual sempre publica).
 
 O mesmo mecanismo serve para qualquer PR: `gh pr merge --auto --merge <PR>` em um PR seu faz o GitHub juntá-lo sozinho quando o CI passar.
 

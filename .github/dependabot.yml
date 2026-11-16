@@ -1,0 +1,53 @@
+# Atualizações automáticas de dependências (Dependabot): um PR por grupo, uma vez por semana.
+# Os títulos seguem o Conventional Commits, que é o que o check "Título do PR" exige:
+#   build(deps)       dependência de produção (hoje não há nenhuma: o Vite empacota tudo, então tudo é de desenvolvimento)
+#   chore(deps-dev)   dependência de desenvolvimento: NÃO gera release (entra na próxima release de verdade)
+#   ci(deps)          actions dos workflows: NÃO gera release
+# As branches do Dependabot (dependabot/...) são isentas da regra de nome de branch.
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 5
+    # Espera a versão "assentar" antes de propor: reduz o risco de pegar uma publicação comprometida ou retirada logo depois do lançamento.
+    cooldown:
+      default-days: 7
+    labels:
+      - dependências
+    commit-message:
+      prefix: "build(deps)"
+      prefix-development: "chore(deps-dev)"
+    groups:
+      codemirror:
+        patterns: ["@codemirror/*"]
+      vue:
+        patterns: ["vue", "vue-tsc", "pinia", "@vitejs/plugin-vue"]
+      electron:
+        patterns: ["electron", "electron-builder"]
+      ferramentas:
+        patterns: ["typescript", "vite", "esbuild", "sass", "vitest", "@vitest/*", "@types/*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    labels:
+      - dependências
+    commit-message:
+      prefix: "ci(deps)"
+    groups:
+      actions:
+        patterns: ["*"]
