@@ -4,7 +4,8 @@
 /** Máximo de caracteres de saída guardados por comando. */
 export const MAX_OUTPUT = 4000;
 
-const URL_USERINFO = /([a-z][a-z0-9+.-]*:\/\/)[^/\s@]+@/gi;
+// Esquema com tamanho limitado (nenhum real passa de 31 letras): sem o limite, um texto longo de letras custa O(n²) (ReDoS).
+const URL_USERINFO = /([a-z][a-z0-9+.-]{0,31}:\/\/)[^/\s@]+@/gi;
 const HEADER = /\b(authorization|proxy-authorization|private-token|x-access-token)\s*[:=]\s*[^\r\n"']*/gi;
 const KV_SECRET = /\b(password|passwd|token|secret|access_token)=[^\s&]+/gi;
 

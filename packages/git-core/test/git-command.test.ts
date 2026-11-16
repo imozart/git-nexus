@@ -25,6 +25,21 @@ describe('formatGitCommand', () => {
     expect(redactSecrets('https://github.com/imozart/git-nexus.git')).toBe('https://github.com/imozart/git-nexus.git');
     expect(redactSecrets('--author=Fulano <fulano@exemplo.com>')).toBe('--author=Fulano <fulano@exemplo.com>');
   });
+
+  it('cabeçalho com espaços em volta do separador continua redigido por inteiro', () => {
+    expect(redactSecrets('Authorization   :   Bearer abc.def')).toBe('Authorization: ***');
+    expect(redactSecrets('private-token=glpat-xyz')).toBe('private-token: ***');
+  });
+
+  it('texto longo e hostil não trava (sem backtracking quadrático)', () => {
+    // Letras sem "://": com o esquema ilimitado, 200 mil "a" levavam ~54 s; limitado, é linear e passa longe de 1 s.
+    const entradas = ['a'.repeat(200_000), `a1.${'b'.repeat(200_000)}`, `authorization${' '.repeat(200_000)}x`, 'authorization '.repeat(20_000)];
+    for (const e of entradas) {
+      const t0 = Date.now();
+      redactSecrets(e);
+      expect(Date.now() - t0, e.slice(0, 20)).toBeLessThan(1000);
+    }
+  });
 });
 
 describe('isReadOnlyGit', () => {
