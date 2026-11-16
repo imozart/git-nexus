@@ -331,7 +331,7 @@ async function saveTeamPolicy(): Promise<void> {
       </div>
     </div>
 
-    <GnButton variant="primary" type="submit" :disabled="!canCommit" title="Ctrl+Enter">
+    <GnButton variant="primary" tone="success" type="submit" :disabled="!canCommit" title="Ctrl+Enter">
       {{ committing ? t('commit.submitting') : t('commit.submit', { n: stagedCount }) }}
     </GnButton>
     <small v-if="stagedCount === 0" class="muted">{{ t('commit.needStage') }}</small>
