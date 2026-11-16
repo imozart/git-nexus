@@ -63,6 +63,7 @@ const tabs = computed<GnTab[]>(() =>
         <button type="button" class="upd__btn upd__btn--primary" :disabled="upd.phase === 'installing'" :title="t('update.restartTitle')" @click="upd.installAndRestart()">
           {{ upd.phase === 'installing' ? t('update.installing') : t('update.restart') }}
         </button>
+        <button v-if="upd.failed" type="button" class="upd__btn" :title="upd.info.assetName ?? t('update.openPage')" @click="upd.download()">{{ t('update.manual') }}</button>
       </template>
       <button v-else type="button" class="upd__btn upd__btn--primary" :title="upd.info.assetName ?? t('update.openPage')" @click="upd.download()">
         {{ upd.info.assetName ? t('update.download') : t('update.downloadPage') }}
