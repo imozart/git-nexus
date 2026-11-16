@@ -31,7 +31,7 @@ describe('provedor e API', () => {
   it('reconhece GitHub e GitLab (inclusive próprio) e aceita escolha manual', () => {
     expect(detectKind('github.com')).toBe('github');
     expect(detectKind('gitlab.com')).toBe('gitlab');
-    expect(detectKind('gitlab.badesc.gov.br')).toBe('gitlab');
+    expect(detectKind('gitlab.interno.example.org')).toBe('gitlab');
     expect(detectKind('meu-gitlab.empresa.com:8443')).toBe('gitlab');
     expect(detectKind('git.empresa.com')).toBeNull();
     expect(detectKind('git.empresa.com', 'github')).toBe('github');
