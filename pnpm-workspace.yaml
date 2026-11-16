@@ -8,3 +8,8 @@ allowBuilds:
   electron: true
   electron-winstaller: false
   "@parcel/watcher": false
+
+# minimatch >= 7 e < 11.0.1 tem negação de serviço (GHSA-g3hv-75wg-m249). Só chega pelo electron-builder (ferramenta de build, não entra no app);
+# a versão corrigida mantém a API que ele usa. Pode sair quando o electron-builder atualizar a própria dependência.
+overrides:
+  "minimatch@>=7.0.0 <11.0.1": ">=11.0.1"
