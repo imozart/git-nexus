@@ -1,5 +1,11 @@
 # GitNexus
 
+[![Saúde da main](https://github.com/imozart/git-nexus/actions/workflows/main-health.yml/badge.svg?branch=main)](https://github.com/imozart/git-nexus/actions/workflows/main-health.yml)
+[![Última versão](https://img.shields.io/github/v/release/imozart/git-nexus?label=vers%C3%A3o)](https://github.com/imozart/git-nexus/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/imozart/git-nexus/total?label=downloads)](https://github.com/imozart/git-nexus/releases)
+[![Licença: GPL-3.0](https://img.shields.io/github/license/imozart/git-nexus)](LICENSE)
+![Plataformas: Windows, macOS e Linux](https://img.shields.io/badge/plataformas-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
+
 Gerenciador Git desktop portátil (Electron + Vue 3 + TypeScript) com linter de Conventional Commits em tempo real e resolução visual de conflitos 3-way. Arquitetura inspirada no [Beekeeper Studio](https://github.com/beekeeper-studio/beekeeper-studio/).
 
 ## Vitrine
