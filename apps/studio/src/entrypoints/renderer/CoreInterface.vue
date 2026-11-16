@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { GnTabs, type GnTab } from '@git-nexus/ui-kit';
+import { GnButton, GnTabs, type GnTab } from '@git-nexus/ui-kit';
 import { t } from './i18n';
 import LanguagePicker from './components/LanguagePicker.vue';
 import { useCommandsStore, shortcutLabel } from './stores/commands';
@@ -43,11 +43,12 @@ const tabs = computed<GnTab[]>(() =>
         ⬆ <strong>{{ t('update.available', { version: upd.info.latest ?? '' }) }}</strong> <span class="upd__cur">{{ t('update.using', { current: upd.info.current }) }}</span>
       </span>
       <template v-if="upd.canInstall && upd.phase === 'idle'">
-        <button type="button" class="upd__btn upd__btn--primary" :title="t('update.installTitle')" @click="upd.downloadAndVerify()">
+        <!-- ação principal da faixa (azul sólido); depois de uma falha vira "Tentar de novo", em âmbar (estado de atenção) -->
+        <GnButton size="sm" :variant="upd.failed ? undefined : 'primary'" :tone="upd.failed ? 'warn' : undefined" :title="t('update.installTitle')" @click="upd.downloadAndVerify()">
           {{ upd.failed ? t('update.retry') : t('update.install') }}
-        </button>
+        </GnButton>
         <!-- a página da release só aparece como saída quando a atualização dentro do app falhou -->
-        <button v-if="upd.failed" type="button" class="upd__btn" :title="upd.info.assetName ?? t('update.openPage')" @click="upd.download()">{{ t('update.manual') }}</button>
+        <GnButton v-if="upd.failed" size="sm" :title="upd.info.assetName ?? t('update.openPage')" @click="upd.download()">{{ t('update.manual') }}</GnButton>
       </template>
       <span v-else-if="upd.phase === 'downloading' && upd.preparing" class="upd__prog" role="progressbar" :aria-label="t('update.preparing')">
         {{ t('update.preparing') }}
@@ -60,19 +61,20 @@ const tabs = computed<GnTab[]>(() =>
       </span>
       <template v-else-if="upd.phase === 'ready' || upd.phase === 'installing'">
         <span class="upd__ok">✔ {{ t('update.ready', { version: upd.info.latest ?? '' }) }}</span>
-        <button type="button" class="upd__btn upd__btn--primary" :disabled="upd.phase === 'installing'" :title="t('update.restartTitle')" @click="upd.installAndRestart()">
+        <!-- conclui a atualização (confirmação da pessoa): verde, como os outros "concluir" -->
+        <GnButton size="sm" variant="primary" tone="success" :disabled="upd.phase === 'installing'" :title="t('update.restartTitle')" @click="upd.installAndRestart()">
           {{ upd.phase === 'installing' ? t('update.installing') : t('update.restart') }}
-        </button>
-        <button v-if="upd.failed" type="button" class="upd__btn" :title="upd.info.assetName ?? t('update.openPage')" @click="upd.download()">{{ t('update.manual') }}</button>
+        </GnButton>
+        <GnButton v-if="upd.failed" size="sm" :title="upd.info.assetName ?? t('update.openPage')" @click="upd.download()">{{ t('update.manual') }}</GnButton>
       </template>
-      <button v-else type="button" class="upd__btn upd__btn--primary" :title="upd.info.assetName ?? t('update.openPage')" @click="upd.download()">
+      <GnButton v-else size="sm" variant="primary" :title="upd.info.assetName ?? t('update.openPage')" @click="upd.download()">
         {{ upd.info.assetName ? t('update.download') : t('update.downloadPage') }}
-      </button>
+      </GnButton>
       <span v-if="upd.flash" class="upd__err">{{ upd.flash }}</span>
-      <button type="button" class="upd__btn" @click="upd.openNotes()">{{ t('update.notes') }}</button>
+      <GnButton size="sm" tone="accent" @click="upd.openNotes()">{{ t('update.notes') }}</GnButton>
       <span class="upd__sp" />
-      <button type="button" class="upd__btn" :title="t('update.laterTitle')" @click="upd.later()">{{ t('update.later') }}</button>
-      <button type="button" class="upd__btn" :title="t('update.skipTitle')" @click="upd.skip()">{{ t('update.skip') }}</button>
+      <GnButton size="sm" variant="ghost" :title="t('update.laterTitle')" @click="upd.later()">{{ t('update.later') }}</GnButton>
+      <GnButton size="sm" variant="ghost" :title="t('update.skipTitle')" @click="upd.skip()">{{ t('update.skip') }}</GnButton>
     </div>
     <div v-else-if="upd.flash" class="upd upd--info" role="status">{{ upd.flash }}</div>
     <div class="core__panes">
@@ -118,11 +120,5 @@ const tabs = computed<GnTab[]>(() =>
   &__bar { display: inline-block; width: 140px; height: 6px; background: var(--gn-border); border-radius: 3px; overflow: hidden; }
   &__fill { display: block; height: 100%; background: var(--gn-accent); transition: width 0.2s; }
   &__bar--busy &__fill { width: 35%; animation: upd-busy 1.1s ease-in-out infinite alternate; }
-  &__btn {
-    font: inherit; font-size: 12px; padding: 3px 10px; color: var(--gn-text); background: var(--gn-surface);
-    border: 1px solid var(--gn-border); border-radius: var(--gn-radius); cursor: pointer;
-    &:hover { border-color: var(--gn-accent); }
-    &--primary { background: var(--gn-accent); border-color: var(--gn-accent); color: #fff; }
-  }
 }
 </style>
