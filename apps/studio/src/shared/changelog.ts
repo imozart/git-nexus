@@ -1,6 +1,6 @@
 // Leitura do CHANGELOG.md para exibir dentro do app. Módulo PURO (sem Electron, sem DOM): transforma o Markdown gerado pelo
 // pipeline de release em dados que a interface desenha com templates Vue. Nada de `v-html`: o texto nunca vira HTML.
-import { UPDATE_REPO } from './update';
+import { UPDATE_REPO, compareVersions } from './update';
 
 /** Onde o changelog completo vive no GitHub (destino do botão "Ver no GitHub"). */
 export const CHANGELOG_URL = `https://github.com/${UPDATE_REPO}/blob/main/CHANGELOG.md`;
@@ -24,6 +24,8 @@ export interface ChangelogVersion {
   /** Data da release (AAAA-MM-DD), quando informada. */
   date?: string;
   sections: ChangelogSection[];
+  /** A versão em uso ainda não tem entrada no arquivo (ela só é gravada depois da publicação): entrada provisória. */
+  pending?: boolean;
 }
 
 // **negrito** | `código` | [texto](endereço) — o texto do link pode ser um `código`.
@@ -46,6 +48,22 @@ export function parseInline(text: string): Inline[] {
   }
   if (last < text.length) out.push({ kind: 'text', text: text.slice(last) });
   return out;
+}
+
+/** Página da release no GitHub (notas completas), para quem usa uma versão ainda sem entrada no arquivo. */
+export const releaseUrl = (version: string) => `https://github.com/${UPDATE_REPO}/releases/tag/v${version.replace(/^v/, '')}`;
+
+/**
+ * Garante que a versão em uso apareça na lista. O CHANGELOG.md empacotado é o do commit que gerou a release, e a entrada da
+ * própria versão só é gravada DEPOIS dela (commit chore(release)): sem isto, quem usa a versão mais nova não a veria na lista.
+ * Se faltar, entra uma entrada provisória (`pending`) na posição certa (ordem decrescente).
+ */
+export function withCurrentVersion(versions: ChangelogVersion[], current: string): ChangelogVersion[] {
+  const cur = current.replace(/^v/, '');
+  if (!cur || versions.some((v) => v.version.replace(/^v/, '') === cur)) return versions;
+  const at = versions.findIndex((v) => (compareVersions(v.version, cur) ?? -1) < 0);
+  const entry: ChangelogVersion = { version: cur, sections: [], pending: true };
+  return at === -1 ? [...versions, entry] : [...versions.slice(0, at), entry, ...versions.slice(at)];
 }
 
 const VERSION_HEAD = /^##\s+\[([^\]]+)\](?:\s*-\s*(\d{4}-\d{2}-\d{2}))?\s*$/;

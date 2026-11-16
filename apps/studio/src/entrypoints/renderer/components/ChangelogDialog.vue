@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { GnBadge, GnButton } from '@git-nexus/ui-kit';
 import type { ChangelogData } from '@git-nexus/git-core/pure';
-import { CHANGELOG_URL, parseChangelog } from '../../../shared/changelog';
+import { CHANGELOG_URL, parseChangelog, releaseUrl, withCurrentVersion } from '../../../shared/changelog';
 import { isAllowedUpdateUrl } from '../../../shared/update';
 import { api, errMsg } from '../api';
 import { dateLocale, t } from '../i18n';
@@ -15,7 +15,7 @@ const loading = ref(true);
 const error = ref('');
 const box = ref<HTMLElement | null>(null);
 
-const versions = computed(() => parseChangelog(data.value?.markdown ?? ''));
+const versions = computed(() => withCurrentVersion(parseChangelog(data.value?.markdown ?? ''), data.value?.version ?? ''));
 const isCurrent = (v: string) => v.replace(/^v/, '') === data.value?.version;
 const fmtDate = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString(dateLocale.value, { day: '2-digit', month: 'long', year: 'numeric' });
 
@@ -84,7 +84,11 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
                 </li>
               </ul>
             </section>
-            <p v-if="!v.sections.length" class="muted">{{ t('changelog.noChanges') }}</p>
+            <div v-if="v.pending" class="ver__pending">
+              <p class="muted">{{ t('changelog.pending') }}</p>
+              <a href="#" :title="releaseUrl(v.version)" @click.prevent="openLink(releaseUrl(v.version))">{{ t('changelog.pendingLink') }}</a>
+            </div>
+            <p v-else-if="!v.sections.length" class="muted">{{ t('changelog.noChanges') }}</p>
           </details>
         </div>
       </div>
@@ -132,6 +136,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
   &:last-child { border-bottom: 0; }
   summary { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; list-style-position: inside; }
   h4 { margin: 12px 0 4px; font-size: 13px; }
+  &__pending { margin: 8px 0 4px; font-size: 13px; p { margin: 0 0 4px; } a { color: var(--gn-accent); text-decoration: none; &:hover { text-decoration: underline; } } }
   ul { margin: 0; padding-left: 20px; }
   li { margin: 3px 0; font-size: 13px; line-height: 1.45; word-break: break-word; }
   code { font-family: var(--gn-mono); font-size: 12px; }

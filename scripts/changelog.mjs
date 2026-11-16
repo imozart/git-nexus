@@ -3,6 +3,9 @@
 //
 //   node scripts/changelog.mjs --version 1.2.3 [--repo dono/repo] [--file CHANGELOG.md] [--dry]
 //       acrescenta (ou refaz) a versão 1.2.3: commits entre a estável anterior e a tag v1.2.3. A tag precisa existir.
+//   node scripts/changelog.mjs --version 1.2.3 --ref HEAD [--repo dono/repo] [--file CHANGELOG.md]
+//       o mesmo, mas até um commit (--ref) em vez da tag, que ainda não existe: é o que a release usa ANTES de compilar, para o CHANGELOG
+//       empacotado já trazer a entrada da própria versão. O resultado é igual ao gerado depois pela tag, se ela apontar para esse commit.
 //   node scripts/changelog.mjs --backfill [--force] [--repo dono/repo] [--file CHANGELOG.md] [--dry]
 //       monta o arquivo inteiro a partir de todas as tags estáveis (recusa sobrescrever um arquivo existente sem --force).
 //
@@ -33,11 +36,10 @@ function detectRepo() {
 }
 
 /** `{ version, date, body }` de uma versão: commits entre a estável anterior e a tag dela. */
-function entryFor(version, tags, repo) {
-  const tag = `v${version}`;
+function entryFor(version, tags, repo, ref = `v${version}`) {
   const prev = previousVersion(tags, version);
-  const commits = readCommits(prev ? `v${prev}..${tag}` : tag);
-  return { version, date: git('log', '-1', '--format=%cs', `${tag}^{commit}`), body: renderEntryBody(commits, repo), commits: commits.length };
+  const commits = readCommits(prev ? `v${prev}..${ref}` : ref);
+  return { version, date: git('log', '-1', '--format=%cs', `${ref}^{commit}`), body: renderEntryBody(commits, repo), commits: commits.length };
 }
 
 function setOutput(key, value) {
@@ -74,19 +76,22 @@ function main() {
       console.error(`"${version}" não é uma versão estável (X.Y.Z): beta e pré-lançamentos não entram no changelog.`);
       process.exit(1);
     }
+    // Com --ref a tag ainda não existe (a release está sendo preparada): basta o commit existir.
+    const ref = arg('ref');
     try {
-      git('rev-parse', '-q', '--verify', `refs/tags/v${version}`);
+      git('rev-parse', '-q', '--verify', ref ? `${ref}^{commit}` : `refs/tags/v${version}`);
     } catch {
-      console.error(`A tag v${version} não existe neste clone (falta fetch-tags? a release ainda não foi publicada?).`);
+      console.error(ref ? `O commit "${ref}" não existe neste clone.` : `A tag v${version} não existe neste clone (falta fetch-tags? a release ainda não foi publicada?).`);
       process.exit(1);
     }
+    if (ref) tags.push(`v${version}`); // a versão ainda não tem tag, mas conta como a mais nova para o cálculo da anterior
     // Além de `version`, completa as versões estáveis mais antigas que ainda não estão no arquivo (uma release que saiu antes do
     // changelog existir, ou com o job desligado): o arquivo se conserta sozinho na próxima release. Versões já presentes ficam como estão.
     const present = new Set(parseChangelog(before).entries.map((e) => e.version));
     const todo = stableVersions(tags).filter((v) => v === version || (compareVersions(v, version) < 0 && !present.has(v)));
     after = before;
     for (const v of todo) {
-      const e = entryFor(v, tags, repo);
+      const e = entryFor(v, tags, repo, v === version ? ref : undefined);
       after = upsertEntry(after, e, repo);
       console.log(`v${v}: ${e.commits} commit(s) desde ${previousVersion(tags, v) ? `v${previousVersion(tags, v)}` : 'o início'}${v === version ? '' : ' (versão que faltava)'}.`);
     }

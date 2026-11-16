@@ -91,6 +91,25 @@ jobs:
           if [ "$SCHEDULED" = "true" ]; then args+=(--if-new); fi
           node scripts/release-info.mjs next "${args[@]}"
 
+      # CHANGELOG.md com a entrada DESTA versão, gerado antes do build: o app empacota esse arquivo (extraResources) e mostra as novidades da
+      # própria versão em uso. Sem isto o arquivo empacotado terminava na versão anterior, pois a entrada só é gravada na main depois da
+      # release (release-sync.yml). Gerado uma vez aqui (histórico e tags inteiros) e entregue aos builds. Beta não entra no changelog.
+      # Não bloqueia a release: se falhar, o app mostra a versão em uso como entrada provisória, com link para as notas no GitHub.
+      - name: CHANGELOG com esta versão
+        id: changelog
+        if: steps.next.outputs.release == 'true' && steps.next.outputs.prerelease != 'true'
+        continue-on-error: true
+        env:
+          VERSION: ${{ steps.next.outputs.version }}
+        run: node scripts/changelog.mjs --version "$VERSION" --ref HEAD --repo "$GITHUB_REPOSITORY"
+      - name: Guardar o CHANGELOG para os builds
+        if: steps.changelog.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: changelog
+          path: CHANGELOG.md
+          retention-days: 1
+
   # 2) Barreira de qualidade: não publica se typecheck ou testes falharem.
   quality:
     name: Typecheck e testes
@@ -165,6 +184,16 @@ jobs:
           # uma chave por pacote: x64 e ARM64 baixam binários diferentes do Electron e não podem disputar o mesmo cache
           key: electron-${{ matrix.id }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: electron-${{ matrix.id }}-
+
+      # CHANGELOG com a entrada desta versão (gerado no job "Calcular versão"); entra no pacote como resources/CHANGELOG.md.
+      # Sem ele (beta, ou a geração falhou) vale o CHANGELOG do commit.
+      - name: CHANGELOG desta versão
+        if: needs.version.outputs.prerelease != 'true'
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: changelog
+          path: .
 
       - run: pnpm install --frozen-lockfile
 

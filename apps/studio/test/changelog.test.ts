@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { CHANGELOG_URL, parseChangelog, parseInline } from '../src/shared/changelog';
+import { CHANGELOG_URL, parseChangelog, parseInline, releaseUrl, withCurrentVersion } from '../src/shared/changelog';
 import { isAllowedUpdateUrl } from '../src/shared/update';
 
 describe('parseInline', () => {
@@ -78,6 +78,33 @@ describe('CHANGELOG.md real do repositório', () => {
     const links = versions.flatMap((x) => x.sections.flatMap((s) => s.items.flat())).filter((p) => p.kind === 'link');
     expect(links.length).toBeGreaterThan(0);
     expect(links.every((p) => p.kind === 'link' && isAllowedUpdateUrl(p.href))).toBe(true);
+  });
+});
+
+describe('withCurrentVersion', () => {
+  const v = (...ids: string[]) => ids.map((version) => ({ version, sections: [] }));
+  it('a versão em uso já está na lista: não muda nada', () => {
+    const list = v('1.8.0', '1.7.0');
+    expect(withCurrentVersion(list, '1.7.0')).toBe(list);
+    expect(withCurrentVersion(list, 'v1.7.0')).toBe(list);
+  });
+  it('versão mais nova que o arquivo (a entrada só sai depois da release): entra no topo, como provisória', () => {
+    const r = withCurrentVersion(v('1.7.0', '1.6.0'), '1.8.0');
+    expect(r.map((x) => x.version)).toEqual(['1.8.0', '1.7.0', '1.6.0']);
+    expect(r[0]?.pending).toBe(true);
+    expect(r[1]?.pending).toBeUndefined();
+  });
+  it('entra na posição certa quando há lacuna, e no fim se for a mais antiga', () => {
+    expect(withCurrentVersion(v('1.8.0', '1.6.0'), '1.7.0').map((x) => x.version)).toEqual(['1.8.0', '1.7.0', '1.6.0']);
+    expect(withCurrentVersion(v('1.8.0'), '1.2.0').map((x) => x.version)).toEqual(['1.8.0', '1.2.0']);
+  });
+  it('sem versão informada ou com lista vazia não quebra', () => {
+    expect(withCurrentVersion(v('1.8.0'), '')).toEqual(v('1.8.0'));
+    expect(withCurrentVersion([], '1.8.0')).toEqual([{ version: '1.8.0', sections: [], pending: true }]);
+  });
+  it('o link das notas da release é do GitHub do projeto', () => {
+    expect(releaseUrl('1.8.0')).toBe('https://github.com/imozart/git-nexus/releases/tag/v1.8.0');
+    expect(isAllowedUpdateUrl(releaseUrl('v1.8.0'))).toBe(true);
   });
 });
 
