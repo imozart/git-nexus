@@ -89,6 +89,8 @@ const ptBR = {
   'changelog.loading': 'Carregando…',
   'changelog.empty': 'O histórico de versões não está disponível nesta instalação. Veja-o no GitHub.',
   'changelog.noChanges': 'Sem alterações registradas.',
+  'changelog.pending': 'As notas desta versão são gravadas neste arquivo só depois da publicação, então ainda não constam aqui.',
+  'changelog.pendingLink': 'Ver as notas desta versão no GitHub',
   'home.nothingToDo': 'Nada a fazer: nenhum repositório se encaixa.',
   'home.busy': 'Processando… (varreduras em pastas grandes podem levar alguns segundos)',
   'home.noMatch': 'Nenhum repositório corresponde à busca.',

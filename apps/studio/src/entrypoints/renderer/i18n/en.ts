@@ -90,6 +90,8 @@ const en: Partial<Record<MessageKey, string>> = {
   'changelog.loading': 'Loading…',
   'changelog.empty': 'The version history is not available in this installation. See it on GitHub.',
   'changelog.noChanges': 'No changes recorded.',
+  'changelog.pending': 'The notes for this version are written to this file only after publishing, so they are not listed here yet.',
+  'changelog.pendingLink': 'See the notes for this version on GitHub',
   'home.nothingToDo': 'Nothing to do: no repository qualifies.',
   'home.busy': 'Working… (scanning large folders can take a few seconds)',
   'home.noMatch': 'No repository matches the search.',
