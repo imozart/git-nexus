@@ -40,8 +40,10 @@ await t.until(`document.querySelector('.conn__bar')`, 15000);
 await t.openRepo(repo, 'bprepo');
 await t.until(`document.querySelector('.bp__btn .bp__name')?.textContent.trim() === 'main'`, 15000); // espera o status trazer a branch
 
-const set = (sel, value) => t.ev(`(() => { const i = document.querySelector(${JSON.stringify(sel)}); i.value = ${JSON.stringify(value)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
-const clickText = (sel, start) => t.ev(`(() => { const b = [...document.querySelectorAll(${JSON.stringify(sel)})].find((x) => x.textContent.trim().startsWith(${JSON.stringify(start)})); b?.click(); return !!b; })()`);
+// Valores entram no código da página em base64 (nunca por JSON.stringify): não há como um valor virar código.
+const lit = (s) => `new TextDecoder().decode(Uint8Array.from(atob('${Buffer.from(String(s), 'utf8').toString('base64')}'), (c) => c.charCodeAt(0)))`;
+const set = (sel, value) => t.ev(`(() => { const i = document.querySelector(${lit(sel)}); i.value = ${lit(value)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+const clickText = (sel, start) => t.ev(`(() => { const b = [...document.querySelectorAll(${lit(sel)})].find((x) => x.textContent.trim().startsWith(${lit(start)})); b?.click(); return !!b; })()`);
 const rows = () => t.ev(`[...document.querySelectorAll('.bp__row')].map((r) => r.querySelector('.bp__label').textContent.replace(/\\s+/g, ' ').trim())`);
 const branchLabel = () => t.text('.bp__btn .bp__name');
 

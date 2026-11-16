@@ -87,6 +87,13 @@ describe('puros', () => {
     expect(parseRecentCheckouts(reflog, new Set(['a', 'b', 'c', 'main']), 'a', 2)).toEqual(['b', 'c']);
   });
 
+  it('parseRecentCheckouts roda em tempo linear com linhas patológicas (sem ReDoS)', () => {
+    const hostile = 'checkout: moving from a to ' + 'a to '.repeat(20000) + '!';
+    const t0 = Date.now();
+    expect(parseRecentCheckouts(hostile, new Set(['a']), 'x')).toEqual([]);
+    expect(Date.now() - t0).toBeLessThan(500);
+  });
+
   it('isSafeRef recusa o que viraria opção do git', () => {
     expect(isSafeRef('feat/x-1')).toBe(true);
     expect(isSafeRef('origin/feat/x')).toBe(true);

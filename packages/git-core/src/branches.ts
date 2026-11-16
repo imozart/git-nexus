@@ -51,7 +51,8 @@ export function parseBranchRefs(raw: string, remotes: string[]): BranchInfo[] {
 export function parseRecentCheckouts(reflogSubjects: string, existing: Set<string>, current: string, limit = 5): string[] {
   const seen = new Set<string>();
   for (const line of reflogSubjects.split('\n')) {
-    const m = /^checkout: moving from (.+) to (.+)$/.exec(line.trim());
+    // Nome de ref do git não tem espaço, então \S+ resolve sem ambiguidade em tempo linear (com (.+) a regex ficava polinomial).
+    const m = /^checkout: moving from (\S+) to (\S+)$/.exec(line.trim());
     if (!m) continue;
     for (const name of [m[2]!, m[1]!]) {
       if (name !== current && existing.has(name)) seen.add(name);
