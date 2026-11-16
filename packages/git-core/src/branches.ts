@@ -1,6 +1,6 @@
 import { NO_PROMPT } from './repo-status.js';
 import { runGit } from './runner.js';
-import type { BranchActionResult, BranchInfo, BranchList, CreateBranchInput, PullMode } from './types/ipc.js';
+import type { BaseComparison, BranchActionResult, BranchInfo, BranchList, CreateBranchInput, PullMode } from './types/ipc.js';
 import { tm } from './messages.js';
 
 // Branches locais e remotas: listar (com recentes), trocar, criar a partir da versão mais recente, excluir, merge, rebase e pull.
@@ -117,6 +117,30 @@ export async function listBranches(repoPath: string): Promise<BranchList> {
     tags: tags.code === 0 ? lines(tags.stdout) : [],
     defaultRemoteBranch: await defaultRemoteBranch(repoPath, remotes, remoteBranches),
   };
+}
+
+/**
+ * A branch atual em relação à base do remoto (a mesma que o app usa em "nova branch a partir da mais recente": o `origin/HEAD` ou main/master/develop).
+ * Responde "quantos commits estou atrás da main?", que o upstream não responde: branches criadas pelo app não acompanham a main (`--no-track`).
+ * `null` quando não se aplica: HEAD desanexado, sem remoto ou sem base, e quando a atual É a base (a main local, ou uma branch que acompanha a
+ * própria base: aí o upstream já diz tudo).
+ */
+export async function compareWithBase(repoPath: string): Promise<BaseComparison | null> {
+  const cur = await currentBranch(repoPath);
+  if (!cur) return null;
+  const remotes = await remoteNames(repoPath);
+  if (!remotes.length) return null;
+  const refs = await runGit(repoPath, ['for-each-ref', `--format=${BRANCH_FORMAT}`, 'refs/remotes'], { check: false });
+  const remoteBranches = refs.code === 0 ? parseBranchRefs(refs.stdout, remotes) : [];
+  const base = await defaultRemoteBranch(repoPath, remotes, remoteBranches);
+  const info = base ? remoteBranches.find((b) => b.name === base) : undefined;
+  if (!base || !info) return null;
+  const up = await runGit(repoPath, ['for-each-ref', '--format=%(upstream:short)', `refs/heads/${cur}`], { check: false });
+  if (up.stdout.trim() === base || cur === info.short) return null;
+  const counts = await runGit(repoPath, ['rev-list', '--left-right', '--count', `${base}...HEAD`], { check: false });
+  const m = /^(\d+)\s+(\d+)/.exec(counts.stdout.trim());
+  if (counts.code !== 0 || !m) return null; // sem commits ainda (HEAD sem commit) ou sem histórico em comum legível
+  return { base, short: info.short, behind: Number(m[1]), ahead: Number(m[2]) };
 }
 
 // ---------------------------------------------------------------- operações

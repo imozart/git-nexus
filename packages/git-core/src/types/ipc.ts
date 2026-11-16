@@ -272,6 +272,19 @@ export interface CreateBranchInput {
 
 export type PullMode = 'rebase' | 'merge';
 
+/**
+ * A branch atual em relação à branch principal do remoto (origin/main), que o app já usa como "a versão mais recente" ao criar branches.
+ * `ahead` = commits só da atual; `behind` = commits da base que a atual ainda não tem.
+ */
+export interface BaseComparison {
+  /** Referência completa da base (origin/main). */
+  base: string;
+  /** Nome sem o remoto (main). */
+  short: string;
+  ahead: number;
+  behind: number;
+}
+
 /** Resultado de uma operação de branch: nunca lança para o que a pessoa pode resolver (conflito, nome em uso, alterações locais). */
 export interface BranchActionResult {
   ok: boolean;
@@ -656,6 +669,8 @@ export interface GitNexusApi extends GitNexusIPC {
 
   // Branches: listar, trocar, criar, excluir, merge, rebase e pull
   listBranches(repoPath: string): Promise<BranchList>;
+  /** Adiante/atrás da branch atual em relação à base do remoto; null se não se aplica (é a própria base, HEAD desanexado, sem remoto). */
+  compareWithBase(repoPath: string): Promise<BaseComparison | null>;
   checkoutBranch(repoPath: string, ref: string, kind: 'local' | 'remote'): Promise<BranchActionResult>;
   checkoutRevision(repoPath: string, rev: string): Promise<BranchActionResult>;
   createBranch(repoPath: string, input: CreateBranchInput): Promise<BranchActionResult>;

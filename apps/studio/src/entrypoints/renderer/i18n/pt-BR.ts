@@ -427,6 +427,7 @@ const ptBR = {
   'sync.noUpstream': 'Sem upstream: a branch não acompanha nenhuma branch remota',
   'sync.gone': 'A branch remota {up} foi apagada',
   'sync.detached': 'HEAD desanexado',
+  'bp.baseInfo': 'Em relação a {base}: ↑{ahead} ↓{behind}',
   'sync.lastFetch': 'Última busca no remoto: {when}',
   'sync.neverFetched': 'Ainda não buscou no remoto',
   'sync.agoNow': 'agora há pouco',
