@@ -1,9 +1,17 @@
 <script setup lang="ts">
 // Botão do app. Dois eixos independentes:
-//  - `variant` é o PREENCHIMENTO: `primary` (sólido), `ghost` (sem fundo) ou o padrão (contorno em tom claro);
+//  - `variant` é o PREENCHIMENTO: `primary` (sólido), `ghost` (leve, sem fundo) ou o padrão (contorno em tom claro);
 //  - `tone` é a COR, com o mesmo vocabulário do GnBadge: neutral | accent | success | warn | danger.
-// A cor tem significado, não é enfeite: accent = navegar/atualizar, success = confirmar (commit), warn = atenção (conflitos),
-// danger = destrutivo. Neutral é tudo o que não pede destaque. `variant="danger"` continua valendo e equivale a `tone="danger"`.
+// A cor tem significado, não é enfeite:
+//   sólido (`primary`)        = a ação que a pessoa veio fazer nesta tela (no máximo uma por área): azul, ou verde ao concluir, âmbar ao reescrever histórico
+//   accent (contorno)         = navegar / consultar (abrir, ver, ir para)
+//   success                   = confirmar / concluir (commit, marcar como resolvido, criar PR)
+//   warn                      = atenção, em andamento ou que reescreve o histórico (conflitos, rebase, desfazer)
+//   danger                    = destrutivo (excluir, abortar, remover)
+//   neutral                   = tudo o que não pede destaque (inclui "Atualizar")
+// `variant="ghost"` com um tom colorido dá o botão LEVE colorido: texto na cor do tom, sem fundo nem borda até o hover (ações repetidas em
+// listas, como "Remover" em cada linha, sem encher a tela de vermelho). `variant="danger"` continua valendo e equivale a `tone="danger"`.
+// Ícone dentro do botão: `<GnIcon name="check" />` antes do texto (só onde informa; veja docs/INTERFACE.md). Só ícone: use GnIconButton.
 import { computed } from 'vue';
 
 export type GnTone = 'neutral' | 'accent' | 'success' | 'warn' | 'danger';
@@ -16,16 +24,25 @@ const props = withDefaults(
     disabled?: boolean;
     type?: 'button' | 'submit';
   }>(),
-  { variant: 'ghost', size: 'md', disabled: false, type: 'button' },
+  { variant: undefined, tone: undefined, size: 'md', disabled: false, type: 'button' },
 );
 
 /** Sem `tone` explícito: `primary` é azul (como sempre foi) e `danger` é vermelho; o resto é neutro. */
 const effectiveTone = computed<GnTone>(() => props.tone ?? (props.variant === 'danger' ? 'danger' : props.variant === 'primary' ? 'accent' : 'neutral'));
 const solid = computed(() => props.variant === 'primary');
+/** Neutro sem preenchimento: o padrão (sem `variant`) e `ghost`. */
+const ghost = computed(() => effectiveTone.value === 'neutral' && (props.variant === undefined || props.variant === 'ghost'));
+/** `ghost` com tom colorido: o botão leve colorido (só quando pedido de forma explícita). */
+const ghostTone = computed(() => props.variant === 'ghost' && effectiveTone.value !== 'neutral');
 </script>
 
 <template>
-  <button class="gn-btn" :class="[`gn-btn--${size}`, `gn-btn--tone-${effectiveTone}`, { 'gn-btn--solid': solid, 'gn-btn--ghost': variant === 'ghost' && effectiveTone === 'neutral' }]" :type="type" :disabled="disabled">
+  <button
+    class="gn-btn"
+    :class="[`gn-btn--${size}`, `gn-btn--tone-${effectiveTone}`, { 'gn-btn--solid': solid, 'gn-btn--ghost': ghost, 'gn-btn--ghost-tone': ghostTone }]"
+    :type="type"
+    :disabled="disabled"
+  >
     <slot />
   </button>
 </template>
@@ -50,6 +67,7 @@ const solid = computed(() => props.variant === 'primary');
   &--sm { padding: 2px 8px; font-size: 12px; }
 
   &:hover:not(:disabled) { border-color: var(--gn-accent); }
+  &:focus-visible { outline: 2px solid var(--gn-accent); outline-offset: 1px; }
   &:disabled { opacity: 0.45; cursor: not-allowed; }
   &--ghost { background: transparent; }
 
@@ -70,6 +88,9 @@ const solid = computed(() => props.variant === 'primary');
     }
   }
 
+  // Leve colorido (`variant="ghost"` + tom): sem fundo nem borda em repouso; no hover volta o contorno tingido da regra acima.
+  &--ghost-tone { background: transparent; border-color: transparent; }
+
   // Sólido (`variant="primary"`): preenchimento na cor do tom.
   &--solid {
     background: var(--tone);
@@ -80,10 +101,13 @@ const solid = computed(() => props.variant === 'primary');
       border-color: color-mix(in srgb, var(--tone) 82%, #fff);
     }
   }
-  // O primary azul sempre teve texto branco e o hover do token; continua igual.
+  // O azul sólido usa um azul um pouco mais escuro (--gn-accent-solid) para o texto branco passar de 4,5:1, e ESCURECE no hover (clarear
+  // o fundo tirava o contraste justo quando o mouse está em cima). O azul de bordas, links e foco (--gn-accent) continua o mesmo.
   &--solid.gn-btn--tone-accent {
     --on-tone: #fff;
-    &:hover:not(:disabled) { background: var(--gn-accent-hover); border-color: var(--gn-accent-hover); }
+    background: var(--gn-accent-solid);
+    border-color: var(--gn-accent-solid);
+    &:hover:not(:disabled) { background: var(--gn-accent-solid-hover); border-color: var(--gn-accent-solid-hover); }
   }
 }
 </style>
