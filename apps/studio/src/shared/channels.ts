@@ -53,6 +53,14 @@ export const WORKER_METHODS = [
   'scanStagedSecrets',
   'getMergeConflicts',
   'resolveConflictFile',
+  'listBranches',
+  'checkoutBranch',
+  'checkoutRevision',
+  'createBranch',
+  'deleteBranch',
+  'mergeBranch',
+  'rebaseOntoBranch',
+  'pullBranch',
 ] as const satisfies readonly (keyof GitNexusApi)[];
 export type WorkerMethod = (typeof WORKER_METHODS)[number];
 

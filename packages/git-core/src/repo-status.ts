@@ -46,7 +46,7 @@ export async function getRepoSummary(repoPath: string): Promise<RepoSummary> {
 }
 
 /** Sem terminal: nunca pergunta senha (o git falha em vez de travar esperando entrada). */
-const NO_PROMPT = { GIT_TERMINAL_PROMPT: '0', GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND ?? 'ssh -o BatchMode=yes' };
+export const NO_PROMPT = { GIT_TERMINAL_PROMPT: '0', GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND ?? 'ssh -o BatchMode=yes' };
 
 /** `git fetch --all --prune`. */
 export async function fetchRepo(repoPath: string): Promise<SyncResult> {

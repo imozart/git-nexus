@@ -14,3 +14,4 @@ export * from './stash.js';
 export * from './history-tools.js';
 export * from './repo-status.js';
 export * from './rebase.js';
+export * from './branches.js';
