@@ -1,0 +1,42 @@
+name: Dependabot - merge automático
+
+# Atualizações de dependência PATCH e MINOR abertas pelo Dependabot entram sozinhas quando as verificações passam.
+# Usa o "auto-merge" do GitHub: o merge só acontece depois que TODAS as verificações obrigatórias do ruleset da main terminarem bem
+# (lista em docs/REPOSITORIO.md). Sem verificações obrigatórias o GitHub juntaria na hora, então este workflow depende do ruleset.
+# Ficam para revisão manual: atualizações MAJOR e o Electron (um bump dele pode quebrar o app de um jeito que os testes não pegam).
+# Requer "Allow auto-merge" ligado (já está). O merge é um merge commit, com o título do PR na mensagem: chore(deps-dev) e ci(deps)
+# não publicam release (release.yml). Roda em pull_request (sem acesso a secrets de fork) e só age em PR e ator do próprio Dependabot.
+
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  automerge:
+    name: Ativar o merge automático
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Metadados da atualização
+        id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Ativar o auto-merge (patch e minor)
+        if: ${{ steps.meta.outputs.update-type != 'version-update:semver-major' && !contains(steps.meta.outputs.dependency-names, 'electron') }}
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge --auto --merge "$PR_URL"
+
+      - name: Aviso quando fica para revisão manual
+        if: ${{ steps.meta.outputs.update-type == 'version-update:semver-major' || contains(steps.meta.outputs.dependency-names, 'electron') }}
+        env:
+          DEPS: ${{ steps.meta.outputs.dependency-names }}
+        run: echo "::notice::Atualização major ou do Electron ($DEPS) - revisão manual, o auto-merge não foi ativado."
