@@ -219,6 +219,67 @@ export interface SyncResult {
   message: string;
 }
 
+/** Uma branch local ou remota. `name` é a referência completa (`feat/x` ou `origin/feat/x`); `short` é o nome sem o remoto. */
+export interface BranchInfo {
+  name: string;
+  short: string;
+  kind: 'local' | 'remote';
+  /** Só nas remotas: de qual remoto (origin). */
+  remote?: string;
+  current: boolean;
+  /** Só nas locais: a remota que ela acompanha. */
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  /** A remota que ela acompanhava foi apagada. */
+  gone: boolean;
+  /** Hash curto do último commit e data (segundos desde 1970). */
+  hash: string;
+  date: number;
+  subject: string;
+}
+
+export interface BranchList {
+  /** Branch atual ('' com HEAD desanexado). */
+  current: string;
+  detached: boolean;
+  /** Hash curto do HEAD (útil quando está desanexado). */
+  head: string;
+  locals: BranchInfo[];
+  remotes: BranchInfo[];
+  remoteNames: string[];
+  /** Locais visitadas há pouco (reflog), da mais recente para a mais antiga, sem a atual. */
+  recent: string[];
+  /** Tags mais novas primeiro (para sugerir no "ir para tag ou commit"). */
+  tags: string[];
+  /** A branch principal do remoto (origin/main): onde nasce uma branch "a partir da mais recente". */
+  defaultRemoteBranch: string | null;
+}
+
+export interface CreateBranchInput {
+  name: string;
+  /** Branch local, remota (origin/main), tag, hash ou HEAD. */
+  base: string;
+  /** Busca a base no remoto antes de criar (a branch nasce da versão mais recente). */
+  fetch?: boolean;
+  /** Troca para a nova branch (padrão: sim). */
+  checkout?: boolean;
+}
+
+export type PullMode = 'rebase' | 'merge';
+
+/** Resultado de uma operação de branch: nunca lança para o que a pessoa pode resolver (conflito, nome em uso, alterações locais). */
+export interface BranchActionResult {
+  ok: boolean;
+  message: string;
+  /** Aviso que não impediu o resultado (ex.: sem rede, usou a cópia local). */
+  warning?: string;
+  /** Merge, rebase ou pull parou por conflitos e ficou em andamento. */
+  conflicted?: boolean;
+  /** Exclusão recusada porque a branch tem commits que não estão em outra: só com confirmação (`force`). */
+  needsForce?: boolean;
+}
+
 export type RebaseAction = 'pick' | 'reword' | 'squash' | 'fixup' | 'drop';
 
 /** Um passo do rebase interativo, na ordem em que será aplicado (do mais antigo ao mais novo). */
@@ -588,6 +649,16 @@ export interface GitNexusApi extends GitNexusIPC {
   getRepoSummary(repoPath: string): Promise<RepoSummary>;
   fetchRepo(repoPath: string): Promise<SyncResult>;
   pullRepo(repoPath: string): Promise<SyncResult>;
+
+  // Branches: listar, trocar, criar, excluir, merge, rebase e pull
+  listBranches(repoPath: string): Promise<BranchList>;
+  checkoutBranch(repoPath: string, ref: string, kind: 'local' | 'remote'): Promise<BranchActionResult>;
+  checkoutRevision(repoPath: string, rev: string): Promise<BranchActionResult>;
+  createBranch(repoPath: string, input: CreateBranchInput): Promise<BranchActionResult>;
+  deleteBranch(repoPath: string, name: string, force?: boolean): Promise<BranchActionResult>;
+  mergeBranch(repoPath: string, ref: string): Promise<BranchActionResult>;
+  rebaseOntoBranch(repoPath: string, ref: string): Promise<BranchActionResult>;
+  pullBranch(repoPath: string, remoteRef: string, mode: PullMode): Promise<BranchActionResult>;
 
   // Busca no histórico, histórico de arquivo, detalhe de commit e blame
   searchHistory(repoPath: string, query: HistorySearch, limit?: number): Promise<CommitInfo[]>;

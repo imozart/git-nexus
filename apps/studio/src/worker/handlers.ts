@@ -3,6 +3,14 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import {
   CommitRejectedError,
+  checkoutBranch,
+  checkoutRevision,
+  createBranch,
+  deleteBranch,
+  listBranches,
+  mergeBranch,
+  pullBranch,
+  rebaseOntoBranch,
   abortRebase,
   addToGitignore,
   applyStash,
@@ -49,7 +57,9 @@ import {
   unstageFiles,
   type BumpChoice,
   type CommitPolicy,
+  type CreateBranchInput,
   type CreateStashInput,
+  type PullMode,
   type HistorySearch,
   type DiscardScope,
   type ConventionalCommitInput,
@@ -213,5 +223,13 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
     getMergeConflicts: (repoPath: string) => getMergeConflicts(repoPath),
     resolveConflictFile: (repoPath: string, filePath: string, merged: string) =>
       resolveConflictFile(repoPath, filePath, merged),
+    listBranches: (repoPath: string) => listBranches(repoPath),
+    checkoutBranch: (repoPath: string, ref: string, kind: 'local' | 'remote') => checkoutBranch(repoPath, ref, kind),
+    checkoutRevision: (repoPath: string, rev: string) => checkoutRevision(repoPath, rev),
+    createBranch: (repoPath: string, input: CreateBranchInput) => createBranch(repoPath, input),
+    deleteBranch: (repoPath: string, name: string, force?: boolean) => deleteBranch(repoPath, name, force),
+    mergeBranch: (repoPath: string, ref: string) => mergeBranch(repoPath, ref),
+    rebaseOntoBranch: (repoPath: string, ref: string) => rebaseOntoBranch(repoPath, ref),
+    pullBranch: (repoPath: string, remoteRef: string, mode: PullMode) => pullBranch(repoPath, remoteRef, mode),
   };
 }

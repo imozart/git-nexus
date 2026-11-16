@@ -7,6 +7,7 @@ import { checkState, groupEntries, hasStaged, isUntracked, statusLabel, statusLe
 import { t, type MessageKey } from '../i18n';
 import { useCommandsStore, type Command } from '../stores/commands';
 import { useWorkspaceStore } from '../stores/workspace';
+import BranchPicker from '../components/BranchPicker.vue';
 import ChangesTree from '../components/ChangesTree.vue';
 import CommitForm from '../components/CommitForm.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
@@ -363,6 +364,17 @@ async function onCommitted(): Promise<void> {
 }
 
 // --- aviso com "Desfazer" -------------------------------------------------------------------
+/** A branch mudou (troca, criação, merge, pull...): recarrega tudo e avisa o grafo e as ferramentas. */
+async function onBranchChanged(): Promise<void> {
+  await refresh();
+  ws.bump(props.repo.id);
+}
+/** Merge, rebase ou pull parou por conflitos: o rebase em andamento tem a própria faixa; o merge vai para a tela de conflitos. */
+async function onBranchConflict(): Promise<void> {
+  await onBranchChanged();
+  if (!rebase.value?.inProgress) ws.open('merge', props.repo);
+}
+
 const notice = ref<{ text: string; undo?: () => Promise<void> } | null>(null);
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 function showNotice(text: string, undo?: () => Promise<void>): void {
@@ -556,7 +568,7 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
     <header class="rv__head">
       <div class="rv__id">
         <strong>{{ repo.name }}</strong>
-        <GnBadge tone="accent">⎇ {{ branch || '…' }}</GnBadge>
+        <BranchPicker :repo="repo" :branch="branch" @changed="onBranchChanged" @notice="showNotice($event)" @conflict="onBranchConflict" />
         <GnBadge v-if="repo.isWsl">WSL2</GnBadge>
         <span class="muted rv__path">{{ repo.path }}</span>
       </div>

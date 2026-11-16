@@ -43,6 +43,18 @@ A tela inicial mostra, para cada repositório catalogado: **branch**, **↑ comm
 - **Log do Git** (parte de baixo da tela, recolhível como no IntelliJ): cada comando `git` que o app executa naquele repositório, com horário, resultado (✓/✗) e duração. Consultas (`status`, `log`, `diff`…) aparecem em cinza; o filtro *Só alterações* mostra apenas o que modifica o repositório; comando que falhou já mostra o motivo; dá para copiar a lista e limpar. A altura se ajusta arrastando a borda de cima. Senhas e tokens em endereços ou cabeçalhos são mascarados (`https://***@…`) e nada é gravado em disco: o log vive só na memória (últimos 500 comandos por repositório).
 - **Stage por linha e por bloco:** o seletor *Tudo | Pendente | No commit* escolhe o que comparar. Em **Pendente** (índice x disco) cada linha tem **+** e cada bloco **⊕** para incluir no commit só aquele trecho; em **No commit** (HEAD x índice) **−** e **⊖** tiram o trecho do commit. Só o índice é alterado (o disco não muda), há *Desfazer* no aviso, e o commit parcial deixa o resto pendente. Funciona também em arquivos novos.
 
+## Seletor de branch
+
+No cabeçalho do repositório, a branch atual é um botão (ícone de branch, nome e seta). Clicar abre o painel:
+
+- **Busca** nas branches **locais e remotas**: digite parte do nome (o trecho encontrado fica realçado) e as seções se abrem sozinhas. Esc ou clique fora fecham.
+- **Ações:** *Atualizar a branch atual* (busca do remoto e atualiza só por fast-forward), *Nova branch…* e *Ir para tag ou commit…* (deixa o HEAD desanexado).
+- **Listas:** *Recentes* (as últimas branches em que você esteve, pelo reflog), *Locais* e *Remotas* (agrupadas por remoto). Cada linha mostra se está à frente (↑) ou atrás (↓) do remoto; a atual vem marcada.
+- **Menu de cada branch** (clique na linha, ou → no teclado; duplo clique ou Enter faz o checkout): *Trocar para esta branch* (numa remota, cria a branch local que a acompanha), *Nova branch a partir dela…*, *Merge dela na atual*, *Rebase da atual sobre ela* (pede confirmação, porque reescreve o histórico), *Pull na atual com rebase ou com merge* (branches remotas) e *Excluir* (só branch local; se ela tiver commits que não estão em nenhuma outra, pede uma segunda confirmação).
+- **Nova branch a partir da mais recente:** por padrão o diálogo cria a partir de **origin/main (ou a branch principal do remoto) depois de buscá-la**, isto é, da versão mais recente do remoto, e não da cópia local que pode estar velha. Se não houver rede, usa a última cópia local e avisa. Também dá criar a partir da branch atual ou de qualquer outra, e escolher se quer trocar para a nova. A nova branch **não passa a acompanhar a `main`** (um pull nela não traria a main).
+- **Conflitos:** se um merge, rebase ou pull parar por conflitos, o app não mostra erro: a operação fica em andamento e leva você à tela de conflitos (o rebase tem a faixa própria no topo).
+- Se houver alterações locais que seriam sobrescritas, a troca é recusada com a explicação (faça commit ou guarde com stash antes).
+
 ## Política do time (`.gitnexus.json`)
 
 Um arquivo `.gitnexus.json` na raiz do repositório define as regras de commit do time. Versionado junto com o código, vale para todos que abrirem o repositório no GitNexus e **sobrepõe** a configuração local de cada pessoa (também no momento de gravar o commit, não só na tela). O botão *Política → Salvar como política do time* cria o arquivo a partir da configuração atual.
