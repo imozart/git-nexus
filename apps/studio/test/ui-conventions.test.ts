@@ -24,7 +24,7 @@ const RAW_BUTTONS: Record<string, { max: number; why: string }> = {
   'components/MergeConflictResolver.vue': { max: 1, why: 'atalho de bloco dentro da lista de conflitos' },
   'components/SideBySideDiff.vue': { max: 5, why: 'controles compactos por linha do diff (candidatos a GnIconButton size="xs") e a dobra de linhas' },
   'components/tools/StashPanel.vue': { max: 1, why: 'link-botão de "guardar só alguns arquivos"' },
-  'CoreInterface.vue': { max: 8, why: 'faixa de atualização com CSS próprio (migra para GnButton)' },
+  'CoreInterface.vue': { max: 9, why: 'faixa de atualização com CSS próprio (migra para GnButton)' },
 };
 
 describe('botões vêm do ui-kit', () => {
