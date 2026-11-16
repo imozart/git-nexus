@@ -40,6 +40,8 @@ flatpak install flathub dev.gitnexus.studio     # Linux (quando estiver no Flath
 |---|---|
 | usar o app (atalhos, staging, rebase, política do time, PRs/MRs) | [Guia de uso](docs/USO.md) |
 | rodar, testar e empacotar o código | [Guia de desenvolvimento](docs/DESENVOLVIMENTO.md) |
+| contribuir (branches, commits, PRs) | [CONTRIBUTING](CONTRIBUTING.md) |
+| reportar uma vulnerabilidade | [Política de segurança](SECURITY.md) |
 | entender a CI e o pipeline de release | [CI e releases](docs/CI.md) e [Automação](docs/AUTOMATION.md) |
 | ver o que mudou em cada versão | [CHANGELOG](CHANGELOG.md) |
 | adicionar um idioma | [Idiomas](docs/I18N.md) |
