@@ -1,8 +1,8 @@
 name: Atraso dos PRs
 
 # Marca com a label "desatualizada" os PRs abertos que não têm commits novos da main, e tira a label quando atualizam (merge ou rebase
-# da main na branch). É um AVISO, não uma trava: o repositório é privado no plano gratuito, sem ruleset, então nada aqui impede o merge.
-# Quando existir ruleset, a regra "Require branches to be up to date before merging" faz a trava de verdade (docs/LABELS.md).
+# da main na branch). É um AVISO, não uma trava: o ruleset da main não exige "Require branches to be up to date before merging" (em pilhas de
+# PRs isso obrigaria a atualizar e repetir o CI a cada merge; veja docs/REPOSITORIO.md e docs/LABELS.md).
 # Roda a cada push na main e quando um PR é aberto ou atualizado. Contagem em scripts/lib/pr-behind.mjs.
 #
 # pull_request_target: o token pode escrever labels mesmo em PR de fork. Por isso o checkout é SEMPRE da branch principal
