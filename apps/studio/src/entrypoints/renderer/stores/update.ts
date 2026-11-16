@@ -6,6 +6,7 @@ import { t } from '../i18n';
 
 const ENABLED_KEY = 'gitnexus.updateCheck';
 const SKIP_KEY = 'gitnexus.skipVersion';
+const LAST_KEY = 'gitnexus.lastVersion';
 
 export const useUpdateStore = defineStore('update', () => {
   const info = ref<UpdateInfo | null>(null);
@@ -21,8 +22,12 @@ export const useUpdateStore = defineStore('update', () => {
   const progress = ref<UpdateProgress>({ done: 0, total: 0 });
   /** O pacote baixado é o da versão `info.latest`? (se uma versão mais nova sair depois, volta a pedir o download). */
   let readyVersion = '';
-  /** Dá para instalar sem sair do app (Windows instalado, AppImage) e há hash para conferir. */
-  const canInstall = computed(() => info.value?.install === 'installer' || info.value?.install === 'appimage');
+  /** O último download falhou: oferece tentar de novo e, como saída, baixar manualmente. */
+  const failed = ref(false);
+  /** Pacote já conferido; extraindo os arquivos (ZIP portátil). Sem percentual. */
+  const preparing = computed(() => progress.value.stage === 'prepare');
+  /** Dá para instalar sem sair do app (Windows instalado, ZIP portátil, AppImage) e há hash para conferir. */
+  const canInstall = computed(() => info.value?.install === 'installer' || info.value?.install === 'appimage' || info.value?.install === 'portable');
   const percent = computed(() => (progress.value.total > 0 ? Math.min(100, Math.round((progress.value.done / progress.value.total) * 100)) : 0));
 
   /** Há versão nova, e a pessoa não pediu para ignorá-la nem dispensou o aviso nesta sessão. */
@@ -35,12 +40,20 @@ export const useUpdateStore = defineStore('update', () => {
     flashTimer = setTimeout(() => (flash.value = ''), 9000);
   }
 
+  /** Primeira abertura depois de uma atualização: confirma a nova versão (a anterior fica guardada neste computador). */
+  function announceUpdated(current: string): void {
+    const prev = localStorage.getItem(LAST_KEY);
+    localStorage.setItem(LAST_KEY, current);
+    if (prev && prev !== current) say(t('update.updated', { version: current }));
+  }
+
   /** `manual`: mostra o resultado mesmo quando não há novidade e ignora a opção "ignorar esta versão". */
   async function check(manual = false): Promise<void> {
     if (checking.value || (!manual && !enabled.value)) return;
     checking.value = true;
     try {
       info.value = await api.checkForUpdate();
+      announceUpdated(info.value.current);
       if (manual) {
         dismissed.value = false;
         if (info.value.status === 'available') skipped.value = '';
@@ -69,6 +82,7 @@ export const useUpdateStore = defineStore('update', () => {
   async function downloadAndVerify(): Promise<void> {
     if (phase.value === 'downloading' || phase.value === 'installing') return;
     phase.value = 'downloading';
+    failed.value = false;
     progress.value = { done: 0, total: 0 };
     const off = api.onUpdateProgress((p) => (progress.value = p));
     try {
@@ -77,6 +91,7 @@ export const useUpdateStore = defineStore('update', () => {
       phase.value = 'ready';
     } catch (e) {
       phase.value = 'idle';
+      failed.value = true;
       say(errMsg(e));
     } finally {
       off();
@@ -105,5 +120,5 @@ export const useUpdateStore = defineStore('update', () => {
     if (info.value?.url) await api.openExternal(info.value.url).catch((e) => say(errMsg(e)));
   }
 
-  return { info, checking, flash, enabled, visible, phase, progress, percent, canInstall, check, later, skip, setEnabled, download, downloadAndVerify, installAndRestart, openNotes };
+  return { info, checking, flash, enabled, visible, phase, progress, percent, failed, preparing, canInstall, check, later, skip, setEnabled, download, downloadAndVerify, installAndRestart, openNotes };
 });

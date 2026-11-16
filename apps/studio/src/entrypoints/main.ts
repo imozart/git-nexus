@@ -2,13 +2,13 @@ import { spawn } from 'node:child_process';
 import { accessSync, constants, existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { BrowserWindow, Menu, app, clipboard, dialog, ipcMain, shell, utilityProcess, type UtilityProcess } from 'electron';
 import { setMessageLocale, tm } from '@git-nexus/git-core';
 import { WORKER_METHODS, channel, type UtilityEvent, type UtilityRequest, type UtilityResponse } from '../shared/channels';
 import { isAllowedUpdateUrl } from '../shared/update';
 import { checkForUpdate } from './update';
-import { WINDOWS_INSTALLER_ARGS, downloadVerified, isReadyFile, replaceAppImage } from './installer';
+import { WINDOWS_INSTALLER_ARGS, cleanupUpdateFiles, downloadVerified, isReadyFile, prepareStage, replaceAppImage, startPortableSwap } from './installer';
 import { HostingService } from '../worker/hosting-service';
 import { SecureTokenStore } from './hosting-store';
 import { attachSmoke, smokeEnabled } from './smoke';
@@ -124,8 +124,29 @@ ipcMain.handle(channel('hostingOpen'), async (_e, repoPath: string, url: string)
   await shell.openExternal(String(url));
 });
 
+/** Pasta do executável (no AppImage, a pasta do arquivo .AppImage). */
+const exeDir = process.env.APPIMAGE ? dirname(process.env.APPIMAGE) : dirname(process.execPath);
+/**
+ * Onde a atualização é baixada e preparada: na MESMA pasta do executável (assim a troca é só renomear, no mesmo volume, e
+ * nada fica espalhado). Se ela não for gravável, cai na pasta de dados. Tudo o que o updater cria tem o prefixo `gnupdate-`.
+ */
+const updateDir = app.isPackaged && isWritable(exeDir) ? exeDir : join(dataDir, 'updates');
+
+// Restos de uma atualização anterior (pacote baixado, pasta de preparo, backup da troca) saem a cada abertura do app.
+if (app.isPackaged) {
+  void cleanupUpdateFiles(exeDir);
+  void cleanupUpdateFiles(join(dataDir, 'updates'));
+}
+
 function updateContext() {
-  return { current: app.getVersion(), platform: process.platform, arch: process.arch, portable: isPortable, appImage: Boolean(process.env.APPIMAGE) };
+  return {
+    current: app.getVersion(),
+    platform: process.platform,
+    arch: process.arch,
+    portable: isPortable,
+    appImage: Boolean(process.env.APPIMAGE),
+    writable: app.isPackaged && isWritable(exeDir),
+  };
 }
 
 ipcMain.handle(channel('checkForUpdate'), () => {
@@ -138,21 +159,27 @@ ipcMain.handle(channel('checkForUpdate'), () => {
 
 // Atualização sem sair do app. O renderer não informa endereço nenhum: o processo principal consulta a release de novo,
 // baixa só o pacote que ele mesmo escolheu e confere o SHA-256 contra o SHA256SUMS.txt da mesma release.
-let downloadedUpdate: { file: string; kind: 'installer' | 'appimage'; version: string } | null = null;
+let downloadedUpdate: { file: string; kind: 'installer' | 'appimage' | 'portable'; version: string; stage?: string } | null = null;
 ipcMain.handle(channel('downloadUpdate'), async (e) => {
   const info = await checkForUpdate(updateContext());
   if (info.status !== 'available' || !info.downloadUrl || !info.assetName || !info.sumsUrl || !info.latest) throw new Error(tm('Não há atualização para baixar.', 'There is no update to download.'));
-  if (info.install !== 'installer' && info.install !== 'appimage') throw new Error(tm('Este pacote precisa ser instalado manualmente.', 'This package must be installed manually.'));
+  if (info.install !== 'installer' && info.install !== 'appimage' && info.install !== 'portable') throw new Error(tm('Este pacote precisa ser instalado manualmente.', 'This package must be installed manually.'));
   const r = await downloadVerified({
     url: info.downloadUrl,
     name: info.assetName,
     sumsUrl: info.sumsUrl,
-    destDir: join(dataDir, 'updates'),
+    destDir: updateDir,
     onProgress: (p) => {
       if (!e.sender.isDestroyed()) e.sender.send(channel('updateProgress'), p);
     },
   });
-  downloadedUpdate = { file: r.file, kind: info.install, version: info.latest };
+  let stage: string | undefined;
+  if (info.install === 'portable') {
+    // Pacote conferido: extrai agora, com o app aberto, para que o reinício seja só a troca de pastas.
+    if (!e.sender.isDestroyed()) e.sender.send(channel('updateProgress'), { done: 0, total: 0, stage: 'prepare' });
+    stage = await prepareStage(r.file, updateDir, basename(process.execPath));
+  }
+  downloadedUpdate = { file: r.file, kind: info.install, version: info.latest, stage };
   return { version: info.latest, assetName: info.assetName, sha256: r.sha256 };
 });
 ipcMain.handle(channel('installUpdate'), async () => {
@@ -161,6 +188,13 @@ ipcMain.handle(channel('installUpdate'), async () => {
   if (u.kind === 'installer') {
     // Instalador NSIS em modo silencioso (por usuário, sem administrador): atualiza no mesmo lugar e reabre o app.
     spawn(u.file, [...WINDOWS_INSTALLER_ARGS], { detached: true, stdio: 'ignore' }).unref();
+    app.quit();
+    return;
+  }
+  if (u.kind === 'portable') {
+    if (!u.stage) throw new Error(tm('A atualização não foi preparada.', 'The update was not prepared.'));
+    // Um PowerShell oculto espera o app fechar, troca os arquivos (com rollback), apaga o pacote e reabre o app.
+    await startPortableSwap({ pid: process.pid, stageDir: u.stage, zip: u.file, appDir: dirname(process.execPath), exe: basename(process.execPath), workDir: updateDir });
     app.quit();
     return;
   }
