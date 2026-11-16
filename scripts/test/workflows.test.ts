@@ -105,6 +105,38 @@ describe('actions de terceiros nos workflows novos', () => {
   });
 });
 
+describe('CHANGELOG empacotado com a versão da própria release (release.yml)', () => {
+  const release = workflows.find((w) => w.file === 'release.yml')!;
+  const version = jobs(release.text).find((j) => j.name === 'version')!;
+  const build = jobs(release.text).find((j) => j.name === 'build')!;
+
+  it('o job de versão gera o CHANGELOG até o commit da release (a tag ainda não existe) só para versão estável', () => {
+    expect(version.body).toContain('node scripts/changelog.mjs --version "$VERSION" --ref HEAD');
+    expect(version.body).toContain("steps.next.outputs.prerelease != 'true'");
+    expect(version.body).toContain('continue-on-error: true'); // falhar aqui nunca impede a release
+    expect(version.body).toContain('name: changelog');
+  });
+
+  it('a versão sai de saída de passo, por variável de ambiente (nunca interpolada no script)', () => {
+    const line = version.body.split('\n').find((l) => l.includes('scripts/changelog.mjs'))!;
+    expect(line).not.toContain('${{');
+  });
+
+  it('o build baixa o arquivo ANTES de compilar e empacotar, e o histórico completo fica só no job de versão', () => {
+    const dl = build.body.indexOf('actions/download-artifact');
+    expect(dl).toBeGreaterThan(0);
+    expect(dl).toBeLessThan(build.body.indexOf('pnpm --filter @git-nexus/studio build'));
+    expect(dl).toBeLessThan(build.body.indexOf('exec electron-builder'));
+    expect(build.body).toContain('name: changelog');
+    expect(build.body).not.toContain('fetch-depth: 0');
+  });
+
+  it('o job de versão tem o histórico e as tags inteiros (o changelog sai dos commits entre as tags)', () => {
+    expect(version.body).toContain('fetch-depth: 0');
+    expect(version.body).toContain('fetch-tags: true');
+  });
+});
+
 describe('registro da release no código (release-sync.yml)', () => {
   const sync = workflows.find((w) => w.file === 'release-sync.yml')!;
   const release = workflows.find((w) => w.file === 'release.yml')!;

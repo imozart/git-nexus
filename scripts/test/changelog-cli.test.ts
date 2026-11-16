@@ -83,6 +83,31 @@ describe('scripts/changelog.mjs', () => {
     expect(t).toContain('[1.2.0]: https://github.com/dono/repo/compare/v1.1.0...v1.2.0');
   });
 
+  it('--ref gera a versão ANTES da tag (o app empacota o CHANGELOG antes da release) e fica igual ao gerado depois, pela tag', () => {
+    commit('feat(ui): novidade ainda sem tag');
+    const pre = run('--version', '1.3.0', '--ref', 'HEAD', '--file', 'next.md', '--repo', 'dono/repo');
+    expect(pre.code).toBe(0);
+    const t = readFileSync(join(dir, 'next.md'), 'utf8');
+    expect([...t.matchAll(/^## \[(.+?)\]/gm)].map((m) => m[1])).toEqual(['1.3.0', '1.2.0', '1.1.0', '1.0.0']);
+    expect(t.split('## [1.3.0]')[1]!.split('## [1.2.0]')[0]).toContain('novidade ainda sem tag');
+    expect(t.split('## [1.2.0]')[1]).not.toContain('novidade ainda sem tag');
+    expect(git('tag', '--list', 'v1.3.0').trim()).toBe(''); // nada de tag: só o arquivo
+    // a release publica a tag nesse mesmo commit; o release-sync (que usa a tag) não muda o que o build já empacotou
+    git('tag', 'v1.3.0');
+    const post = run('--version', '1.3.0', '--file', 'next.md', '--repo', 'dono/repo');
+    expect(post.code).toBe(0);
+    expect(post.out).toMatch(/já está em dia/);
+    expect(readFileSync(join(dir, 'next.md'), 'utf8')).toBe(t);
+    git('tag', '-d', 'v1.3.0');
+  });
+
+  it('--ref com um commit que não existe é recusado', () => {
+    const r = run('--version', '1.3.0', '--ref', 'nao-existe', '--file', 'x.md');
+    expect(r.code).toBe(1);
+    expect(r.out).toMatch(/não existe/);
+    expect(existsSync(join(dir, 'x.md'))).toBe(false);
+  });
+
   it('recusa beta e tag que não existe', () => {
     expect(run('--version', '1.2.0-beta.1').code).toBe(1);
     const missing = run('--version', '9.9.9');
