@@ -20,6 +20,8 @@ export interface CheckContext {
   portable: boolean;
   /** Linux: iniciado a partir de um AppImage (define se dá para atualizar sem sair do app). */
   appImage?: boolean;
+  /** A pasta do app é gravável (define se o ZIP portátil pode se atualizar sozinho). */
+  writable?: boolean;
   /** Para testes. */
   fetchImpl?: typeof fetch;
   repo?: string;
@@ -49,7 +51,7 @@ export async function checkForUpdate(ctx: CheckContext): Promise<UpdateInfo> {
   const asset = pickAsset(rel.assets ?? [], { platform: ctx.platform, arch: ctx.arch, portable: ctx.portable });
   const sums = (rel.assets ?? []).find((a) => a.name === SUMS_ASSET);
   // Só oferece instalar dentro do app quando há hash para conferir; sem o SHA256SUMS.txt cai no download manual.
-  const install = sums ? installPlan(asset?.name, { platform: ctx.platform, portable: ctx.portable, appImage: ctx.appImage ?? false }) : 'manual';
+  const install = sums ? installPlan(asset?.name, { platform: ctx.platform, portable: ctx.portable, appImage: ctx.appImage ?? false, writable: ctx.writable }) : 'manual';
   return {
     status: 'available',
     current: ctx.current,
