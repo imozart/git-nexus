@@ -28,6 +28,7 @@ export const SECTIONS: Section[];
 export const RELEASE_TYPES: string[];
 export function shouldRelease(commits: ParsedCommit[]): boolean;
 export function latestTag(tags: string[]): string | null;
+export function latestBetaTag(tags: string[], base: string): string | null;
 export function parseCommit(c: { hash: string; author: string; subject: string; body?: string }): ParsedCommit;
 export function decideBump(commits: ParsedCommit[]): BumpKind;
 export function bumpVersion(base: string, bump: BumpKind): string;

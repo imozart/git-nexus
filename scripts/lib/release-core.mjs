@@ -99,6 +99,20 @@ export function computeBeta(opts) {
   return { ...next, stable: next.version, version: `${next.version}-beta.${n + 1}`, channel: 'beta' };
 }
 
+/** O beta mais recente (maior N) da base `X.Y.Z`, ou `null`. Serve para a agenda não publicar dois betas sem nada novo entre eles. */
+export function latestBetaTag(tags, base) {
+  let best = null;
+  let bestN = 0;
+  for (const t of tags) {
+    const m = BETA_TAG.exec(t);
+    if (m && m[1] === base && Number(m[2]) > bestN) {
+      best = t;
+      bestN = Number(m[2]);
+    }
+  }
+  return best;
+}
+
 /** O commit é o que o pipeline grava depois de uma release (`chore(release): v1.2.3`)? Não entra em notas nem decide versão. */
 export const isReleaseCommit = (c) => c.type === 'chore' && c.scope === 'release';
 

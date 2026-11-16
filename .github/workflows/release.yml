@@ -6,7 +6,7 @@ name: Release
 # Nem todo merge publica: só quando algum commit desde a última versão muda o app (feat, fix, perf, refactor, build, breaking ou fora do
 # padrão). Merge só de docs/test/ci/style/chore não gera versão nem instaladores; esses commits entram no changelog da próxima release.
 # Execução manual (Run workflow) publica sempre.
-# Canais: stable (padrão, a cada merge) e beta (só manual: Actions > Release > Run workflow > channel = beta). O beta sai como
+# Canais: stable (padrão, a cada merge) e beta (toda segunda-feira, se houver novidade, ou à mão: Actions > Release > Run workflow > channel = beta). O beta sai como
 # pré-lançamento (vX.Y.Z-beta.N): não vira "última versão", não gera manifestos de pacote e não aparece como atualização no app.
 # Depois de uma release ESTÁVEL, o job "Registrar a versão e o CHANGELOG" (release-sync.yml) grava a versão nos package.json e a entrada
 # do CHANGELOG.md na main, num commit chore(release).
@@ -14,6 +14,9 @@ name: Release
 on:
   push:
     branches: [main]
+  # Beta agendado: segunda-feira 11:00 UTC (08:00 em Brasília). Só publica se houver commit que muda o app depois do último beta.
+  schedule:
+    - cron: '0 11 * * 1'
   workflow_dispatch:
     inputs:
       bump:
@@ -63,12 +66,15 @@ jobs:
         id: next
         env:
           BUMP: ${{ inputs.bump || 'auto' }}
-          CHANNEL: ${{ inputs.channel || 'stable' }}
+          # na agenda o canal é sempre beta; no push, stable; à mão, o que foi escolhido
+          CHANNEL: ${{ inputs.channel || (github.event_name == 'schedule' && 'beta') || 'stable' }}
+          SCHEDULED: ${{ github.event_name == 'schedule' }}
           # execução manual publica sempre; no push, só se algum commit muda o app (scripts/lib/release-core.mjs: shouldRelease)
           FORCE: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           args=(--bump "$BUMP" --channel "$CHANNEL")
           if [ "$FORCE" = "true" ]; then args+=(--force); fi
+          if [ "$SCHEDULED" = "true" ]; then args+=(--if-new); fi
           node scripts/release-info.mjs next "${args[@]}"
 
   # 2) Barreira de qualidade: não publica se typecheck ou testes falharem.

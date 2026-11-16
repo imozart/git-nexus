@@ -41,8 +41,12 @@ Outras automações que cabem aqui, se um dia fizerem falta (nenhuma está ligad
 - **Beta:** *Actions → Release → Run workflow → channel = beta*. Sai `vX.Y.Z-beta.N`, onde `X.Y.Z` é a estável que sairia agora e `N` conta os betas
   dessa base (`1.3.0-beta.1`, `1.3.0-beta.2`…). É publicada como **pré-lançamento**: não vira "última versão", não gera manifestos de
   winget/Scoop/Homebrew/Flathub e **não aparece como atualização no app** (a verificação consulta só a última release estável).
-- Para ter betas sem apertar o botão, acrescente ao `release.yml` um gatilho `schedule` (por exemplo toda sexta) chamando o mesmo job com `channel=beta`.
-  Não está ligado: um beta por agenda sem mudança nenhuma só gera ruído.
+- **Beta agendado:** toda **segunda-feira às 11:00 UTC** (08:00 em Brasília) o `release.yml` roda com `channel=beta` e `--if-new`: só publica se houver commit que
+  **muda o app** (mesma regra do estável) **depois do beta mais recente dessa versão**. Sem novidade, o job registra "Sem release" e nada é publicado, então a agenda
+  nunca gera dois betas iguais. Um beta novo da mesma base sobe o contador (`1.3.1-beta.1` → `1.3.1-beta.2`).
+  **Quando ele de fato dispara:** como o estável já sai a cada merge que muda o app, a agenda só tem o que publicar quando o estável **não** saiu: execução que
+  falhou ou foi cancelada, ou commit com `[skip release]`. Na prática é uma rede de segurança e um canal de teste *sem esforço*, não um fluxo paralelo. Se você quiser
+  betas com frequência, o caminho é mudar a política (estável semanal ou manual, beta a cada merge): é uma decisão de projeto, não só de agenda.
 - O beta usa o mesmo pipeline do estável (typecheck, testes, 6 builds, SHA-256, assinatura). Ainda não foi exercitado no GitHub: o primeiro
   disparo manual é o teste (se algum pacote, como o `.rpm`, recusar a versão com `-beta`, só o beta falha e nada estável é afetado).
 
