@@ -20,6 +20,11 @@ export const ICONS = {
   refresh: ['M20 11a8 8 0 10-2.3 5.7M20 4v7h-7'],
   history: ['M3 12a9 9 0 109-9 9 9 0 00-7 3.4M3 4v5h5M12 7v5l3 2'],
   person: ['M12 4a4 4 0 100 8 4 4 0 000-8z', 'M4 21c0-4 4-6 8-6s8 2 8 6'],
+  'git-branch': ['M6 3v12', 'M6 21a3 3 0 100-6 3 3 0 000 6z', 'M18 9a3 3 0 100-6 3 3 0 000 6z', 'M18 9c0 5-6 6-12 6'],
+  search: ['M11 4a7 7 0 100 14 7 7 0 000-14z', 'M21 21l-5-5'],
+  update: ['M19 5L6 18', 'M6 9v9h9'],
+  tag: ['M3 3h8l10 10-8 8L3 11z', 'M7.5 7.5v.01'],
+  folder: ['M3 7a1 1 0 011-1h5l2 2h9a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1z'],
 } as const satisfies Record<string, readonly string[]>;
 
 export type GnIconName = keyof typeof ICONS;
