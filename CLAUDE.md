@@ -2,7 +2,7 @@
 
 Gerenciador Git desktop portátil (Electron + Vue 3 + TypeScript), monorepo PNPM.
 
-**Instruções completas do projeto (escopo, arquitetura, contratos IPC, ordem de execução): [INSTRUCOES.md](INSTRUCOES.md).** Leia antes de qualquer implementação.
+**Instruções completas do projeto (escopo, arquitetura, contratos IPC, ordem de execução): [docs/ESPECIFICACAO.md](docs/ESPECIFICACAO.md).** Leia antes de qualquer implementação.
 
 ## Resumo operacional
 - Monorepo: `apps/studio` (Electron), `apps/ui-kit` (Vue 3 + SCSS), `packages/git-core`, `packages/governance-policy`.
@@ -14,4 +14,4 @@ Gerenciador Git desktop portátil (Electron + Vue 3 + TypeScript), monorepo PNPM
 - Contratos IPC em `packages/git-core/src/types/ipc.ts`.
 - Dependências: `governance-policy` depende de `git-core` (tipos); `git-core` NÃO depende de `governance-policy`.
 - Pacotes internos são consumidos como TypeScript fonte (`main: src/index.ts`) e empacotados pelo ESBuild/Vite.
-- Estado de execução: ver "Status" em [README.md](README.md).
+- Estado de execução e pendências: ver "Estado e pendências" em [docs/DESENVOLVIMENTO.md](docs/DESENVOLVIMENTO.md).
