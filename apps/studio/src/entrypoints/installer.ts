@@ -129,8 +129,8 @@ export async function replaceAppImage(downloaded: string, target: string): Promi
 
 // --- ZIP portátil (Windows) ---------------------------------------------------------------------------------------
 // O pacote é extraído enquanto o app ainda roda (a pessoa continua trabalhando); ao confirmar o reinício só resta uma
-// troca de pastas, que dura segundos. A troca é feita por um script PowerShell separado, porque o app não pode
-// sobrescrever o próprio executável em uso.
+// troca de pastas, que dura segundos. A troca é feita por um processo separado (o próprio executável em modo Node),
+// porque o app não pode sobrescrever a si mesmo enquanto roda.
 
 function run(file: string, args: string[], env?: NodeJS.ProcessEnv): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -183,90 +183,148 @@ export async function prepareStage(zip: string, destDir: string, exeName: string
 }
 
 /**
- * Script da troca (só ASCII). Espera o app fechar, move para `.gnupdate-old` as entradas de primeiro nível que o pacote
- * novo substitui, coloca as novas no lugar e reabre o app. Qualquer falha desfaz tudo e reabre a versão anterior.
- * Nunca mexe em `GitNexusData` nem em arquivos que o pacote não traz.
+ * Script da troca, em JavaScript puro (CommonJS), executado pelo PRÓPRIO executável do app em modo Node
+ * (`ELECTRON_RUN_AS_NODE=1`). Não depende de PowerShell/cmd, que políticas de segurança (execution policy, AppLocker,
+ * antivírus) costumam bloquear, e o executável do app, por definição, pode rodar.
+ *
+ * Espera o app fechar, move para `.gnupdate-old` as entradas de primeiro nível que o pacote novo substitui, coloca as
+ * novas no lugar e reabre o app. Qualquer falha desfaz tudo e reabre a versão anterior. Nunca mexe em `GitNexusData`
+ * nem em arquivos que o pacote não traz. No Windows um executável em uso pode ser RENOMEADO (não apagado): é por isso
+ * que o script consegue trocar o próprio executável que o está rodando.
  */
-export const SWAP_SCRIPT = String.raw`param(
-  [Parameter(Mandatory = $true)][int]$ProcId,
-  [Parameter(Mandatory = $true)][string]$Stage,
-  [Parameter(Mandatory = $true)][string]$AppDir,
-  [Parameter(Mandatory = $true)][string]$Exe,
-  [string]$Zip = '',
-  [string]$Log = '',
-  [int]$Retries = 40
-)
-$ErrorActionPreference = 'Stop'
-function Write-Log([string]$m) { if ($Log) { try { Add-Content -LiteralPath $Log -Value ((Get-Date -Format s) + ' ' + $m) } catch {} } }
-function Invoke-Retry([scriptblock]$Action) {
-  for ($i = 1; $i -le $Retries; $i++) {
-    try { & $Action; return } catch { if ($i -eq $Retries) { throw }; Start-Sleep -Milliseconds 500 }
+export const SWAP_SCRIPT = String.raw`'use strict';
+const fs = require('fs');
+const path = require('path');
+const { spawn } = require('child_process');
+const o = JSON.parse(process.argv[2]);
+const log = (m) => { try { fs.appendFileSync(o.log, new Date().toISOString() + ' ' + m + '\n'); } catch (e) { /* sem log não é motivo para parar */ } };
+// Aperto de mão: o app só fecha depois de ver este arquivo (prova de que o atualizador realmente iniciou).
+try { fs.writeFileSync(o.started, String(process.pid)); } catch (e) { log('não gravou o aperto de mão: ' + e.message); }
+log('atualizador iniciado (pid ' + process.pid + '), esperando o app ' + o.pid + ' fechar');
+
+const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+const TRANSIENT = new Set(['EBUSY', 'EPERM', 'EACCES', 'ENOTEMPTY']);
+function retry(fn) {
+  for (let i = 1; ; i++) {
+    try { return fn(); } catch (e) { if (!TRANSIENT.has(e.code) || i >= o.retries) throw e; sleep(500); }
   }
 }
-Write-Log ('waiting for process ' + $ProcId)
-Wait-Process -Id $ProcId -Timeout 90 -ErrorAction SilentlyContinue
-Start-Sleep -Milliseconds 800
-$old = Join-Path $AppDir '.gnupdate-old'
-$moved = New-Object System.Collections.ArrayList
-$placed = New-Object System.Collections.ArrayList
-$ok = $false
+function move(src, dst) {
+  try { fs.renameSync(src, dst); } catch (e) {
+    if (e.code !== 'EXDEV') throw e;
+    fs.cpSync(src, dst, { recursive: true });
+    fs.rmSync(src, { recursive: true, force: true });
+  }
+}
+
+const end = Date.now() + 90000;
+while (alive(o.pid) && Date.now() < end) sleep(200);
+sleep(800); // processos auxiliares (renderer, GPU) soltam os arquivos logo depois
+
+const old = path.join(o.appDir, '.gnupdate-old');
+const moved = [];
+const placed = [];
+let ok = false;
 try {
-  if (Test-Path -LiteralPath $old) { Remove-Item -LiteralPath $old -Recurse -Force }
-  New-Item -ItemType Directory -Path $old -Force | Out-Null
-  foreach ($it in @(Get-ChildItem -LiteralPath $Stage -Force)) {
-    $name = $it.Name
-    if ($name -eq 'GitNexusData' -or $name -eq '.gnupdate-old') { continue }
-    $cur = Join-Path $AppDir $name
-    if (Test-Path -LiteralPath $cur) {
-      Invoke-Retry { Move-Item -LiteralPath $cur -Destination $old -Force }
-      [void]$moved.Add($name)
+  fs.rmSync(old, { recursive: true, force: true });
+  fs.mkdirSync(old, { recursive: true });
+  for (const name of fs.readdirSync(o.stage)) {
+    if (name === 'GitNexusData' || name === '.gnupdate-old') continue;
+    const cur = path.join(o.appDir, name);
+    if (fs.existsSync(cur)) {
+      retry(() => move(cur, path.join(old, name)));
+      moved.push(name);
     }
-    $src = $it.FullName
-    Invoke-Retry { Move-Item -LiteralPath $src -Destination $AppDir -Force }
-    [void]$placed.Add($name)
+    retry(() => move(path.join(o.stage, name), cur));
+    placed.push(name);
   }
-  $ok = $true
-  Write-Log 'swap ok'
-} catch {
-  Write-Log ('swap failed: ' + $_.Exception.Message)
-  foreach ($n in $placed) { try { Remove-Item -LiteralPath (Join-Path $AppDir $n) -Recurse -Force } catch { Write-Log ('cleanup failed for ' + $n) } }
-  foreach ($n in $moved) { try { Move-Item -LiteralPath (Join-Path $old $n) -Destination $AppDir -Force } catch { Write-Log ('rollback failed for ' + $n) } }
+  ok = true;
+  log('troca concluída');
+} catch (e) {
+  log('troca falhou: ' + e.message);
+  for (const n of placed) { try { fs.rmSync(path.join(o.appDir, n), { recursive: true, force: true }); } catch (e2) { log('não removeu ' + n + ': ' + e2.message); } }
+  for (const n of moved) { try { move(path.join(old, n), path.join(o.appDir, n)); } catch (e2) { log('não restaurou ' + n + ': ' + e2.message); } }
 }
-try { Start-Process -FilePath (Join-Path $AppDir $Exe) -WorkingDirectory $AppDir } catch { Write-Log ('start failed: ' + $_.Exception.Message) }
-if ($ok) {
-  try { Remove-Item -LiteralPath $old -Recurse -Force } catch {}
-  try { Remove-Item -LiteralPath $Stage -Recurse -Force } catch {}
-  if ($Zip) { try { Remove-Item -LiteralPath $Zip -Force } catch {} }
-  exit 0
+
+try {
+  const env = Object.assign({}, process.env);
+  delete env.ELECTRON_RUN_AS_NODE; // senão o app reaberto também subiria em modo Node, sem janela
+  const child = spawn(path.join(o.appDir, o.exe), o.relaunchArgs || [], { cwd: o.appDir, detached: true, stdio: 'ignore', env });
+  child.on('error', (e) => log('não reabriu o app: ' + e.message));
+  child.unref();
+  log(ok ? 'app reaberto (versão nova)' : 'app reaberto (versão anterior, restaurada)');
+} catch (e) {
+  log('não reabriu o app: ' + e.message);
 }
-exit 1
+if (ok) {
+  // O executável antigo (este processo) ainda está em uso: o que não der para apagar agora sai na próxima abertura do app.
+  for (const p of [old].concat(o.cleanup || [])) { try { fs.rmSync(p, { recursive: true, force: true }); } catch (e) { /* fica para a limpeza da próxima abertura */ } }
+}
+setTimeout(() => process.exit(ok ? 0 : 1), 500);
 `;
 
 export interface PortableSwap {
   /** PID do app atual: o script espera esse processo terminar. */
   pid: number;
-  /** Pasta devolvida por `prepareStage`. */
+  /** Pasta devolvida por `prepareStage` (conteúdo do pacote novo). */
   stageDir: string;
-  /** ZIP baixado: o script o apaga quando a troca dá certo. */
-  zip: string;
+  /** Tudo o que deve ser apagado quando a troca dá certo (ZIP baixado, pasta de preparo). */
+  cleanup: string[];
   /** Pasta onde o app está instalado (a do executável). */
   appDir: string;
   /** Nome do executável (ex.: GitNexus.exe). */
   exe: string;
-  /** Onde gravar o script e o log (a pasta de atualizações). */
+  /** Onde gravar o script, o aperto de mão e o log (a pasta de atualizações). */
   workDir: string;
+  /** Quem roda o script em modo Node. Padrão: o próprio app (`process.execPath`). */
+  runner?: string;
+  /** Argumentos ao reabrir o app (só testes). */
+  relaunchArgs?: string[];
+  /** Tentativas por arquivo preso por outro processo, 500 ms entre elas (só testes). */
+  retries?: number;
+  /** Quanto esperar o atualizador provar que iniciou, em ms. */
+  startTimeoutMs?: number;
 }
 
-/** Dispara a troca em um PowerShell oculto e independente do app (que deve fechar logo em seguida). */
+/**
+ * Dispara a troca num processo independente e SÓ DEVOLVE quando ele provou que iniciou (aperto de mão). Se não iniciar
+ * (bloqueado, sem permissão…) lança: o app continua aberto e a pessoa é avisada, em vez de fechar e não voltar.
+ */
 export async function startPortableSwap(o: PortableSwap): Promise<ChildProcess> {
-  const script = join(o.workDir, `${UPDATE_PREFIX}apply.ps1`);
+  const script = join(o.workDir, `${UPDATE_PREFIX}apply.cjs`);
+  const started = join(o.workDir, `${UPDATE_PREFIX}started`);
+  await rm(started, { force: true });
   await writeFile(script, SWAP_SCRIPT, 'utf8');
-  const args = [
-    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', script,
-    '-ProcId', String(o.pid), '-Stage', o.stageDir, '-AppDir', o.appDir, '-Exe', o.exe, '-Zip', o.zip, '-Log', join(o.workDir, 'update.log'),
-  ];
-  const child = spawn(join(systemDir(), 'WindowsPowerShell', 'v1.0', 'powershell.exe'), args, { stdio: 'ignore', windowsHide: true });
-  // Sem `detached`: no Windows o PowerShell sem console (DETACHED_PROCESS) sai com 0 sem rodar o script; o filho sobrevive ao app mesmo assim.
+  const options = {
+    pid: o.pid,
+    stage: o.stageDir,
+    appDir: o.appDir,
+    exe: o.exe,
+    cleanup: o.cleanup,
+    log: join(o.workDir, 'update.log'),
+    started,
+    retries: o.retries ?? 40,
+    relaunchArgs: o.relaunchArgs ?? [],
+  };
+  const child = spawn(o.runner ?? process.execPath, [script, JSON.stringify(options)], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+  });
+  let spawnError: Error | null = null;
+  let exitCode: number | null | undefined;
+  child.once('error', (e) => (spawnError = e));
+  child.once('exit', (c) => (exitCode = c));
+  const limit = Date.now() + (o.startTimeoutMs ?? 10_000);
+  while (!(await stat(started).catch(() => null))) {
+    if (spawnError || exitCode !== undefined || Date.now() > limit) {
+      child.kill();
+      throw new Error(`O atualizador não iniciou (${(spawnError as Error | null)?.message ?? (exitCode !== undefined ? `saiu com código ${exitCode}` : 'sem resposta')}).`);
+    }
+    await new Promise((r) => setTimeout(r, 50));
+  }
   child.unref();
   return child;
 }

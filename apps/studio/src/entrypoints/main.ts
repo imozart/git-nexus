@@ -193,8 +193,20 @@ ipcMain.handle(channel('installUpdate'), async () => {
   }
   if (u.kind === 'portable') {
     if (!u.stage) throw new Error(tm('A atualização não foi preparada.', 'The update was not prepared.'));
-    // Um PowerShell oculto espera o app fechar, troca os arquivos (com rollback), apaga o pacote e reabre o app.
-    await startPortableSwap({ pid: process.pid, stageDir: u.stage, zip: u.file, appDir: dirname(process.execPath), exe: basename(process.execPath), workDir: updateDir });
+    // O próprio executável, em modo Node, espera o app fechar, troca os arquivos (com rollback), apaga o pacote e reabre o app.
+    // Só fechamos depois que ele provar que iniciou; se não iniciar, o app continua aberto e a pessoa é avisada.
+    try {
+      await startPortableSwap({
+        pid: process.pid,
+        stageDir: u.stage,
+        cleanup: [join(updateDir, '.gnupdate-stage'), u.file],
+        appDir: dirname(process.execPath),
+        exe: basename(process.execPath),
+        workDir: updateDir,
+      });
+    } catch (e) {
+      throw new Error(tm('Não foi possível iniciar o atualizador. Baixe a atualização manualmente. ', 'Could not start the updater. Download the update manually. ') + (e as Error).message);
+    }
     app.quit();
     return;
   }

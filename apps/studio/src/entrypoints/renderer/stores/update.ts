@@ -34,10 +34,10 @@ export const useUpdateStore = defineStore('update', () => {
   const visible = computed(() => info.value?.status === 'available' && !dismissed.value && info.value.latest !== skipped.value);
 
   let flashTimer: ReturnType<typeof setTimeout> | undefined;
-  function say(text: string): void {
+  function say(text: string, ms = 9000): void {
     flash.value = text;
     clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => (flash.value = ''), 9000);
+    flashTimer = setTimeout(() => (flash.value = ''), ms);
   }
 
   /** Primeira abertura depois de uma atualização: confirma a nova versão (a anterior fica guardada neste computador). */
@@ -103,8 +103,10 @@ export const useUpdateStore = defineStore('update', () => {
     try {
       await api.installUpdate();
     } catch (e) {
+      // o app continua aberto (o atualizador não iniciou): mostra o motivo por mais tempo e oferece o download manual
       phase.value = 'ready';
-      say(errMsg(e));
+      failed.value = true;
+      say(errMsg(e), 30000);
     }
   }
   async function download(): Promise<void> {
