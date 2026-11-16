@@ -16,6 +16,8 @@ const ws = useWorkspaceStore();
 const cmds = useCommandsStore();
 const upd = useUpdateStore();
 
+const mb = (bytes: number) => (bytes / 1048576).toFixed(1);
+
 const LABEL = computed(() => ({ repo: t('tab.staging'), graph: t('tab.graph'), merge: t('tab.merge'), tools: t('tab.tools') }));
 
 const tabs = computed<GnTab[]>(() =>
@@ -41,16 +43,24 @@ const tabs = computed<GnTab[]>(() =>
         ⬆ <strong>{{ t('update.available', { version: upd.info.latest ?? '' }) }}</strong> <span class="upd__cur">{{ t('update.using', { current: upd.info.current }) }}</span>
       </span>
       <template v-if="upd.canInstall && upd.phase === 'idle'">
-        <button type="button" class="upd__btn upd__btn--primary" :title="t('update.installTitle')" @click="upd.downloadAndVerify()">{{ t('update.install') }}</button>
-        <button type="button" class="upd__btn" :title="upd.info.assetName ?? t('update.openPage')" @click="upd.download()">{{ t('update.download') }}</button>
+        <button type="button" class="upd__btn upd__btn--primary" :title="t('update.installTitle')" @click="upd.downloadAndVerify()">
+          {{ upd.failed ? t('update.retry') : t('update.install') }}
+        </button>
+        <!-- a página da release só aparece como saída quando a atualização dentro do app falhou -->
+        <button v-if="upd.failed" type="button" class="upd__btn" :title="upd.info.assetName ?? t('update.openPage')" @click="upd.download()">{{ t('update.manual') }}</button>
       </template>
+      <span v-else-if="upd.phase === 'downloading' && upd.preparing" class="upd__prog" role="progressbar" :aria-label="t('update.preparing')">
+        {{ t('update.preparing') }}
+        <span class="upd__bar upd__bar--busy"><span class="upd__fill" /></span>
+      </span>
       <span v-else-if="upd.phase === 'downloading'" class="upd__prog" role="progressbar" :aria-valuenow="upd.percent" aria-valuemin="0" aria-valuemax="100">
         {{ upd.percent > 0 ? t('update.downloadingPct', { pct: upd.percent }) : t('update.downloading') }}
         <span class="upd__bar"><span class="upd__fill" :style="{ width: (upd.percent || 5) + '%' }" /></span>
+        <span v-if="upd.progress.total > 0" class="upd__cur">{{ t('update.size', { done: mb(upd.progress.done), total: mb(upd.progress.total) }) }}</span>
       </span>
       <template v-else-if="upd.phase === 'ready' || upd.phase === 'installing'">
-        <span class="upd__ok">✔ {{ t('update.verified') }}</span>
-        <button type="button" class="upd__btn upd__btn--primary" :disabled="upd.phase === 'installing'" @click="upd.installAndRestart()">
+        <span class="upd__ok">✔ {{ t('update.ready', { version: upd.info.latest ?? '' }) }}</span>
+        <button type="button" class="upd__btn upd__btn--primary" :disabled="upd.phase === 'installing'" :title="t('update.restartTitle')" @click="upd.installAndRestart()">
           {{ upd.phase === 'installing' ? t('update.installing') : t('update.restart') }}
         </button>
       </template>
@@ -88,6 +98,7 @@ const tabs = computed<GnTab[]>(() =>
   &__panes { flex: 1; min-height: 0; background: var(--gn-surface); }
   &__pane { height: 100%; overflow: auto; }
 }
+@keyframes upd-busy { from { margin-left: 0; } to { margin-left: 65%; } }
 .upd {
   display: flex;
   align-items: center;
@@ -105,6 +116,7 @@ const tabs = computed<GnTab[]>(() =>
   &__prog { display: inline-flex; align-items: center; gap: 8px; }
   &__bar { display: inline-block; width: 140px; height: 6px; background: var(--gn-border); border-radius: 3px; overflow: hidden; }
   &__fill { display: block; height: 100%; background: var(--gn-accent); transition: width 0.2s; }
+  &__bar--busy &__fill { width: 35%; animation: upd-busy 1.1s ease-in-out infinite alternate; }
   &__btn {
     font: inherit; font-size: 12px; padding: 3px 10px; color: var(--gn-text); background: var(--gn-surface);
     border: 1px solid var(--gn-border); border-radius: var(--gn-radius); cursor: pointer;

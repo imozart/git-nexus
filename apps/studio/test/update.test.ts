@@ -62,6 +62,12 @@ describe('installPlan', () => {
     expect(installPlan('GitNexus-1.3.0-win-x64-setup.exe', win)).toBe('installer');
     expect(installPlan('GitNexus-1.3.0-win-x64-setup.exe', { ...win, portable: true })).toBe('manual');
     expect(installPlan('GitNexus-1.3.0-win-x64.zip', win)).toBe('manual');
+    // ZIP portátil: só se atualiza sozinho com a pasta do app gravável
+    const zip = 'GitNexus-1.3.0-win-x64.zip';
+    expect(installPlan(zip, { ...win, portable: true, writable: true })).toBe('portable');
+    expect(installPlan(zip, { ...win, portable: true, writable: false })).toBe('manual');
+    expect(installPlan(zip, { ...win, portable: true })).toBe('manual');
+    expect(installPlan(zip, { platform: 'linux', portable: true, appImage: false, writable: true })).toBe('manual');
     expect(installPlan('GitNexus-1.3.0-mac-arm64.dmg', { platform: 'darwin', portable: false, appImage: false })).toBe('manual');
     expect(installPlan('GitNexus-1.3.0-linux-amd64.deb', { platform: 'linux', portable: false, appImage: false })).toBe('manual');
   });

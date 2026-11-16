@@ -73,20 +73,25 @@ export function isAllowedUpdateUrl(url: string, repo = UPDATE_REPO): boolean {
  * O que o botão "Instalar e reiniciar" faz neste sistema:
  *  - `installer`: Windows instalado (NSIS) → baixa o instalador, confere o SHA-256 e o executa em modo silencioso;
  *  - `appimage`: Linux em AppImage → baixa o novo AppImage, confere o SHA-256 e substitui o arquivo atual;
- *  - `manual`: o resto (ZIP portátil, macOS não assinado, .deb/.rpm) → só abre o download no navegador.
+ *  - `portable`: Windows em ZIP portátil → baixa o ZIP, confere o SHA-256, extrai numa pasta de preparo e, ao reiniciar,
+ *    troca os arquivos do app (a pasta GitNexusData/ é preservada) e reabre; exige que a pasta do app seja gravável;
+ *  - `manual`: o resto (macOS não assinado, .deb/.rpm, pasta sem permissão de escrita) → só abre o download no navegador.
  */
-export type InstallKind = 'installer' | 'appimage' | 'manual';
+export type InstallKind = 'installer' | 'appimage' | 'portable' | 'manual';
 
 export interface InstallContext {
   platform: NodeJS.Platform | string;
   portable: boolean;
   /** Linux: o app foi iniciado a partir de um AppImage (variável APPIMAGE definida). */
   appImage: boolean;
+  /** A pasta onde o app está tem permissão de escrita (necessário para trocar os arquivos do ZIP portátil). */
+  writable?: boolean;
 }
 
 export function installPlan(assetName: string | undefined, ctx: InstallContext): InstallKind {
   if (!assetName) return 'manual';
   if (ctx.platform === 'win32' && !ctx.portable && assetName.endsWith('-setup.exe')) return 'installer';
+  if (ctx.platform === 'win32' && ctx.portable && ctx.writable === true && assetName.endsWith('.zip')) return 'portable';
   if (ctx.platform === 'linux' && ctx.appImage && assetName.endsWith('.AppImage')) return 'appimage';
   return 'manual';
 }

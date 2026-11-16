@@ -35,7 +35,7 @@ informações a outros sistemas em rede, exceto quando você pede**:
 
 - *Verificação de atualização* (pode ser desligada na paleta de comandos): uma consulta anônima à API pública de releases do
   GitHub; nenhum dado do usuário nem identificador é enviado.
-- *Instalar e reiniciar / Baixar*: baixa o pacote da release (e o `SHA256SUMS.txt`) do GitHub do projeto, só quando você clica.
+- *Atualizar agora / Baixar*: baixa o pacote da release (e o `SHA256SUMS.txt`) do GitHub do projeto, só quando você clica.
 - *Integração com GitHub/GitLab* (opcional): o app fala com a API do host que você conectar, usando o token que você informou
   (guardado criptografado pelo sistema).
 - *fetch/pull/push*: executados pelo `git` instalado na máquina, com as credenciais do próprio usuário.

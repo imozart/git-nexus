@@ -3,7 +3,7 @@
 ## Versões que recebem correção
 
 Só a **última versão publicada** em [Releases](https://github.com/imozart/git-nexus/releases/latest) recebe correções de segurança.
-O app avisa quando há versão nova (e atualiza em *Instalar e reiniciar*), então manter-se nela é o caminho recomendado.
+O app avisa quando há versão nova (e atualiza em *Atualizar agora*), então manter-se nela é o caminho recomendado.
 
 ## Como reportar uma vulnerabilidade
 

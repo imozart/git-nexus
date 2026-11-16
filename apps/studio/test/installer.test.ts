@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { downloadVerified, replaceAppImage } from '../src/entrypoints/installer';
+import { cleanupUpdateFiles, downloadVerified, replaceAppImage, updateFileName } from '../src/entrypoints/installer';
 
 const NAME = 'GitNexus-1.3.0-win-x64-setup.exe';
 const BASE = 'https://github.com/imozart/git-nexus/releases/download/v1.3.0';
@@ -31,7 +31,8 @@ describe('downloadVerified', () => {
     expect(r.sha256).toBe(sha(CONTENT));
     expect(readFileSync(r.file).equals(CONTENT)).toBe(true);
     expect(seen.at(-1)).toBe(CONTENT.length);
-    expect(readdirSync(dir)).toEqual([NAME]); // sem sobras .part
+    expect(r.file).toBe(join(dir, updateFileName(NAME)));
+    expect(readdirSync(dir)).toEqual([updateFileName(NAME)]); // sem sobras .part
   });
 
   it('hash diferente do publicado: descarta o arquivo e falha', async () => {
@@ -65,9 +66,34 @@ describe('downloadVerified', () => {
 
   it('limpa baixados de versões anteriores', async () => {
     const dir = tmp();
-    writeFileSync(join(dir, 'GitNexus-1.0.0-win-x64-setup.exe'), 'velho');
+    writeFileSync(join(dir, updateFileName('GitNexus-1.0.0-win-x64-setup.exe')), 'velho');
     await downloadVerified(base(dir, fakeFetch().f));
-    expect(readdirSync(dir)).toEqual([NAME]);
+    expect(readdirSync(dir)).toEqual([updateFileName(NAME)]);
+  });
+});
+
+describe('pasta do próprio app (download ao lado do executável)', () => {
+  it('só apaga o que é do updater: o executável, o AppImage atual e GitNexusData ficam', async () => {
+    const dir = tmp();
+    const meus = ['GitNexus.exe', 'GitNexus-1.0.0-linux-x64.AppImage', 'app.asar', 'LICENSE.txt'];
+    for (const f of meus) writeFileSync(join(dir, f), 'x');
+    mkdirSync(join(dir, 'GitNexusData'));
+    writeFileSync(join(dir, 'GitNexusData', 'hosting.json'), '{}');
+    // restos do updater (pacote, .part, pasta de preparo, backup da troca)
+    writeFileSync(join(dir, updateFileName(NAME)), 'velho');
+    writeFileSync(join(dir, updateFileName(NAME) + '.part'), 'velho');
+    mkdirSync(join(dir, '.gnupdate-stage'));
+    writeFileSync(join(dir, '.gnupdate-stage', 'a'), 'x');
+    mkdirSync(join(dir, '.gnupdate-old'));
+
+    await downloadVerified(base(dir, fakeFetch().f));
+    expect(readdirSync(dir).sort()).toEqual([...meus, 'GitNexusData', updateFileName(NAME)].sort());
+
+    await cleanupUpdateFiles(dir);
+    expect(readdirSync(dir).sort()).toEqual([...meus, 'GitNexusData'].sort());
+  });
+  it('pasta inexistente não é erro', async () => {
+    await expect(cleanupUpdateFiles(join(tmp(), 'nao-existe'))).resolves.toBeUndefined();
   });
 });
 
@@ -81,6 +107,7 @@ describe('replaceAppImage', () => {
     await replaceAppImage(novo, atual);
     expect(readFileSync(atual, 'utf8')).toBe('v2');
     expect(existsSync(`${atual}.new`)).toBe(false);
+    expect(existsSync(novo)).toBe(false); // o pacote baixado é removido
   });
   it('se a cópia falhar, o original continua intacto', async () => {
     const dir = tmp();

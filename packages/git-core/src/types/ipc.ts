@@ -319,8 +319,8 @@ export interface UpdateInfo {
   message?: string;
   /** `SHA256SUMS.txt` da release (necessário para instalar sem sair do app). */
   sumsUrl?: string;
-  /** O que "Instalar e reiniciar" faz aqui: `installer` (Windows), `appimage` (Linux) ou `manual` (só abre o download). */
-  install?: 'installer' | 'appimage' | 'manual';
+  /** O que "Atualizar agora" faz aqui: `installer` (Windows), `portable` (ZIP no Windows), `appimage` (Linux) ou `manual` (só abre o download). */
+  install?: 'installer' | 'appimage' | 'portable' | 'manual';
 }
 
 /** Um comando git executado pelo app (alimenta a aba "Log"). Sem segredos: o texto já passou por `redactSecrets`. */
@@ -345,6 +345,8 @@ export interface GitCommandEvent {
 export interface UpdateProgress {
   done: number;
   total: number;
+  /** `download` (padrão) → `prepare`: pacote já conferido, extraindo os arquivos (ZIP portátil); sem percentual. */
+  stage?: 'download' | 'prepare';
 }
 
 /** Resultado do download verificado: o arquivo conferido com o SHA-256 da release, pronto para instalar. */
