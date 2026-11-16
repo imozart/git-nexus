@@ -4,6 +4,29 @@ Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https:/
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.5.2] - 2026-11-15
+
+### ♻️ Refatorações
+
+- **ui:** seletor de idioma usa o ComboBox padrão ([`9defb29`](https://github.com/imozart/git-nexus/commit/9defb29f3f6b1d52fca712759691a97c1631eea5))
+
+### 📚 Documentação
+
+- CONTRIBUTING, SECURITY, CODE_OF_CONDUCT e modelo de PR ([`36afcfe`](https://github.com/imozart/git-nexus/commit/36afcfe50e91ef819bd3f732385fbfb71939226b))
+- README curto e guias de uso, desenvolvimento e CI ([`ba1d03f`](https://github.com/imozart/git-nexus/commit/ba1d03f91ae41c9b7b7a80fa6a0133099d257e82))
+
+### 🧪 Testes
+
+- **e2e:** testes na janela real do Electron com o app empacotado ([`3f2d1f8`](https://github.com/imozart/git-nexus/commit/3f2d1f86c08895696b0b0d5570209800bbf37281))
+
+### 🤖 CI/CD
+
+- **release:** label sem-release para pular a release de um PR ([`4bea4eb`](https://github.com/imozart/git-nexus/commit/4bea4eb859318cbb389ae88bd13ee11b36048363))
+- **labels:** label desatualizada para PRs atrás da main ([`5b90253`](https://github.com/imozart/git-nexus/commit/5b902538e1c806463b3844c2989d169e0dd336b9))
+- **deps:** Dependabot semanal com grupos e espera de 7 dias ([`4fa102b`](https://github.com/imozart/git-nexus/commit/4fa102b1f30fadfca6d1817ad7d0896a1bb781d1))
+- **release:** beta agendado toda segunda, só quando há novidade ([`6d1f9c2`](https://github.com/imozart/git-nexus/commit/6d1f9c2c65159e9632cc7e31bd5157c0de54d58c))
+- **release:** publicar release só quando há mudança no app ([`fc46b51`](https://github.com/imozart/git-nexus/commit/fc46b5171b16aec5f56051442798000aff3a91d8))
+
 ## [1.5.1] - 2026-11-15
 
 ### 🤖 CI/CD
@@ -131,6 +154,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.5.2]: https://github.com/imozart/git-nexus/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/imozart/git-nexus/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/imozart/git-nexus/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/imozart/git-nexus/compare/v1.3.0...v1.4.0
