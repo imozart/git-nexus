@@ -3,7 +3,7 @@
 // (preload -> processo principal -> UtilityProcess -> git), que os testes com harness não exercitam.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { connect, git, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, git, lit, mkRepo, sleep, tmpRoot } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -38,7 +38,7 @@ t.check('o ramo vem do git (main)', /main/.test((await t.text('.rv__id')) ?? '')
 await t.shot('e2e-status');
 
 // --- incluir no commit (stage) -----------------------------------------------------------------------------------------------
-const checkbox = (name) => `(() => { const n = [...document.querySelectorAll('.file__name')].find((e) => e.textContent.trim() === ${JSON.stringify(name)}); return n?.parentElement.querySelector('input.cb'); })()`;
+const checkbox = (name) => `(() => { const n = [...document.querySelectorAll('.file__name')].find((e) => e.textContent.trim() === ${lit(name)}); return n?.parentElement.querySelector('input.cb'); })()`;
 await t.ev(`${checkbox('a.txt')}.click()`);
 const staged = await (async () => {
   for (let i = 0; i < 40; i++) {

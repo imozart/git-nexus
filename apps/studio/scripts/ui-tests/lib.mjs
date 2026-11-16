@@ -10,6 +10,9 @@ export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const git = (cwd, ...a) => execFileSync('git', a, { cwd, encoding: 'utf8' });
 export const tmpRoot = (p) => mkdtempSync(join(tmpdir(), p));
 
+/** Valor como expressão JS da página, em base64: entra no código sem nunca poder virar código (nada de JSON.stringify montando script). */
+export const lit = (s) => `new TextDecoder().decode(Uint8Array.from(atob('${Buffer.from(String(s), 'utf8').toString('base64')}'), (c) => c.charCodeAt(0)))`;
+
 /** Repositório de teste com um commit inicial (identidade e opções locais, sem depender da configuração do git da máquina). */
 export function mkRepo(root, name, { branch = 'main', files = { 'a.txt': 'um\n' } } = {}) {
   const repo = join(root, name);
@@ -90,9 +93,9 @@ export async function connect(OUT, results) {
     await send('Input.dispatchKeyEvent', { type: 'keyUp', ...b });
   };
   const clickBtn = (text, scope = 'document') =>
-    ev(`(() => { const b=[...${scope}.querySelectorAll('button')].find(x=>x.textContent.trim().startsWith(${JSON.stringify(text)}) && !x.disabled); b?.click(); return !!b; })()`);
-  const text = (sel) => ev(`document.querySelector(${JSON.stringify(sel)})?.innerText.replace(/\\s+/g,' ').trim() ?? null`);
-  const count = (sel) => ev(`document.querySelectorAll(${JSON.stringify(sel)}).length`);
+    ev(`(() => { const b=[...${scope}.querySelectorAll('button')].find(x=>x.textContent.trim().startsWith(${lit(text)}) && !x.disabled); b?.click(); return !!b; })()`);
+  const text = (sel) => ev(`document.querySelector(${lit(sel)})?.innerText.replace(/\\s+/g,' ').trim() ?? null`);
+  const count = (sel) => ev(`document.querySelectorAll(${lit(sel)}).length`);
   /** Espera (até `ms`) a expressão JS ficar verdadeira na página; devolve o último valor. */
   const until = async (expr, ms = 12000) => {
     const end = Date.now() + ms;
@@ -129,11 +132,11 @@ export async function connect(OUT, results) {
 
   /** Cataloga o repositório, recarrega e abre a tela de staging dele. */
   async function openRepo(repo, name) {
-    await ev(`window.gitNexus.addRepositoryPath(${JSON.stringify(repo)})`);
+    await ev(`window.gitNexus.addRepositoryPath(${lit(repo)})`);
     await ev('location.reload()');
     await sleep(1500);
     const ok = await ev(
-      `(() => { const row=[...document.querySelectorAll('li.repo')].find(x=>x.querySelector('strong')?.textContent.trim()===${JSON.stringify(name)}); const b=row && row.querySelector('.repo__btns button'); b?.click(); return !!b; })()`,
+      `(() => { const row=[...document.querySelectorAll('li.repo')].find(x=>x.querySelector('strong')?.textContent.trim()===${lit(name)}); const b=row && row.querySelector('.repo__btns button'); b?.click(); return !!b; })()`,
     );
     await sleep(2200);
     return ok;

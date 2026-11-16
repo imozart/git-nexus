@@ -2,7 +2,7 @@
 // danger = destrutivo, neutro = o resto (inclui "Atualizar"). Também confere os componentes do ui-kit usados nas telas: GnIconButton, GnButtonGroup, GnSegmented.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { connect, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, lit, mkRepo, sleep, tmpRoot } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -15,14 +15,14 @@ writeFileSync(join(repo, 'a.txt'), 'um\ndois\n');
 
 /** Cor de um token CSS em `rgb(r, g, b)`, resolvida pelo próprio navegador. */
 const token = (name) => t.ev(`(() => { const e = document.createElement('i'); e.style.color = 'var(${name})'; document.body.append(e); const c = getComputedStyle(e).color; e.remove(); return c; })()`);
-const css = (sel, prop) => t.ev(`getComputedStyle(document.querySelector(${JSON.stringify(sel)})).${prop}`);
-const btn = (text) => `[...document.querySelectorAll('button.gn-btn')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(text)}))`;
+const css = (sel, prop) => t.ev(`getComputedStyle(document.querySelector(${lit(sel)})).${prop}`);
+const btn = (text) => `[...document.querySelectorAll('button.gn-btn')].find((b) => b.textContent.trim().startsWith(${lit(text)}))`;
 const btnCss = (text, prop) => t.ev(`getComputedStyle(${btn(text)}).${prop}`);
-const btnHas = (text, cls) => t.ev(`${btn(text)}.classList.contains(${JSON.stringify(cls)})`);
+const btnHas = (text, cls) => t.ev(`${btn(text)}.classList.contains(${lit(cls)})`);
 /** Botão só de ícone: sem texto visível, achado pelo aria-label. */
-const ibtn = (label) => `document.querySelector('button.gn-btn[aria-label=${JSON.stringify(label)}]')`;
+const ibtn = (label) => `[...document.querySelectorAll('button.gn-btn')].find((b) => b.getAttribute('aria-label') === ${lit(label)})`;
 const ibtnCss = (label, prop) => t.ev(`getComputedStyle(${ibtn(label)}).${prop}`);
-const ibtnHas = (label, cls) => t.ev(`${ibtn(label)}.classList.contains(${JSON.stringify(cls)})`);
+const ibtnHas = (label, cls) => t.ev(`${ibtn(label)}.classList.contains(${lit(cls)})`);
 
 // abrir o repositório também o cataloga: a linha dele (Abrir / Buscar / Pull / Remover) aparece na lista
 await t.until(`document.querySelector('.conn__bar')`, 15000);
