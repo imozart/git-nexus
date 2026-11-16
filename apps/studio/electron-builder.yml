@@ -11,6 +11,7 @@ asar: true
 npmRebuild: false # sem módulos nativos
 extraResources:
   - { from: build/icon.png, to: icon.png } # ícone da janela em tempo de execução (Linux)
+  - { from: ../../CHANGELOG.md, to: CHANGELOG.md } # "Novidades" dentro do app lê este arquivo
   - { from: ../../LICENSE, to: LICENSE.txt } # GPL-3.0: a licença acompanha o programa distribuído
 compression: normal
 publish: null # a publicação é feita pelo workflow do GitHub (gh release), não pelo electron-builder

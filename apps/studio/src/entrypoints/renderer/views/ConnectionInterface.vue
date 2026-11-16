@@ -5,10 +5,12 @@ import type { RepoSummary, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { dateLocale, t } from '../i18n';
 import { useRepositoriesStore } from '../stores/repositories';
 import { useWorkspaceStore } from '../stores/workspace';
+import ChangelogDialog from '../components/ChangelogDialog.vue';
 
 const store = useRepositoriesStore();
 const ws = useWorkspaceStore();
 const manualPath = ref('');
+const showChangelog = ref(false);
 
 onMounted(() => store.load());
 
@@ -58,6 +60,7 @@ const fmt = (ts: number) => (ts ? new Date(ts).toLocaleString(dateLocale.value) 
       <div class="conn__actions">
         <GnButton variant="primary" :disabled="store.busy" @click="store.addRepository()">{{ t('home.add') }}</GnButton>
         <GnButton :disabled="store.busy" @click="store.scanRoots()">{{ t('home.scan') }}</GnButton>
+        <GnButton :title="t('home.changelogTitle')" @click="showChangelog = true">{{ t('home.changelog') }}</GnButton>
       </div>
     </header>
 
@@ -128,6 +131,7 @@ const fmt = (ts: number) => (ts ? new Date(ts).toLocaleString(dateLocale.value) 
         </div>
       </li>
     </ul>
+    <ChangelogDialog v-if="showChangelog" @close="showChangelog = false" />
   </div>
 </template>
 

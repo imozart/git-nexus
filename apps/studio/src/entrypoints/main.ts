@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { accessSync, constants, existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { BrowserWindow, Menu, app, clipboard, dialog, ipcMain, shell, utilityProcess, type UtilityProcess } from 'electron';
@@ -168,6 +169,12 @@ ipcMain.handle(channel('installUpdate'), async () => {
   await replaceAppImage(u.file, target);
   app.relaunch({ execPath: target, args: [] });
   app.quit();
+});
+// "Novidades": o CHANGELOG.md vai junto do app (extraResources); em desenvolvimento é o da raiz do repositório.
+ipcMain.handle(channel('getChangelog'), async () => {
+  const file = app.isPackaged ? join(process.resourcesPath, 'CHANGELOG.md') : join(__dirname, '..', '..', '..', 'CHANGELOG.md');
+  const markdown = await readFile(file, 'utf8').catch(() => '');
+  return { markdown: markdown.slice(0, 2 * 1024 * 1024), version: app.getVersion() };
 });
 ipcMain.handle(channel('openExternal'), async (_e, url: string) => {
   if (!isAllowedUpdateUrl(String(url))) throw new Error(tm('Endereço não permitido.', 'Address not allowed.'));

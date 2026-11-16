@@ -47,6 +47,12 @@ const MAIN_STUBS: Record<string, (...a: any[]) => unknown> = {
     await mkdir(dataDir, { recursive: true });
     await writeFile(join(dataDir, 'opened-url.txt'), url, 'utf8');
   },
+  // "Novidades": lê o CHANGELOG.md real do repositório (a versão em uso é a mesma simulada para o aviso de atualização).
+  getChangelog: async () => {
+    // o harness roda a partir de apps/studio: o CHANGELOG.md fica na raiz do repositório
+    const markdown = process.env.GN_FAKE_CHANGELOG ?? (await readFile(join(process.cwd(), '..', '..', 'CHANGELOG.md'), 'utf8').catch(() => ''));
+    return { markdown, version: process.env.GN_CURRENT_VERSION ?? '1.2.0' };
+  },
   pickDirectories: () => [],
   copyText: (t: string) => void (clipboard = t),
   showItemInFolder: () => undefined,
