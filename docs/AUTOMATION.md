@@ -42,7 +42,7 @@ Outras automações que cabem aqui, se um dia fizerem falta (nenhuma está ligad
   dependências de produção), breaking (`!`/`BREAKING CHANGE`) ou commit fora do padrão (não dá para saber o que faz). Um merge só de `docs`, `test`, `ci`, `style`
   ou `chore` não gera versão, instaladores nem aviso de atualização: o job "Calcular versão" registra um aviso ("Sem release") e o resto é pulado. Esses commits não
   se perdem: ficam depois da última tag e entram no `CHANGELOG.md` da próxima release de verdade. Regra em `scripts/lib/release-core.mjs` (`shouldRelease`).
-  A execução manual (*Run workflow*) **sempre** publica, e `[skip release]` no commit continua pulando.
+  A execução manual (*Run workflow*) **sempre** publica. Para pular um merge, use a label `sem-release` no PR ou `[skip release]` na mensagem do merge ([LABELS](LABELS.md#pular-a-release-de-um-pr)).
 - **Beta:** *Actions → Release → Run workflow → channel = beta*. Sai `vX.Y.Z-beta.N`, onde `X.Y.Z` é a estável que sairia agora e `N` conta os betas
   dessa base (`1.3.0-beta.1`, `1.3.0-beta.2`…). É publicada como **pré-lançamento**: não vira "última versão", não gera manifestos de
   winget/Scoop/Homebrew/Flathub e **não aparece como atualização no app** (a verificação consulta só a última release estável).

@@ -18,7 +18,7 @@ Um merge na `main` que muda o app (regra em [AUTOMATION](AUTOMATION.md#releases-
 | Linux | `.AppImage`, `.deb`, `.rpm`, `.tar.gz` |
 
 Detalhes:
-- **Pular release:** inclua `[skip release]` na mensagem do commit.
+- **Pular release:** ponha a label `sem-release` no PR antes de aceitá-lo, ou inclua `[skip release]` na mensagem do merge (valem as duas). Serve para juntar vários PRs em uma versão só: veja [LABELS](LABELS.md#pular-a-release-de-um-pr).
 - **Changelog:** o [`CHANGELOG.md`](../CHANGELOG.md) é gerado a cada release estável (mesmo commit `chore(release)` que grava a versão); não edite à mão. Detalhes em [AUTOMATION](AUTOMATION.md).
 - **Release manual / forçar incremento:** Actions → *Release* → *Run workflow* (campo `bump`).
 - **Beta:** no mesmo botão, `channel = beta` publica `vX.Y.Z-beta.N` como pré-lançamento (não vira “última versão”, não gera manifestos e não aparece como atualização no app).

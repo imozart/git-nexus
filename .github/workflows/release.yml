@@ -2,7 +2,7 @@ name: Release
 
 # A cada merge (push) na main: calcula a versão, compila para Windows/macOS/Linux
 # e publica uma Release no GitHub com as notas geradas a partir dos commits.
-# Para pular uma release, inclua [skip release] na mensagem do commit.
+# Para pular uma release: label "sem-release" no PR antes de aceitá-lo, ou [skip release] na mensagem do commit (valem as duas).
 # Nem todo merge publica: só quando algum commit desde a última versão muda o app (feat, fix, perf, refactor, build, breaking ou fora do
 # padrão). Merge só de docs/test/ci/style/chore não gera versão nem instaladores; esses commits entram no changelog da próxima release.
 # Execução manual (Run workflow) publica sempre.
@@ -49,6 +49,9 @@ jobs:
       || contains(github.event.head_commit.message, 'ci(deps)') || contains(github.event.head_commit.message, 'chore(deps-dev)'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read # o passo "Label sem-release" consulta os PRs do commit
     outputs:
       release: ${{ steps.next.outputs.release }} # false = só docs/test/ci/chore desde a última versão: o resto do pipeline é pulado
       version: ${{ steps.next.outputs.version }}
@@ -62,8 +65,19 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
+      # PR com a label "sem-release": não publica; os commits ficam depois da última tag e entram na release seguinte. Só no push (a agenda e a
+      # execução manual não têm PR). Sem a saída "release" os jobs seguintes são pulados, como no caso de só docs/test/ci/chore.
+      - name: Label sem-release
+        id: skip
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: node scripts/release-skip.mjs
       - name: Próxima versão
         id: next
+        if: steps.skip.outputs.skip != 'true'
         env:
           BUMP: ${{ inputs.bump || 'auto' }}
           # na agenda o canal é sempre beta; no push, stable; à mão, o que foi escolhido
