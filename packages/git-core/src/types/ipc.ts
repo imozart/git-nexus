@@ -349,6 +349,13 @@ export interface UpdateProgress {
   stage?: 'download' | 'prepare';
 }
 
+/** CHANGELOG.md que acompanha o app (Markdown gerado pelo pipeline de release) e a versão em uso. */
+export interface ChangelogData {
+  markdown: string;
+  /** Versão do app em execução (para destacar "em uso" na lista). */
+  version: string;
+}
+
 /** Resultado do download verificado: o arquivo conferido com o SHA-256 da release, pronto para instalar. */
 export interface UpdateDownload {
   version: string;
@@ -625,6 +632,8 @@ export interface GitNexusApi extends GitNexusIPC {
   installUpdate(): Promise<void>;
   /** Acompanha o progresso do download; devolve a função que cancela a assinatura. */
   onUpdateProgress(cb: (p: UpdateProgress) => void): () => void;
+  /** Lê o CHANGELOG.md empacotado com o app (vazio se o arquivo não existir). */
+  getChangelog(): Promise<ChangelogData>;
   /** Recebe cada comando git que o app executa (aba "Log"); devolve a função que cancela a assinatura. */
   onGitCommand(cb: (events: GitCommandEvent[]) => void): () => void;
 
