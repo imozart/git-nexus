@@ -53,12 +53,12 @@ Pendências conhecidas:
 - **Assinatura de código** no Windows e no macOS (sem certificado; veja [CODE_SIGNING](CODE_SIGNING.md)).
 - **WSL2** testado só por unidade (leitura de caminho), não em distribuição real.
 - **Flatpak/Flathub** ainda é um rascunho a testar (veja [PACKAGING](PACKAGING.md)).
-- O repositório é **privado**: parte da automação (revisão de dependências, proveniência assinada, ruleset) só vale depois que ele for público.
-- **Ao tornar o repositório público:** ativar o *Private vulnerability reporting* (o [SECURITY](../SECURITY.md) manda reportar por ele) e acrescentar o atalho de segurança em `.github/ISSUE_TEMPLATE/config.yml`.
+- O repositório é **público**: revisão de dependências, proveniência assinada, ruleset, CodeQL e o relato privado de vulnerabilidade (o [SECURITY](../SECURITY.md) manda reportar por ele) estão ligados. O que está configurado e por quê: [REPOSITORIO](REPOSITORIO.md).
 
 ## Mais documentação
 
 - [CI e pipeline de release](CI.md): o que cada workflow faz.
 - [Automação](AUTOMATION.md): bots, merge automático, betas, versão e changelog.
 - [Labels, issues e PRs](LABELS.md): rótulos automáticos, formulários de issue, ordem de merge.
+- [Configuração do repositório](REPOSITORIO.md): rulesets, checks obrigatórios, token da release, segurança e como aceitar um PR.
 - [Idiomas](I18N.md), [empacotamento](PACKAGING.md) e [assinatura de código](CODE_SIGNING.md).
