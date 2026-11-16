@@ -4,6 +4,24 @@ Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https:/
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.6.0] - 2026-11-15
+
+### ✨ Novidades
+
+- **ui:** botões com cor semântica (prop tone no GnButton) ([`a869e1b`](https://github.com/imozart/git-nexus/commit/a869e1b59c9162e34a6b85c929b3662a8e1b1aba))
+
+### 📚 Documentação
+
+- badges no README (saúde da main, versão, downloads, licença, plataformas) ([`a80cda2`](https://github.com/imozart/git-nexus/commit/a80cda232db3def0185af40d3a2f537200e68f54))
+
+### 🧪 Testes
+
+- usa um domínio de exemplo no teste de reconhecimento do GitLab ([`ff842ef`](https://github.com/imozart/git-nexus/commit/ff842efb10f6b53e6f493f6db868378972c0de5b))
+
+### 🤖 CI/CD
+
+- **deps:** bump signpath/github-action-submit-signing-request ([`128c5bf`](https://github.com/imozart/git-nexus/commit/128c5bfe616f88c5624eb348b3586d1fb7b74452))
+
 ## [1.5.2] - 2026-11-15
 
 ### ♻️ Refatorações
@@ -154,6 +172,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.6.0]: https://github.com/imozart/git-nexus/compare/v1.5.2...v1.6.0
 [1.5.2]: https://github.com/imozart/git-nexus/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/imozart/git-nexus/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/imozart/git-nexus/compare/v1.4.0...v1.5.0
