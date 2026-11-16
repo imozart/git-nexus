@@ -20,6 +20,7 @@ node scripts/sync-labels.mjs --dry-run --repo dono/repo
 | Área | `área: app`, `área: ui-kit`, `área: git-core`, `área: política`, `área: ci`, `área: docs`, `dependências` | pastas alteradas (`.github/labeler.yml`) |
 | Tamanho | `tamanho: XS` … `tamanho: XL` | linhas alteradas |
 | Estado | `conflito`, `bloqueado`, `desatualizada` | estado do PR |
+| Release | `sem-release` | você, antes do merge ([abaixo](#pular-a-release-de-um-pr)) |
 
 As labels `release-failure`, `main-health` e `parado` são criadas pelas próprias automações que as usam.
 
@@ -116,6 +117,25 @@ Toda issue nasce com **`triagem`** (ainda não analisada). Tire a label quando e
 O prefixo do título acompanha os tipos do Conventional Commits (`bug`, `feat`, `docs`, `perf`), o que facilita transformar uma issue em branch e em PR (`fix/…`, `feat/…`).
 
 Quando o repositório ficar público: ative *Private vulnerability reporting* e acrescente o atalho de segurança no `config.yml` (o comentário no arquivo lembra).
+
+## Pular a release de um PR
+
+Cada merge na `main` que muda o app publica uma versão. Para **juntar vários PRs em uma versão só**, marque os primeiros com **`sem-release`** antes de aceitá-los e deixe o
+último sem a label: a release dele leva tudo o que veio desde a última versão (versão e `CHANGELOG.md` contam os commits desde a última tag, inclusive os dos PRs pulados).
+
+```bash
+gh pr edit 63 --add-label sem-release   # antes do merge
+gh pr merge 63 --merge                  # não publica
+gh pr merge 64 --merge                  # publica uma versão com o 63 e o 64
+```
+
+- **Duas formas, a mesma regra:** a label, ou `[skip release]` na mensagem do merge (no GitHub: campo *Extended description* do diálogo, em uma linha própria; no `gh`: `--body "[skip release]"`).
+  Basta uma das duas. Use a label no dia a dia; o texto serve para push direto e para quem prefere decidir na hora do merge.
+- **Quando vale:** a label precisa estar no PR **no momento do merge**. Marcar depois não adianta, e o PR já foi publicado. Para publicar o que ficou pendente: *Actions → Release → Run workflow*.
+- **Como funciona:** no push na `main`, o passo *Label sem-release* do `release.yml` (`scripts/release-skip.mjs`) consulta os PRs do commit com a API do GitHub. Se algum tem a label, o job
+  "Calcular versão" não calcula versão e o resto do pipeline é pulado. Se a consulta falhar, **não pula** (uma release a mais é recuperável; deixar de publicar sem ninguém notar, não).
+- **Não vale** para execução manual (sempre publica) nem para o beta agendado.
+- **Cuidado:** se todos os PRs de um grupo tiverem a label, nada é publicado até alguém aceitar um PR sem ela ou rodar o workflow à mão.
 
 ## Branch desatualizada
 
