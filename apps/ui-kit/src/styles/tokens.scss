@@ -7,6 +7,9 @@
   --gn-muted: #9097a1;
   --gn-accent: #4f86f7;
   --gn-accent-hover: #6a9aff;
+  /* azul do preenchimento do botão sólido: com texto branco dá 4,5:1 (o --gn-accent dá 3,45:1); o hover escurece */
+  --gn-accent-solid: #4473d4;
+  --gn-accent-solid-hover: #3d68bf;
   --gn-danger: #ef6a62;
   --gn-success: #4fb56a;
   --gn-warn: #e0a93b;

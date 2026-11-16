@@ -49,12 +49,24 @@ describe('contraste dos botões coloridos (tema escuro)', () => {
       }
     });
 
-    it(`${tone}: o texto sobre o botão sólido tem contraste suficiente`, () => {
-      // o primary azul é o único que sempre teve texto branco (3,5:1, aceito como estava); os demais, com texto escuro, passam de 4,5:1
-      const min = tone === 'accent' ? 3 : 4.5;
-      expect(contrast(onTone(tone), color), tone).toBeGreaterThanOrEqual(min);
+    it(`${tone}: o texto sobre o botão sólido tem contraste AA (4,5:1)`, () => {
+      // o azul sólido usa o token próprio (--gn-accent-solid), mais escuro que o azul de bordas e foco, para o texto branco passar
+      const bg = tone === 'accent' ? token('gn-accent-solid') : color;
+      expect(contrast(onTone(tone), bg), tone).toBeGreaterThanOrEqual(4.5);
     });
   }
+
+  it('azul sólido: o texto branco passa de 4,5:1 em repouso e no hover (que escurece, nunca clareia)', () => {
+    expect(contrast(WHITE, token('gn-accent-solid'))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(WHITE, token('gn-accent-solid-hover'))).toBeGreaterThanOrEqual(contrast(WHITE, token('gn-accent-solid')));
+    expect(button).toContain('&:hover:not(:disabled) { background: var(--gn-accent-solid-hover)');
+  });
+
+  it('botão leve colorido (ghost + tom): texto clareado sobre o fundo da tela, também com 4,5:1', () => {
+    const page = token('gn-bg');
+    for (const [tone, color] of Object.entries(TONES)) expect(contrast(mix(color, TEXT_PCT, WHITE), page), tone).toBeGreaterThanOrEqual(4.5);
+    expect(button).toContain('&--ghost-tone { background: transparent; border-color: transparent; }');
+  });
 
   it('o texto do botão neutro (cinza claro) continua legível sobre o fundo do botão', () => {
     expect(contrast(token('gn-text'), surface2)).toBeGreaterThanOrEqual(4.5);
