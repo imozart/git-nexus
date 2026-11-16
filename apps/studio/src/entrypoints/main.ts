@@ -63,8 +63,9 @@ function startWorker(): UtilityProcess {
   });
   w.on('message', (msg: UtilityResponse | UtilityEvent) => {
     if ('event' in msg) {
-      // comandos git executados pelo worker: repassa a todas as janelas (aba "Log")
-      for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.send(channel('gitCommands'), msg.data);
+      // eventos espontâneos do worker, repassados a todas as janelas: comandos git (aba "Log") e andamento de fetch/pull/push
+      const ch = msg.event === 'gitProgress' ? 'gitProgress' : 'gitCommands';
+      for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.send(channel(ch), msg.data);
       return;
     }
     const p = pending.get(msg.id);

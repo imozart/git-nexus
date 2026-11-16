@@ -12,7 +12,7 @@ O que o GitNexus faz e como usar cada parte. Para instalar, veja o [README](../R
 | Ctrl+1 | Ir para Repositórios |
 | Ctrl+PageDown / Ctrl+PageUp | Próxima / anterior aba |
 | Alt+W | Fechar aba |
-| F5 | Atualizar status do repositório |
+| F5 | Recarregar o status do repositório (só relê o local; quem fala com o remoto é o botão de sincronização) |
 | Ctrl+Shift+A / Ctrl+Shift+U | Incluir tudo / remover tudo do commit |
 | Ctrl+Shift+C | Ir para o título do commit |
 | Ctrl+Enter (no formulário) | Fazer o commit |

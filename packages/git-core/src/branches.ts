@@ -1,6 +1,8 @@
+import { emitGitProgress, progressReader } from './progress.js';
 import { NO_PROMPT } from './repo-status.js';
 import { runGit } from './runner.js';
-import type { BaseComparison, BranchActionResult, BranchInfo, BranchList, CreateBranchInput, PullMode } from './types/ipc.js';
+import { SYNC_COMMITS_LIMIT } from './types/ipc.js';
+import type { BaseComparison, BranchActionResult, BranchInfo, BranchList, CreateBranchInput, PullMode, SyncCommit, SyncCommits, UpdateMethod } from './types/ipc.js';
 import { tm } from './messages.js';
 
 // Branches locais e remotas: listar (com recentes), trocar, criar a partir da versão mais recente, excluir, merge, rebase e pull.
@@ -289,4 +291,170 @@ export async function pullBranch(repoPath: string, remoteRef: string, mode: Pull
   if (r.code === 0) return { ok: true, message: upToDate(out) ? tm('Já estava atualizado.', 'Already up to date.') : tm(`Atualizado com '${remoteRef}'.`, `Updated from '${remoteRef}'.`) };
   if (hadConflict(out)) return { ok: false, conflicted: true, message: tm('O pull parou por conflitos: resolva-os na tela de conflitos.', 'The pull stopped on conflicts: resolve them in the conflicts view.') };
   return { ok: false, message: explain(out, tm('Não foi possível atualizar.', 'Could not update.')) };
+}
+
+// ---------------------------------------------------------------- sincronizar com o remoto (painel de sincronização)
+
+/** O upstream (referência completa, ex.: refs/remotes/origin/feat/x) da branch, ou null se não tem. */
+async function upstreamRef(repoPath: string, branch: string): Promise<string | null> {
+  const r = await runGit(repoPath, ['for-each-ref', '--format=%(upstream)', `refs/heads/${branch}`], { check: false });
+  return r.stdout.trim() || null;
+}
+
+async function refExists(repoPath: string, ref: string): Promise<boolean> {
+  return (await runGit(repoPath, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], { check: false })).code === 0;
+}
+
+async function logCommits(repoPath: string, range: string[]): Promise<SyncCommit[]> {
+  const r = await runGit(repoPath, ['log', `-n${SYNC_COMMITS_LIMIT}`, `--format=%h%x1f%an%x1f%at%x1f%s%x1e`, ...range], { check: false });
+  if (r.code !== 0) return [];
+  const out: SyncCommit[] = [];
+  for (const rec of r.stdout.split(RS)) {
+    const [hash = '', author = '', date = '0', subject = ''] = rec.replace(/^\n+/, '').split(FS);
+    if (hash) out.push({ hash, author, date: Number(date), subject });
+  }
+  return out;
+}
+
+/**
+ * Os commits que chegam (`HEAD..upstream`) e os que saem (`upstream..HEAD`). Sem upstream (ou com a remota apagada), "os que saem" são os que
+ * ainda não existem em nenhum remoto: é o que "Publicar branch" vai enviar.
+ */
+export async function getSyncCommits(repoPath: string): Promise<SyncCommits> {
+  const cur = await currentBranch(repoPath);
+  if (!cur) return { incoming: [], outgoing: [] };
+  const up = await upstreamRef(repoPath, cur);
+  if (up && (await refExists(repoPath, up))) {
+    const [incoming, outgoing] = await Promise.all([logCommits(repoPath, [`HEAD..${up}`]), logCommits(repoPath, [`${up}..HEAD`])]);
+    return { incoming, outgoing };
+  }
+  return { incoming: [], outgoing: await logCommits(repoPath, ['HEAD', '--not', '--remotes']) };
+}
+
+/** Em qual remoto publicar uma branch sem upstream: o `origin`, ou o único remoto. Mais de um (sem origin) é ambíguo: null. */
+function publishRemote(remotes: string[]): string | null {
+  if (remotes.includes('origin')) return 'origin';
+  return remotes.length === 1 ? remotes[0]! : null;
+}
+
+/**
+ * Envia a branch atual para o remoto. NUNCA forçado: se o remoto tem commits que a branch não tem, o git recusa e a mensagem manda atualizar antes.
+ * Com upstream, envia para a branch dele (mesmo que o nome local seja outro); sem upstream (ou com a remota apagada), publica e cria o upstream.
+ */
+export async function pushRepo(repoPath: string): Promise<BranchActionResult> {
+  const cur = await currentBranch(repoPath);
+  if (!cur) return { ok: false, message: tm('HEAD desanexado: crie uma branch antes de enviar.', 'Detached HEAD: create a branch before pushing.') };
+  if (!isSafeRef(cur)) return { ok: false, message: tm(`Nome de branch não suportado para enviar: ${cur}`, `Branch name not supported for pushing: ${cur}`) };
+  const remotes = await remoteNames(repoPath);
+  if (!remotes.length) return { ok: false, message: tm('O repositório não tem remoto configurado.', 'The repository has no remote configured.') };
+
+  const up = await upstreamRef(repoPath, cur);
+  const owner = up ? [...remotes].sort((a, b) => b.length - a.length).find((r) => up.startsWith(`refs/remotes/${r}/`)) : undefined;
+  const target = owner && up ? { remote: owner, branch: up.slice(`refs/remotes/${owner}/`.length) } : null;
+  const remote = target?.remote ?? publishRemote(remotes);
+  if (!remote) {
+    return {
+      ok: false,
+      message: tm('Há mais de um remoto e a branch não tem upstream: envie pelo terminal escolhendo o remoto.', 'There is more than one remote and the branch has no upstream: push from the terminal choosing the remote.'),
+    };
+  }
+  const branch = target?.branch ?? cur;
+  const publishing = !target || !(await refExists(repoPath, up!));
+
+  const onStderr = progressReader((p) => emitGitProgress({ repoPath, op: 'push', phase: p.phase, percent: p.percent }));
+  const args = ['push', '--progress', ...(publishing ? ['-u'] : []), remote, `${cur}:refs/heads/${branch}`];
+  const r = await runGit(repoPath, args, { check: false, env: NO_PROMPT, onStderr });
+  const out = r.stderr + r.stdout;
+  if (r.code === 0) {
+    if (/Everything up-to-date/i.test(out)) return { ok: true, message: tm('Nada a enviar: já está em dia.', 'Nothing to push: already up to date.') };
+    return {
+      ok: true,
+      message: publishing ? tm(`Branch '${cur}' publicada em '${remote}'.`, `Branch '${cur}' published to '${remote}'.`) : tm(`Enviado para '${remote}/${branch}'.`, `Pushed to '${remote}/${branch}'.`),
+    };
+  }
+  if (/\[remote rejected\]|pre-receive hook declined|protected branch/i.test(out)) {
+    return { ok: false, message: tm(`O remoto recusou o envio: ${firstError(out) || 'regra do servidor'}`, `The remote refused the push: ${firstError(out) || 'server rule'}`) };
+  }
+  if (/\[rejected\]|non-fast-forward|fetch first|tip of your current branch is behind/i.test(out)) {
+    return { ok: false, message: tm('O remoto tem commits que você ainda não tem: atualize a branch antes de enviar.', 'The remote has commits you do not have yet: update the branch before pushing.') };
+  }
+  return { ok: false, message: explain(out, tm('Não foi possível enviar.', 'Could not push.')) };
+}
+
+/** Há um stash? (o commit do topo, ou null). Serve para saber se `stash push` guardou algo: sem alterações ele não cria nada. */
+async function stashTop(repoPath: string): Promise<string | null> {
+  const r = await runGit(repoPath, ['rev-parse', '-q', '--verify', 'refs/stash'], { check: false });
+  return r.code === 0 ? r.stdout.trim() : null;
+}
+
+const STASH_NAME = 'GitNexus: guardado antes de atualizar';
+
+/**
+ * Atualiza a branch atual com o upstream, como o "Update" do IntelliJ: **guarda as alterações locais (stash), atualiza e as devolve no fim**.
+ * `ff` só avança (recusa se divergiu), `merge` mescla e `rebase` reaplica os commits locais. Conflito não é erro: fica em andamento e o app abre
+ * a tela certa. As alterações guardadas nunca se perdem: se a atualização falha antes de mudar algo, voltam na hora; se para por conflito, ou se
+ * é a devolução que conflita, continuam no stash e a mensagem diz isso.
+ *
+ * O stash é feito aqui, e não com `git pull --autostash`, para ter controle do que dizer em cada desfecho (voltou limpo, conflitou, a atualização
+ * falhou) e porque o `--autostash` do pull com merge só existe a partir do Git 2.27.
+ */
+export async function updateRepo(repoPath: string, method: UpdateMethod): Promise<BranchActionResult> {
+  const cur = await currentBranch(repoPath);
+  if (!cur) return { ok: false, message: tm('HEAD desanexado: nada a atualizar.', 'Detached HEAD: nothing to update.') };
+  if (!(await upstreamRef(repoPath, cur))) return { ok: false, message: tm('A branch não tem upstream configurado: publique-a primeiro.', 'The branch has no upstream configured: publish it first.') };
+
+  // 1) guarda as alterações locais (se houver)
+  const before = await stashTop(repoPath);
+  const pushed = await runGit(repoPath, ['stash', 'push', '-m', STASH_NAME], { check: false });
+  if (pushed.code !== 0) return { ok: false, message: explain(pushed.stderr + pushed.stdout, tm('Não foi possível guardar as alterações locais.', 'Could not stash the local changes.')) };
+  const stashed = (await stashTop(repoPath)) !== before;
+
+  // 2) atualiza
+  const flags = method === 'ff' ? ['--ff-only'] : method === 'merge' ? ['--no-rebase', '--no-edit'] : ['--rebase'];
+  const onStderr = progressReader((p) => emitGitProgress({ repoPath, op: 'pull', phase: p.phase, percent: p.percent }));
+  const r = await runGit(repoPath, ['pull', '--progress', ...flags], { check: false, env: NO_PROMPT, onStderr });
+  const out = r.stderr + r.stdout;
+
+  if (r.code !== 0) {
+    if (hadConflict(out)) {
+      // merge/rebase parou no meio: não dá para devolver o stash agora; ele fica guardado até a pessoa resolver
+      const kept = stashed ? tm(' Suas alterações locais ficaram guardadas no stash: aplique-as depois (git stash pop).', ' Your local changes are saved in the stash: apply them afterwards (git stash pop).') : '';
+      return { ok: false, conflicted: true, message: tm('A atualização parou por conflitos: resolva-os na tela de conflitos.', 'The update stopped on conflicts: resolve them in the conflicts view.') + kept };
+    }
+    const restored = stashed ? await restoreStash(repoPath) : true;
+    const why = /not possible to fast-forward|diverging|divergent/i.test(out)
+      ? tm('A branch divergiu do remoto: atualize com merge ou com rebase.', 'The branch diverged from the remote: update with a merge or a rebase.')
+      : /no such ref was fetched|couldn't find remote ref/i.test(out)
+        ? tm('A branch remota foi apagada: publique a branch de novo.', 'The remote branch was deleted: publish the branch again.')
+        : explain(out, tm('Não foi possível atualizar.', 'Could not update.'));
+    const lost = restored ? '' : tm(' Suas alterações locais continuam no stash (git stash pop).', ' Your local changes are still in the stash (git stash pop).');
+    return { ok: false, message: why + lost };
+  }
+
+  // 3) devolve as alterações guardadas
+  const done = upToDate(out)
+    ? tm('Já estava atualizado.', 'Already up to date.')
+    : method === 'ff'
+      ? tm('Atualizado (fast-forward).', 'Updated (fast-forward).')
+      : method === 'merge'
+        ? tm('Atualizado com merge.', 'Updated with a merge.')
+        : tm('Atualizado com rebase.', 'Updated with a rebase.');
+  if (!stashed) return { ok: true, message: done };
+  if (await restoreStash(repoPath)) return { ok: true, message: done + tm(' Suas alterações locais foram guardadas e devolvidas.', ' Your local changes were stashed and restored.') };
+  return {
+    ok: false,
+    conflicted: true,
+    message: tm(
+      'A branch foi atualizada, mas as suas alterações locais conflitaram ao voltar: resolva os conflitos (as alterações também continuam guardadas no stash).',
+      'The branch was updated, but your local changes conflicted when coming back: resolve the conflicts (the changes are also still saved in the stash).',
+    ),
+  };
+}
+
+/** Devolve o stash do topo à árvore de trabalho. `true` se voltou limpo (o stash some); `false` se conflitou (o stash continua guardado). */
+async function restoreStash(repoPath: string): Promise<boolean> {
+  let r = await runGit(repoPath, ['stash', 'pop', '--index'], { check: false });
+  // com --index o git tenta repor também o que estava no índice (staged); se isso não der, repõe sem separar staged de não staged
+  if (r.code !== 0 && !/CONFLICT/i.test(r.stderr + r.stdout) && (await stashTop(repoPath))) r = await runGit(repoPath, ['stash', 'pop'], { check: false });
+  return r.code === 0;
 }

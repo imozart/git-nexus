@@ -1,5 +1,6 @@
 import { stat } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
+import { emitGitProgress, progressReader } from './progress.js';
 import { runGit } from './runner.js';
 import type { RepoSummary, SyncResult } from './types/ipc.js';
 import { tm } from './messages.js';
@@ -73,7 +74,8 @@ export const NO_PROMPT = { GIT_TERMINAL_PROMPT: '0', GIT_SSH_COMMAND: process.en
 
 /** `git fetch --all --prune`. */
 export async function fetchRepo(repoPath: string): Promise<SyncResult> {
-  const r = await runGit(repoPath, ['fetch', '--all', '--prune'], { check: false, env: NO_PROMPT });
+  const onStderr = progressReader((p) => emitGitProgress({ repoPath, op: 'fetch', phase: p.phase, percent: p.percent }));
+  const r = await runGit(repoPath, ['fetch', '--all', '--prune', '--progress'], { check: false, env: NO_PROMPT, onStderr });
   if (r.code !== 0) return { ok: false, message: firstLine(r.stderr) || tm('Falha ao buscar do remoto.', 'Failed to fetch from the remote.') };
   return { ok: true, message: 'Buscado.' };
 }

@@ -1,5 +1,5 @@
 // Cores semânticas nos botões (prop `tone` do GnButton): sólido = ação principal, accent = navegar/consultar, success = confirmar, warn = atenção,
-// danger = destrutivo, neutro = o resto (inclui "Atualizar"). Também confere os componentes do ui-kit usados nas telas: GnIconButton, GnButtonGroup, GnSegmented.
+// danger = destrutivo, neutro = o resto (inclui "Recarregar"). Também confere os componentes do ui-kit usados nas telas: GnIconButton, GnButtonGroup, GnSegmented.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { connect, lit, mkRepo, sleep, tmpRoot } from '../lib.mjs';
@@ -34,7 +34,7 @@ const accentSolid = await token('--gn-accent-solid');
 const success = await token('--gn-success');
 
 // --- tela do repositório ----------------------------------------------------------------------------------------------------
-t.check('Atualizar: neutro (recarregar não pede destaque)', await btnHas('Atualizar', 'gn-btn--tone-neutral'));
+t.check('Recarregar: neutro (recarregar o status local não pede destaque)', await btnHas('Recarregar', 'gn-btn--tone-neutral'));
 for (const [label, name] of [['Grafo', 'Grafo'], ['Ferramentas', 'Ferramentas']]) {
   t.check(`${label}: tom accent`, await btnHas(name, 'gn-btn--tone-accent'));
   t.check(`${label}: texto clareado na cor do tom (não é o texto neutro)`, (await btnCss(name, 'color')) !== (await token('--gn-text')));

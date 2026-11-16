@@ -1,6 +1,6 @@
 // Executa em Electron UtilityProcess: nenhuma chamada Git bloqueia a UI.
 import { join } from 'node:path';
-import { onGitCommand } from '@git-nexus/git-core';
+import { onGitCommand, onGitProgress } from '@git-nexus/git-core';
 import type { GitCommandEvent } from '@git-nexus/git-core/pure';
 import type { UtilityEvent, UtilityRequest, UtilityResponse } from '../shared/channels';
 import { createHandlers } from '../worker/handlers';
@@ -18,6 +18,16 @@ onGitCommand((e) => {
     batch = [];
     process.parentPort.postMessage({ event: 'gitCommands', data } satisfies UtilityEvent);
   }, 120);
+});
+
+// Progresso do git (porcentagem do fetch/pull/push): no máximo um evento a cada 80 ms por operação, para não inundar a interface.
+const lastProgress = new Map<string, number>();
+onGitProgress((e) => {
+  const key = `${e.repoPath}|${e.op}`;
+  const now = Date.now();
+  if (e.percent !== 100 && now - (lastProgress.get(key) ?? 0) < 80) return;
+  lastProgress.set(key, now);
+  process.parentPort.postMessage({ event: 'gitProgress', data: e } satisfies UtilityEvent);
 });
 
 process.parentPort.on('message', async ({ data }: { data: UtilityRequest }) => {

@@ -9,6 +9,7 @@ import { api, errMsg } from '../api';
 import { autoFetchEnabled } from '../auto-fetch';
 import { t } from '../i18n';
 import { baseChip, baseText, lastFetchText, syncText } from '../sync';
+import { runSyncOp } from '../sync-ops';
 import BranchDialog, { type NewBranchSubmit } from './BranchDialog.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
 import SyncIndicator from './SyncIndicator.vue';
@@ -213,13 +214,7 @@ async function run(fn: () => Promise<BranchActionResult>): Promise<boolean> {
 const doCheckout = (b: BranchInfo) => run(() => api.checkoutBranch(props.repo.path, b.name, b.kind));
 const doMerge = (b: { name: string }) => run(() => api.mergeBranch(props.repo.path, b.name));
 const doPull = (b: BranchInfo, mode: PullMode) => run(() => api.pullBranch(props.repo.path, b.name, mode));
-const doUpdate = () =>
-  run(async () => {
-    const f = await api.fetchRepo(props.repo.path);
-    if (!f.ok) return { ok: false, message: f.message };
-    const p = await api.pullRepo(props.repo.path);
-    return { ok: p.ok, message: p.message };
-  });
+const doUpdate = () => run(async () => (await runSyncOp(props.repo.path, 'update', () => api.updateRepo(props.repo.path, 'ff'))) ?? { ok: false, message: t('ss.updating') });
 
 // ---------------------------------------------------------------- confirmações (rebase e exclusão)
 type Confirm = { kind: 'rebase'; b: { name: string } } | { kind: 'delete'; b: BranchInfo; force: boolean };
