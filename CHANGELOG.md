@@ -4,6 +4,26 @@ Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https:/
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.7.0] - 2026-11-16
+
+### ✨ Novidades
+
+- **update:** atualização dentro do app também no ZIP portátil do Windows ([`e81caad`](https://github.com/imozart/git-nexus/commit/e81caadca949de533e7b796dd73d5e4441525797))
+
+### 📚 Documentação
+
+- configuração do repositório público e textos desatualizados ([`feb0d9b`](https://github.com/imozart/git-nexus/commit/feb0d9b5fcd67448a4693b323e0e7a0226073ce1))
+- política de assinatura bilíngue para o SignPath Foundation ([`bdeb881`](https://github.com/imozart/git-nexus/commit/bdeb881a6efa53551bfb4b5ae69f0980051f0e67))
+
+### 🤖 CI/CD
+
+- **dependabot:** merge automático de atualizações patch e minor ([`3eef7e3`](https://github.com/imozart/git-nexus/commit/3eef7e33dc39d109e691b9480de5c1b242eca7f6))
+
+### 🧹 Manutenção
+
+- **deps-dev:** bump @types/node from 24.19.2 to 26.6.6 ([`6462959`](https://github.com/imozart/git-nexus/commit/64629594d98a00b068b773f989af4f46c3fa3bd8))
+- **deps-dev:** corrige o alerta do minimatch (override para >= 11.0.1) ([`a2e859b`](https://github.com/imozart/git-nexus/commit/a2e859b0b043aadaef5abf788cfd3e70bbf033cd))
+
 ## [1.6.0] - 2026-11-15
 
 ### ✨ Novidades
@@ -172,6 +192,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.7.0]: https://github.com/imozart/git-nexus/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/imozart/git-nexus/compare/v1.5.2...v1.6.0
 [1.5.2]: https://github.com/imozart/git-nexus/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/imozart/git-nexus/compare/v1.5.0...v1.5.1
