@@ -4,6 +4,21 @@ Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https:/
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.10.0] - 2026-11-16
+
+### ✨ Novidades
+
+- **branches:** seletor de branch no cabeçalho do repositório ([`9e2a109`](https://github.com/imozart/git-nexus/commit/9e2a1093094a7a624edda5e24697c974612469ee))
+- **branches:** listar, trocar, criar da versão mais recente, excluir, merge, rebase e pull ([`37790aa`](https://github.com/imozart/git-nexus/commit/37790aaf3abe2eec8cc2660f6793f814dc26e4ae))
+
+### 🐛 Correções
+
+- **branches:** leitura do reflog em tempo linear e teste sem JSON.stringify em código ([`d46ac61`](https://github.com/imozart/git-nexus/commit/d46ac61011f93f10a82a9dc04112943f4da1cda9))
+
+### 🧪 Testes
+
+- **ui:** registrar os botões de lista e menu do BranchPicker na lista de exceções ([`d42477b`](https://github.com/imozart/git-nexus/commit/d42477b52c06d574a411e4804fded185bc257552))
+
 ## [1.9.1] - 2026-11-16
 
 ### 🐛 Correções
@@ -237,6 +252,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.10.0]: https://github.com/imozart/git-nexus/compare/v1.9.1...v1.10.0
 [1.9.1]: https://github.com/imozart/git-nexus/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/imozart/git-nexus/compare/v1.8.2...v1.9.0
 [1.8.2]: https://github.com/imozart/git-nexus/compare/v1.8.1...v1.8.2
