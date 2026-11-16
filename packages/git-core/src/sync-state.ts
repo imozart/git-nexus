@@ -11,6 +11,8 @@ export interface SyncInfo {
   gone: boolean;
   /** HEAD desanexado: não há branch para comparar. */
   detached?: boolean;
+  /** Última busca no remoto (ms desde 1970); null se nunca buscou. Só o resumo do repositório sabe. */
+  lastFetch?: number | null;
 }
 
 export type SyncState = 'detached' | 'no-upstream' | 'gone' | 'in-sync' | 'behind' | 'ahead' | 'diverged';

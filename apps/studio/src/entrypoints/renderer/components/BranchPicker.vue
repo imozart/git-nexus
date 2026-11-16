@@ -2,12 +2,13 @@
 // Seletor de branch do cabeçalho do repositório: mostra a branch atual e, ao clicar, abre a busca (locais E remotas), as ações do projeto
 // (atualizar, nova branch, ir para tag ou commit) e as listas Recentes, Locais e Remotas. Clicar numa branch abre o menu dela (checkout,
 // nova branch a partir dela, merge, rebase, pull, excluir). Todas as operações passam por git-core/branches.ts; aqui só há interface.
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { GnBadge, GnButton, GnIcon, GnIconButton } from '@git-nexus/ui-kit';
 import type { BranchActionResult, BranchInfo, BranchList, PullMode, RepositoryMeta, SyncInfo } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
+import { autoFetchEnabled } from '../auto-fetch';
 import { t } from '../i18n';
-import { syncText } from '../sync';
+import { lastFetchText, syncText } from '../sync';
 import BranchDialog, { type NewBranchSubmit } from './BranchDialog.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
 import SyncIndicator from './SyncIndicator.vue';
@@ -46,8 +47,14 @@ try {
 /** Antes de o status chegar a branch vem vazia: mostra reticências (como o cabeçalho sempre fez), não "desanexado". */
 const label = computed(() => props.branch || '…');
 const syncLine = computed(() => syncText(props.sync));
-/** Tooltip: o que o botão faz e, em seguida, em que pé a branch está com o remoto. */
-const triggerTitle = computed(() => (syncLine.value ? `${t('bp.triggerTip')}\n${syncLine.value}` : t('bp.triggerTip')));
+/** Relógio do tooltip ("há 4 min" precisa andar sozinho): um tique por minuto, só enquanto o botão existe. */
+const now = ref(Date.now());
+let nowTimer: ReturnType<typeof setInterval> | undefined;
+onMounted(() => {
+  nowTimer = setInterval(() => (now.value = Date.now()), 60_000);
+});
+/** Tooltip: o que o botão faz, em que pé a branch está com o remoto e quando foi a última busca. */
+const triggerTitle = computed(() => [t('bp.triggerTip'), syncLine.value, lastFetchText(props.sync, now.value)].filter(Boolean).join('\n'));
 /** O nome acessível do botão leva o estado por extenso (as setas ficam escondidas dos leitores de tela). */
 const triggerLabel = computed(() => (syncLine.value ? `${label.value}. ${syncLine.value}` : label.value));
 const cur = computed(() => data.value?.current ?? props.branch);
@@ -354,6 +361,7 @@ function rowInfo(key: string): BranchInfo | undefined {
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onDocKey);
+  clearInterval(nowTimer);
 });
 </script>
 
@@ -391,6 +399,7 @@ onBeforeUnmount(() => {
             </button>
             <button type="button" class="bp__item" data-nav :disabled="!data" @click="startNew()"><GnIcon name="plus" /> {{ t('bp.new') }}</button>
             <button type="button" class="bp__item" data-nav :disabled="!data" @click="startRevision()"><GnIcon name="tag" /> {{ t('bp.revision') }}</button>
+            <label class="bp__opt" :title="t('bp.autoFetchTip')"><input v-model="autoFetchEnabled" type="checkbox" data-nav data-testid="auto-fetch" /> {{ t('bp.autoFetch') }}</label>
             <hr />
           </template>
 
@@ -496,6 +505,7 @@ onBeforeUnmount(() => {
   &:focus-visible { outline: 2px solid var(--gn-accent); outline-offset: -2px; }
   &:disabled { opacity: 0.45; cursor: default; }
 }
+.bp__opt { display: flex; align-items: center; gap: 8px; padding: 5px 10px; color: var(--gn-muted); font-size: 12.5px; cursor: pointer; input { margin: 0; } }
 .bp__sec { color: var(--gn-muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
 .bp__remote { display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 22px; color: var(--gn-muted); font-size: 12.5px; }
 .bp__row {
