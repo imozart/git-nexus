@@ -25,6 +25,7 @@ await t.openRepo(repo, 'tonerepo');
 await t.until(`document.querySelector('.rv__btns')`, 15000);
 
 const accent = await token('--gn-accent');
+const accentSolid = await token('--gn-accent-solid'); // fundo do azul sólido: mais escuro que o azul de bordas, para o texto branco passar de 4,5:1
 const success = await token('--gn-success');
 
 // --- tela do repositório ----------------------------------------------------------------------------------------------------
@@ -46,8 +47,8 @@ await sleep(500);
 await t.until(`document.querySelector('.conn__bar')`, 10000);
 t.check('Atualizar status: tom accent', await btnHas('Atualizar status', 'gn-btn--tone-accent'));
 t.check('Buscar todos: tom accent', await btnHas('Buscar todos', 'gn-btn--tone-accent'));
-t.check('Atualizar seguros: primary azul sólido', (await btnCss('Atualizar seguros', 'backgroundColor')) === accent, [await btnCss('Atualizar seguros', 'backgroundColor'), accent]);
-t.check('Abrir: primary azul sólido', (await btnCss('Abrir', 'backgroundColor')) === accent);
+t.check('Atualizar seguros: primary azul sólido', (await btnCss('Atualizar seguros', 'backgroundColor')) === accentSolid, [await btnCss('Atualizar seguros', 'backgroundColor'), accentSolid]);
+t.check('Abrir: primary azul sólido', (await btnCss('Abrir', 'backgroundColor')) === accentSolid);
 t.check('Remover: tom danger', await btnHas('Remover', 'gn-btn--tone-danger'));
 t.check('Remover: texto avermelhado', (await btnCss('Remover', 'color')) !== (await token('--gn-text')));
 t.check('Remover: contorno na cor do perigo', (await btnCss('Remover', 'borderTopColor')) !== (await token('--gn-border')));
