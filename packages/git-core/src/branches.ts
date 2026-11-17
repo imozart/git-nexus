@@ -381,6 +381,56 @@ export async function pushRepo(repoPath: string): Promise<BranchActionResult> {
   return { ok: false, message: explain(out, tm('Não foi possível enviar.', 'Could not push.')) };
 }
 
+/** Branches que nunca recebem envio forçado, nem com `--force-with-lease`: o histórico delas é de todo mundo. */
+const PROTECTED = /^(main|master|develop|development|trunk|release\/.+)$/;
+
+/**
+ * Envio forçado SEGURO (`git push --force-with-lease`), para depois de reescrever o histórico da branch (rebase, amend). Diferente do `--force`,
+ * o git recusa se o remoto recebeu commits que esta cópia ainda não viu (ele compara com o valor que a branch remota tinha na última busca,
+ * que aqui é passado explicitamente), então ninguém tem o trabalho apagado sem saber. Nunca na branch principal ou de release, nunca sem upstream
+ * e nunca com HEAD desanexado. Não faz fetch antes: seria o mesmo que pular a proteção.
+ */
+export async function pushWithLease(repoPath: string): Promise<BranchActionResult> {
+  const cur = await currentBranch(repoPath);
+  if (!cur) return { ok: false, message: tm('HEAD desanexado: crie uma branch antes de enviar.', 'Detached HEAD: create a branch before pushing.') };
+  if (!isSafeRef(cur)) return { ok: false, message: tm(`Nome de branch não suportado para enviar: ${cur}`, `Branch name not supported for pushing: ${cur}`) };
+  const remotes = await remoteNames(repoPath);
+  const up = await upstreamRef(repoPath, cur);
+  const owner = up ? [...remotes].sort((a, b) => b.length - a.length).find((r) => up.startsWith(`refs/remotes/${r}/`)) : undefined;
+  if (!up || !owner || !(await refExists(repoPath, up))) {
+    return { ok: false, message: tm('A branch ainda não foi publicada: use o envio normal (Publicar branch). Não há o que forçar.', 'The branch has not been published yet: use the normal push (Publish branch). There is nothing to force.') };
+  }
+  const branch = up.slice(`refs/remotes/${owner}/`.length);
+  const base = (await listBranches(repoPath)).defaultRemoteBranch; // ex.: origin/main
+  if (PROTECTED.test(branch) || PROTECTED.test(cur) || (base && base === `${owner}/${branch}`)) {
+    return {
+      ok: false,
+      message: tm(`'${branch}' é uma branch principal: o envio forçado é recusado aqui. Se for mesmo necessário, faça pelo terminal.`, `'${branch}' is a main branch: forced push is refused here. If it is really needed, do it from the terminal.`),
+    };
+  }
+  const expected = (await runGit(repoPath, ['rev-parse', up])).stdout.trim();
+  const onStderr = progressReader((p) => emitGitProgress({ repoPath, op: 'push', phase: p.phase, percent: p.percent }));
+  const r = await runGit(repoPath, ['push', '--progress', `--force-with-lease=refs/heads/${branch}:${expected}`, owner, `${cur}:refs/heads/${branch}`], { check: false, env: NO_PROMPT, onStderr });
+  const out = r.stderr + r.stdout;
+  if (r.code === 0) {
+    if (/Everything up-to-date/i.test(out)) return { ok: true, message: tm('Nada a enviar: já está em dia.', 'Nothing to push: already up to date.') };
+    return { ok: true, message: tm(`Histórico reescrito enviado para '${owner}/${branch}' (com segurança).`, `Rewritten history pushed to '${owner}/${branch}' (safely).`) };
+  }
+  if (/stale info|\[rejected\].*(stale|fetch first)|remote ref .* (has|is) /i.test(out)) {
+    return {
+      ok: false,
+      message: tm(
+        'O remoto recebeu commits que você ainda não viu, então nada foi substituído. Busque do remoto, confira o que chegou e, se ainda fizer sentido, envie de novo.',
+        'The remote received commits you have not seen yet, so nothing was replaced. Fetch from the remote, check what arrived and, if it still makes sense, push again.',
+      ),
+    };
+  }
+  if (/\[remote rejected\]|pre-receive hook declined|protected branch/i.test(out)) {
+    return { ok: false, message: tm(`O remoto recusou o envio: ${firstError(out) || 'regra do servidor'}`, `The remote refused the push: ${firstError(out) || 'server rule'}`) };
+  }
+  return { ok: false, message: explain(out, tm('Não foi possível enviar.', 'Could not push.')) };
+}
+
 /** Há um stash? (o commit do topo, ou null). Serve para saber se `stash push` guardou algo: sem alterações ele não cria nada. */
 async function stashTop(repoPath: string): Promise<string | null> {
   const r = await runGit(repoPath, ['rev-parse', '-q', '--verify', 'refs/stash'], { check: false });

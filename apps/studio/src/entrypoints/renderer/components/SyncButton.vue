@@ -90,6 +90,12 @@ async function doUpdate(method: UpdateMethod = 'ff'): Promise<void> {
   const r = await guarded(() => runSyncOp(path.value, 'update', () => api.updateRepo(path.value, method)));
   if (r) finish(r);
 }
+/** Envio forçado SEGURO (--force-with-lease): para depois de reescrever o histórico (rebase, amend). O git recusa se o remoto andou. */
+async function doPushLease(): Promise<void> {
+  const r = await guarded(() => runSyncOp(path.value, 'push', () => api.pushWithLease(path.value)));
+  if (r) finish(r);
+}
+
 async function doPush(): Promise<void> {
   const r = await guarded(() => runSyncOp(path.value, 'push', () => api.pushRepo(path.value)));
   if (r) finish(r);
@@ -117,6 +123,10 @@ const loading = ref(false);
 const commits = ref<SyncCommits | null>(null);
 const pos = ref({ left: 0, top: 0, maxHeight: 480 });
 const confirmRebase = ref(false);
+const confirmLease = ref(false);
+/** Branches em que o envio forçado nem é oferecido (o núcleo também as recusa). */
+const PROTECTED = /^(main|master|develop|development|trunk|release\/.+)$/;
+const leaseAllowed = computed(() => !!props.sync?.branch && !PROTECTED.test(props.sync.branch));
 
 async function loadCommits(): Promise<void> {
   loading.value = true;
@@ -145,7 +155,7 @@ function closePanel(refocus = true): void {
 const togglePanel = () => (open.value ? closePanel() : void openPanel());
 
 function onDocKey(ev: KeyboardEvent): void {
-  if (ev.key !== 'Escape' || ev.defaultPrevented || confirmRebase.value) return;
+  if (ev.key !== 'Escape' || ev.defaultPrevented || confirmRebase.value || confirmLease.value) return;
   ev.preventDefault();
   closePanel();
 }
@@ -171,6 +181,14 @@ const askRebase = () => {
   open.value = false;
   confirmRebase.value = true;
 };
+const askLease = () => {
+  open.value = false;
+  confirmLease.value = true;
+};
+function doLease(): void {
+  confirmLease.value = false;
+  void doPushLease();
+}
 function doRebase(): void {
   confirmRebase.value = false;
   void doUpdate('rebase');
@@ -187,7 +205,7 @@ const unpublished = computed(() => state.value === 'no-upstream' || state.value 
 const nothing = computed(() => !loading.value && !!commits.value && !commits.value.incoming.length && !commits.value.outgoing.length);
 const rebaseVars = computed(() => ({ ref: upstream.value || remote.value, cur: props.sync?.branch ?? '' }));
 
-defineExpose({ doFetch, doUpdate, doPush });
+defineExpose({ doFetch, doUpdate, doPush, doPushLease });
 </script>
 
 <template>
@@ -251,6 +269,7 @@ defineExpose({ doFetch, doUpdate, doPush });
           <template v-if="state === 'diverged'">
             <GnButton size="sm" tone="accent" :disabled="busy" data-testid="sync-update-merge" @click="fromPanel(() => doUpdate('merge'))">{{ t('ss.updateMerge') }}</GnButton>
             <GnButton size="sm" tone="warn" :disabled="busy" data-testid="sync-update-rebase" @click="askRebase()">{{ t('ss.updateRebase') }}</GnButton>
+            <GnButton v-if="leaseAllowed" size="sm" variant="ghost" tone="danger" :disabled="busy" :title="t('ss.pushLeaseTip')" data-testid="sync-push-lease" @click="askLease()">{{ t('ss.pushLease') }}</GnButton>
           </template>
           <GnButton v-if="state === 'ahead'" size="sm" tone="success" :disabled="busy" data-testid="sync-push" @click="fromPanel(doPush)">{{ t('ss.pushNow') }}</GnButton>
           <GnButton v-if="unpublished" size="sm" tone="success" :disabled="busy" data-testid="sync-publish" @click="fromPanel(doPush)">{{ t('ss.publishNow') }}</GnButton>
@@ -259,6 +278,15 @@ defineExpose({ doFetch, doUpdate, doPush });
     </div>
   </Teleport>
 
+  <ConfirmDialog
+    v-if="confirmLease"
+    :title="t('ss.leaseTitle', { cur: sync?.branch ?? '' })"
+    :lines="[t('ss.leaseLine1', { n: sync?.behind ?? 0, cur: sync?.branch ?? '' }), t('ss.leaseLine2')]"
+    :confirm-label="t('ss.pushLease')"
+    danger
+    @confirm="doLease"
+    @cancel="confirmLease = false"
+  />
   <ConfirmDialog
     v-if="confirmRebase"
     :title="t('bp.rebaseTitle', rebaseVars)"
