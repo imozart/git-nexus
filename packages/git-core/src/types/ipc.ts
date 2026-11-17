@@ -3,6 +3,35 @@ import type { EncodingChoice, FileEncoding, FileEncodingInfo } from '../file-enc
 /** Operação parada no meio que o app sabe continuar ou abortar (o rebase tem o painel próprio). */
 export type InProgressKind = 'merge' | 'cherry-pick' | 'revert';
 
+/** Uma tag local. `hash` é o COMMIT para o qual ela aponta (também nas anotadas). */
+export interface TagInfo {
+  name: string;
+  hash: string;
+  /** Data da tag (anotada) ou do commit (leve), em segundos. */
+  date: number;
+  subject: string;
+  annotated: boolean;
+  /** Só nas anotadas: quem criou e o texto completo. */
+  tagger?: string;
+  message?: string;
+}
+
+export interface CreateTagInput {
+  name: string;
+  /** Commit, branch ou outra tag. Padrão: o commit atual. */
+  target?: string;
+  /** Com texto, a tag é anotada (guarda autor, data e mensagem); sem, é leve. */
+  message?: string;
+}
+
+/** Tags que existem no remoto (consulta a rede). */
+export interface RemoteTags {
+  ok: boolean;
+  remote: string;
+  names: string[];
+  message?: string;
+}
+
 /** Veja `getAmendInfo`. */
 export interface AmendInfo {
   hasHead: boolean;
@@ -675,6 +704,17 @@ export interface GitNexusApi extends GitNexusIPC {
   continueOperation(repoPath: string): Promise<BranchActionResult>;
   /** Abandona a operação parada e volta ao estado de antes. */
   abortOperation(repoPath: string): Promise<BranchActionResult>;
+
+  /** Tags locais, da mais nova para a mais antiga. */
+  listTags(repoPath: string): Promise<TagInfo[]>;
+  /** Tags do remoto (rede): `ok: false` se não foi possível consultar. */
+  listRemoteTags(repoPath: string): Promise<RemoteTags>;
+  /** Cria uma tag (anotada se tiver mensagem). */
+  createTag(repoPath: string, input: CreateTagInput): Promise<BranchActionResult>;
+  /** Apaga a tag local; com `remote`, apaga no remoto. */
+  deleteTag(repoPath: string, name: string, remote?: boolean): Promise<BranchActionResult>;
+  /** Envia uma tag (ou todas, sem nome) ao remoto, sem forçar. */
+  pushTag(repoPath: string, name?: string): Promise<BranchActionResult>;
 
   /** Abre o diálogo nativo de seleção de pastas. */
   pickDirectories(): Promise<string[]>;

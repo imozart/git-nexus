@@ -221,6 +221,7 @@ watch(() => ws.versions[props.repo.id], load);
         <GnButton size="sm" tone="warn" class="gv__rb" :title="t('gv.rebaseTip')" @click="ws.openTools(repo, 'rebase', selected.hash)">
           {{ t('gv.rebaseHere') }}
         </GnButton>
+        <GnButton size="sm" class="gv__rb" :title="t('gv.tagHereTip')" data-testid="tag-here" @click="ws.openTools(repo, 'tags', selected.hash)">{{ t('gv.tagHere') }}</GnButton>
         <div class="gv__ops">
           <GnButton size="sm" tone="accent" :disabled="opBusy" :title="t('gv.cherryPickTip')" data-testid="cherry-pick" @click="ask = { kind: 'cherry-pick', hash: selected.hash, subject: selected.subject }">
             {{ t('gv.cherryPick') }}
