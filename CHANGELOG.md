@@ -4,6 +4,23 @@ Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https:/
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.15.0] - 2026-11-17
+
+### ✨ Novidades
+
+- **app:** abrir o repositório no terminal e no editor ([`536aab8`](https://github.com/imozart/git-nexus/commit/536aab8f6ef4a00447402958cca47a7d8bb251fb))
+- **app:** zoom da interface por Ctrl+= / Ctrl+- / Ctrl+0 e pela paleta ([`02516e1`](https://github.com/imozart/git-nexus/commit/02516e1478f2e9612dcb113c0a30be05f4d7ef77))
+- **app:** lembrar tamanho, posição e estado maximizado da janela ([`ab60c75`](https://github.com/imozart/git-nexus/commit/ab60c75bf7ab149cbdf76f48208e755a2e709b23))
+- **sync:** envio forçado seguro (force-with-lease) depois de rebase ou amend ([`9da9656`](https://github.com/imozart/git-nexus/commit/9da9656b88fe3dc63b5ac76b9ad80685d5379b37))
+- **tags:** painel de tags para listar, criar, enviar, apagar e ir para a tag ([`467f788`](https://github.com/imozart/git-nexus/commit/467f7884d86393be5564a1269d6ac2ec4582515a))
+- **merge:** faixa de merge em andamento com abortar e continuar ([`6c23238`](https://github.com/imozart/git-nexus/commit/6c23238ad5fe2bbaddd65d2c7b298814dbe5c958))
+- **graph:** cherry-pick e revert de commit, com continuar e abortar ([`e0b8c18`](https://github.com/imozart/git-nexus/commit/e0b8c188defdf83ea1261b50ce5d7aa0a152654d))
+- **commit:** emendar o último commit pelo formulário de commit ([`6df36eb`](https://github.com/imozart/git-nexus/commit/6df36eb01cb6538b63e9b2bdd88cccd2028f3217))
+
+### 🐛 Correções
+
+- **app:** montar os caminhos do VS Code no Windows com win32.join ([`808c35d`](https://github.com/imozart/git-nexus/commit/808c35d3a52ad9199d6b382b281846c2b1702b3f))
+
 ## [1.14.0] - 2026-11-17
 
 ### ✨ Novidades
@@ -309,6 +326,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.15.0]: https://github.com/imozart/git-nexus/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/imozart/git-nexus/compare/v1.13.2...v1.14.0
 [1.13.2]: https://github.com/imozart/git-nexus/compare/v1.13.1...v1.13.2
 [1.13.1]: https://github.com/imozart/git-nexus/compare/v1.13.0...v1.13.1
