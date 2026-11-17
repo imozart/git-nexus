@@ -175,7 +175,7 @@ function failWithLog(step: string, e: unknown): Error {
 // O registro desta abertura mostra, depois de uma troca, em que versão o app subiu (compare com o fim do atualizador).
 if (app.isPackaged) {
   updateLog(`app iniciado: ${describeContext()}`);
-  void Promise.all([cleanupUpdateFiles(exeDir), cleanupUpdateFiles(join(dataDir, 'updates'))]).then(([a, b]) => {
+  void Promise.all([cleanupUpdateFiles(exeDir, updateLog), cleanupUpdateFiles(join(dataDir, 'updates'), updateLog)]).then(([a, b]) => {
     const removed = [...a, ...b];
     if (removed.length) updateLog(`limpeza ao abrir: removidos ${removed.join(', ')}`);
   });

@@ -95,6 +95,17 @@ describe('pasta do próprio app (download ao lado do executável)', () => {
   it('pasta inexistente não é erro', async () => {
     await expect(cleanupUpdateFiles(join(tmp(), 'nao-existe'))).resolves.toEqual([]);
   });
+  it('apaga um preparo que traz resources/app.asar e devolve o suporte a asar ao estado anterior', async () => {
+    // Regressão: no Electron o rm recursivo tratava o app.asar real como pasta e falhava com EBUSY (atualização 1.12 → 1.13).
+    const dir = tmp();
+    mkdirSync(join(dir, '.gnupdate-stage', 'resources'), { recursive: true });
+    writeFileSync(join(dir, '.gnupdate-stage', 'resources', 'app.asar'), 'x');
+    const p = process as unknown as { noAsar?: boolean };
+    const before = p.noAsar;
+    expect(await cleanupUpdateFiles(dir)).toEqual(['.gnupdate-stage']);
+    expect(existsSync(join(dir, '.gnupdate-stage'))).toBe(false);
+    expect(p.noAsar).toBe(before);
+  });
 });
 
 describe('replaceAppImage', () => {
