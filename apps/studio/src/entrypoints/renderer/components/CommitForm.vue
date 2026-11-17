@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { GnButton } from '@git-nexus/ui-kit';
 import type {
+  AmendInfo,
   CommitPolicy,
   ConventionalCommitInput,
   ConventionalCommitType,
@@ -15,6 +16,7 @@ import {
   compileTicketPattern,
   formatCommitMessage,
   mergePolicy,
+  parseCommitMessage,
   ticketFromBranch,
   typeFromBranch,
 } from '@git-nexus/governance-policy';
@@ -127,7 +129,44 @@ const subjectLen = computed(() => form.subject.trim().length);
 const preview = computed(() => formatCommitMessage(input.value));
 
 const committing = ref(false);
-const canCommit = computed(() => validation.value.isValid && props.stagedCount > 0 && !committing.value && !secretReport.value);
+
+// --- Emendar o último commit (git commit --amend) -----------------------------------------------
+// Ligar carrega a mensagem do último commit no formulário (e guarda o rascunho, que volta ao desligar). Sem nada no stage, só troca a mensagem.
+// Se o commit já foi enviado ao remoto, emendar reescreve o histórico publicado: pede a confirmação explícita.
+const amend = ref(false);
+const amendInfo = ref<AmendInfo | null>(null);
+const confirmRewrite = ref(false);
+let draft: typeof form | null = null;
+watch(amend, async (on) => {
+  confirmRewrite.value = false;
+  if (!on) {
+    if (draft) Object.assign(form, draft);
+    draft = null;
+    amendInfo.value = null;
+    return;
+  }
+  const info = await api.getAmendInfo(props.repoPath).catch(() => null);
+  if (!info?.hasHead) {
+    amend.value = false;
+    output.value = { ok: false, text: t('commit.amendNoHead') };
+    return;
+  }
+  amendInfo.value = info;
+  draft = { ...form };
+  const { input: cur } = parseCommitMessage(info.message);
+  Object.assign(form, { type: cur.type, scope: cur.scope ?? '', ticketNumber: cur.ticketNumber ?? '', subject: cur.subject, body: cur.body ?? '', breakingChanges: cur.breakingChanges ?? '' });
+  autoTicket.value = false;
+});
+watch(() => props.repoPath, () => (amend.value = false));
+const needsConfirm = computed(() => amend.value && !!amendInfo.value?.pushed && !confirmRewrite.value);
+
+const canCommit = computed(
+  () =>
+    validation.value.isValid &&
+    (amend.value ? !!amendInfo.value && !needsConfirm.value : props.stagedCount > 0) &&
+    !committing.value &&
+    !secretReport.value,
+);
 
 // --- Segredos: o scanner roda antes do commit ------------------------------------------------
 const secretReport = ref<{ mode: SecretsMode; findings: SecretFinding[] } | null>(null);
@@ -165,8 +204,13 @@ async function commitAnyway(): Promise<void> {
 
 async function doCommit(): Promise<void> {
   try {
-    const r = await api.executeCommit(props.repoPath, input.value, { ...policy.value });
-    output.value = { ok: true, text: `${t('commit.created', { hash: r.commitHash.slice(0, 7) })}\n\n${r.output}`.trim() };
+    const wasAmend = amend.value;
+    const r = wasAmend ? await api.executeAmend(props.repoPath, input.value, { ...policy.value }) : await api.executeCommit(props.repoPath, input.value, { ...policy.value });
+    output.value = { ok: true, text: `${t(wasAmend ? 'commit.amended' : 'commit.created', { hash: r.commitHash.slice(0, 7) })}\n\n${r.output}`.trim() };
+    if (wasAmend) {
+      draft = null; // o rascunho antigo não volta: o commit emendado é o resultado
+      amend.value = false;
+    }
     form.subject = '';
     form.body = '';
     form.breakingChanges = '';
@@ -331,10 +375,20 @@ async function saveTeamPolicy(): Promise<void> {
       </div>
     </div>
 
-    <GnButton variant="primary" tone="success" type="submit" :disabled="!canCommit" title="Ctrl+Enter">
-      {{ committing ? t('commit.submitting') : t('commit.submit', { n: stagedCount }) }}
+    <label class="cf__amend" :title="t('commit.amendHint')">
+      <input v-model="amend" type="checkbox" data-testid="amend-toggle" /> {{ t('commit.amend') }}
+    </label>
+    <div v-if="amend && amendInfo?.pushed" class="cf__warn" role="alert" data-testid="amend-pushed">
+      {{ t('commit.amendPushed') }}
+      <label><input v-model="confirmRewrite" type="checkbox" data-testid="amend-confirm" /> {{ t('commit.amendConfirm') }}</label>
+    </div>
+    <div v-if="amend && amendInfo?.isMerge" class="cf__warn" data-testid="amend-merge">{{ t('commit.amendMerge') }}</div>
+
+    <GnButton variant="primary" :tone="amend && amendInfo?.pushed ? 'warn' : 'success'" type="submit" :disabled="!canCommit" title="Ctrl+Enter" data-testid="commit-submit">
+      {{ committing ? (amend ? t('commit.amending') : t('commit.submitting')) : amend ? t('commit.amendSubmit') : t('commit.submit', { n: stagedCount }) }}
     </GnButton>
-    <small v-if="stagedCount === 0" class="muted">{{ t('commit.needStage') }}</small>
+    <small v-if="stagedCount === 0 && !amend" class="muted">{{ t('commit.needStage') }}</small>
+    <small v-if="amend && stagedCount === 0" class="muted">{{ t('commit.amendOnlyMessage') }}</small>
 
     <div v-if="output" class="cf__out" :class="output.ok ? 'cf__out--ok' : 'cf__out--err'">
       <strong>{{ output.ok ? t('commit.done') : t('commit.rejected') }}</strong>
@@ -355,6 +409,8 @@ async function saveTeamPolicy(): Promise<void> {
   &__label { color: var(--gn-muted); font-size: 12px; display: flex; justify-content: space-between; }
   &__row { display: flex; gap: 8px; }
   &__types { display: flex; flex-wrap: wrap; gap: 5px; }
+  &__amend { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+  &__warn { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; font-size: 12px; color: var(--gn-text); background: rgba(214, 162, 58, 0.14); border: 1px solid var(--gn-warn, #d6a23a); border-radius: var(--gn-radius); label { display: flex; align-items: center; gap: 6px; cursor: pointer; } }
   &__team {
     font-size: 12px;
     border: 1px solid var(--gn-accent);

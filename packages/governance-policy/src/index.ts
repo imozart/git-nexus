@@ -107,6 +107,48 @@ export function formatCommitMessage(input: ConventionalCommitInput): string {
   return sections.join('\n\n') + '\n';
 }
 
+/**
+ * Inverso de `formatCommitMessage`: lê uma mensagem existente (a do último commit, para emendar) e devolve os campos do formulário.
+ * Mensagem que não segue `tipo(escopo): título` vira só título (a primeira linha) + corpo, com `parsed: false`: o linter diz o que corrigir.
+ */
+export function parseCommitMessage(message: string): { input: ConventionalCommitInput; parsed: boolean } {
+  const text = message.replace(/\r\n/g, '\n').trim();
+  const [header = '', ...rest] = text.split('\n');
+  const m = /^([A-Za-z]+)(?:\(([^()]*)\))?(!)?:\s*(.*)$/.exec(header);
+  const type = m?.[1]?.toLowerCase() as ConventionalCommitType | undefined;
+  const restText = rest.join('\n').replace(/^\n+/, '');
+  if (!m || !type || !COMMIT_TYPES.includes(type)) {
+    return { input: { type: 'feat', subject: header.trim(), ...(restText.trim() ? { body: restText.trim() } : {}) }, parsed: false };
+  }
+  // rodapé: o último parágrafo, se TODAS as linhas forem "BREAKING CHANGE: …" ou "Refs: …"
+  const paragraphs = restText.split(/\n{2,}/).filter((p) => p.trim() !== '');
+  let breaking: string | undefined;
+  let ticket: string | undefined;
+  const last = paragraphs[paragraphs.length - 1];
+  const footerLines = last?.split('\n') ?? [];
+  if (last && footerLines.every((l) => /^(BREAKING[ -]CHANGE|Refs?):\s*\S/i.test(l))) {
+    for (const l of footerLines) {
+      const f = /^(BREAKING[ -]CHANGE|Refs?):\s*(.*)$/i.exec(l)!;
+      if (/^breaking/i.test(f[1]!)) breaking = f[2]!.trim();
+      else ticket = f[2]!.trim();
+    }
+    paragraphs.pop();
+  }
+  if (m[3] && !breaking) breaking = 'Mudança incompatível.'; // o "!" do título sem descrição: mantém o "!" ao reformatar
+  const body = paragraphs.join('\n\n').trim();
+  return {
+    input: {
+      type,
+      ...(m[2]?.trim() ? { scope: m[2].trim() } : {}),
+      ...(ticket ? { ticketNumber: ticket } : {}),
+      subject: m[4]!.trim(),
+      ...(body ? { body } : {}),
+      ...(breaking ? { breakingChanges: breaking } : {}),
+    },
+    parsed: true,
+  };
+}
+
 // ---------------------------------------------------------------------------------------
 // Política do time: .gitnexus.json versionado no repositório
 // ---------------------------------------------------------------------------------------

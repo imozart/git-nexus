@@ -3,6 +3,8 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import {
   CommitRejectedError,
+  amendCommit,
+  getAmendInfo,
   checkoutBranch,
   checkoutRevision,
   createBranch,
@@ -224,6 +226,20 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
       if (!v.isValid) throw new Error(v.errors.join('\n'));
       try {
         return await commit(repoPath, formatCommitMessage(input));
+      } catch (e) {
+        if (e instanceof CommitRejectedError) throw new Error(HOOK_REJECTED_PREFIX + (e.hookOutput || e.message));
+        throw e;
+      }
+    },
+    getAmendInfo: (repoPath: string) => getAmendInfo(repoPath),
+    executeAmend: async (repoPath: string, input: ConventionalCommitInput, localPolicy?: CommitPolicy) => {
+      // mesma regra do commit: a política do time (.gitnexus.json) prevalece
+      const team = (await readRepoPolicy(repoPath)).commit;
+      const policy = mergePolicy(localPolicy ?? DEFAULT_POLICY, team);
+      const v = validateCommitMessage(input, policy);
+      if (!v.isValid) throw new Error(v.errors.join('\n'));
+      try {
+        return await amendCommit(repoPath, formatCommitMessage(input));
       } catch (e) {
         if (e instanceof CommitRejectedError) throw new Error(HOOK_REJECTED_PREFIX + (e.hookOutput || e.message));
         throw e;

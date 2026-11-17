@@ -1,5 +1,13 @@
 import type { EncodingChoice, FileEncoding, FileEncodingInfo } from '../file-encoding.js';
 
+/** Veja `getAmendInfo`. */
+export interface AmendInfo {
+  hasHead: boolean;
+  message: string;
+  pushed: boolean;
+  isMerge: boolean;
+}
+
 export interface RepositoryMeta {
   id: string;
   name: string;
@@ -648,6 +656,11 @@ export interface GitNexusApi extends GitNexusIPC {
     input: ConventionalCommitInput,
     policy?: CommitPolicy,
   ): Promise<CommitResult>;
+
+  /** Dados para emendar o último commit (mensagem atual, se já foi enviado, se é merge). */
+  getAmendInfo(repoPath: string): Promise<AmendInfo>;
+  /** Emenda o último commit com o stage atual e a mensagem validada (`git commit --amend`). */
+  executeAmend(repoPath: string, input: ConventionalCommitInput, localPolicy?: CommitPolicy): Promise<CommitResult>;
 
   /** Abre o diálogo nativo de seleção de pastas. */
   pickDirectories(): Promise<string[]>;

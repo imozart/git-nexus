@@ -4,6 +4,7 @@ import {
   DEFAULT_POLICY,
   formatCommitMessage,
   mergePolicy,
+  parseCommitMessage,
   parseRepoConfig,
   ticketFromBranch,
   typeFromBranch,
@@ -109,5 +110,53 @@ describe('política do time (.gitnexus.json)', () => {
     expect(typeFromBranch('hotfix/crash')).toBe('fix');
     expect(typeFromBranch('main')).toBeNull();
     expect(typeFromBranch('minha/coisa')).toBeNull();
+  });
+});
+
+describe('parseCommitMessage (inverso do formatCommitMessage)', () => {
+  const roundTrip = (i: ConventionalCommitInput) => parseCommitMessage(formatCommitMessage(i));
+
+  it('lê tipo, escopo, título, corpo, ticket e breaking change', () => {
+    const input: ConventionalCommitInput = {
+      type: 'feat',
+      scope: 'api',
+      subject: 'novo endpoint',
+      body: 'Primeiro parágrafo.\n\nSegundo parágrafo.',
+      ticketNumber: 'ABC-123',
+      breakingChanges: 'o formato mudou',
+    };
+    const r = roundTrip(input);
+    expect(r.parsed).toBe(true);
+    expect(r.input).toEqual(input);
+  });
+
+  it('ida e volta: o que sai do formulário volta igual (com e sem partes opcionais)', () => {
+    for (const i of [
+      { type: 'fix', subject: 'corrige o crash' },
+      { type: 'docs', scope: 'readme', subject: 'ajusta o texto', ticketNumber: 'PROJ-9' },
+      { type: 'chore', subject: 'x', body: 'só corpo' },
+    ] as ConventionalCommitInput[]) {
+      expect(roundTrip(i).input).toEqual(i);
+      expect(formatCommitMessage(roundTrip(i).input)).toBe(formatCommitMessage(i));
+    }
+  });
+
+  it('mensagem fora do padrão vira título + corpo, sem inventar tipo', () => {
+    const r = parseCommitMessage('ajustes diversos\n\ncorpo livre\n');
+    expect(r.parsed).toBe(false);
+    expect(r.input).toMatchObject({ subject: 'ajustes diversos', body: 'corpo livre' });
+    expect(parseCommitMessage('wip: algo').parsed).toBe(false); // tipo desconhecido
+  });
+
+  it('rodapé só conta se TODAS as linhas do último parágrafo forem rodapé; "!" sem descrição é mantido', () => {
+    const r = parseCommitMessage('feat: a\n\ncorpo\nRefs: X-1');
+    expect(r.input.body).toBe('corpo\nRefs: X-1');
+    expect(r.input.ticketNumber).toBeUndefined();
+    const bang = parseCommitMessage('feat!: quebra');
+    expect(formatCommitMessage(bang.input)).toMatch(/^feat!: quebra/);
+  });
+
+  it('aceita CRLF e espaços nas pontas', () => {
+    expect(parseCommitMessage('  fix(ui): botão\r\n\r\ncorpo\r\n').input).toEqual({ type: 'fix', scope: 'ui', subject: 'botão', body: 'corpo' });
   });
 });
