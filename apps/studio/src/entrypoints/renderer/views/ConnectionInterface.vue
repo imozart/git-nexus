@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { GnBadge, GnButton, GnIconButton } from '@git-nexus/ui-kit';
-import type { RepoSummary, RepositoryMeta } from '@git-nexus/git-core/pure';
+import { syncState, type RepoSummary, type RepositoryMeta } from '@git-nexus/git-core/pure';
 import { dateLocale, t } from '../i18n';
 import { useRepositoriesStore } from '../stores/repositories';
 import { useWorkspaceStore } from '../stores/workspace';
 import ChangelogDialog from '../components/ChangelogDialog.vue';
+import SyncIndicator from '../components/SyncIndicator.vue';
 
 const store = useRepositoriesStore();
 const ws = useWorkspaceStore();
@@ -107,12 +108,11 @@ const fmt = (ts: number) => (ts ? new Date(ts).toLocaleString(dateLocale.value) 
           <div class="repo__state">
             <template v-if="sum(r)">
               <GnBadge tone="accent" :title="sum(r)!.upstream ? t('home.upstream', { name: sum(r)!.upstream ?? '' }) : t('home.noUpstream')">⎇ {{ sum(r)!.branch }}</GnBadge>
-              <GnBadge v-if="sum(r)!.ahead" tone="accent" :title="t('home.aheadTitle')">↑{{ sum(r)!.ahead }}</GnBadge>
-              <GnBadge v-if="sum(r)!.behind" tone="warn" :title="t('home.behindTitle')">↓{{ sum(r)!.behind }}</GnBadge>
+              <SyncIndicator :sync="sum(r)!" hide-no-upstream />
               <GnBadge v-if="changes(sum(r)!)" tone="warn" :title="t('home.changesTitle')">{{ t('home.changes', { n: changes(sum(r)!) }) }}</GnBadge>
               <GnBadge v-if="sum(r)!.conflicted" tone="danger">{{ t('home.conflicts', { n: sum(r)!.conflicted }) }}</GnBadge>
               <GnBadge v-if="!sum(r)!.upstream && !sum(r)!.detached" tone="neutral">{{ t('home.noUpstreamBadge') }}</GnBadge>
-              <GnBadge v-if="sum(r)!.upstream && !sum(r)!.ahead && !sum(r)!.behind && !changes(sum(r)!) && !sum(r)!.conflicted" tone="success">{{ t('home.upToDate') }}</GnBadge>
+              <GnBadge v-if="syncState(sum(r)!) === 'in-sync' && !changes(sum(r)!) && !sum(r)!.conflicted" tone="success">{{ t('home.upToDate') }}</GnBadge>
             </template>
             <span v-else-if="sumError(r)" class="state-err" :title="sumError(r)">{{ t('home.noStatus') }}</span>
             <span v-else class="muted">{{ t('home.loadingStatus') }}</span>

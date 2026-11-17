@@ -26,7 +26,7 @@ Os atalhos só usam Ctrl/⌘/Alt (ou teclas F), então nunca atrapalham a digita
 
 ## Painel de repositórios
 
-A tela inicial mostra, para cada repositório catalogado: **branch**, **↑ commits para enviar / ↓ commits para receber** (em relação ao upstream), **alterações locais**, **conflitos** ou "em dia". O status carrega em segundo plano (4 por vez).
+A tela inicial mostra, para cada repositório catalogado: **branch**, o **indicador de sincronização** (veja [Sincronização com o remoto](#sincronização-com-o-remoto): ↓ commits para receber, ↑ commits para enviar, divergida, remota apagada), **alterações locais**, **conflitos** ou "em dia" (só quando está mesmo em dia: uma branch cuja remota foi apagada não diz "em dia"). O status carrega em segundo plano (4 por vez).
 
 - **Buscar todos:** `git fetch --all --prune` em todos, com relatório de sucessos e falhas (remoto inacessível, credencial necessária…). Nunca pergunta senha: sem terminal, o git falha em vez de travar.
 - **Atualizar seguros:** pull **somente por fast-forward**, e só onde é seguro: há upstream, o repositório está atrás, não divergiu e a árvore está limpa. Nada de merge automático nem reescrita de histórico; o relatório diz quantos foram atualizados.
@@ -48,12 +48,34 @@ A tela inicial mostra, para cada repositório catalogado: **branch**, **↑ comm
 No cabeçalho do repositório, a branch atual é um botão (ícone de branch, nome e seta). Clicar abre o painel:
 
 - **Busca** nas branches **locais e remotas**: digite parte do nome (o trecho encontrado fica realçado) e as seções se abrem sozinhas. Esc ou clique fora fecham.
-- **Ações:** *Atualizar a branch atual* (busca do remoto e atualiza só por fast-forward), *Nova branch…* e *Ir para tag ou commit…* (deixa o HEAD desanexado).
-- **Listas:** *Recentes* (as últimas branches em que você esteve, pelo reflog), *Locais* e *Remotas* (agrupadas por remoto). Cada linha mostra se está à frente (↑) ou atrás (↓) do remoto; a atual vem marcada.
+- **Ações:** *Atualizar a branch atual* (busca do remoto e atualiza só por fast-forward, guardando e devolvendo as suas alterações locais), *Nova branch…* e *Ir para tag ou commit…* (deixa o HEAD desanexado). Duas caixas: *Só desatualizadas* (mostra só as branches locais atrás do remoto, divergidas ou com a remota apagada; funciona junto da pesquisa) e *Buscar automaticamente* (veja abaixo).
+- **Listas:** *Recentes* (as últimas branches em que você esteve, pelo reflog), *Locais* e *Remotas* (agrupadas por remoto). Cada linha local mostra o mesmo indicador de sincronização do cabeçalho; a atual vem marcada.
 - **Menu de cada branch** (clique na linha, ou → no teclado; duplo clique ou Enter faz o checkout): *Trocar para esta branch* (numa remota, cria a branch local que a acompanha), *Nova branch a partir dela…*, *Merge dela na atual*, *Rebase da atual sobre ela* (pede confirmação, porque reescreve o histórico), *Pull na atual com rebase ou com merge* (branches remotas) e *Excluir* (só branch local; se ela tiver commits que não estão em nenhuma outra, pede uma segunda confirmação).
 - **Nova branch a partir da mais recente:** por padrão o diálogo cria a partir de **origin/main (ou a branch principal do remoto) depois de buscá-la**, isto é, da versão mais recente do remoto, e não da cópia local que pode estar velha. Se não houver rede, usa a última cópia local e avisa. Também dá criar a partir da branch atual ou de qualquer outra, e escolher se quer trocar para a nova. A nova branch **não passa a acompanhar a `main`** (um pull nela não traria a main).
 - **Conflitos:** se um merge, rebase ou pull parar por conflitos, o app não mostra erro: a operação fica em andamento e leva você à tela de conflitos (o rebase tem a faixa própria no topo).
 - Se houver alterações locais que seriam sobrescritas, a troca é recusada com a explicação (faça commit ou guarde com stash antes).
+
+## Sincronização com o remoto
+
+O GitNexus mostra, sem você pedir, se a branch está desatualizada e deixa resolver ali mesmo. O mesmo indicador aparece no cabeçalho do repositório, nas linhas do seletor de branch e na lista de repositórios, sempre com número, texto no tooltip e nome acessível (a informação nunca depende só da cor):
+
+| Indicador | Significado |
+|---|---|
+| *(nada)* | em dia com o upstream |
+| **↓N** (âmbar) | o remoto tem N commits que a branch ainda não tem |
+| **↑N** (verde) | a branch tem N commits que ainda não foram enviados |
+| **↓N ↑M !** | divergida: os dois ao mesmo tempo |
+| **∅** (cinza) | a branch não tem upstream (não acompanha nenhuma branch remota) |
+| **!** (vermelho) | o upstream está configurado, mas a branch remota foi apagada |
+| **↓N main** | na tela do repositório: a branch está N commits atrás da branch principal do remoto (`origin/main`), que o upstream não mostra (as branches criadas pelo app não acompanham a main) |
+
+- **Botão de sincronização** (ao lado do seletor de branch, como o *Fetch/Pull/Push origin* do GitHub Desktop): o rótulo e a ação mudam com o estado. *Buscar origin* (em dia), *Atualizar origin ↓N* (atrás: traz os commits por fast-forward), *Enviar origin ↑N* (à frente), *Publicar branch* (sem upstream, ou com a remota apagada: envia e cria o upstream) e *Sincronizar ↑N ↓M* (divergida: abre o painel para escolher). O botão **Recarregar** só relê o status local (F5); quem fala com o remoto é o botão de sincronização.
+- **Painel de sincronização** (a seta ao lado do botão): lista os commits que **chegam** e os que **saem** (hash, assunto, autor, há quanto tempo; os 20 mais recentes e "e mais N"). Sem upstream, lista o que ainda não foi publicado. Divergida: *Atualizar com merge* ou *Atualizar com rebase* (o rebase pede confirmação, porque reescreve o histórico da branch).
+- **Atualizar com alterações locais**, como o *Update* do IntelliJ: o app guarda as alterações ainda não commitadas (stash), atualiza e as devolve no fim. Se a devolução conflitar, as alterações **continuam no stash**, nada se perde, e o app avisa e leva aos conflitos. Se a atualização falha antes de mudar algo (rede, divergência), as alterações voltam na hora.
+- **Enviar nunca força.** Se o remoto tem commits que a branch não tem, o envio é recusado com a orientação de atualizar antes. Envio forçado não existe no app.
+- **Andamento visível:** enquanto busca, atualiza ou envia, o botão fica ocupado (*Atualizando… 45%*) e uma barra mostra o progresso: a porcentagem que o git informa (receber objetos, resolver diferenças…) ou uma barra indeterminada quando ele não informa número. Não dá para clicar duas vezes. A busca automática mostra só uma barra discreta.
+- **Busca automática:** o app busca do remoto sozinho (`git fetch --all --prune`) ao abrir o repositório, ao voltar o foco para a janela e a cada 5 minutos, com intervalo mínimo de 5 minutos por repositório, para o adiante/atrás não ficar velho. É silenciosa: nunca pergunta senha e não mostra erro quando falha (sem rede, sem credencial). O tooltip do botão do seletor mostra *Última busca no remoto: há 4 min*. Desligue em *Buscar automaticamente*, no painel do seletor de branch.
+- **Em relação à branch principal:** numa feature branch, o painel do seletor mostra *Em relação a origin/main: ↑A ↓B* com *Merge de origin/main* e *Rebase sobre origin/main* (o rebase pede confirmação). Não aparece na própria main, com HEAD desanexado nem sem remoto.
 
 ## Política do time (`.gitnexus.json`)
 
