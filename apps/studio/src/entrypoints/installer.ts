@@ -9,6 +9,7 @@ import { Readable } from 'node:stream';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import type { UpdateProgress } from '@git-nexus/git-core/pure';
 import { findSha256, isAllowedUpdateUrl, isSafeAssetName } from '../shared/update';
+import { describeError, noLog, type UpdateLog } from './update-log';
 
 /** Teto de segurança: nenhum pacote do GitNexus chega perto disso. */
 const MAX_BYTES = 600 * 1024 * 1024;
@@ -24,6 +25,8 @@ export interface DownloadOptions {
   repo?: string;
   fetchImpl?: typeof fetch;
   onProgress?: (p: UpdateProgress) => void;
+  /** Log da atualização (veja update-log.ts). */
+  log?: UpdateLog;
 }
 
 export interface Downloaded {
@@ -41,11 +44,14 @@ const UPDATE_ENTRY = /^\.?gnupdate-/;
 /** Nome local do pacote baixado (na release continua sendo `name`). */
 export const updateFileName = (name: string) => `${UPDATE_PREFIX}${name}`;
 
-/** Apaga de `dir` os restos de atualização (pacotes, preparo, backup). Não toca em mais nada; nunca lança. */
-export async function cleanupUpdateFiles(dir: string): Promise<void> {
+/** Apaga de `dir` os restos de atualização (pacotes, preparo, backup). Não toca em mais nada; nunca lança. Devolve o que apagou. */
+export async function cleanupUpdateFiles(dir: string): Promise<string[]> {
+  const removed: string[] = [];
   for (const entry of await readdir(dir).catch(() => [] as string[])) {
-    if (UPDATE_ENTRY.test(entry)) await rm(join(dir, entry), { force: true, recursive: true }).catch(() => undefined);
+    if (!UPDATE_ENTRY.test(entry)) continue;
+    await rm(join(dir, entry), { force: true, recursive: true }).then(() => removed.push(entry), () => undefined);
   }
+  return removed;
 }
 
 async function getText(f: typeof fetch, url: string, limit: number): Promise<string> {
@@ -62,26 +68,34 @@ async function getText(f: typeof fetch, url: string, limit: number): Promise<str
  */
 export async function downloadVerified(o: DownloadOptions): Promise<Downloaded> {
   const f = o.fetchImpl ?? fetch;
+  const log = o.log ?? noLog;
+  log(`download: pacote ${o.name} de ${o.url}`);
   if (!isSafeAssetName(o.name)) throw new Error('Nome de pacote inválido.');
   if (!isAllowedUpdateUrl(o.url, o.repo) || !isAllowedUpdateUrl(o.sumsUrl, o.repo)) throw new Error('Endereço de download não permitido.');
 
+  log(`download: lendo os hashes em ${o.sumsUrl}`);
   const expected = findSha256(await getText(f, o.sumsUrl, MAX_SUMS_BYTES), o.name);
   if (!expected) throw new Error(`O SHA256SUMS.txt desta release não lista ${o.name}.`);
+  log(`download: SHA-256 esperado ${expected}`);
 
   await mkdir(o.destDir, { recursive: true });
   // Limpa restos de atualizações anteriores. `destDir` pode ser a pasta do próprio app: só se toca no que tem o prefixo do updater.
-  await cleanupUpdateFiles(o.destDir);
+  const removed = await cleanupUpdateFiles(o.destDir);
+  log(`download: pasta de destino ${o.destDir}${removed.length ? `; restos antigos apagados: ${removed.join(', ')}` : ''}`);
 
   const part = join(o.destDir, `${updateFileName(o.name)}.part`);
   const final = join(o.destDir, updateFileName(o.name));
   try {
     const res = await f(o.url, { headers: { 'User-Agent': 'GitNexus-update' }, signal: AbortSignal.timeout(30 * 60_000) });
+    log(`download: o GitHub respondeu ${res.status}${res.url && res.url !== o.url ? ` (redirecionado para ${new URL(res.url).host})` : ''}`);
     if (!res.ok || !res.body) throw new Error(`O GitHub respondeu ${res.status} ao baixar o pacote.`);
     const total = Number(res.headers.get('content-length') ?? 0) || 0;
+    log(`download: tamanho informado ${total ? `${total} bytes` : '(não informado)'}`);
     if (total > MAX_BYTES) throw new Error('Pacote grande demais.');
 
     const hash = createHash('sha256');
     let done = 0;
+    let loggedStep = -1;
     const out = createWriteStream(part);
     const source = Readable.fromWeb(res.body as unknown as WebReadableStream<Uint8Array>);
     source.on('data', (chunk: Buffer) => {
@@ -89,6 +103,12 @@ export async function downloadVerified(o: DownloadOptions): Promise<Downloaded> 
       if (done > MAX_BYTES) source.destroy(new Error('Pacote grande demais.'));
       hash.update(chunk);
       o.onProgress?.({ done, total });
+      // no log, só de 10 em 10 % (ou a cada 20 MB quando o tamanho não é informado)
+      const step = total ? Math.floor((done / total) * 10) : Math.floor(done / (20 * 1024 * 1024));
+      if (step !== loggedStep) {
+        loggedStep = step;
+        log(`download: ${done} bytes${total ? ` (${Math.floor((done / total) * 100)}%)` : ''}`);
+      }
     });
     await new Promise<void>((resolve, reject) => {
       source.on('error', reject);
@@ -98,10 +118,13 @@ export async function downloadVerified(o: DownloadOptions): Promise<Downloaded> 
     });
 
     const actual = hash.digest('hex');
+    log(`download: concluído, ${done} bytes, SHA-256 ${actual}`);
     if (actual !== expected) throw new Error('O SHA-256 do pacote não confere com o da release: o download foi descartado.');
     await rename(part, final);
+    log(`download: SHA-256 conferido; arquivo ${final}`);
     return { file: final, sha256: actual };
   } catch (e) {
+    log(`download: FALHOU: ${describeError(e)}`);
     await rm(part, { force: true });
     throw e;
   }
@@ -114,14 +137,17 @@ export const WINDOWS_INSTALLER_ARGS = ['/S', '--updated', '--force-run'] as cons
  * Troca o AppImage em uso pelo novo: copia ao lado e renomeia por cima (rename é atômico; o processo atual continua
  * usando o inode antigo até fechar). Falha, sem mexer no original, se a pasta não for gravável.
  */
-export async function replaceAppImage(downloaded: string, target: string): Promise<void> {
+export async function replaceAppImage(downloaded: string, target: string, log: UpdateLog = noLog): Promise<void> {
   const next = `${target}.new`;
   try {
+    log(`appimage: copiando ${downloaded} para ${next}`);
     await copyFile(downloaded, next);
     await chmod(next, 0o755);
     await rename(next, target);
     await rm(downloaded, { force: true }); // o pacote já cumpriu seu papel
+    log(`appimage: ${target} substituído`);
   } catch (e) {
+    log(`appimage: FALHOU: ${describeError(e)}`);
     await rm(next, { force: true });
     throw new Error(`Não foi possível substituir o AppImage (${(e as Error).message}). Baixe manualmente pela página da release.`);
   }
@@ -143,19 +169,29 @@ function run(file: string, args: string[], env?: NodeJS.ProcessEnv): Promise<voi
 const systemDir = () => join(process.env.SystemRoot ?? 'C:\\Windows', 'System32');
 
 /** Extrai o ZIP em `dest` (que é recriada). Usa o `tar.exe` do Windows e, se faltar, o `Expand-Archive`. */
-export async function extractZip(zip: string, dest: string): Promise<void> {
+export async function extractZip(zip: string, dest: string, log: UpdateLog = noLog): Promise<void> {
   await rm(dest, { recursive: true, force: true });
   await mkdir(dest, { recursive: true });
+  const tar = join(systemDir(), 'tar.exe');
   try {
-    await run(join(systemDir(), 'tar.exe'), ['-xf', zip, '-C', dest]);
-  } catch {
+    log(`extração: tar.exe (${tar}) -xf ${zip} -C ${dest}`);
+    await run(tar, ['-xf', zip, '-C', dest]);
+    log('extração: tar.exe concluiu');
+  } catch (e) {
+    log(`extração: tar.exe FALHOU: ${describeError(e)}; tentando o Expand-Archive`);
     await rm(dest, { recursive: true, force: true });
     await mkdir(dest, { recursive: true });
-    await run(
-      join(systemDir(), 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
-      ['-NoProfile', '-NonInteractive', '-Command', 'Expand-Archive -LiteralPath $env:GN_ZIP -DestinationPath $env:GN_DEST -Force'],
-      { GN_ZIP: zip, GN_DEST: dest },
-    );
+    try {
+      await run(
+        join(systemDir(), 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+        ['-NoProfile', '-NonInteractive', '-Command', 'Expand-Archive -LiteralPath $env:GN_ZIP -DestinationPath $env:GN_DEST -Force'],
+        { GN_ZIP: zip, GN_DEST: dest },
+      );
+      log('extração: Expand-Archive concluiu');
+    } catch (e2) {
+      log(`extração: Expand-Archive FALHOU: ${describeError(e2)}`);
+      throw e2;
+    }
   }
 }
 
@@ -171,14 +207,19 @@ async function findAppRoot(dir: string, exeName: string): Promise<string | null>
  * Extrai o ZIP já conferido em `<destDir>/.gnupdate-stage` e confirma que ele é mesmo o app (tem o executável). Devolve
  * a pasta pronta para a troca. O ZIP é apagado pelo script de troca quando a atualização dá certo.
  */
-export async function prepareStage(zip: string, destDir: string, exeName: string): Promise<string> {
+export async function prepareStage(zip: string, destDir: string, exeName: string, log: UpdateLog = noLog): Promise<string> {
   const stage = join(destDir, `.${UPDATE_PREFIX}stage`);
-  await extractZip(zip, stage);
+  log(`preparo: extraindo ${zip} em ${stage}`);
+  await extractZip(zip, stage, log);
+  const top = await readdir(stage).catch(() => [] as string[]);
+  log(`preparo: itens na raiz da extração (${top.length}): ${top.slice(0, 30).join(', ')}${top.length > 30 ? ', …' : ''}`);
   const root = await findAppRoot(stage, exeName);
   if (!root) {
+    log(`preparo: FALHOU: o pacote não contém ${exeName}`);
     await rm(stage, { recursive: true, force: true });
     throw new Error(`O pacote baixado não contém ${exeName}.`);
   }
+  log(`preparo: pronto, pasta do app novo ${root}`);
   return root;
 }
 
@@ -197,17 +238,26 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const o = JSON.parse(process.argv[2]);
-const log = (m) => { try { fs.appendFileSync(o.log, new Date().toISOString() + ' ' + m + '\n'); } catch (e) { /* sem log não é motivo para parar */ } };
+const log = (m) => { try { fs.appendFileSync(o.log, new Date().toISOString() + ' [atualizador] ' + m + '\n'); } catch (e) { /* sem log não é motivo para parar */ } };
+const why = (e) => (e && e.code ? '[' + e.code + '] ' : '') + (e && e.message ? e.message : String(e));
+const list = (dir) => { try { return fs.readdirSync(dir).join(', '); } catch (e) { return '(não leu: ' + why(e) + ')'; } };
 // Aperto de mão: o app só fecha depois de ver este arquivo (prova de que o atualizador realmente iniciou).
 try { fs.writeFileSync(o.started, String(process.pid)); } catch (e) { log('não gravou o aperto de mão: ' + e.message); }
-log('atualizador iniciado (pid ' + process.pid + '), esperando o app ' + o.pid + ' fechar');
+log('atualizador iniciado (pid ' + process.pid + ', node ' + process.version + '), esperando o app ' + o.pid + ' fechar');
+log('pasta do app: ' + o.appDir + ' | executável: ' + o.exe + ' | preparo: ' + o.stage);
+log('conteúdo do app atual: ' + list(o.appDir));
+log('conteúdo do pacote novo: ' + list(o.stage));
 
 const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
 const TRANSIENT = new Set(['EBUSY', 'EPERM', 'EACCES', 'ENOTEMPTY']);
 function retry(fn) {
   for (let i = 1; ; i++) {
-    try { return fn(); } catch (e) { if (!TRANSIENT.has(e.code) || i >= o.retries) throw e; sleep(500); }
+    try { return fn(); } catch (e) {
+      if (!TRANSIENT.has(e.code) || i >= o.retries) throw e;
+      if (i === 1 || i % 10 === 0) log('arquivo preso por outro processo (tentativa ' + i + ' de ' + o.retries + '): ' + why(e));
+      sleep(500);
+    }
   }
 }
 function move(src, dst) {
@@ -218,8 +268,10 @@ function move(src, dst) {
   }
 }
 
-const end = Date.now() + 90000;
+const t0 = Date.now();
+const end = t0 + 90000;
 while (alive(o.pid) && Date.now() < end) sleep(200);
+log(alive(o.pid) ? 'o app ' + o.pid + ' continua aberto após 90 s: seguindo mesmo assim' : 'o app fechou após ' + (Date.now() - t0) + ' ms');
 sleep(800); // processos auxiliares (renderer, GPU) soltam os arquivos logo depois
 
 const old = path.join(o.appDir, '.gnupdate-old');
@@ -233,16 +285,18 @@ try {
     if (name === 'GitNexusData' || name === '.gnupdate-old') continue;
     const cur = path.join(o.appDir, name);
     if (fs.existsSync(cur)) {
+      log('guardando ' + name + ' em .gnupdate-old');
       retry(() => move(cur, path.join(old, name)));
       moved.push(name);
     }
+    log('colocando ' + name + ' do pacote novo');
     retry(() => move(path.join(o.stage, name), cur));
     placed.push(name);
   }
   ok = true;
   log('troca concluída');
 } catch (e) {
-  log('troca falhou: ' + e.message);
+  log('troca FALHOU: ' + why(e) + (e && e.path ? ' | arquivo: ' + e.path : '') + ' | desfazendo');
   for (const n of placed) { try { fs.rmSync(path.join(o.appDir, n), { recursive: true, force: true }); } catch (e2) { log('não removeu ' + n + ': ' + e2.message); } }
   for (const n of moved) { try { move(path.join(old, n), path.join(o.appDir, n)); } catch (e2) { log('não restaurou ' + n + ': ' + e2.message); } }
 }
@@ -250,17 +304,20 @@ try {
 try {
   const env = Object.assign({}, process.env);
   delete env.ELECTRON_RUN_AS_NODE; // senão o app reaberto também subiria em modo Node, sem janela
-  const child = spawn(path.join(o.appDir, o.exe), o.relaunchArgs || [], { cwd: o.appDir, detached: true, stdio: 'ignore', env });
-  child.on('error', (e) => log('não reabriu o app: ' + e.message));
+  const target = path.join(o.appDir, o.exe);
+  log('reabrindo ' + target + (fs.existsSync(target) ? '' : ' (ATENÇÃO: o executável não existe)'));
+  const child = spawn(target, o.relaunchArgs || [], { cwd: o.appDir, detached: true, stdio: 'ignore', env });
+  child.on('error', (e) => log('não reabriu o app: ' + why(e)));
   child.unref();
-  log(ok ? 'app reaberto (versão nova)' : 'app reaberto (versão anterior, restaurada)');
+  log(ok ? 'app reaberto (versão nova), pid ' + child.pid : 'app reaberto (versão anterior, restaurada), pid ' + child.pid);
 } catch (e) {
-  log('não reabriu o app: ' + e.message);
+  log('não reabriu o app: ' + why(e));
 }
 if (ok) {
   // O executável antigo (este processo) ainda está em uso: o que não der para apagar agora sai na próxima abertura do app.
-  for (const p of [old].concat(o.cleanup || [])) { try { fs.rmSync(p, { recursive: true, force: true }); } catch (e) { /* fica para a limpeza da próxima abertura */ } }
+  for (const p of [old].concat(o.cleanup || [])) { try { fs.rmSync(p, { recursive: true, force: true }); } catch (e) { log('não apagou ' + p + ' (fica para a próxima abertura): ' + why(e)); } }
 }
+log('atualizador terminou, código ' + (ok ? 0 : 1));
 setTimeout(() => process.exit(ok ? 0 : 1), 500);
 `;
 
@@ -275,8 +332,12 @@ export interface PortableSwap {
   appDir: string;
   /** Nome do executável (ex.: GitNexus.exe). */
   exe: string;
-  /** Onde gravar o script, o aperto de mão e o log (a pasta de atualizações). */
+  /** Onde gravar o script e o aperto de mão (a pasta de atualizações). */
   workDir: string;
+  /** Arquivo de log da atualização, o mesmo do app (o script de troca escreve nele). Padrão: `update.log` em `workDir`. */
+  logFile?: string;
+  /** Log do app (quem chama); o do script de troca vai para `logFile`. */
+  log?: UpdateLog;
   /** Quem roda o script em modo Node. Padrão: o próprio app (`process.execPath`). */
   runner?: string;
   /** Argumentos ao reabrir o app (só testes). */
@@ -292,22 +353,26 @@ export interface PortableSwap {
  * (bloqueado, sem permissão…) lança: o app continua aberto e a pessoa é avisada, em vez de fechar e não voltar.
  */
 export async function startPortableSwap(o: PortableSwap): Promise<ChildProcess> {
+  const log = o.log ?? noLog;
   const script = join(o.workDir, `${UPDATE_PREFIX}apply.cjs`);
   const started = join(o.workDir, `${UPDATE_PREFIX}started`);
   await rm(started, { force: true });
   await writeFile(script, SWAP_SCRIPT, 'utf8');
+  log(`troca: script gravado em ${script}`);
   const options = {
     pid: o.pid,
     stage: o.stageDir,
     appDir: o.appDir,
     exe: o.exe,
     cleanup: o.cleanup,
-    log: join(o.workDir, 'update.log'),
+    log: o.logFile ?? join(o.workDir, 'update.log'),
     started,
     retries: o.retries ?? 40,
     relaunchArgs: o.relaunchArgs ?? [],
   };
-  const child = spawn(o.runner ?? process.execPath, [script, JSON.stringify(options)], {
+  const runner = o.runner ?? process.execPath;
+  log(`troca: iniciando o atualizador (${runner} em modo Node), esperando o app ${o.pid} fechar; pasta do app ${o.appDir}, preparo ${o.stageDir}`);
+  const child = spawn(runner, [script, JSON.stringify(options)], {
     detached: true,
     stdio: 'ignore',
     windowsHide: true,
@@ -321,11 +386,14 @@ export async function startPortableSwap(o: PortableSwap): Promise<ChildProcess> 
   while (!(await stat(started).catch(() => null))) {
     if (spawnError || exitCode !== undefined || Date.now() > limit) {
       child.kill();
-      throw new Error(`O atualizador não iniciou (${(spawnError as Error | null)?.message ?? (exitCode !== undefined ? `saiu com código ${exitCode}` : 'sem resposta')}).`);
+      const why = (spawnError as Error | null) ? describeError(spawnError) : exitCode !== undefined ? `saiu com código ${exitCode}` : `sem resposta em ${o.startTimeoutMs ?? 10_000} ms`;
+      log(`troca: o atualizador NÃO iniciou (${why})`);
+      throw new Error(`O atualizador não iniciou (${why}).`);
     }
     await new Promise((r) => setTimeout(r, 50));
   }
   child.unref();
+  log(`troca: o atualizador iniciou (pid ${child.pid}); o app vai fechar`);
   return child;
 }
 

@@ -9,6 +9,7 @@ import { WORKER_METHODS, channel, type UtilityEvent, type UtilityRequest, type U
 import { isAllowedUpdateUrl } from '../shared/update';
 import { checkForUpdate } from './update';
 import { WINDOWS_INSTALLER_ARGS, cleanupUpdateFiles, downloadVerified, isReadyFile, prepareStage, replaceAppImage, startPortableSwap } from './installer';
+import { UPDATE_LOG_NAME, createUpdateLog, describeError } from './update-log';
 import { HostingService } from '../worker/hosting-service';
 import { SecureTokenStore } from './hosting-store';
 import { attachSmoke, smokeEnabled } from './smoke';
@@ -133,11 +134,9 @@ const exeDir = process.env.APPIMAGE ? dirname(process.env.APPIMAGE) : dirname(pr
  */
 const updateDir = app.isPackaged && isWritable(exeDir) ? exeDir : join(dataDir, 'updates');
 
-// Restos de uma atualização anterior (pacote baixado, pasta de preparo, backup da troca) saem a cada abertura do app.
-if (app.isPackaged) {
-  void cleanupUpdateFiles(exeDir);
-  void cleanupUpdateFiles(join(dataDir, 'updates'));
-}
+// Log da atualização, para TODAS as instalações (instalador, ZIP portátil, AppImage…): `<dados>/logs/gitnexus-update.log`.
+// No modo portátil isso é `GitNexusData/logs/`, ao lado do executável. O script de troca (que roda depois que o app fecha) escreve no mesmo arquivo.
+const updateLog = createUpdateLog(join(dataDir, 'logs', UPDATE_LOG_NAME));
 
 function updateContext() {
   return {
@@ -150,45 +149,103 @@ function updateContext() {
   };
 }
 
+/** Linha de contexto: o que mais ajuda a entender por que a atualização de uma máquina se comporta diferente da de outra. */
+function describeContext(): string {
+  const c = updateContext();
+  return [
+    `versão ${c.current}`,
+    `${c.platform}/${c.arch}`,
+    `instalação: ${isPortable ? 'portátil' : c.appImage ? 'AppImage' : 'instalada'}`,
+    `pasta do app gravável: ${c.writable}`,
+    `executável: ${process.execPath}`,
+    `pasta de atualização: ${updateDir}`,
+    `dados: ${dataDir}`,
+    `electron ${process.versions.electron}, node ${process.versions.node}`,
+  ].join(' | ');
+}
+
+/** Registra a falha (com o código do sistema e a pilha) e a devolve já apontando para o arquivo de log. */
+function failWithLog(step: string, e: unknown): Error {
+  updateLog(`${step}: ERRO: ${describeError(e)}${e instanceof Error && e.stack ? `\n${e.stack}` : ''}`);
+  const base = e instanceof Error ? e.message : String(e);
+  return new Error(`${base} ${tm('Detalhes no log: ', 'Details in the log: ')}${updateLog.file}`);
+}
+
+// Restos de uma atualização anterior (pacote baixado, pasta de preparo, backup da troca) saem a cada abertura do app.
+// O registro desta abertura mostra, depois de uma troca, em que versão o app subiu (compare com o fim do atualizador).
+if (app.isPackaged) {
+  updateLog(`app iniciado: ${describeContext()}`);
+  void Promise.all([cleanupUpdateFiles(exeDir), cleanupUpdateFiles(join(dataDir, 'updates'))]).then(([a, b]) => {
+    const removed = [...a, ...b];
+    if (removed.length) updateLog(`limpeza ao abrir: removidos ${removed.join(', ')}`);
+  });
+}
+
 ipcMain.handle(channel('checkForUpdate'), () => {
   // Em desenvolvimento a versão do app não é a de uma release: não faz sentido comparar (a menos que se force por variável).
   if (!app.isPackaged && !process.env.GITNEXUS_UPDATE_REPO) {
     return { status: 'unavailable', current: app.getVersion(), message: tm('Verificação desativada em desenvolvimento.', 'Update check is disabled in development.') };
   }
-  return checkForUpdate(updateContext());
+  return checkForUpdate(updateContext()).then(
+    (r) => {
+      updateLog(`verificação: ${r.status}${r.latest ? `, última ${r.latest}` : ''}${r.assetName ? `, pacote ${r.assetName}` : ''}${r.install ? `, instalação ${r.install}` : ''}${r.message ? `, ${r.message}` : ''}`);
+      return r;
+    },
+    (e: unknown) => {
+      updateLog(`verificação: ERRO: ${describeError(e)}`);
+      throw e;
+    },
+  );
 });
 
 // Atualização sem sair do app. O renderer não informa endereço nenhum: o processo principal consulta a release de novo,
 // baixa só o pacote que ele mesmo escolheu e confere o SHA-256 contra o SHA256SUMS.txt da mesma release.
 let downloadedUpdate: { file: string; kind: 'installer' | 'appimage' | 'portable'; version: string; stage?: string } | null = null;
 ipcMain.handle(channel('downloadUpdate'), async (e) => {
-  const info = await checkForUpdate(updateContext());
-  if (info.status !== 'available' || !info.downloadUrl || !info.assetName || !info.sumsUrl || !info.latest) throw new Error(tm('Não há atualização para baixar.', 'There is no update to download.'));
-  if (info.install !== 'installer' && info.install !== 'appimage' && info.install !== 'portable') throw new Error(tm('Este pacote precisa ser instalado manualmente.', 'This package must be installed manually.'));
-  const r = await downloadVerified({
-    url: info.downloadUrl,
-    name: info.assetName,
-    sumsUrl: info.sumsUrl,
-    destDir: updateDir,
-    onProgress: (p) => {
-      if (!e.sender.isDestroyed()) e.sender.send(channel('updateProgress'), p);
-    },
-  });
-  let stage: string | undefined;
-  if (info.install === 'portable') {
-    // Pacote conferido: extrai agora, com o app aberto, para que o reinício seja só a troca de pastas.
-    if (!e.sender.isDestroyed()) e.sender.send(channel('updateProgress'), { done: 0, total: 0, stage: 'prepare' });
-    stage = await prepareStage(r.file, updateDir, basename(process.execPath));
+  updateLog(`==== atualização: baixar ==== ${describeContext()}`);
+  try {
+    const info = await checkForUpdate(updateContext());
+    updateLog(`release: status ${info.status}, última ${info.latest ?? '?'}, pacote ${info.assetName ?? '?'}, instalação ${info.install ?? '?'}`);
+    if (info.status !== 'available' || !info.downloadUrl || !info.assetName || !info.sumsUrl || !info.latest) throw new Error(tm('Não há atualização para baixar.', 'There is no update to download.'));
+    if (info.install !== 'installer' && info.install !== 'appimage' && info.install !== 'portable') throw new Error(tm('Este pacote precisa ser instalado manualmente.', 'This package must be installed manually.'));
+    const r = await downloadVerified({
+      url: info.downloadUrl,
+      name: info.assetName,
+      sumsUrl: info.sumsUrl,
+      destDir: updateDir,
+      log: updateLog,
+      onProgress: (p) => {
+        if (!e.sender.isDestroyed()) e.sender.send(channel('updateProgress'), p);
+      },
+    });
+    let stage: string | undefined;
+    if (info.install === 'portable') {
+      // Pacote conferido: extrai agora, com o app aberto, para que o reinício seja só a troca de pastas.
+      if (!e.sender.isDestroyed()) e.sender.send(channel('updateProgress'), { done: 0, total: 0, stage: 'prepare' });
+      stage = await prepareStage(r.file, updateDir, basename(process.execPath), updateLog);
+    }
+    downloadedUpdate = { file: r.file, kind: info.install, version: info.latest, stage };
+    updateLog(`atualização ${info.latest} baixada e conferida; aguardando a confirmação para instalar`);
+    return { version: info.latest, assetName: info.assetName, sha256: r.sha256 };
+  } catch (err) {
+    throw failWithLog('baixar', err);
   }
-  downloadedUpdate = { file: r.file, kind: info.install, version: info.latest, stage };
-  return { version: info.latest, assetName: info.assetName, sha256: r.sha256 };
 });
-ipcMain.handle(channel('installUpdate'), async () => {
+async function installDownloadedUpdate(): Promise<void> {
   const u = downloadedUpdate;
   if (!u || !(await isReadyFile(u.file))) throw new Error(tm('Baixe a atualização antes de instalar.', 'Download the update before installing.'));
+  updateLog(`==== atualização: instalar ${u.version} (${u.kind}) ==== pacote ${u.file}`);
   if (u.kind === 'installer') {
     // Instalador NSIS em modo silencioso (por usuário, sem administrador): atualiza no mesmo lugar e reabre o app.
-    spawn(u.file, [...WINDOWS_INSTALLER_ARGS], { detached: true, stdio: 'ignore' }).unref();
+    // Espera o processo realmente nascer: se não nascer (bloqueio, arquivo sumido), o app NÃO fecha e a pessoa é avisada.
+    updateLog(`instalador: executando ${u.file} ${WINDOWS_INSTALLER_ARGS.join(' ')}`);
+    const child = spawn(u.file, [...WINDOWS_INSTALLER_ARGS], { detached: true, stdio: 'ignore' });
+    await new Promise<void>((resolve, reject) => {
+      child.once('spawn', resolve);
+      child.once('error', reject);
+    });
+    child.unref();
+    updateLog(`instalador: iniciado (pid ${child.pid}); o app vai fechar e o instalador reabre a versão nova`);
     app.quit();
     return;
   }
@@ -204,6 +261,8 @@ ipcMain.handle(channel('installUpdate'), async () => {
         appDir: dirname(process.execPath),
         exe: basename(process.execPath),
         workDir: updateDir,
+        logFile: updateLog.file,
+        log: updateLog,
       });
     } catch (e) {
       throw new Error(tm('Não foi possível iniciar o atualizador. Baixe a atualização manualmente. ', 'Could not start the updater. Download the update manually. ') + (e as Error).message);
@@ -213,9 +272,17 @@ ipcMain.handle(channel('installUpdate'), async () => {
   }
   const target = process.env.APPIMAGE;
   if (!target) throw new Error(tm('O AppImage atual não foi identificado.', 'The current AppImage could not be identified.'));
-  await replaceAppImage(u.file, target);
+  await replaceAppImage(u.file, target, updateLog);
+  updateLog(`appimage: reiniciando ${target}`);
   app.relaunch({ execPath: target, args: [] });
   app.quit();
+}
+ipcMain.handle(channel('installUpdate'), async () => {
+  try {
+    await installDownloadedUpdate();
+  } catch (err) {
+    throw failWithLog('instalar', err);
+  }
 });
 // "Novidades": o CHANGELOG.md vai junto do app (extraResources); em desenvolvimento é o da raiz do repositório.
 ipcMain.handle(channel('getChangelog'), async () => {
