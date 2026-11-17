@@ -93,7 +93,7 @@ describe('pasta do próprio app (download ao lado do executável)', () => {
     expect(readdirSync(dir).sort()).toEqual([...meus, 'GitNexusData'].sort());
   });
   it('pasta inexistente não é erro', async () => {
-    await expect(cleanupUpdateFiles(join(tmp(), 'nao-existe'))).resolves.toBeUndefined();
+    await expect(cleanupUpdateFiles(join(tmp(), 'nao-existe'))).resolves.toEqual([]);
   });
 });
 

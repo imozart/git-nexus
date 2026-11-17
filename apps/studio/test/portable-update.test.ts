@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { crc32 } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { SWAP_SCRIPT, cleanupUpdateFiles, prepareStage, startPortableSwap } from '../src/entrypoints/installer';
+import { UPDATE_LOG_NAME, createUpdateLog } from '../src/entrypoints/update-log';
 
 const win = process.platform === 'win32';
 const tmp = () => mkdtempSync(join(tmpdir(), 'gn-ptl-'));
@@ -164,6 +165,31 @@ describe.runIf(win)('ZIP portátil: troca dos arquivos (script rodado pelo próp
     expect(readFileSync(join(app, 'update.log'), 'utf8')).toMatch(/troca concluída/);
   }, 60000);
 
+  it('registra tudo num único arquivo de log: o que o app fez antes de fechar e cada passo do atualizador', async () => {
+    const app = fakeApp('1.0.0');
+    const { stage, zip } = stageFor(app, '2.0.0');
+    const log = createUpdateLog(join(app, 'GitNexusData', 'logs', UPDATE_LOG_NAME));
+
+    const child = await startPortableSwap({
+      pid: GONE_PID, stageDir: stage, cleanup: [stage, zip], appDir: app, exe: EXE, workDir: app,
+      runner: join(app, EXE), relaunchArgs: ['launch.js'], logFile: log.file, log,
+    });
+    expect(await exited(child)).toBe(0);
+    await waitFor(() => startedBy(app) !== '');
+
+    const text = readFileSync(log.file, 'utf8');
+    expect(text).toMatch(/troca: iniciando o atualizador/); // do app, antes de fechar
+    expect(text).toMatch(/troca: o atualizador iniciou/);
+    expect(text).toMatch(/\[atualizador\] atualizador iniciado/); // do script, depois que o app fecha
+    expect(text).toMatch(/\[atualizador\] conteúdo do pacote novo: .*GitNexus\.exe/);
+    expect(text).toMatch(/\[atualizador\] guardando resources/);
+    expect(text).toMatch(/\[atualizador\] troca concluída/);
+    expect(text).toMatch(/\[atualizador\] atualizador terminou, código 0/);
+    expect(existsSync(join(app, 'update.log'))).toBe(false); // com logFile o padrão não é usado
+    expect(readFileSync(join(app, 'GitNexusData', 'hosting.json'), 'utf8')).toBe('segredo-do-usuario'); // o log mora em GitNexusData, que a troca preserva
+    expect(existsSync(log.file)).toBe(true);
+  }, 60000);
+
   it('se a troca falhar no meio, desfaz tudo e reabre a versão anterior', async () => {
     const app = fakeApp('1.0.0');
     const { stage, zip } = stageFor(app, '2.0.0');
@@ -183,7 +209,7 @@ describe.runIf(win)('ZIP portátil: troca dos arquivos (script rodado pelo próp
       expect(readFileSync(join(app, 'resources', 'app.asar'), 'utf8')).toBe('1.0.0');
       expect(existsSync(join(app, 'resources', 'novo.bin'))).toBe(false);
       expect(readFileSync(join(app, 'GitNexusData', 'hosting.json'), 'utf8')).toBe('segredo-do-usuario');
-      expect(readFileSync(join(app, 'update.log'), 'utf8')).toMatch(/troca falhou/);
+      expect(readFileSync(join(app, 'update.log'), 'utf8')).toMatch(/troca FALHOU: \[(EBUSY|EPERM|EACCES|ENOTEMPTY)\]/);
     } finally {
       holder.kill();
     }
