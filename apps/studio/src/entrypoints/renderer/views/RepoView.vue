@@ -290,6 +290,8 @@ function repoCommands(): Command[] {
   const gDiff = t('rv.group.diff');
   const gFile = t('rv.group.file');
   return [
+    { id: 'rv.terminal', title: t('rv.cmd.terminal'), group: gStaging, keywords: 'terminal shell prompt powershell console bash abrir open', when, run: () => openTool('terminal') },
+    { id: 'rv.editor', title: t('rv.cmd.editor'), group: gStaging, keywords: 'editor vscode code ide abrir open', when, run: () => openTool('editor') },
     { id: 'rv.refresh', title: t('rv.cmd.refresh'), group: gStaging, shortcut: 'F5', when, run: () => refresh() },
     {
       id: 'rv.stageAll',
@@ -389,6 +391,16 @@ function onMove(paths: string[], target: 'changes' | 'unversioned'): Promise<voi
 
 async function onCommitted(): Promise<void> {
   ws.bump(props.repo.id); // atualiza também o grafo
+}
+
+// --- abrir no terminal / no editor ------------------------------------------------------------
+async function openTool(which: 'terminal' | 'editor'): Promise<void> {
+  try {
+    const r = await (which === 'terminal' ? api.openInTerminal : api.openInEditor)(props.repo.path);
+    showNotice(t(which === 'terminal' ? 'rv.terminalOpened' : 'rv.editorOpened', { app: r.app }));
+  } catch (e) {
+    error.value = errMsg(e);
+  }
 }
 
 // --- aviso com "Desfazer" -------------------------------------------------------------------
@@ -627,6 +639,8 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
       </div>
       <div class="rv__btns">
         <GnButton size="sm" :disabled="loading" @click="refresh()">{{ t('rv.refresh') }}</GnButton>
+        <GnButton size="sm" variant="ghost" :title="t('rv.terminalTip')" data-testid="open-terminal" @click="openTool('terminal')">{{ t('rv.terminal') }}</GnButton>
+        <GnButton size="sm" variant="ghost" :title="t('rv.editorTip')" data-testid="open-editor" @click="openTool('editor')">{{ t('rv.editor') }}</GnButton>
         <GnButton size="sm" tone="accent" @click="ws.open('graph', repo)">{{ t('rv.graph') }}</GnButton>
         <GnButton size="sm" tone="accent" @click="ws.open('tools', repo)">{{ t('rv.tools') }}</GnButton>
         <GnButton size="sm" :tone="conflicted.length ? 'warn' : 'neutral'" :variant="conflicted.length ? 'primary' : 'ghost'" @click="ws.open('merge', repo)">
