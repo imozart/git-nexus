@@ -5,6 +5,7 @@ export const WORKER_METHODS = [
   'scanDirectories',
   'getKnownRepositories',
   'addRepositoryPath',
+  'getSigningInfo',
   'getLfsInfo',
   'pullLfs',
   'getSubmodules',

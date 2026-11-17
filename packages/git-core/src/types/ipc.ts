@@ -85,6 +85,8 @@ export interface GitNexusIPC {
   scanDirectories(rootPaths: string[]): Promise<RepositoryMeta[]>;
   getKnownRepositories(): Promise<RepositoryMeta[]>;
   addRepositoryPath(path: string): Promise<RepositoryMeta>;
+  /** Como os commits deste repositório são assinados (commit.gpgsign, gpg.format, user.signingkey). */
+  getSigningInfo(repoPath: string): Promise<SigningInfo>;
   /** Situação do Git LFS: se o repositório usa, quais arquivos e se estão baixados ou só como ponteiro. */
   getLfsInfo(repoPath: string): Promise<LfsInfo>;
   /** `git lfs pull`: baixa os arquivos LFS que são só ponteiro (todos, ou só os `paths`). */
@@ -553,6 +555,17 @@ export interface LfsInfo {
   truncated: boolean;
 }
 
+export type SigningFormat = 'openpgp' | 'ssh' | 'x509';
+
+/** Como os commits do repositório são assinados (configuração do git). */
+export interface SigningInfo {
+  /** `commit.gpgsign` está ligado: o git assina todo commit sozinho. */
+  enabled: boolean;
+  format: SigningFormat;
+  /** `user.signingkey` (id da chave GPG, ou caminho/conteúdo da chave SSH), se configurada. */
+  key: string | null;
+}
+
 /** Busca no conteúdo dos arquivos (`git grep`). */
 export interface ContentSearch {
   pattern: string;
@@ -819,16 +832,18 @@ export interface GitNexusApi extends GitNexusIPC {
   ): { isValid: boolean; errors: string[] };
   /** Idioma das mensagens de erro/aviso geradas pelo núcleo (a interface avisa ao trocar de idioma). */
   setLocale(locale: string): Promise<void>;
+  /** `sign`: `true` assina (`-S`), `false` não assina mesmo com `commit.gpgsign` ligado, ausente segue a configuração do git. */
   executeCommit(
     repoPath: string,
     input: ConventionalCommitInput,
     policy?: CommitPolicy,
+    sign?: boolean,
   ): Promise<CommitResult>;
 
   /** Dados para emendar o último commit (mensagem atual, se já foi enviado, se é merge). */
   getAmendInfo(repoPath: string): Promise<AmendInfo>;
   /** Emenda o último commit com o stage atual e a mensagem validada (`git commit --amend`). */
-  executeAmend(repoPath: string, input: ConventionalCommitInput, localPolicy?: CommitPolicy): Promise<CommitResult>;
+  executeAmend(repoPath: string, input: ConventionalCommitInput, localPolicy?: CommitPolicy, sign?: boolean): Promise<CommitResult>;
 
   /** Aplica UM commit na branch atual (cherry-pick). Para por conflitos sem lançar erro (`conflicted`). */
   cherryPickCommit(repoPath: string, hash: string): Promise<BranchActionResult>;

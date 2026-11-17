@@ -1,3 +1,4 @@
+import { askpassEnv } from './askpass.js';
 import { GitError, runGit } from './runner.js';
 import { tm } from './messages.js';
 import type { AmendInfo } from './types/ipc.js';
@@ -19,7 +20,7 @@ export class CommitRejectedError extends Error {
   }
 }
 
-export type CommitFailureKind = 'identity' | 'nothing' | 'unmerged' | 'locked' | 'other';
+export type CommitFailureKind = 'identity' | 'nothing' | 'unmerged' | 'locked' | 'signing' | 'other';
 
 /** O commit falhou por uma causa CONHECIDA que não é hook: `message` já explica em linguagem simples e `output` guarda a saída do git. */
 export class CommitFailedError extends Error {
@@ -43,6 +44,19 @@ export function classifyCommitFailure(output: string): CommitFailureKind {
   // sem `.*` entre as partes (uma regex assim fica quadrática em saídas longas e repetitivas): olha as duas pistas separadamente
   const low = output.toLowerCase();
   if ((low.includes('unable to create') && low.includes('index.lock')) || low.includes('another git process seems to be running')) return 'locked';
+  if (
+    low.includes('gpg failed to sign') ||
+    low.includes('failed to sign the data') ||
+    low.includes('no secret key') ||
+    low.includes('secret key not available') ||
+    low.includes("couldn't load public key") ||
+    low.includes('error in libcrypto') ||
+    low.includes('incorrect passphrase') ||
+    low.includes('signingkey needs to be set') ||
+    low.includes('ssh-keygen') && low.includes('failed')
+  ) {
+    return 'signing';
+  }
   if (/committing is not possible because you have unmerged files/i.test(output)) return 'unmerged';
   if (/nothing (added )?to commit|no changes added to commit/i.test(output)) return 'nothing';
   return 'other';
@@ -64,6 +78,11 @@ function friendly(kind: Exclude<CommitFailureKind, 'other'>): string {
         'Outro processo do git está usando o repositório (index.lock). Aguarde ele terminar e tente de novo.',
         'Another git process is using the repository (index.lock). Wait for it to finish and try again.',
       );
+    case 'signing':
+      return tm(
+        'Não foi possível assinar o commit. Confira a chave (user.signingkey), se o gpg ou o ssh-agent está funcionando e a frase-senha da chave. Para commitar sem assinar, desmarque "Assinar o commit".',
+        'Could not sign the commit. Check the key (user.signingkey), that gpg or ssh-agent is working and the key passphrase. To commit without signing, untick "Sign the commit".',
+      );
   }
 }
 
@@ -73,16 +92,22 @@ function friendly(kind: Exclude<CommitFailureKind, 'other'>): string {
  * Causas conhecidas (identidade, nada no stage, conflito, lock) viram `CommitFailedError` com a explicação; o resto
  * (inclusive qualquer hook) vira `CommitRejectedError` com a saída completa.
  */
-export async function commit(repoPath: string, message: string): Promise<CommitOutput> {
-  return runCommit(repoPath, ['commit', '-F', '-'], message);
+export async function commit(repoPath: string, message: string, opts: CommitOptions = {}): Promise<CommitOutput> {
+  return runCommit(repoPath, ['commit', ...signFlag(opts), '-F', '-'], message);
 }
+
+/** `sign`: `true` assina (`-S`); `false` não assina mesmo com `commit.gpgsign` ligado; `undefined` segue a configuração do git. */
+export interface CommitOptions {
+  sign?: boolean;
+}
+const signFlag = (o: CommitOptions): string[] => (o.sign === true ? ['-S'] : o.sign === false ? ['--no-gpg-sign'] : []);
 
 /**
  * Emenda o último commit com o que está no stage e a mensagem dada (`git commit --amend`). Mesmos hooks, mesmas mensagens de erro.
  * Sem nada no stage, só troca a mensagem.
  */
-export async function amendCommit(repoPath: string, message: string): Promise<CommitOutput> {
-  return runCommit(repoPath, ['commit', '--amend', '-F', '-'], message);
+export async function amendCommit(repoPath: string, message: string, opts: CommitOptions = {}): Promise<CommitOutput> {
+  return runCommit(repoPath, ['commit', '--amend', ...signFlag(opts), '-F', '-'], message);
 }
 
 export async function getAmendInfo(repoPath: string): Promise<AmendInfo> {
@@ -96,7 +121,8 @@ export async function getAmendInfo(repoPath: string): Promise<AmendInfo> {
 
 async function runCommit(repoPath: string, args: string[], message: string): Promise<CommitOutput> {
   try {
-    const r = await runGit(repoPath, args, { stdin: message });
+    // a ponte de credenciais atende a frase-senha de uma chave SSH de assinatura (o gpg usa o pinentry dele)
+    const r = await runGit(repoPath, args, { stdin: message, env: askpassEnv() });
     const { stdout: hash } = await runGit(repoPath, ['rev-parse', 'HEAD']);
     return { commitHash: hash.trim(), output: r.stdout + r.stderr };
   } catch (e) {

@@ -162,6 +162,9 @@ export const setActiveAskpass = (b: AskpassBridge | null): void => {
 };
 export const getActiveAskpass = (): AskpassBridge | null => active;
 
+/** Só as variáveis da ponte (vazio sem ponte): para comandos que podem pedir frase-senha mas não falam com o remoto, como assinar um commit. */
+export const askpassEnv = (): NodeJS.ProcessEnv => (active ? active.env : {});
+
 /**
  * Ambiente do git para uma operação com o remoto. `silent` (busca em segundo plano, lote de vários repositórios): nunca pergunta nada, falha
  * logo (o `NO_PROMPT` de sempre). Sem `silent` e com a ponte ativa: o git pede as credenciais ao app. Sem ponte: igual ao silencioso.

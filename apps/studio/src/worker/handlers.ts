@@ -6,6 +6,7 @@ import {
   abortOperation,
   cloneRepository,
   getActiveAskpass,
+  getSigningInfo,
   getLfsInfo,
   pullLfs,
   getSubmodules,
@@ -183,6 +184,7 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
     },
     getKnownRepositories: async () => sorted(await loadRepos()),
     addRepositoryPath: register,
+    getSigningInfo: (repoPath: string) => getSigningInfo(repoPath),
     getLfsInfo: (repoPath: string) => getLfsInfo(repoPath),
     pullLfs: (repoPath: string, paths?: string[]) => pullLfs(repoPath, paths),
     getSubmodules: (repoPath: string) => getSubmodules(repoPath),
@@ -260,14 +262,14 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
     setLocale: async (locale: string) => {
       setMessageLocale(locale);
     },
-    executeCommit: async (repoPath: string, input: ConventionalCommitInput, localPolicy?: CommitPolicy) => {
+    executeCommit: async (repoPath: string, input: ConventionalCommitInput, localPolicy?: CommitPolicy, sign?: boolean) => {
       // A política do time (.gitnexus.json) é obrigatória: sobrepõe o que a interface enviou.
       const team = (await readRepoPolicy(repoPath)).commit;
       const policy = mergePolicy(localPolicy ?? DEFAULT_POLICY, team);
       const v = validateCommitMessage(input, policy);
       if (!v.isValid) throw new Error(v.errors.join('\n'));
       try {
-        return await commit(repoPath, formatCommitMessage(input));
+        return await commit(repoPath, formatCommitMessage(input), { sign: typeof sign === 'boolean' ? sign : undefined });
       } catch (e) {
         if (e instanceof CommitRejectedError) throw new Error(HOOK_REJECTED_PREFIX + (e.hookOutput || e.message));
         throw e;
@@ -285,14 +287,14 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
     getInProgress: (repoPath: string) => getInProgress(repoPath),
     continueOperation: (repoPath: string) => continueOperation(repoPath),
     abortOperation: (repoPath: string) => abortOperation(repoPath),
-    executeAmend: async (repoPath: string, input: ConventionalCommitInput, localPolicy?: CommitPolicy) => {
+    executeAmend: async (repoPath: string, input: ConventionalCommitInput, localPolicy?: CommitPolicy, sign?: boolean) => {
       // mesma regra do commit: a política do time (.gitnexus.json) prevalece
       const team = (await readRepoPolicy(repoPath)).commit;
       const policy = mergePolicy(localPolicy ?? DEFAULT_POLICY, team);
       const v = validateCommitMessage(input, policy);
       if (!v.isValid) throw new Error(v.errors.join('\n'));
       try {
-        return await amendCommit(repoPath, formatCommitMessage(input));
+        return await amendCommit(repoPath, formatCommitMessage(input), { sign: typeof sign === 'boolean' ? sign : undefined });
       } catch (e) {
         if (e instanceof CommitRejectedError) throw new Error(HOOK_REJECTED_PREFIX + (e.hookOutput || e.message));
         throw e;
