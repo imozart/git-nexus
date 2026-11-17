@@ -4,7 +4,7 @@
 import { execFileSync } from 'node:child_process';
 import http from 'node:http';
 import { join } from 'node:path';
-import { connect, git, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, git, lit, mkRepo, sleep, tmpRoot } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -44,16 +44,16 @@ const repo = mkRepo(root, 'protegido', { files: { 'a.txt': 'um\n' } });
 git(repo, 'config', 'credential.helper', '');
 git(repo, 'remote', 'add', 'origin', url);
 
-await t.ev(`window.gitNexus.addRepositoryPath(${JSON.stringify(repo)})`);
+await t.ev(`window.gitNexus.addRepositoryPath(${lit(repo)})`);
 await t.ev('location.reload()');
 await t.until(`document.querySelectorAll('li.repo').length >= 1`, 20000);
 await t.until(`[...document.querySelectorAll('li.repo')].every((r) => !/carregando/i.test(r.textContent))`, 30000);
 await sleep(500);
 
 const row = `[...document.querySelectorAll('li.repo')].find((x) => x.querySelector('strong')?.textContent.trim() === 'protegido')`;
-const clickRowBtn = (label) => t.ev(`${row}.querySelectorAll('.repo__btns button')` + `.forEach((b) => { if (b.textContent.trim() === ${JSON.stringify(label)}) b.click(); })`);
+const clickRowBtn = (label) => t.ev(`${row}.querySelectorAll('.repo__btns button')` + `.forEach((b) => { if (b.textContent.trim() === ${lit(label)}) b.click(); })`);
 const dlg = () => t.ev(`(() => { const d = document.querySelector('[data-testid="askpass"]'); return d ? { title: d.querySelector('h3').textContent.trim(), prompt: d.querySelector('[data-testid="askpass-prompt"]').textContent.trim(), type: d.querySelector('[data-testid="askpass-input"]')?.type ?? null } : null; })()`);
-const typeAnswer = (v) => t.ev(`(() => { const i = document.querySelector('[data-testid="askpass-input"]'); i.value = ${JSON.stringify(v)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+const typeAnswer = (v) => t.ev(`(() => { const i = document.querySelector('[data-testid="askpass-input"]'); i.value = ${lit(v)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
 const press = (testid) => t.ev(`document.querySelector('[data-testid="${testid}"]').click()`);
 const message = () => t.ev(`document.body.textContent`);
 
