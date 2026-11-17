@@ -10,6 +10,7 @@ import { isAllowedUpdateUrl } from '../shared/update';
 import { checkForUpdate } from './update';
 import { WINDOWS_INSTALLER_ARGS, cleanupUpdateFiles, downloadVerified, isReadyFile, prepareStage, replaceAppImage, startPortableSwap } from './installer';
 import { fitWindowState, readWindowState, writeWindowState } from './window-state';
+import { clampZoom, isZoomAction, stepZoom, zoomActionForKey } from './zoom';
 import { APP_LOG_NAME, UPDATE_LOG_NAME, createUpdateLog, describeError } from './update-log';
 import { HostingService } from '../worker/hosting-service';
 import { SecureTokenStore } from './hosting-store';
@@ -325,6 +326,23 @@ function windowIcon(): string | undefined {
   return existsSync(file) ? file : undefined;
 }
 
+/** Zoom atual da interface e como gravá-lo junto com o estado da janela (preenchido por `createWindow`). */
+let currentZoom = 1;
+let saveWindowState: () => void = () => undefined;
+
+function applyZoom(wc: Electron.WebContents, factor: number): number {
+  currentZoom = clampZoom(factor);
+  if (!wc.isDestroyed()) wc.setZoomFactor(currentZoom);
+  saveWindowState();
+  return currentZoom;
+}
+
+// Zoom pelos comandos da paleta: a interface só pede a ação; quem sabe o fator atual é este processo.
+ipcMain.handle(channel('setZoom'), (e, action: string) => {
+  if (!isZoomAction(action)) throw new Error(tm('Ação de zoom inválida.', 'Invalid zoom action.'));
+  return applyZoom(e.sender, stepZoom(currentZoom, action));
+});
+
 function createWindow(): void {
   // Sem o menu padrão (Windows/Linux, app empacotado): ele reservaria Ctrl+W, Ctrl+R e o DevTools, que colidem com os atalhos do app.
   // No macOS o menu é mantido (precisa dele para copiar/colar e sair).
@@ -355,8 +373,19 @@ function createWindow(): void {
     clearTimeout(rememberTimer);
     if (win.isDestroyed() || win.isMinimized() || win.isFullScreen()) return;
     // `getNormalBounds` é o tamanho de janela normal, mesmo com ela maximizada (ao desmaximizar volta a ele)
-    writeWindowState(stateFile, { ...win.getNormalBounds(), maximized: win.isMaximized() });
+    writeWindowState(stateFile, { ...win.getNormalBounds(), maximized: win.isMaximized(), ...(currentZoom !== 1 ? { zoom: currentZoom } : {}) });
   };
+  saveWindowState = remember;
+  // zoom lembrado, e o teclado (sem o menu padrão não há atalhos): Ctrl/⌘ + = (ou +), -, 0
+  currentZoom = saved.zoom ?? 1;
+  win.webContents.on('dom-ready', () => win.webContents.setZoomFactor(currentZoom));
+  win.webContents.on('before-input-event', (ev, input) => {
+    if (input.type !== 'keyDown') return;
+    const action = zoomActionForKey(input.key, { control: input.control, meta: input.meta, alt: input.alt });
+    if (!action) return;
+    ev.preventDefault();
+    applyZoom(win.webContents, stepZoom(currentZoom, action));
+  });
   const rememberSoon = (): void => {
     clearTimeout(rememberTimer);
     rememberTimer = setTimeout(remember, 400);

@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted } from 'vue';
 import CoreInterface from './CoreInterface.vue';
 import CommandPalette from './components/CommandPalette.vue';
+import { api } from './api';
 import { LOCALES, locale, setLocale, t } from './i18n';
 import { useCommandsStore, type Command } from './stores/commands';
 import { useRepositoriesStore } from './stores/repositories';
@@ -29,6 +30,9 @@ function globalCommands(): Command[] {
     { id: 'tab.next', title: t('cmd.nextTab'), group: nav, shortcut: 'Mod+PageDown', run: () => step(1) },
     { id: 'tab.prev', title: t('cmd.prevTab'), group: nav, shortcut: 'Mod+PageUp', run: () => step(-1) },
     { id: 'tab.close', title: t('cmd.closeTab'), group: nav, shortcut: 'Alt+W', when: () => ws.activeId !== HOME_TAB, run: () => ws.close(ws.activeId) },
+    { id: 'app.zoomIn', title: t('cmd.zoomIn'), group: app, keywords: 'zoom aumentar ampliar maior lupa zoom in bigger', run: () => void api.setZoom('in') },
+    { id: 'app.zoomOut', title: t('cmd.zoomOut'), group: app, keywords: 'zoom diminuir reduzir menor zoom out smaller', run: () => void api.setZoom('out') },
+    { id: 'app.zoomReset', title: t('cmd.zoomReset'), group: app, keywords: 'zoom restaurar padrão 100 reset normal', run: () => void api.setZoom('reset') },
     { id: 'app.update', title: t('cmd.update'), group: app, keywords: 'nova versão upgrade atualizar update', run: () => upd.check(true) },
     {
       id: 'app.updateToggle',

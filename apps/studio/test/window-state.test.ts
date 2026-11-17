@@ -75,3 +75,19 @@ describe('fitWindowState: ajusta às telas de agora', () => {
     expect(fitWindowState({ x: 5, y: 5, width: 1000, height: 700, maximized: false }, [])).toMatchObject({ width: 1000, height: 700 });
   });
 });
+
+describe('zoom lembrado junto com a janela', () => {
+  it('ida e volta do zoom; lixo é ignorado; zoom fora da faixa é limitado', () => {
+    const f = join(dir, 'zoom.json');
+    writeWindowState(f, { width: 1200, height: 800, maximized: false, zoom: 1.25 });
+    expect(readWindowState(f).zoom).toBe(1.25);
+    writeFileSync(f, JSON.stringify({ width: 1200, height: 800, zoom: 'grande' }));
+    expect(readWindowState(f).zoom).toBeUndefined();
+    writeFileSync(f, JSON.stringify({ width: 1200, height: 800, zoom: 9 }));
+    expect(readWindowState(f).zoom).toBe(3);
+  });
+
+  it('ajustar às telas não perde o zoom', () => {
+    expect(fitWindowState({ width: 1200, height: 800, maximized: false, zoom: 1.5 }, [{ x: 0, y: 0, width: 1920, height: 1040 }]).zoom).toBe(1.5);
+  });
+});

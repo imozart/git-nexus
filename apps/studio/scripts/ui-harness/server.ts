@@ -82,6 +82,17 @@ const MAIN_STUBS: Record<string, (...a: any[]) => unknown> = {
     await mkdir(dataDir, { recursive: true });
     await writeFile(join(dataDir, 'installed.txt'), 'restart', 'utf8');
   },
+  // Zoom simulado: guarda o fator em disco (o teste lê zoom.txt) e devolve o novo, com os mesmos degraus do app.
+  setZoom: async (action: string) => {
+    const steps = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+    const { mkdir, readFile, writeFile } = await import('node:fs/promises');
+    await mkdir(dataDir, { recursive: true });
+    const cur = Number(await readFile(join(dataDir, 'zoom.txt'), 'utf8').catch(() => '1')) || 1;
+    const i = steps.reduce((b, s, k) => (Math.abs(s - cur) < Math.abs(steps[b]! - cur) ? k : b), 0);
+    const next = action === 'reset' ? 1 : steps[Math.min(steps.length - 1, Math.max(0, i + (action === 'in' ? 1 : -1)))]!;
+    await writeFile(join(dataDir, 'zoom.txt'), String(next), 'utf8');
+    return next;
+  },
   // Log de erros da interface: grava no mesmo formato do app e devolve o caminho (o teste lê o arquivo).
   logRendererError: async (message: string, stack?: string) => {
     const { mkdir, appendFile } = await import('node:fs/promises');

@@ -2,6 +2,7 @@
 // quem conhece as telas (`screen`) passa as áreas de trabalho, e o arquivo é lido/gravado de forma que NUNCA impeça o app de abrir.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { clampZoom } from './zoom';
 
 export interface WindowState {
   /** Canto superior esquerdo; ausente = deixa o sistema posicionar (centro). */
@@ -10,6 +11,8 @@ export interface WindowState {
   width: number;
   height: number;
   maximized: boolean;
+  /** Zoom da interface (1 = 100 %), lembrado junto com a janela. Ausente = 100 %. */
+  zoom?: number;
 }
 
 export interface Rect {
@@ -35,6 +38,7 @@ export function readWindowState(file: string): WindowState {
       height: Math.round(raw.height),
       maximized: raw.maximized === true,
       ...(isNum(raw.x) && isNum(raw.y) ? { x: Math.round(raw.x), y: Math.round(raw.y) } : {}),
+      ...(isNum(raw.zoom) ? { zoom: clampZoom(raw.zoom) } : {}),
     };
   } catch {
     return { ...DEFAULT_WINDOW };
@@ -72,7 +76,7 @@ export function fitWindowState(state: WindowState, workAreas: Rect[]): WindowSta
   const maxH = Math.max(...areas.map((a) => a.height));
   const width = Math.min(Math.max(state.width, MIN_WINDOW.width), Math.max(maxW, MIN_WINDOW.width));
   const height = Math.min(Math.max(state.height, MIN_WINDOW.height), Math.max(maxH, MIN_WINDOW.height));
-  const out: WindowState = { width, height, maximized: state.maximized };
+  const out: WindowState = { width, height, maximized: state.maximized, ...(state.zoom !== undefined ? { zoom: state.zoom } : {}) };
   if (state.x !== undefined && state.y !== undefined) {
     const rect = { x: state.x, y: state.y, width, height };
     const visible = areas.some((a) => {

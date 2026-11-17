@@ -141,6 +141,7 @@ O que isso mudou no app:
 ## Janela e aparência
 
 - **A janela lembra onde estava:** tamanho, posição e se estava maximizada voltam como você deixou (arquivo `window-state.json` nos dados do app: no portátil, `GitNexusData/`). Se o monitor onde ela estava não existe mais (notebook sem o monitor externo, resolução trocada), a posição é descartada e a janela abre centralizada, com o tamanho limitado à tela e ao mínimo do app. Apague o arquivo para voltar ao tamanho padrão (1360×860).
+- **Zoom da interface:** **Ctrl+=** (ou **Ctrl++**) aumenta, **Ctrl+-** diminui e **Ctrl+0** volta a 100 % (⌘ no macOS; o teclado numérico também vale). Os mesmos comandos estão na paleta (Ctrl+K, "zoom"). O zoom anda pelos degraus do navegador (50 %, 67 %, 75 %, 80 %, 90 %, 100 %, 110 %, 125 %, 150 %, 175 %, 200 %, 250 %, 300 %) e fica lembrado junto com a janela (`window-state.json`).
 
 ## Idiomas
 
