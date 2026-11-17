@@ -82,6 +82,14 @@ const MAIN_STUBS: Record<string, (...a: any[]) => unknown> = {
     await mkdir(dataDir, { recursive: true });
     await writeFile(join(dataDir, 'installed.txt'), 'restart', 'utf8');
   },
+  // Log de erros da interface: grava no mesmo formato do app e devolve o caminho (o teste lê o arquivo).
+  logRendererError: async (message: string, stack?: string) => {
+    const { mkdir, appendFile } = await import('node:fs/promises');
+    const logFile = join(dataDir, 'logs', 'gitnexus-app.log');
+    await mkdir(join(dataDir, 'logs'), { recursive: true });
+    await appendFile(logFile, `${new Date().toISOString()} interface: ${String(message).slice(0, 2000)}${stack ? `\n${String(stack).slice(0, 4000)}` : ''}\n`, 'utf8');
+    return { logFile };
+  },
   // Registra o endereço que o app pediria para abrir no navegador (o teste lê este arquivo).
   openExternal: async (url: string) => {
     if (!isAllowedUpdateUrl(String(url))) throw new Error('Endereço não permitido.');

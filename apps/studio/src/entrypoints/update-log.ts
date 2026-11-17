@@ -7,6 +7,8 @@ import { dirname } from 'node:path';
 
 /** Nome do arquivo: fica em `<pasta de dados>/logs/` (no modo portátil, `GitNexusData/logs/`). */
 export const UPDATE_LOG_NAME = 'gitnexus-update.log';
+/** Log geral de erros do app (exceções não tratadas, processos que caíram), na mesma pasta. */
+export const APP_LOG_NAME = 'gitnexus-app.log';
 
 /** Passou disto, o log atual vira `<arquivo>.old` (só se guarda a atualização anterior); evita crescer sem limite. */
 export const MAX_LOG_BYTES = 512 * 1024;

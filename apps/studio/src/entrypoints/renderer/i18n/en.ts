@@ -274,6 +274,8 @@ const en: Partial<Record<MessageKey, string>> = {
   'rv.side.head': 'Last commit (HEAD)',
   'rv.side.staged': 'In commit (stage)',
   'rv.untrackedDir': '(untracked folder)',
+  'err.unexpected': 'An unexpected error occurred and was logged to {file}. The app is still open; if something looks wrong, reload the screen (F5).',
+  'err.dismiss': 'Close',
   'enc.title': 'File encoding',
   'enc.tipAuto': 'File encoding: {name} (detected automatically). Click to choose another.',
   'enc.tipChosen': 'File encoding: {name} (chosen by you; detected: {detected}). Click to change.',

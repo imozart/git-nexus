@@ -9,7 +9,7 @@ import { WORKER_METHODS, channel, type UtilityEvent, type UtilityRequest, type U
 import { isAllowedUpdateUrl } from '../shared/update';
 import { checkForUpdate } from './update';
 import { WINDOWS_INSTALLER_ARGS, cleanupUpdateFiles, downloadVerified, isReadyFile, prepareStage, replaceAppImage, startPortableSwap } from './installer';
-import { UPDATE_LOG_NAME, createUpdateLog, describeError } from './update-log';
+import { APP_LOG_NAME, UPDATE_LOG_NAME, createUpdateLog, describeError } from './update-log';
 import { HostingService } from '../worker/hosting-service';
 import { SecureTokenStore } from './hosting-store';
 import { attachSmoke, smokeEnabled } from './smoke';
@@ -52,6 +52,15 @@ const dataDir = portableDir ?? app.getPath('userData');
 const isPortable = app.isPackaged && portableDir !== null;
 app.setPath('userData', dataDir);
 
+// Log geral de erros (`<dados>/logs/gitnexus-app.log`): exceções não tratadas do main, do worker e da interface, e processos que caíram.
+// Antes elas viravam silêncio ou o diálogo nativo, sem rastro para diagnosticar.
+const appLog = createUpdateLog(join(dataDir, 'logs', APP_LOG_NAME));
+const crashText = (e: unknown) => `${describeError(e)}${e instanceof Error && e.stack ? `\n${e.stack}` : ''}`;
+process.on('uncaughtException', (e) => appLog(`main: exceção não tratada: ${crashText(e)}`));
+process.on('unhandledRejection', (e) => appLog(`main: promessa rejeitada sem tratamento: ${crashText(e)}`));
+app.on('render-process-gone', (_e, _wc, d) => appLog(`interface encerrou: ${d.reason} (código ${d.exitCode})`));
+app.on('child-process-gone', (_e, d) => appLog(`processo ${d.type}${d.name ? ` (${d.name})` : ''} encerrou: ${d.reason} (código ${d.exitCode})`));
+
 // --- UtilityProcess: todo trabalho pesado de Git ----------------------------------------
 let worker: UtilityProcess | null = null;
 let nextId = 1;
@@ -64,6 +73,7 @@ function startWorker(): UtilityProcess {
   });
   w.on('message', (msg: UtilityResponse | UtilityEvent) => {
     if ('event' in msg) {
+      if (msg.event === 'appError') return void appLog(`${msg.data.source}: ${msg.data.message}${msg.data.stack ? `\n${msg.data.stack}` : ''}`);
       // eventos espontâneos do worker, repassados a todas as janelas: comandos git (aba "Log") e andamento de fetch/pull/push
       const ch = msg.event === 'gitProgress' ? 'gitProgress' : 'gitCommands';
       for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.send(channel(ch), msg.data);
@@ -75,7 +85,8 @@ function startWorker(): UtilityProcess {
     if (msg.ok) p.resolve(msg.result);
     else p.reject(new Error(msg.error));
   });
-  w.on('exit', () => {
+  w.on('exit', (code) => {
+    if (code !== 0) appLog(`worker do git encerrou com código ${code}; as chamadas pendentes falharam`);
     for (const p of pending.values()) p.reject(new Error('Processo utilitário encerrou.'));
     pending.clear();
     worker = null;
@@ -295,6 +306,10 @@ ipcMain.handle(channel('openExternal'), async (_e, url: string) => {
   await shell.openExternal(String(url));
 });
 ipcMain.handle(channel('copyText'), (_e, text: string) => clipboard.writeText(String(text)));
+ipcMain.handle(channel('logRendererError'), (_e, message: string, stack?: string) => {
+  appLog(`interface: ${String(message).slice(0, 2000)}${stack ? `\n${String(stack).slice(0, 4000)}` : ''}`);
+  return { logFile: appLog.file };
+});
 ipcMain.handle(channel('showItemInFolder'), (_e, repoPath: string, file: string) =>
   shell.showItemInFolder(join(repoPath, file.replace(/\/$/, ''))),
 );
