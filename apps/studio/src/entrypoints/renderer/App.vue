@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted } from 'vue';
+import ConfettiRain from './components/ConfettiRain.vue';
 import CoreInterface from './CoreInterface.vue';
 import CommandPalette from './components/CommandPalette.vue';
 import { api } from './api';
@@ -147,4 +148,5 @@ onBeforeUnmount(() => {
 <template>
   <CoreInterface />
   <CommandPalette />
+  <ConfettiRain v-if="upd.celebrating" @done="upd.celebrating = false" />
 </template>
