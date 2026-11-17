@@ -25,7 +25,7 @@ pnpm dist           # gera os artefatos Windows em apps/studio/release/
 pnpm --filter @git-nexus/studio pack:dir   # só a pasta descompactada (win-unpacked)
 ```
 
-Saída de `pnpm dist` (Windows x64): `GitNexus-<versão>-win-x64.zip` (portátil: extrair e executar) e, quando o NSIS roda, `GitNexus-<versão>-win-x64-setup.exe`.
+Saída de `pnpm dist` (Windows x64): `GitNexus-<versão>-win-x64-portable.zip` (portátil: extrair e executar) e, quando o NSIS roda, `GitNexus-<versão>-win-x64-setup.exe`.
 Os dados (lista de repositórios, preferências) ficam em `GitNexusData/` ao lado do executável; nada é gravado no registro.
 
 ## Testar a interface sem Electron

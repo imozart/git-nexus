@@ -4,7 +4,7 @@ import { compareVersions, findSha256, installPlan, isAllowedUpdateUrl, isSafeAss
 
 const A = (name: string): ReleaseAsset => ({ name, browser_download_url: `https://github.com/imozart/git-nexus/releases/download/v1.3.0/${name}` });
 const ASSETS = [
-  'GitNexus-1.3.0-win-x64-setup.exe', 'GitNexus-1.3.0-win-x64.zip', 'GitNexus-1.3.0-win-arm64-setup.exe', 'GitNexus-1.3.0-win-arm64.zip',
+  'GitNexus-1.3.0-win-x64-setup.exe', 'GitNexus-1.3.0-win-x64-portable.zip', 'GitNexus-1.3.0-win-arm64-setup.exe', 'GitNexus-1.3.0-win-arm64-portable.zip',
   'GitNexus-1.3.0-mac-x64.dmg', 'GitNexus-1.3.0-mac-arm64.dmg', 'GitNexus-1.3.0-mac-arm64.zip',
   'GitNexus-1.3.0-linux-x86_64.AppImage', 'GitNexus-1.3.0-linux-arm64.AppImage', 'GitNexus-1.3.0-linux-x64.tar.gz', 'GitNexus-1.3.0-linux-amd64.deb', 'SHA256SUMS.txt',
 ].map(A);
@@ -25,7 +25,7 @@ describe('compareVersions', () => {
 describe('pickAsset', () => {
   it('Windows: instalador, ou ZIP quando é portátil; respeita a arquitetura', () => {
     expect(pickAsset(ASSETS, { platform: 'win32', arch: 'x64', portable: false })?.name).toBe('GitNexus-1.3.0-win-x64-setup.exe');
-    expect(pickAsset(ASSETS, { platform: 'win32', arch: 'x64', portable: true })?.name).toBe('GitNexus-1.3.0-win-x64.zip');
+    expect(pickAsset(ASSETS, { platform: 'win32', arch: 'x64', portable: true })?.name).toBe('GitNexus-1.3.0-win-x64-portable.zip');
     expect(pickAsset(ASSETS, { platform: 'win32', arch: 'arm64', portable: false })?.name).toBe('GitNexus-1.3.0-win-arm64-setup.exe');
   });
   it('macOS: DMG da arquitetura certa', () => {
@@ -61,9 +61,9 @@ describe('installPlan', () => {
   it('Windows instalado: instalador; portátil, macOS e pacotes de distro ficam manuais', () => {
     expect(installPlan('GitNexus-1.3.0-win-x64-setup.exe', win)).toBe('installer');
     expect(installPlan('GitNexus-1.3.0-win-x64-setup.exe', { ...win, portable: true })).toBe('manual');
-    expect(installPlan('GitNexus-1.3.0-win-x64.zip', win)).toBe('manual');
+    expect(installPlan('GitNexus-1.3.0-win-x64-portable.zip', win)).toBe('manual');
     // ZIP portátil: só se atualiza sozinho com a pasta do app gravável
-    const zip = 'GitNexus-1.3.0-win-x64.zip';
+    const zip = 'GitNexus-1.3.0-win-x64-portable.zip';
     expect(installPlan(zip, { ...win, portable: true, writable: true })).toBe('portable');
     expect(installPlan(zip, { ...win, portable: true, writable: false })).toBe('manual');
     expect(installPlan(zip, { ...win, portable: true })).toBe('manual');
@@ -81,10 +81,10 @@ describe('installPlan', () => {
 describe('findSha256 / isSafeAssetName', () => {
   const H1 = 'a'.repeat(64);
   const H2 = 'B'.repeat(64);
-  const sums = H1 + '  GitNexus-1.3.0-win-x64-setup.exe\r\n' + H2 + ' *GitNexus-1.3.0-win-x64.zip\nlixo\n';
+  const sums = H1 + '  GitNexus-1.3.0-win-x64-setup.exe\r\n' + H2 + ' *GitNexus-1.3.0-win-x64-portable.zip\nlixo\n';
   it('lê o formato do sha256sum (texto e binário, CRLF) e devolve em minúsculas', () => {
     expect(findSha256(sums, 'GitNexus-1.3.0-win-x64-setup.exe')).toBe(H1);
-    expect(findSha256(sums, 'GitNexus-1.3.0-win-x64.zip')).toBe(H2.toLowerCase());
+    expect(findSha256(sums, 'GitNexus-1.3.0-win-x64-portable.zip')).toBe(H2.toLowerCase());
     expect(findSha256(sums, 'outro.exe')).toBeNull();
     expect(findSha256(sums, 'GitNexus-1.3.0-win-x64')).toBeNull(); // casa o nome inteiro, não prefixo
   });
@@ -129,6 +129,12 @@ describe('checkForUpdate (fetch simulado)', () => {
 
   it('portátil recebe o ZIP', async () => {
     const r = await checkForUpdate({ ...ctx, portable: true, fetchImpl: reply(200, release()) });
+    expect(r.assetName).toBe('GitNexus-1.3.0-win-x64-portable.zip');
+  });
+
+  it('portátil ainda acha o ZIP das releases antigas, sem "-portable" no nome', async () => {
+    const antigos = ASSETS.map((a) => A(a.name.replace('-portable', '')));
+    const r = await checkForUpdate({ ...ctx, portable: true, fetchImpl: reply(200, release({ assets: antigos })) });
     expect(r.assetName).toBe('GitNexus-1.3.0-win-x64.zip');
   });
 

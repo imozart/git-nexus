@@ -99,7 +99,7 @@ function stageFor(app: string, version: string): { stage: string; zip: string } 
   mkdirSync(stage);
   fillVersion(stage, version);
   writeFileSync(join(stage, 'resources', 'novo.bin'), 'n');
-  const zip = join(app, 'gnupdate-GitNexus-2.0.0-win-x64.zip');
+  const zip = join(app, 'gnupdate-GitNexus-2.0.0-win-x64-portable.zip');
   writeFileSync(zip, 'zip-baixado');
   return { stage, zip };
 }

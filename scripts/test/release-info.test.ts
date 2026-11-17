@@ -46,7 +46,7 @@ describe('versão', () => {
 describe('notas', () => {
   const assets = [
     { name: 'GitNexus-1.1.0-win-x64-setup.exe', size: 90_000_000 },
-    { name: 'GitNexus-1.1.0-win-x64.zip', size: 105_000_000 },
+    { name: 'GitNexus-1.1.0-win-x64-portable.zip', size: 105_000_000 },
     { name: 'GitNexus-1.1.0-mac-arm64.dmg', size: 120_000_000 },
     { name: 'GitNexus-1.1.0-linux-amd64.deb', size: 80_000_000 },
     { name: 'GitNexus-1.1.0-linux-x86_64.rpm', size: 80_000_000 },

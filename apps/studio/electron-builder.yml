@@ -25,7 +25,8 @@ win:
   target:
     - nsis # instalador (por usuário)
     - zip  # portátil: extrair e executar (dados em GitNexusData/ ao lado do .exe)
-  artifactName: GitNexus-${version}-win-${arch}.${ext}
+  # Só o ZIP usa este nome (o instalador tem o próprio, em nsis.artifactName): GitNexus-<versão>-win-<arq>-portable.zip
+  artifactName: GitNexus-${version}-win-${arch}-portable.${ext}
   # (não há alvo "portable" do NSIS: o launcher dele é um processo de 32 bits)
 nsis:
   oneClick: false
