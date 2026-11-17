@@ -5,6 +5,8 @@ export const WORKER_METHODS = [
   'scanDirectories',
   'getKnownRepositories',
   'addRepositoryPath',
+  'cloneRepository',
+  'initRepository',
   'removeRepository',
   'touchRepository',
   'getGitStatus',

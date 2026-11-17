@@ -57,6 +57,8 @@ function globalCommands(): Command[] {
       keywords: 'idioma língua language locale',
       run: () => setLocale(l.id),
     })),
+    { id: 'repo.clone', title: t('cmd.clone'), group: reposGroup, keywords: 'clonar clone baixar url git clone', run: () => { ws.activeId = HOME_TAB; repos.createDialog = 'clone'; } },
+    { id: 'repo.new', title: t('cmd.newRepo'), group: reposGroup, keywords: 'novo criar init iniciar repositório new create', run: () => { ws.activeId = HOME_TAB; repos.createDialog = 'init'; } },
     { id: 'repo.add', title: t('cmd.addRepo'), group: reposGroup, keywords: 'novo pasta new folder add', run: () => repos.addRepository() },
     { id: 'repo.scan', title: t('cmd.scan'), group: reposGroup, keywords: 'scanner catalogar scan catalog', run: () => repos.scanRoots() },
     { id: 'repo.status', title: t('cmd.status'), group: reposGroup, keywords: 'refresh', run: () => repos.refreshSummaries() },

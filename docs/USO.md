@@ -32,6 +32,8 @@ A tela inicial mostra, para cada repositório catalogado: **branch**, o **indica
 - **Atualizar seguros:** pull **somente por fast-forward**, e só onde é seguro: há upstream, o repositório está atrás, não divergiu e a árvore está limpa. Nada de merge automático nem reescrita de histórico; o relatório diz quantos foram atualizados.
 - **Buscar / Pull** individuais em cada linha (o pull recusa quando a branch divergiu e explica o motivo).
 - **Só com pendências:** esconde os repositórios em dia.
+- **Clonar…** (`git clone`): informe o endereço (`https://…` ou `git@servidor:grupo/projeto.git`), a pasta onde o repositório será criado e, se quiser, o nome da pasta (o padrão é o nome do projeto no endereço) e uma branch. O diálogo mostra o caminho final antes de você confirmar, mostra o andamento do `git` (porcentagem) e, ao terminar, abre o repositório numa aba. Se o clone falhar, a mensagem diz a causa (não encontrado, sem acesso, sem conexão, pasta já existe) e a pasta que ele tinha começado a criar é apagada; uma pasta que já tinha arquivos nunca é tocada. O app **não pergunta senha**: para endereços privados, configure o Git Credential Manager ou uma chave SSH sem senha, ou clone uma vez pelo terminal. Pelo mesmo motivo, endereços do tipo `ext::` (que executam comandos) são recusados.
+- **Novo…** (`git init`): escolha a pasta, um nome de subpasta (opcional; vazio usa a própria pasta), a **branch inicial** (padrão `main`) e um modelo de `.gitignore` (Node.js, Java, Python, .NET, Go, Rust ou só IDEs e sistema). Um `.gitignore` que já exista na pasta é mantido. Os dois também estão na paleta (Ctrl+K, "clonar" e "novo repositório").
 
 ## Aba de Staging (referência: IntelliJ)
 

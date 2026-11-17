@@ -4,6 +4,8 @@ import { join, resolve } from 'node:path';
 import {
   CommitRejectedError,
   abortOperation,
+  cloneRepository,
+  initRepository,
   createTag,
   deleteTag,
   listRemoteTags,
@@ -75,6 +77,8 @@ import {
   unstageFiles,
   type BumpChoice,
   type CommitPolicy,
+  type CloneInput,
+  type InitInput,
   type CreateBranchInput,
   type CreateStashInput,
   type PullMode,
@@ -152,6 +156,16 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
   const sorted = (repos: RepositoryMeta[]) =>
     [...repos].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt || a.name.localeCompare(b.name));
 
+  /** Valida que a pasta é um repositório, normaliza para a raiz e cataloga. */
+  async function register(path: string): Promise<RepositoryMeta> {
+    await runGit(path, ['rev-parse', '--git-dir']); // valida que é um repositório
+    // Para caminhos locais normaliza para a raiz do repositório; em WSL (UNC) mantém o caminho informado.
+    const { stdout } = await runGit(path, ['rev-parse', '--show-toplevel']);
+    const meta = toRepositoryMeta(isWslPath(path) ? path : resolve(stdout.trim() || path));
+    await upsert([meta]);
+    return meta;
+  }
+
   return {
     scanDirectories: async (roots: string[]) => {
       const found = await scanDirectories(roots);
@@ -159,13 +173,11 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
       return found;
     },
     getKnownRepositories: async () => sorted(await loadRepos()),
-    addRepositoryPath: async (path: string) => {
-      await runGit(path, ['rev-parse', '--git-dir']); // valida que é um repositório
-      // Para caminhos locais normaliza para a raiz do repositório; em WSL (UNC) mantém o caminho informado.
-      const { stdout } = await runGit(path, ['rev-parse', '--show-toplevel']);
-      const meta = toRepositoryMeta(isWslPath(path) ? path : resolve(stdout.trim() || path));
-      await upsert([meta]);
-      return meta;
+    addRepositoryPath: register,
+    cloneRepository: async (input: CloneInput) => register((await cloneRepository(input)).path),
+    initRepository: async (input: InitInput) => {
+      const r = await initRepository(input);
+      return { ...r, repo: await register(r.path) };
     },
     removeRepository: (id: string) =>
       serial(async () => saveRepos((await loadRepos()).filter((r) => r.id !== id))),

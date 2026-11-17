@@ -7,4 +7,5 @@ export * from './messages.js';
 export * from './git-command.js';
 export * from './sync-state.js';
 export * from './progress.js';
+export * from './clone-pure.js';
 export * from './file-encoding.js';

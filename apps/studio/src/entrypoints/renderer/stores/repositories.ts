@@ -9,6 +9,8 @@ export const useRepositoriesStore = defineStore('repositories', () => {
   const query = ref('');
   const busy = ref(false);
   const message = ref<{ kind: 'info' | 'error'; text: string } | null>(null);
+  /** Diálogo de clonar / criar repositório aberto na tela inicial (a paleta de comandos também o abre). */
+  const createDialog = ref<'clone' | 'init' | null>(null);
 
   const filtered = computed(() => {
     const q = query.value.trim().toLowerCase();
@@ -150,5 +152,5 @@ export const useRepositoriesStore = defineStore('repositories', () => {
     await load();
   }
 
-  return { summaries, working, progress, report, onlyPending, needsAttention, refreshSummaries, fetchAll, pullSafe, syncOne, repos, query, busy, message, filtered, load, scanRoots, scanPaths, addRepository, addPath, remove, touch };
+  return { createDialog, summaries, working, progress, report, onlyPending, needsAttention, refreshSummaries, fetchAll, pullSafe, syncOne, repos, query, busy, message, filtered, load, scanRoots, scanPaths, addRepository, addPath, remove, touch };
 });

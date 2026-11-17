@@ -84,6 +84,10 @@ export interface GitNexusIPC {
   scanDirectories(rootPaths: string[]): Promise<RepositoryMeta[]>;
   getKnownRepositories(): Promise<RepositoryMeta[]>;
   addRepositoryPath(path: string): Promise<RepositoryMeta>;
+  /** `git clone` para `<pasta>/<nome>` (nome padrão: o da URL) e já cataloga o repositório. O andamento chega por `onGitProgress` (`op: 'clone'`). */
+  cloneRepository(input: CloneInput): Promise<RepositoryMeta>;
+  /** `git init` em `<pasta>/<nome>` com branch inicial e `.gitignore` opcionais, e já cataloga o repositório. */
+  initRepository(input: InitInput): Promise<InitResult & { repo: RepositoryMeta }>;
 
   // Execução Git via UtilityProcess
   getGitStatus(repoPath: string): Promise<{ branch: string; staged: string[]; unstaged: string[] }>;
@@ -459,6 +463,35 @@ export interface SyncCommits {
   outgoing: SyncCommit[];
 }
 
+/** Pedido de clone: de onde, em que pasta e (opcional) com que nome de pasta e branch. */
+export interface CloneInput {
+  url: string;
+  /** Pasta-mãe (já existente): o repositório é criado dentro dela. */
+  parentDir: string;
+  /** Nome da pasta do repositório; vazio = o nome que vem da URL. */
+  name?: string;
+  /** Branch a baixar; vazio = a padrão do remoto. */
+  branch?: string;
+}
+
+/** Pedido de repositório novo (`git init`). */
+export interface InitInput {
+  /** Pasta escolhida (já existente). */
+  parentDir: string;
+  /** Se informado, cria esta subpasta dentro da escolhida; vazio = inicia na própria pasta escolhida. */
+  name?: string;
+  /** Branch inicial (padrão: main). */
+  branch?: string;
+  /** Modelo de `.gitignore` (`none`, `node`, `java`, ...). */
+  gitignore?: string;
+}
+
+export interface InitResult {
+  path: string;
+  /** `written` = criou o .gitignore; `exists` = a pasta já tinha um e ele foi mantido; `none` = não pedido. */
+  gitignore: 'written' | 'exists' | 'none';
+}
+
 /** Quantos commits de cada lado o painel de sincronização lista. O resto vira "e mais N" (o total vem do adiante/atrás). */
 export const SYNC_COMMITS_LIMIT = 20;
 
@@ -468,7 +501,7 @@ export type UpdateMethod = 'ff' | 'merge' | 'rebase';
 /** Andamento de uma operação com o remoto (fetch, pull, push), lido da saída `--progress` do git. `percent` é null quando o git não informa número. */
 export interface GitProgressEvent {
   repoPath: string;
-  op: 'fetch' | 'pull' | 'push';
+  op: 'fetch' | 'pull' | 'push' | 'clone';
   /** Etapa do git em inglês, já normalizada: "Receiving objects", "Resolving deltas"… */
   phase: string;
   percent: number | null;
