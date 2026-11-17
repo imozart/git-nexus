@@ -184,6 +184,7 @@ describe('updateSubmodules', () => {
   it('submódulo com commit próprio (que o repositório não registrou) é pulado: o commit não é largado para trás', async () => {
     const { app } = await setup();
     await initSubmodules(app);
+    cfg(join(app, 'lib')); // o submódulo é outro repositório: no CI não há identidade global do git
     const mine = commitFile(join(app, 'lib'), 'meu.txt', 'meu\n', 'feat: meu commit no submódulo');
     // o registro do pai continua no commit antigo: o submódulo está "à frente" dele
     const subs = await getSubmodules(app);
