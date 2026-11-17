@@ -1,7 +1,8 @@
 // Abrir o repositório no terminal e no editor. Parte testável (sem Electron): quais programas tentar em cada sistema e como lançá-los.
 // NUNCA passa pelo shell: o caminho do repositório vai como argumento (ou como diretório de trabalho), então nome de pasta com `&`, `;` ou aspas
 // não executa nada. Programas que só existem como script (`code.cmd`, no Windows) ficam de fora de propósito: precisariam do shell.
-import { join } from 'node:path';
+// Os caminhos do Windows são montados com `win32.join` (e não com o `join` do sistema): assim o resultado é o mesmo em qualquer plataforma, inclusive no teste.
+import { win32 } from 'node:path';
 
 export interface Launch {
   /** Nome para a mensagem ("Windows Terminal", "VS Code"). */
@@ -40,14 +41,14 @@ export function terminalLaunches(platform: NodeJS.Platform | string, dir: string
  */
 export function editorLaunches(platform: NodeJS.Platform | string, dir: string, env: Record<string, string | undefined>, exists: (p: string) => boolean): Launch[] {
   if (platform === 'win32') {
-    const roots = [env.LOCALAPPDATA && join(env.LOCALAPPDATA, 'Programs'), env.ProgramFiles, env['ProgramFiles(x86)']].filter((r): r is string => !!r);
+    const roots = [env.LOCALAPPDATA && win32.join(env.LOCALAPPDATA, 'Programs'), env.ProgramFiles, env['ProgramFiles(x86)']].filter((r): r is string => !!r);
     const out: Launch[] = [];
     for (const [name, folder, exe] of [
       ['VS Code', 'Microsoft VS Code', 'Code.exe'],
       ['VSCodium', 'VSCodium', 'VSCodium.exe'],
     ] as const) {
       for (const r of roots) {
-        const full = join(r, folder, exe);
+        const full = win32.join(r, folder, exe);
         if (exists(full)) out.push({ name, command: full, args: [dir] });
       }
     }
