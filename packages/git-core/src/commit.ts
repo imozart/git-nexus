@@ -39,7 +39,9 @@ export class CommitFailedError extends Error {
  */
 export function classifyCommitFailure(output: string): CommitFailureKind {
   if (/author identity unknown|please tell me who you are|unable to auto-detect|auto-detection is disabled|empty ident name/i.test(output)) return 'identity';
-  if (/unable to create .*index\.lock|another git process seems to be running/i.test(output)) return 'locked';
+  // sem `.*` entre as partes (uma regex assim fica quadrática em saídas longas e repetitivas): olha as duas pistas separadamente
+  const low = output.toLowerCase();
+  if ((low.includes('unable to create') && low.includes('index.lock')) || low.includes('another git process seems to be running')) return 'locked';
   if (/committing is not possible because you have unmerged files/i.test(output)) return 'unmerged';
   if (/nothing (added )?to commit|no changes added to commit/i.test(output)) return 'nothing';
   return 'other';
