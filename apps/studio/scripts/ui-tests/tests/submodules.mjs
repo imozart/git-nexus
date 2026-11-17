@@ -2,7 +2,7 @@
 // recusa a mexer no que tem alterações locais. O git é o de verdade; o repositório de teste libera o protocolo `file` (o git o bloqueia por padrão).
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { connect, git, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, git, lit, mkRepo, sleep, tmpRoot } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -36,8 +36,8 @@ git(root, 'clone', '-q', bare, app);
 cfg(app);
 const semSub = mkRepo(root, 'semsub');
 
-await t.ev(`window.gitNexus.addRepositoryPath(${JSON.stringify(app)})`);
-await t.ev(`window.gitNexus.addRepositoryPath(${JSON.stringify(semSub)})`);
+await t.ev(`window.gitNexus.addRepositoryPath(${lit(app)})`);
+await t.ev(`window.gitNexus.addRepositoryPath(${lit(semSub)})`);
 await t.ev('location.reload()');
 await t.until(`document.querySelectorAll('li.repo').length >= 2`, 20000);
 await t.until(`[...document.querySelectorAll('li.repo')].every((r) => !/carregando/i.test(r.textContent))`, 30000);
@@ -46,8 +46,8 @@ const hook = () => t.ev(`(() => { const o = console.error; console.error = (...a
 await hook();
 
 const openSubmodules = async (name) => {
-  await t.until(`[...document.querySelectorAll('li.repo')].some((x) => x.querySelector('strong')?.textContent.trim() === ${JSON.stringify(name)})`, 20000);
-  await t.ev(`[...document.querySelectorAll('li.repo')].find((x) => x.querySelector('strong')?.textContent.trim() === ${JSON.stringify(name)}).querySelector('.repo__btns button').click()`);
+  await t.until(`[...document.querySelectorAll('li.repo')].some((x) => x.querySelector('strong')?.textContent.trim() === ${lit(name)})`, 20000);
+  await t.ev(`[...document.querySelectorAll('li.repo')].find((x) => x.querySelector('strong')?.textContent.trim() === ${lit(name)}).querySelector('.repo__btns button').click()`);
   await t.until(`document.querySelector('.rv__btns')`, 20000);
   await sleep(500);
   await t.key('k', 2);
@@ -61,7 +61,7 @@ const openSubmodules = async (name) => {
   await sleep(300);
 };
 const rows = () => t.ev(`[...document.querySelectorAll('[data-testid="sub-row"]')].map((r) => ({ path: r.querySelector('.sm__path').textContent.trim(), state: r.querySelector('[data-testid^="sub-state-"]').getAttribute('data-testid').replace('sub-state-', ''), dirty: /Alterações locais/.test(r.textContent) }))`);
-const btn = (label) => t.ev(`[...document.querySelectorAll('[data-testid="submodules-panel"] button')].filter((b) => b.textContent.trim() === ${JSON.stringify(label)} && !b.disabled).forEach((b) => b.click())`);
+const btn = (label) => t.ev(`[...document.querySelectorAll('[data-testid="submodules-panel"] button')].filter((b) => b.textContent.trim() === ${lit(label)} && !b.disabled).forEach((b) => b.click())`);
 /** Recarrega e espera a lista mostrar o que se espera (a lista antiga fica na tela enquanto lê, então só esperar um tempo leria o estado velho). */
 const reload = async (untilExpr) => {
   await btn('Recarregar');

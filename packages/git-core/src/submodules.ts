@@ -12,10 +12,27 @@ const STATE: Record<string, SubmoduleState> = { '-': 'uninitialized', '+': 'outd
 /** Lê `git submodule status`: `[-+U ]<sha> <caminho> (<descrição>)`. O prefixo diz o estado; o caminho pode ter espaços. */
 export function parseSubmoduleStatus(out: string): Array<{ path: string; sha: string; state: SubmoduleState; describe?: string }> {
   const rows: Array<{ path: string; sha: string; state: SubmoduleState; describe?: string }> = [];
-  for (const line of out.split('\n')) {
-    const m = /^([ +\-U])([0-9a-f]{40,64}) (.+?)(?: \(([^)]*)\))?\s*$/.exec(line);
-    if (!m) continue;
-    rows.push({ state: STATE[m[1]!]!, sha: m[2]!, path: m[3]!, ...(m[4] ? { describe: m[4] } : {}) });
+  const isHex = (c: string | undefined) => c !== undefined && /[0-9a-f]/.test(c);
+  // sem regex com `.+?`/`\s*$` sobre o texto todo (fica quadrática em linhas longas e repetitivas): lê campo a campo
+  for (const raw of out.split('\n')) {
+    const line = raw.trimEnd();
+    const state = STATE[line[0] ?? ''];
+    if (!state) continue;
+    let i = 1;
+    while (isHex(line[i])) i++;
+    const sha = line.slice(1, i);
+    if (sha.length < 40 || sha.length > 64 || line[i] !== ' ') continue;
+    let path = line.slice(i + 1);
+    let describe: string | undefined;
+    if (path.endsWith(')')) {
+      const open = path.lastIndexOf(' (');
+      if (open > 0) {
+        describe = path.slice(open + 2, -1);
+        path = path.slice(0, open);
+      }
+    }
+    if (!path) continue;
+    rows.push({ state, sha, path, ...(describe ? { describe } : {}) });
   }
   return rows;
 }
