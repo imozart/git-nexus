@@ -566,6 +566,8 @@ const ptBR = {
   'rv.opContinue': 'Continuar',
   'rv.opContinueNeedsResolve': 'Resolva os conflitos primeiro',
   'rv.opAbort': 'Abortar',
+  'rv.opMerge': 'Merge em andamento.',
+  'rv.opAbortTitleMerge': 'Abortar o merge?',
   'rv.opAbortTitleCherry': 'Abortar o cherry-pick?',
   'rv.opAbortTitleRevert': 'Abortar o revert?',
   'rv.opAbortBody': 'O repositório volta ao estado de antes da operação. Alterações feitas para resolver os conflitos serão descartadas.',

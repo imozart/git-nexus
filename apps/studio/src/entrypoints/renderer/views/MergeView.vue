@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { GnBadge, GnButton } from '@git-nexus/ui-kit';
-import type { MergeConflictBlock, RepositoryMeta } from '@git-nexus/git-core/pure';
+import type { InProgressKind, MergeConflictBlock, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { useWorkspaceStore } from '../stores/workspace';
 import MergeConflictResolver from '../components/MergeConflictResolver.vue';
+import OperationBanner from '../components/OperationBanner.vue';
 import ToolStripe, { type StripeItem } from '../components/ToolStripe.vue';
 import { t } from '../i18n';
 
@@ -12,6 +13,8 @@ const props = defineProps<{ repo: RepositoryMeta }>();
 const ws = useWorkspaceStore();
 
 const conflicts = ref<MergeConflictBlock[]>([]);
+/** Merge, cherry-pick ou revert parado: dá para abortá-lo daqui sem ir ao terminal. */
+const inProgress = ref<InProgressKind | null>(null);
 const current = ref('');
 const error = ref('');
 const info = ref('');
@@ -30,6 +33,7 @@ async function load(): Promise<void> {
   error.value = '';
   try {
     conflicts.value = await api.getMergeConflicts(props.repo.path);
+    inProgress.value = await api.getInProgress(props.repo.path).catch(() => null);
     if (!conflicts.value.some((c) => c.filePath === current.value)) current.value = conflicts.value[0]?.filePath ?? '';
   } catch (e) {
     error.value = errMsg(e);
@@ -58,6 +62,12 @@ async function resolve(block: MergeConflictBlock, merged: string): Promise<void>
   }
 }
 
+async function onOpDone(message: string): Promise<void> {
+  info.value = message;
+  ws.bump(props.repo.id);
+  await load();
+}
+
 onMounted(load);
 watch(() => ws.versions[props.repo.id], load);
 </script>
@@ -70,6 +80,7 @@ watch(() => ws.versions[props.repo.id], load);
         <strong>{{ t('mv.files') }}</strong>
         <GnButton size="sm" :disabled="loading" @click="load">{{ t('rv.refresh') }}</GnButton>
       </div>
+      <OperationBanner v-if="inProgress" :repo-path="repo.path" :kind="inProgress" :conflicts="conflicts.length" @done="onOpDone" @failed="error = $event" />
       <p v-if="!conflicts.length && !loading" class="muted empty">
         {{ t('mv.none') }}<br />{{ t('mv.noneHint') }}
       </p>
