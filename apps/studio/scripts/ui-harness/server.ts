@@ -82,6 +82,20 @@ const MAIN_STUBS: Record<string, (...a: any[]) => unknown> = {
     await mkdir(dataDir, { recursive: true });
     await writeFile(join(dataDir, 'installed.txt'), 'restart', 'utf8');
   },
+  // Terminal e editor simulados: gravam o que abririam (o teste lê o arquivo).
+  openInTerminal: async (repoPath: string) => {
+    const { mkdir, writeFile } = await import('node:fs/promises');
+    await mkdir(dataDir, { recursive: true });
+    await writeFile(join(dataDir, 'opened-terminal.txt'), String(repoPath), 'utf8');
+    return { app: 'Terminal (simulado)' };
+  },
+  openInEditor: async (repoPath: string) => {
+    if (process.env.GN_FAKE_NO_EDITOR) throw new Error('Não encontrei o VS Code (ou o VSCodium) instalado.');
+    const { mkdir, writeFile } = await import('node:fs/promises');
+    await mkdir(dataDir, { recursive: true });
+    await writeFile(join(dataDir, 'opened-editor.txt'), String(repoPath), 'utf8');
+    return { app: 'VS Code (simulado)' };
+  },
   // Zoom simulado: guarda o fator em disco (o teste lê zoom.txt) e devolve o novo, com os mesmos degraus do app.
   setZoom: async (action: string) => {
     const steps = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];

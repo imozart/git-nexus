@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { accessSync, constants, existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { BrowserWindow, Menu, app, clipboard, dialog, ipcMain, screen, shell, utilityProcess, type UtilityProcess } from 'electron';
@@ -9,6 +9,7 @@ import { WORKER_METHODS, channel, type UtilityEvent, type UtilityRequest, type U
 import { isAllowedUpdateUrl } from '../shared/update';
 import { checkForUpdate } from './update';
 import { WINDOWS_INSTALLER_ARGS, cleanupUpdateFiles, downloadVerified, isReadyFile, prepareStage, replaceAppImage, startPortableSwap } from './installer';
+import { editorLaunches, launchFirst, terminalLaunches, type SpawnFn } from './external-tools';
 import { fitWindowState, readWindowState, writeWindowState } from './window-state';
 import { clampZoom, isZoomAction, stepZoom, zoomActionForKey } from './zoom';
 import { APP_LOG_NAME, UPDATE_LOG_NAME, createUpdateLog, describeError } from './update-log';
@@ -336,6 +337,27 @@ function applyZoom(wc: Electron.WebContents, factor: number): number {
   saveWindowState();
   return currentZoom;
 }
+
+// --- Abrir o repositório no terminal / no editor: sem shell, só programas conhecidos (veja external-tools.ts) ---
+async function repoFolder(repoPath: unknown): Promise<string> {
+  const dir = resolve(String(repoPath ?? ''));
+  const info = await stat(dir).catch(() => null);
+  // só pastas que são repositórios (têm .git): a interface não pode mandar abrir qualquer lugar
+  if (!info?.isDirectory() || !existsSync(join(dir, '.git'))) throw new Error(tm('Pasta de repositório inválida.', 'Invalid repository folder.'));
+  return dir;
+}
+ipcMain.handle(channel('openInTerminal'), async (_e, repoPath: string) => {
+  const dir = await repoFolder(repoPath);
+  const app = await launchFirst(terminalLaunches(process.platform, dir), spawn as unknown as SpawnFn);
+  if (!app) throw new Error(tm('Não encontrei um terminal para abrir.', 'Could not find a terminal to open.'));
+  return { app };
+});
+ipcMain.handle(channel('openInEditor'), async (_e, repoPath: string) => {
+  const dir = await repoFolder(repoPath);
+  const app = await launchFirst(editorLaunches(process.platform, dir, process.env, existsSync), spawn as unknown as SpawnFn);
+  if (!app) throw new Error(tm('Não encontrei o VS Code (ou o VSCodium) instalado.', 'Could not find VS Code (or VSCodium) installed.'));
+  return { app };
+});
 
 // Zoom pelos comandos da paleta: a interface só pede a ação; quem sabe o fator atual é este processo.
 ipcMain.handle(channel('setZoom'), (e, action: string) => {

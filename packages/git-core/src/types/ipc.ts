@@ -853,6 +853,10 @@ export interface GitNexusApi extends GitNexusIPC {
 
   // Integração com o sistema (processo principal)
   copyText(text: string): Promise<void>;
+  /** Abre um terminal na pasta do repositório (Windows Terminal/PowerShell, Terminal do macOS, emulador do Linux). Devolve o programa usado. */
+  openInTerminal(repoPath: string): Promise<{ app: string }>;
+  /** Abre a pasta do repositório no editor (VS Code ou VSCodium, se instalado). Devolve o programa usado. */
+  openInEditor(repoPath: string): Promise<{ app: string }>;
   /** Zoom da interface: aumenta, diminui ou volta a 100 %. Devolve o fator novo (1 = 100 %). Também por Ctrl/⌘ + = / - / 0. */
   setZoom(action: 'in' | 'out' | 'reset'): Promise<number>;
   /** Registra no log do app (`gitnexus-app.log`) um erro inesperado da interface. Devolve o caminho do arquivo. */
