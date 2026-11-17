@@ -4,7 +4,7 @@
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { connect, git, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, git, lit, mkRepo, sleep, tmpRoot } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -33,7 +33,7 @@ git(repo, 'config', 'user.signingkey', key + '.pub');
 git(repo, 'config', 'commit.gpgsign', 'false');
 const head = () => git(repo, 'cat-file', 'commit', 'HEAD');
 
-await t.ev(`window.gitNexus.addRepositoryPath(${JSON.stringify(repo)})`);
+await t.ev(`window.gitNexus.addRepositoryPath(${lit(repo)})`);
 await t.ev('location.reload()');
 await t.until(`document.querySelectorAll('li.repo').length >= 1`, 20000);
 await t.until(`[...document.querySelectorAll('li.repo')].every((r) => !/carregando/i.test(r.textContent))`, 30000);
@@ -42,13 +42,13 @@ await t.ev(`[...document.querySelectorAll('li.repo')].find((x) => x.querySelecto
 await t.until(`document.querySelector('[data-testid="sign-toggle"]')`, 25000);
 await sleep(800);
 
-const setField = (sel, v) => t.ev(`(() => { const i = document.querySelector(${JSON.stringify(sel)}); i.value = ${JSON.stringify(v)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+const setField = (sel, v) => t.ev(`(() => { const i = document.querySelector(${lit(sel)}); i.value = ${lit(v)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
 const signChecked = () => t.ev(`document.querySelector('[data-testid="sign-toggle"]').checked`);
 const setSign = (on) => t.ev(`(() => { const c = document.querySelector('[data-testid="sign-toggle"]'); if (c.checked !== ${on}) c.click(); return c.checked; })()`);
 /** Faz stage de um arquivo novo e commita pelo formulário. */
 async function commitViaForm(file, text, subject) {
   writeFileSync(join(repo, file), text);
-  await t.ev(`window.gitNexus.stageFiles(${JSON.stringify(repo)}, [${JSON.stringify(file)}])`);
+  await t.ev(`window.gitNexus.stageFiles(${lit(repo)}, [${lit(file)}])`);
   await t.ev(`document.querySelector('.rv__btns button')?.click()`); // Recarregar
   await sleep(1200);
   await t.until(`!document.querySelector('[data-testid="commit-submit"]')?.disabled || true`, 2000);
