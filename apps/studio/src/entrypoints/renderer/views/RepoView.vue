@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { GnBadge, GnButton, GnButtonGroup, GnIconButton, GnSegmented } from '@git-nexus/ui-kit';
-import type { BaseComparison, FileEntry, FileSides, RebaseState, RepoSummary, RepositoryMeta } from '@git-nexus/git-core/pure';
+import type { BaseComparison, FileEntry, FileSides, InProgressKind, RebaseState, RepoSummary, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { AUTO_FETCH_TICK_MS, autoFetch } from '../auto-fetch';
 import { checkState, groupEntries, hasStaged, isUntracked, statusLabel, statusLetter } from '../changes';
@@ -32,6 +32,10 @@ const sync = ref<RepoSummary | null>(null);
 const base = ref<BaseComparison | null>(null);
 const syncBtn = ref<InstanceType<typeof SyncButton> | null>(null);
 const rebase = ref<RebaseState | null>(null);
+/** Cherry-pick ou revert parado no meio (o rebase tem a faixa própria). */
+const inProgress = ref<InProgressKind | null>(null);
+const seqOp = computed(() => (inProgress.value === 'cherry-pick' || inProgress.value === 'revert' ? inProgress.value : null));
+const opBusy = ref(false);
 const entries = ref<FileEntry[]>([]);
 const conflicted = ref<string[]>([]);
 const error = ref('');
@@ -141,14 +145,16 @@ async function refresh(keepError = false): Promise<void> {
   loading.value = true;
   if (!keepError) error.value = '';
   try {
-    const [st, conflicts, rb, summary, cmp] = await Promise.all([
+    const [st, conflicts, rb, summary, cmp, op] = await Promise.all([
       api.getGitStatus(props.repo.path),
       api.getMergeConflicts(props.repo.path),
       api.getRebaseState(props.repo.path).catch(() => null),
       api.getRepoSummary(props.repo.path).catch(() => null), // o indicador é um extra: se falhar, a tela segue sem ele
       api.compareWithBase(props.repo.path).catch(() => null),
+      api.getInProgress(props.repo.path).catch(() => null),
     ]);
     rebase.value = rb;
+    inProgress.value = op;
     sync.value = summary;
     base.value = cmp;
     const bad = new Set(conflicts.map((c) => c.filePath));
@@ -439,6 +445,38 @@ async function onStageLines(p: { content: string; what: 'linha' | 'bloco'; direc
 // --- descarte de arquivos inteiros -----------------------------------------------------------
 const confirm = ref<{ title: string; lines: string[]; label: string; run: () => Promise<void> } | null>(null);
 
+// --- cherry-pick / revert parado: continuar (depois de resolver os conflitos) ou abortar -----------------
+async function continueOp(): Promise<void> {
+  opBusy.value = true;
+  try {
+    const r = await api.continueOperation(props.repo.path);
+    if (!r.ok) error.value = r.message;
+    else showNotice(r.message);
+    ws.bump(props.repo.id);
+    await refresh(!r.ok);
+  } catch (e) {
+    error.value = errMsg(e);
+  } finally {
+    opBusy.value = false;
+  }
+}
+function askAbortOp(): void {
+  const kind = seqOp.value;
+  if (!kind) return;
+  confirm.value = {
+    title: t(kind === 'cherry-pick' ? 'rv.opAbortTitleCherry' : 'rv.opAbortTitleRevert'),
+    lines: [t('rv.opAbortBody')],
+    label: t('rv.opAbort'),
+    run: async () => {
+      const r = await api.abortOperation(props.repo.path);
+      if (!r.ok) error.value = r.message;
+      else showNotice(r.message);
+      ws.bump(props.repo.id);
+      await refresh(!r.ok);
+    },
+  };
+}
+
 function askDiscard(paths: string[]): void {
   const files = paths.map((p) => byPath.value.get(p)).filter((e): e is FileEntry => !!e);
   const n = files.length;
@@ -626,6 +664,11 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
     <div v-if="rebase?.inProgress" class="rv__rebase">
       <span>⇅ {{ t('rv.rebaseRunning', { step: rebase.step, total: rebase.total }) }}{{ rebase.conflicted.length ? t('rv.rebaseConflicts', { n: rebase.conflicted.length }) : '' }}.</span>
       <GnButton size="sm" variant="primary" tone="warn" @click="ws.openTools(repo, 'rebase')">{{ t('rv.openRebase') }}</GnButton>
+    </div>
+    <div v-if="seqOp" class="rv__rebase" role="status" data-testid="op-banner">
+      <span>⇅ {{ t(seqOp === 'cherry-pick' ? 'rv.opCherryPick' : 'rv.opRevert') }}{{ conflicted.length ? t('rv.opConflicts', { n: conflicted.length }) : '' }}</span>
+      <GnButton size="sm" variant="primary" tone="success" :disabled="conflicted.length > 0 || opBusy" :title="conflicted.length ? t('rv.opContinueNeedsResolve') : ''" data-testid="op-continue" @click="continueOp">{{ t('rv.opContinue') }}</GnButton>
+      <GnButton size="sm" tone="danger" :disabled="opBusy" data-testid="op-abort" @click="askAbortOp">{{ t('rv.opAbort') }}</GnButton>
     </div>
     <p v-if="error" class="rv__error">{{ error }}</p>
     <div v-if="notice" class="rv__notice">

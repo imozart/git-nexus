@@ -153,7 +153,7 @@ const firstError = (s: string) => {
 };
 
 /** Traduz as falhas mais comuns do git em uma frase que diz o que fazer. */
-function explain(out: string, fallback: string): string {
+export function explain(out: string, fallback: string): string {
   if (/would be overwritten|Your local changes|local changes to the following files/i.test(out))
     return tm('Há alterações locais que seriam sobrescritas: faça commit ou guarde (stash) antes.', 'Local changes would be overwritten: commit or stash them first.');
   if (/unmerged files|You have unmerged paths|needs merge/i.test(out)) return tm('Há conflitos a resolver antes.', 'There are conflicts to resolve first.');
@@ -163,7 +163,7 @@ function explain(out: string, fallback: string): string {
   return firstError(out) || fallback;
 }
 
-const hadConflict = (out: string) => /CONFLICT|Automatic merge failed|could not apply|Resolve all conflicts/i.test(out);
+export const hadConflict = (out: string) => /CONFLICT|Automatic merge failed|could not apply|Resolve all conflicts/i.test(out);
 const upToDate = (out: string) => /Already up to date|Already up-to-date|Current branch .* is up to date/i.test(out);
 
 async function currentBranch(repoPath: string): Promise<string> {

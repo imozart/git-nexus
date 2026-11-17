@@ -6,6 +6,7 @@ import { api, errMsg } from '../api';
 import { useWorkspaceStore } from '../stores/workspace';
 import { dateLocale, t, type MessageKey } from '../i18n';
 import ComboBox from '../components/ComboBox.vue';
+import ConfirmDialog from '../components/ConfirmDialog.vue';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
 const ws = useWorkspaceStore();
@@ -104,6 +105,29 @@ function more(): void {
   void load();
 }
 
+// --- cherry-pick e revert do commit selecionado ---------------------------------------------
+const ask = ref<{ kind: 'cherry-pick' | 'revert'; hash: string; subject: string } | null>(null);
+const opBusy = ref(false);
+const opNotice = ref<{ ok: boolean; text: string } | null>(null);
+
+async function runCommitOp(): Promise<void> {
+  const a = ask.value;
+  ask.value = null;
+  if (!a) return;
+  opBusy.value = true;
+  opNotice.value = null;
+  try {
+    const r = await (a.kind === 'cherry-pick' ? api.cherryPickCommit : api.revertCommit)(props.repo.path, a.hash);
+    opNotice.value = { ok: r.ok, text: r.message };
+    ws.bump(props.repo.id); // a tela do repositório e o grafo recarregam
+    if (r.conflicted) ws.open('merge', props.repo); // parou por conflitos: leva a pessoa até eles
+  } catch (e) {
+    opNotice.value = { ok: false, text: errMsg(e) };
+  } finally {
+    opBusy.value = false;
+  }
+}
+
 const fmtDate = (s: number) => new Date(s * 1000).toLocaleString(dateLocale.value);
 const refTone = (r: string) => (r.startsWith('HEAD') ? 'accent' : r.startsWith('tag:') ? 'warn' : r.includes('/') ? 'neutral' : 'success');
 
@@ -197,6 +221,15 @@ watch(() => ws.versions[props.repo.id], load);
         <GnButton size="sm" tone="warn" class="gv__rb" :title="t('gv.rebaseTip')" @click="ws.openTools(repo, 'rebase', selected.hash)">
           {{ t('gv.rebaseHere') }}
         </GnButton>
+        <div class="gv__ops">
+          <GnButton size="sm" tone="accent" :disabled="opBusy" :title="t('gv.cherryPickTip')" data-testid="cherry-pick" @click="ask = { kind: 'cherry-pick', hash: selected.hash, subject: selected.subject }">
+            {{ t('gv.cherryPick') }}
+          </GnButton>
+          <GnButton size="sm" tone="warn" :disabled="opBusy" :title="t('gv.revertTip')" data-testid="revert" @click="ask = { kind: 'revert', hash: selected.hash, subject: selected.subject }">
+            {{ t('gv.revert') }}
+          </GnButton>
+        </div>
+        <p v-if="opNotice" class="gv__opnote" :class="opNotice.ok ? 'gv__opnote--ok' : 'gv__opnote--err'" role="status" data-testid="gv-op-notice">{{ opNotice.text }}</p>
         <pre v-if="detail && detail.message.includes('\n')" class="gv__msg">{{ detail.message }}</pre>
         <h4 v-if="detail">{{ t('gv.filesChanged', { n: detail.files.length }) }}</h4>
         <ul v-if="detail" class="gv__files">
@@ -211,6 +244,14 @@ watch(() => ws.versions[props.repo.id], load);
 </span></template></pre>
       </aside>
     </div>
+    <ConfirmDialog
+      v-if="ask"
+      :title="t(ask.kind === 'cherry-pick' ? 'gv.cherryPickTitle' : 'gv.revertTitle')"
+      :lines="[`${ask.hash.slice(0, 7)} — ${ask.subject}`, t(ask.kind === 'cherry-pick' ? 'gv.cherryPickBody' : 'gv.revertBody')]"
+      :confirm-label="t(ask.kind === 'cherry-pick' ? 'gv.cherryPick' : 'gv.revert')"
+      @confirm="runCommitOp"
+      @cancel="ask = null"
+    />
   </div>
 </template>
 
@@ -228,6 +269,8 @@ watch(() => ws.versions[props.repo.id], load);
   &__files { list-style: none; margin: 6px 0 0; padding: 0; li { display: flex; align-items: center; gap: 6px; padding: 3px 4px; cursor: pointer; font-size: 12px; border-radius: 4px; &:hover, &.on { background: var(--gn-surface-2); } } }
   &__fpath { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--gn-mono); }
   &__diff { margin: 8px 0 0; padding: 8px 10px; background: var(--gn-bg); border: 1px solid var(--gn-border); border-radius: var(--gn-radius); font-family: var(--gn-mono); font-size: 11.5px; overflow: auto; max-height: 340px; .a { color: var(--gn-success); } .d { color: var(--gn-danger); } .h { color: var(--gn-accent); } }
+  &__ops { display: flex; gap: 8px; margin-top: 8px; }
+  &__opnote { margin: 8px 0 0; padding: 6px 10px; font-size: 12px; border-radius: var(--gn-radius); border: 1px solid var(--gn-border); &--ok { color: var(--gn-success); border-color: var(--gn-success); } &--err { color: var(--gn-warn); border-color: var(--gn-warn); } }
   &__detail { width: 420px; border-left: 1px solid var(--gn-border); padding: 14px; overflow: auto; h3 { margin: 0 0 10px; font-size: 14px; } }
 }
 .spacer { flex: 1; }

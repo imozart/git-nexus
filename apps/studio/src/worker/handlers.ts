@@ -3,7 +3,12 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import {
   CommitRejectedError,
+  abortOperation,
   amendCommit,
+  cherryPickCommit,
+  continueOperation,
+  getInProgress,
+  revertCommit,
   getAmendInfo,
   checkoutBranch,
   checkoutRevision,
@@ -232,6 +237,11 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
       }
     },
     getAmendInfo: (repoPath: string) => getAmendInfo(repoPath),
+    cherryPickCommit: (repoPath: string, hash: string) => cherryPickCommit(repoPath, hash),
+    revertCommit: (repoPath: string, hash: string) => revertCommit(repoPath, hash),
+    getInProgress: (repoPath: string) => getInProgress(repoPath),
+    continueOperation: (repoPath: string) => continueOperation(repoPath),
+    abortOperation: (repoPath: string) => abortOperation(repoPath),
     executeAmend: async (repoPath: string, input: ConventionalCommitInput, localPolicy?: CommitPolicy) => {
       // mesma regra do commit: a política do time (.gitnexus.json) prevalece
       const team = (await readRepoPolicy(repoPath)).commit;
