@@ -4,6 +4,24 @@ Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https:/
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.14.0] - 2026-11-17
+
+### ✨ Novidades
+
+- **update:** confete ao abrir o app pela primeira vez após uma atualização ([`e503ce1`](https://github.com/imozart/git-nexus/commit/e503ce1e802bfbba3c71babfa19c45f70344864b))
+- **app:** log geral de erros do app em gitnexus-app.log e aviso discreto ([`d1b1276`](https://github.com/imozart/git-nexus/commit/d1b12769ac1dfba1899112bd90bb94f818d0b29f))
+
+### 🐛 Correções
+
+- **git:** ignorar EPIPE ao enviar entrada ao git e trocar a regex do index.lock ([`e78021d`](https://github.com/imozart/git-nexus/commit/e78021dd0a5cdb465fb3876766a4843ab1ab3ade))
+- **sync:** atualizar em lote usa o mesmo caminho do painel (stash e mensagens) ([`2ab1f53`](https://github.com/imozart/git-nexus/commit/2ab1f537b00b4ebe99943e6e26f2c38bfbd12a4d))
+- **commit:** cada causa de falha do commit mostra a própria mensagem ([`8529339`](https://github.com/imozart/git-nexus/commit/8529339fe95fed21294f12f263dfa773f8aad7c2))
+- **git:** consultas rodam com GIT_OPTIONAL_LOCKS=0 e não disputam o index.lock ([`a0bdc33`](https://github.com/imozart/git-nexus/commit/a0bdc33bbafd6abf204fb1f113ae16dcae07fa16))
+
+### 🧪 Testes
+
+- **sync:** dar mais tempo aos cenários de atualizar em lote na suíte inteira ([`961ddee`](https://github.com/imozart/git-nexus/commit/961ddee2d911ad39fb4bac51573983fcd84b5b1b))
+
 ## [1.13.2] - 2026-11-17
 
 ### 🐛 Correções
@@ -291,6 +309,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.14.0]: https://github.com/imozart/git-nexus/compare/v1.13.2...v1.14.0
 [1.13.2]: https://github.com/imozart/git-nexus/compare/v1.13.1...v1.13.2
 [1.13.1]: https://github.com/imozart/git-nexus/compare/v1.13.0...v1.13.1
 [1.13.0]: https://github.com/imozart/git-nexus/compare/v1.12.0...v1.13.0
