@@ -207,6 +207,8 @@ export interface RepoSummary {
   upstream: string | null;
   /** O upstream está configurado, mas a branch remota foi apagada. */
   gone: boolean;
+  /** Última vez que o repositório buscou do remoto (ms desde 1970, pelo `FETCH_HEAD`); null se nunca buscou ou não deu para ler. */
+  lastFetch: number | null;
   /** Commits locais ainda não enviados / commits do remoto ainda não trazidos. */
   ahead: number;
   behind: number;

@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { GnBadge, GnButton, GnButtonGroup, GnIconButton, GnSegmented } from '@git-nexus/ui-kit';
 import type { FileEntry, FileSides, RebaseState, RepoSummary, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
+import { AUTO_FETCH_TICK_MS, autoFetch } from '../auto-fetch';
 import { checkState, groupEntries, hasStaged, isUntracked, statusLabel, statusLetter } from '../changes';
 import { t, type MessageKey } from '../i18n';
 import { useCommandsStore, type Command } from '../stores/commands';
@@ -551,16 +552,29 @@ async function onMenu(id: string): Promise<void> {
   }
 }
 
-const onFocus = () => void refresh();
+/** Busca automática no remoto (se ligada e se já passou o intervalo). Só relê o resumo do indicador, não a tela toda, e só se trouxe resultado. */
+async function maybeAutoFetch(): Promise<void> {
+  const path = props.repo.path;
+  if (!(await autoFetch(path, sync.value?.lastFetch))) return;
+  const fresh = await api.getRepoSummary(path).catch(() => null);
+  if (fresh && path === props.repo.path) sync.value = fresh;
+}
+
+const onFocus = () => void refresh().then(maybeAutoFetch);
 let offCommands: (() => void) | undefined;
+let autoFetchTimer: ReturnType<typeof setInterval> | undefined;
 
 onMounted(() => {
-  void refresh();
+  void refresh().then(maybeAutoFetch);
   window.addEventListener('focus', onFocus);
+  autoFetchTimer = setInterval(() => {
+    if (document.visibilityState === 'visible') void maybeAutoFetch();
+  }, AUTO_FETCH_TICK_MS);
   offCommands = cmds.register(repoCommands);
 });
 onBeforeUnmount(() => {
   window.removeEventListener('focus', onFocus);
+  clearInterval(autoFetchTimer);
   offCommands?.();
   clearTimeout(noticeTimer);
 });

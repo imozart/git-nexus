@@ -1,3 +1,5 @@
+import { stat } from 'node:fs/promises';
+import { isAbsolute, join } from 'node:path';
 import { runGit } from './runner.js';
 import type { RepoSummary, SyncResult } from './types/ipc.js';
 import { tm } from './messages.js';
@@ -9,6 +11,7 @@ export function parseSummary(raw: string): RepoSummary {
     detached: false,
     upstream: null,
     gone: false,
+    lastFetch: null,
     ahead: 0,
     behind: 0,
     staged: 0,
@@ -45,9 +48,24 @@ export function parseSummary(raw: string): RepoSummary {
   return s;
 }
 
+/**
+ * Quando o repositório falou com o remoto pela última vez (ms desde 1970): a data de `FETCH_HEAD`, que todo fetch e todo pull reescrevem,
+ * inclusive os feitos fora do app. `null` se nunca buscou ou se não der para ler (por exemplo, repositório dentro do WSL).
+ */
+export async function getLastFetch(repoPath: string): Promise<number | null> {
+  try {
+    const r = await runGit(repoPath, ['rev-parse', '--git-path', 'FETCH_HEAD'], { check: false });
+    const rel = r.stdout.trim();
+    if (r.code !== 0 || !rel) return null;
+    return (await stat(isAbsolute(rel) ? rel : join(repoPath, rel))).mtimeMs;
+  } catch {
+    return null;
+  }
+}
+
 export async function getRepoSummary(repoPath: string): Promise<RepoSummary> {
-  const r = await runGit(repoPath, ['status', '--porcelain=v2', '--branch', '-z']);
-  return parseSummary(r.stdout);
+  const [r, lastFetch] = await Promise.all([runGit(repoPath, ['status', '--porcelain=v2', '--branch', '-z']), getLastFetch(repoPath)]);
+  return { ...parseSummary(r.stdout), lastFetch };
 }
 
 /** Sem terminal: nunca pergunta senha (o git falha em vez de travar esperando entrada). */

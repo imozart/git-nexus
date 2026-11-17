@@ -1,6 +1,16 @@
 // Texto do estado de sincronização de uma branch (adiante/atrás do remoto). Uma única fonte para o tooltip, o aria-label e as telas.
 import { syncState, type SyncInfo } from '@git-nexus/git-core/pure';
+import { agoParts } from './auto-fetch-core';
 import { t } from './i18n';
+
+/** "Última busca: há 4 min" (ou "agora há pouco"). Vazia sem upstream (não há com quem comparar) e "nunca" se o repositório ainda não buscou. */
+export function lastFetchText(s: SyncInfo | null | undefined, now = Date.now()): string {
+  if (!s || !s.upstream) return '';
+  if (s.lastFetch == null) return t('sync.neverFetched');
+  const a = agoParts(now, s.lastFetch);
+  const when = a.unit === 'now' ? t('sync.agoNow') : t(a.unit === 'min' ? 'sync.agoMin' : a.unit === 'hour' ? 'sync.agoHour' : 'sync.agoDay', { n: a.n });
+  return t('sync.lastFetch', { when });
+}
 
 /** Frase completa: "5 commits atrás de origin/feat/x", "Em dia com origin/main", "Sem upstream…". Vazia se ainda não há dados. */
 export function syncText(s: SyncInfo | null | undefined): string {

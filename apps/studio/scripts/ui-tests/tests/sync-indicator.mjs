@@ -9,6 +9,7 @@ const report = {};
 process.on('exit', () => console.log(JSON.stringify(report, null, 2)));
 const t = await connect(OUT, report);
 await t.ev(`localStorage.setItem('gitnexus.locale', 'pt-BR')`);
+await t.ev(`localStorage.setItem('gitnexus.autoFetch', '0')`); // este teste controla quando o clone busca (a busca automática tem teste próprio)
 
 const root = tmpRoot('gn-sync-');
 const remote = join(root, 'remote.git');

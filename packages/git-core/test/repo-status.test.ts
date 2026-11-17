@@ -58,6 +58,7 @@ describe('parseSummary', () => {
       detached: false,
       upstream: 'origin/feature/x',
       gone: false,
+      lastFetch: null,
       ahead: 2,
       behind: 3,
       staged: 3,
@@ -83,6 +84,18 @@ describe('parseSummary', () => {
 });
 
 describe('painel (repositórios reais com remoto)', () => {
+  it('lastFetch: null até a primeira busca e a hora da busca depois', async () => {
+    const fresh = join(root, 'fresh');
+    await runGit(root, ['clone', '-q', remote, fresh]);
+    expect((await getRepoSummary(fresh)).lastFetch).toBeNull(); // o clone não escreve FETCH_HEAD
+    const before = Date.now();
+    expect(await fetchRepo(fresh)).toMatchObject({ ok: true });
+    const last = (await getRepoSummary(fresh)).lastFetch;
+    expect(last).not.toBeNull();
+    expect(last!).toBeGreaterThanOrEqual(before - 2000); // folga: a resolução da data do arquivo varia por sistema
+    expect(last!).toBeLessThanOrEqual(Date.now() + 2000);
+  });
+
   it('limpo e sincronizado', async () => {
     expect(await getRepoSummary(a)).toMatchObject({ branch: 'main', upstream: 'origin/main', ahead: 0, behind: 0, staged: 0, unstaged: 0, untracked: 0 });
   });
