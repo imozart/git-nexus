@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted } from 'vue';
+import AskpassDialog from './components/AskpassDialog.vue';
 import ConfettiRain from './components/ConfettiRain.vue';
 import CoreInterface from './CoreInterface.vue';
 import CommandPalette from './components/CommandPalette.vue';
@@ -7,6 +8,7 @@ import { api } from './api';
 import { LOCALES, locale, setLocale, t } from './i18n';
 import { notificationsEnabled, notifyUser } from './notifications';
 import { THEME_PREFS, setThemePref, themePref } from './theme';
+import { useAskpassStore } from './stores/askpass';
 import { useCommandsStore, type Command } from './stores/commands';
 import { useRepositoriesStore } from './stores/repositories';
 import { useGitLogStore } from './stores/gitlog';
@@ -17,6 +19,7 @@ const cmds = useCommandsStore();
 const ws = useWorkspaceStore();
 const repos = useRepositoriesStore();
 const upd = useUpdateStore();
+const askpass = useAskpassStore();
 const gitLog = useGitLogStore();
 
 const inRepo = () => !!ws.active?.repo;
@@ -160,6 +163,7 @@ let updTimers: ReturnType<typeof setTimeout>[] = [];
 onMounted(() => {
   off = cmds.register(globalCommands);
   gitLog.start();
+  askpass.listen();
   // atualização: 8 s depois de abrir (não atrasa a abertura) e a cada 12 h
   updTimers = [setTimeout(() => void upd.check(), 8000)];
   const iv = setInterval(() => void upd.check(), 12 * 3600 * 1000);
@@ -176,5 +180,6 @@ onBeforeUnmount(() => {
 <template>
   <CoreInterface />
   <CommandPalette />
+  <AskpassDialog />
   <ConfettiRain v-if="upd.celebrating" @done="upd.celebrating = false" />
 </template>

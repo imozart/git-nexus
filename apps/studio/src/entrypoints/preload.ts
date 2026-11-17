@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { CommitPolicy, ConventionalCommitInput, GitCommandEvent, GitNexusApi, GitProgressEvent, UpdateProgress } from '@git-nexus/git-core/pure';
+import type { AskpassRequest, CommitPolicy, ConventionalCommitInput, GitCommandEvent, GitNexusApi, GitProgressEvent, UpdateProgress } from '@git-nexus/git-core/pure';
 import { validateCommitMessage } from '@git-nexus/governance-policy';
 import { MAIN_METHODS, WORKER_METHODS, channel } from '../shared/channels';
 
@@ -26,6 +26,12 @@ const api = {
     const handler = (_e: unknown, p: GitProgressEvent) => cb(p);
     ipcRenderer.on(channel('gitProgress'), handler);
     return () => ipcRenderer.removeListener(channel('gitProgress'), handler);
+  },
+  // Evento: o git/ssh precisa de uma credencial (usuário, senha, token, frase-senha): a interface mostra o diálogo.
+  onAskpassRequest: (cb: (r: AskpassRequest) => void) => {
+    const handler = (_e: unknown, r: AskpassRequest) => cb(r);
+    ipcRenderer.on(channel('askpass'), handler);
+    return () => ipcRenderer.removeListener(channel('askpass'), handler);
   },
   // Síncrono e sem I/O: o linter roda direto no preload para feedback em tempo de digitação.
   validateCommitMessage: (input: ConventionalCommitInput, policy?: CommitPolicy, locale?: 'pt-BR' | 'en') =>

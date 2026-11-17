@@ -34,6 +34,12 @@ async function remove(repo: RepositoryMeta): Promise<void> {
   await store.remove(repo.id);
 }
 
+/** Buscar de um repositório: mostra o resultado (antes a falha, por exemplo de autenticação, ficava muda; só o Pull avisava). */
+async function fetchOne(r: RepositoryMeta): Promise<void> {
+  const res = await store.syncOne(r, 'fetch');
+  store.message = { kind: res.ok ? 'info' : 'error', text: `${r.name}: ${res.message}` };
+}
+
 async function pullOne(r: RepositoryMeta): Promise<void> {
   const res = await store.syncOne(r, 'pull');
   store.message = { kind: res.ok ? 'info' : 'error', text: `${r.name}: ${res.message}` };
@@ -134,7 +140,7 @@ const fmt = (ts: number) => (ts ? new Date(ts).toLocaleString(dateLocale.value) 
         </div>
         <div class="repo__btns">
           <GnButton size="sm" tone="accent" @click="open(r)">{{ t('home.open') }}</GnButton>
-          <GnButton size="sm" :disabled="!!store.working[r.id]" :title="t('home.fetchTitle')" @click="store.syncOne(r, 'fetch')">{{ t('home.fetch') }}</GnButton>
+          <GnButton size="sm" :disabled="!!store.working[r.id]" :title="t('home.fetchTitle')" @click="fetchOne(r)">{{ t('home.fetch') }}</GnButton>
           <GnButton size="sm" tone="accent" :disabled="!!store.working[r.id] || !sum(r)?.upstream" :title="t('home.pullTitle')" @click="pullOne(r)">{{ t('home.pull') }}</GnButton>
           <GnIconButton icon="trash" tone="danger" :label="t('home.remove')" :title="t('home.removeTitle')" @click="remove(r)" />
         </div>

@@ -4,7 +4,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import { onGitCommand, onGitProgress } from '@git-nexus/git-core';
+import { onGitCommand, onGitProgress, setActiveAskpass, startAskpassBridge } from '@git-nexus/git-core';
 import type { GitCommandEvent, GitProgressEvent } from '@git-nexus/git-core/pure';
 import { validateCommitMessage } from '@git-nexus/governance-policy';
 import { createHandlers } from '../../src/worker/handlers';
@@ -20,6 +20,9 @@ let clipboard = '';
 const gitEvents: GitCommandEvent[] = [];
 onGitCommand((e) => gitEvents.push(e));
 const progressEvents: GitProgressEvent[] = [];
+// credenciais: a mesma ponte do app, com os pedidos expostos por sondagem (a página mostra o diálogo)
+const askpassEvents: unknown[] = [];
+void startAskpassBridge({ dir: join(dataDir, 'askpass'), onRequest: (r) => askpassEvents.push(r) }).then(setActiveAskpass);
 onGitProgress((e) => progressEvents.push(e));
 
 // Armazenamento de tokens do harness: em memória (o app real usa safeStorage do Electron).
@@ -139,6 +142,16 @@ api.onGitProgress = (cb) => {
   }, 100);
   return () => clearInterval(iv);
 };
+// -1: a primeira sondagem só marca o ponto de partida (uma página recarregada não repete pedidos antigos, como no Electron)
+let askSeen = -1;
+api.onAskpassRequest = (cb) => {
+  const iv = setInterval(async () => {
+    const r = await (await fetch('/askpass?since=' + askSeen)).json();
+    askSeen = r.next;
+    for (const e of r.events) cb(e);
+  }, 100);
+  return () => clearInterval(iv);
+};
 api.validateCommitMessage = (input, policy, locale) => {
   const x = new XMLHttpRequest();
   x.open('POST', '/validate', false);
@@ -180,6 +193,10 @@ createServer(async (req, res) => {
     if (url.pathname === '/gitprogress') {
       const since = Number(url.searchParams.get('since') ?? 0);
       return void res.end(JSON.stringify({ next: progressEvents.length, events: progressEvents.slice(since) }));
+    }
+    if (url.pathname === '/askpass') {
+      const since = Number(url.searchParams.get('since') ?? 0);
+      return void res.end(JSON.stringify({ next: askpassEvents.length, events: since < 0 ? [] : askpassEvents.slice(since) }));
     }
     if (url.pathname === '/clipboard') return void res.end(clipboard);
     if (url.pathname === '/stub.js') {

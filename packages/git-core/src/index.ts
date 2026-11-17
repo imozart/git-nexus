@@ -20,3 +20,5 @@ export * from './commit-ops.js';
 export * from './tags.js';
 export * from './clone.js';
 export * from './content-search.js';
+export * from './askpass.js';
+export * from './no-prompt.js';

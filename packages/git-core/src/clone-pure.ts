@@ -1,5 +1,6 @@
 // Clonar e criar repositórios: a parte pura (sem Node), usada pela interface para mostrar o nome da pasta e validar os campos antes de chamar o git.
 import { tm } from './messages.js';
+import { classifyRemoteFailure, remoteFailureMessage } from './askpass-pure.js';
 
 /** Caracteres que o Windows não aceita em nome de pasta (e que não fazem sentido em nenhum sistema). */
 // eslint-disable-next-line no-control-regex
@@ -39,24 +40,9 @@ export function classifyCloneFailure(output: string): CloneFailure {
   const low = output.toLowerCase();
   if (low.includes('already exists and is not an empty directory')) return 'exists';
   if (low.includes('remote branch') && low.includes('not found')) return 'branch';
-  if (
-    low.includes('authentication failed') ||
-    low.includes('permission denied') ||
-    low.includes('could not read username') ||
-    low.includes('could not read password') ||
-    low.includes('terminal prompts disabled') ||
-    low.includes('http basic: access denied') ||
-    low.includes('the requested url returned error: 401') ||
-    low.includes('the requested url returned error: 403')
-  ) {
-    return 'auth';
-  }
-  if (low.includes('repository not found') || low.includes('does not appear to be a git repository') || low.includes('the requested url returned error: 404') || low.includes('not found')) {
-    return 'notFound';
-  }
-  if (low.includes('could not resolve host') || low.includes('unable to access') || low.includes('connection timed out') || low.includes('connection refused') || low.includes('network is unreachable') || low.includes('could not connect')) {
-    return 'network';
-  }
+  // o resto (acesso, não encontrado, rede) segue a regra única das operações com o remoto
+  const k = classifyRemoteFailure(output);
+  if (k === 'auth' || k === 'notFound' || k === 'network') return k;
   return 'other';
 }
 
@@ -65,10 +51,7 @@ export function cloneFailureMessage(kind: CloneFailure, raw: string): string {
   const detail = raw.trim().split('\n').filter((l) => l.trim()).slice(-2).join(' ');
   switch (kind) {
     case 'auth':
-      return tm(
-        'O servidor recusou o acesso (autenticação). O app não pergunta senha: configure o Git Credential Manager ou uma chave SSH sem senha para este endereço, ou clone uma vez pelo terminal.',
-        'The server refused access (authentication). The app does not ask for passwords: set up Git Credential Manager or a passphrase-less SSH key for this address, or clone once from the terminal.',
-      );
+      return remoteFailureMessage('auth') ?? '';
     case 'notFound':
       return tm('Repositório não encontrado. Confira o endereço e se você tem acesso a ele.', 'Repository not found. Check the address and that you have access to it.');
     case 'network':

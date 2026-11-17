@@ -227,6 +227,17 @@ const ptBR = {
   'palette.help': '↑↓ navegar · Enter executar · Esc fechar',
   'palette.label': 'Paleta de comandos',
   'dlg.cancel': 'Cancelar',
+  'askpass.titleUser': 'Usuário para {host}',
+  'askpass.titlePassword': 'Senha ou token de {host}',
+  'askpass.titlePassphrase': 'Frase-senha da chave SSH',
+  'askpass.titleConfirm': 'Confirmar o servidor SSH',
+  'askpass.titleOther': 'O Git pede uma resposta',
+  'askpass.show': 'Mostrar o que digito',
+  'askpass.ok': 'Continuar',
+  'askpass.yes': 'Sim, confiar e continuar',
+  'askpass.no': 'Não',
+  'askpass.hint': 'Vai direto ao Git: o GitNexus não guarda. Para não digitar sempre, use o Git Credential Manager (HTTPS) ou o ssh-agent (SSH).',
+  'askpass.confirmWarn': 'Confira a impressão digital com a que o administrador do servidor informou antes de aceitar.',
 
   // --- comandos globais -----------------------------------------------------------------------------------
   'cmd.group.nav': 'Navegação',

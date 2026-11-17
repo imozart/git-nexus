@@ -227,6 +227,17 @@ const en: Partial<Record<MessageKey, string>> = {
   'palette.help': '↑↓ navigate · Enter run · Esc close',
   'palette.label': 'Command palette',
   'dlg.cancel': 'Cancel',
+  'askpass.titleUser': 'Username for {host}',
+  'askpass.titlePassword': 'Password or token for {host}',
+  'askpass.titlePassphrase': 'SSH key passphrase',
+  'askpass.titleConfirm': 'Confirm the SSH server',
+  'askpass.titleOther': 'Git is asking for an answer',
+  'askpass.show': 'Show what I type',
+  'askpass.ok': 'Continue',
+  'askpass.yes': 'Yes, trust and continue',
+  'askpass.no': 'No',
+  'askpass.hint': 'It goes straight to Git: GitNexus does not store it. To avoid typing it every time, use Git Credential Manager (HTTPS) or ssh-agent (SSH).',
+  'askpass.confirmWarn': 'Compare the fingerprint with the one the server administrator gave you before accepting.',
 
   // --- global commands -----------------------------------------------------------------------------------------------
   'cmd.group.nav': 'Navigation',

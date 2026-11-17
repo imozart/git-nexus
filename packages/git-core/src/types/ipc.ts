@@ -1,3 +1,4 @@
+import type { AskpassRequest } from '../askpass-pure.js';
 import type { EncodingChoice, FileEncoding, FileEncodingInfo } from '../file-encoding.js';
 
 /** Operação parada no meio que o app sabe continuar ou abortar (o rebase tem o painel próprio). */
@@ -84,6 +85,8 @@ export interface GitNexusIPC {
   scanDirectories(rootPaths: string[]): Promise<RepositoryMeta[]>;
   getKnownRepositories(): Promise<RepositoryMeta[]>;
   addRepositoryPath(path: string): Promise<RepositoryMeta>;
+  /** Responde a um pedido de credencial do git/ssh (`null` = cancelou). A resposta nunca é registrada em log. */
+  askpassAnswer(id: string, answer: string | null): Promise<void>;
   /** Procura um texto (ou expressão regular) no conteúdo dos arquivos do repositório (`git grep`), inclusive os novos não ignorados. */
   searchContent(repoPath: string, query: ContentSearch): Promise<ContentSearchResult>;
   /** As linhas ao redor de uma ocorrência, para a pré-visualização dos resultados. */
@@ -859,8 +862,9 @@ export interface GitNexusApi extends GitNexusIPC {
 
   // Painel de repositórios: resumo, fetch e pull (somente fast-forward)
   getRepoSummary(repoPath: string): Promise<RepoSummary>;
-  fetchRepo(repoPath: string): Promise<SyncResult>;
-  pullRepo(repoPath: string): Promise<SyncResult>;
+  /** `silent`: busca em segundo plano ou em lote, que nunca pede credenciais (falha logo). Sem ele, o app pergunta usuário/senha quando o git pede. */
+  fetchRepo(repoPath: string, silent?: boolean): Promise<SyncResult>;
+  pullRepo(repoPath: string, silent?: boolean): Promise<SyncResult>;
 
   // Branches: listar, trocar, criar, excluir, merge, rebase e pull
   listBranches(repoPath: string): Promise<BranchList>;
@@ -929,6 +933,8 @@ export interface GitNexusApi extends GitNexusIPC {
   onGitCommand(cb: (events: GitCommandEvent[]) => void): () => void;
   /** Recebe o andamento (porcentagem) das buscas, atualizações e envios; devolve a função que cancela a assinatura. */
   onGitProgress(cb: (e: GitProgressEvent) => void): () => void;
+  /** O git/ssh precisa de usuário, senha, token ou frase-senha: a interface mostra o diálogo e responde com `askpassAnswer`. */
+  onAskpassRequest(cb: (r: AskpassRequest) => void): () => void;
 
   // Integração com o sistema (processo principal)
   copyText(text: string): Promise<void>;

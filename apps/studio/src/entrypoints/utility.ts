@@ -1,11 +1,12 @@
 // Executa em Electron UtilityProcess: nenhuma chamada Git bloqueia a UI.
 import { join } from 'node:path';
-import { onGitCommand, onGitProgress } from '@git-nexus/git-core';
+import { onGitCommand, onGitProgress, setActiveAskpass, startAskpassBridge } from '@git-nexus/git-core';
 import type { GitCommandEvent } from '@git-nexus/git-core/pure';
 import type { UtilityEvent, UtilityRequest, UtilityResponse } from '../shared/channels';
 import { createHandlers } from '../worker/handlers';
 
-const handlers = createHandlers(process.env.GITNEXUS_DATA_DIR ?? join(process.cwd(), '.dev-data'));
+const dataDir = process.env.GITNEXUS_DATA_DIR ?? join(process.cwd(), '.dev-data');
+const handlers = createHandlers(dataDir);
 
 // Exceções não tratadas do worker: avisa o processo principal, que registra no log do app (o worker não tem janela nem onde mostrar).
 function reportCrash(source: string, e: unknown): void {
@@ -37,6 +38,15 @@ onGitProgress((e) => {
   lastProgress.set(key, now);
   process.parentPort.postMessage({ event: 'gitProgress', data: e } satisfies UtilityEvent);
 });
+
+// Credenciais: o git/ssh pergunta por um canal local, o pedido sobe até a interface (diálogo) e a resposta volta por `askpassAnswer`.
+// Se a ponte não sobe (pasta sem permissão, por exemplo), o app segue como antes: o git falha na hora, sem perguntar.
+startAskpassBridge({
+  dir: join(dataDir, 'askpass'),
+  onRequest: (req) => process.parentPort.postMessage({ event: 'askpass', data: req } satisfies UtilityEvent),
+})
+  .then(setActiveAskpass)
+  .catch((e) => reportCrash('worker: ponte de credenciais não iniciou', e));
 
 process.parentPort.on('message', async ({ data }: { data: UtilityRequest }) => {
   const reply = (r: UtilityResponse) => process.parentPort.postMessage(r);

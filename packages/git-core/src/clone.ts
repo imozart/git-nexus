@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { classifyCloneFailure, cloneFailureMessage, gitignoreContent, isValidBranchName, isValidFolderName, repoNameFromUrl } from './clone-pure.js';
 import { tm } from './messages.js';
 import { emitGitProgress, progressReader } from './progress.js';
-import { NO_PROMPT } from './repo-status.js';
+import { remoteEnv } from './askpass.js';
 import { runGit } from './runner.js';
 import type { CloneInput, InitInput, InitResult } from './types/ipc.js';
 
@@ -48,7 +48,7 @@ export async function cloneRepository(input: CloneInput): Promise<{ path: string
   // `protocol.ext.allow=never`: o transporte "ext::" executa comandos e nunca deve valer para um endereço digitado
   // o destino vai como nome relativo, com o git rodando na pasta-mãe (funciona também para pastas do WSL)
   const args = ['-c', 'protocol.ext.allow=never', 'clone', '--progress', ...(branch ? ['--branch', branch] : []), '--', url, name];
-  const r = await runGit(parent, args, { check: false, env: NO_PROMPT, onStderr });
+  const r = await runGit(parent, args, { check: false, env: remoteEnv(), onStderr });
   if (r.code !== 0) {
     if (!existed) await rm(dest, { recursive: true, force: true }).catch(() => undefined);
     throw new Error(cloneFailureMessage(classifyCloneFailure(r.stderr), r.stderr));
