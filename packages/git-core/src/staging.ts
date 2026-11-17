@@ -2,6 +2,8 @@ import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { runGit } from './runner.js';
 import { tm } from './messages.js';
+import type { EncodingChoice } from './file-encoding.js';
+import { decodeText, detectEncoding, detectEncodingOf, resolveEncoding } from './encoding.js';
 
 const MAX_UNTRACKED_BYTES = 200_000;
 
@@ -43,19 +45,21 @@ export async function unstageFiles(repoPath: string, files: string[]): Promise<v
 }
 
 /** `staged`: false = não staged (índice x disco) · true = staged (HEAD x índice) · 'head' = tudo local (HEAD x disco). */
-export async function getFileDiff(repoPath: string, file: string, staged: boolean | 'head'): Promise<string> {
+export async function getFileDiff(repoPath: string, file: string, staged: boolean | 'head', encoding?: EncodingChoice): Promise<string> {
+  // a saída do git sai nos bytes do arquivo: decodifica na codificação escolhida ou detectada (ASCII compatível), não sempre UTF-8
+  const decode = (bytes: Buffer): string => decodeText(bytes, resolveEncoding(encoding, detectEncoding(bytes) === 'windows-1252' ? 'windows-1252' : 'utf-8')).text;
   if (staged === 'head') {
     const r = await runGit(repoPath, ['diff', '--no-color', 'HEAD', '--', file], { check: false });
     if (r.code === 0) {
-      if (r.stdout) return r.stdout;
+      if (r.bytes.length) return decode(r.bytes);
     } else {
       // repositório sem commits: mostra o que está no índice
       const cached = await runGit(repoPath, ['diff', '--no-color', '--cached', '--', file], { check: false });
-      if (cached.stdout) return cached.stdout;
+      if (cached.bytes.length) return decode(cached.bytes);
     }
   } else {
-    const { stdout } = await runGit(repoPath, ['diff', '--no-color', ...(staged ? ['--cached'] : []), '--', file]);
-    if (stdout || staged) return stdout;
+    const r = await runGit(repoPath, ['diff', '--no-color', ...(staged ? ['--cached'] : []), '--', file]);
+    if (r.bytes.length || staged) return decode(r.bytes);
   }
 
   // Arquivo não rastreado: mostra o conteúdo como adição.
@@ -64,7 +68,8 @@ export async function getFileDiff(repoPath: string, file: string, staged: boolea
     const s = await stat(abs);
     if (!s.isFile()) return '';
     if (s.size > MAX_UNTRACKED_BYTES) return tm(`(arquivo novo, ${s.size} bytes — grande demais para pré-visualizar)`, `(new file, ${s.size} bytes — too large to preview)`);
-    const text = await readFile(abs, 'utf8');
+    const bytes = await readFile(abs);
+    const text = decodeText(bytes, resolveEncoding(encoding, detectEncodingOf(bytes))).text;
     if (text.includes('\0')) return tm('(arquivo binário novo)', '(new binary file)');
     return tm('(arquivo novo, não rastreado)', '(new file, untracked)') + '\n' + text.split('\n').map((l) => '+' + l).join('\n');
   } catch {

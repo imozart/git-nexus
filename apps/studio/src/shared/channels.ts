@@ -13,6 +13,7 @@ export const WORKER_METHODS = [
   'getFileDiff',
   'getHistory',
   'getFileSides',
+  'getFileEncoding',
   'writeWorkingFile',
   'writeIndexContent',
   'discardFile',

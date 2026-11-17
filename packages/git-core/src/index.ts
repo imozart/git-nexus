@@ -1,6 +1,7 @@
 export * from './pure.js';
 export * from './wsl.js';
 export * from './runner.js';
+export * from './encoding.js';
 export * from './scanner.js';
 export * from './status.js';
 export * from './conflicts.js';
