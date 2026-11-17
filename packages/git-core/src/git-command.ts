@@ -72,6 +72,14 @@ export function isReadOnlyGit(args: readonly string[]): boolean {
   }
 }
 
+/**
+ * Ambiente extra das CONSULTAS: `GIT_OPTIONAL_LOCKS=0` impede que `status`, `diff` e afins tentem atualizar (e travar) o índice de forma
+ * oportunista. Com refresh, busca automática e ações do usuário em paralelo, isso disputava o `index.lock` com o commit e o stage.
+ */
+export function readOnlyEnv(args: readonly string[]): Record<string, string> {
+  return isReadOnlyGit(args) ? { GIT_OPTIONAL_LOCKS: '0' } : {};
+}
+
 /** Corta a saída no limite, sem segredos e sem linhas vazias nas pontas. */
 export function trimOutput(text: string, max = MAX_OUTPUT): string {
   const clean = redactSecrets(text).replace(/\r/g, '').trim();
