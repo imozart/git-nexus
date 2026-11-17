@@ -47,7 +47,9 @@ sock.on('close', () => {
 
 /** Aspas duplas do `sh` em volta de um caminho: barras normais (o `sh` do Git for Windows entende `C:/...`) e escapes para $ \` " \\. */
 export function shQuote(path: string): string {
-  return `"${path.replace(/\\/g, '/').replace(/(["$`])/g, '\\$1')}"`;
+  // um caractere por vez: `\` vira `/` e `"`, `$` e `` ` `` ganham a barra de escape (sem encadear replaces, que o CodeQL acusa de escape incompleto)
+  const body = Array.from(path, (ch) => (ch === '\\' ? '/' : ch === '"' || ch === '$' || ch === '`' ? `\\${ch}` : ch)).join('');
+  return `"${body}"`;
 }
 
 export interface AskpassBridge {

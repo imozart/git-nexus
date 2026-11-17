@@ -2,7 +2,7 @@
 // palavra inteira, regex), filtro de caminhos, pré-visualização ao clicar, erro de expressão inválida e abertura pela paleta.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { connect, git, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, git, lit, mkRepo, sleep, tmpRoot } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -20,7 +20,7 @@ writeFileSync(join(repo, 'leia.md'), 'A função saudacao diz olá.\n');
 git(repo, 'add', '.');
 git(repo, 'commit', '-qm', 'feat: base');
 
-await t.ev(`window.gitNexus.addRepositoryPath(${JSON.stringify(repo)})`);
+await t.ev(`window.gitNexus.addRepositoryPath(${lit(repo)})`);
 await t.ev(`localStorage.setItem('gitnexus.toolsSection', 'search')`);
 await t.ev('location.reload()');
 await t.until(`document.querySelectorAll('li.repo').length >= 1`, 20000);
@@ -40,7 +40,7 @@ await t.ev(`[...document.querySelectorAll('.cp__list [role="option"], .cp__list 
 t.check('o painel de busca abre', !!(await t.until(`document.querySelector('[data-testid="search-panel"]')`, 10000)));
 t.check('o campo de busca já vem com o foco', (await t.ev(`document.activeElement?.getAttribute('data-testid')`)) === 'search-input');
 
-const type = (testid, v) => t.ev(`(() => { const i = document.querySelector('[data-testid="${testid}"]'); i.value = ${JSON.stringify(v)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+const type = (testid, v) => t.ev(`(() => { const i = document.querySelector('[data-testid="${testid}"]'); i.value = ${lit(v)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
 const toggle = (testid) => t.ev(`document.querySelector('[data-testid="${testid}"]').click()`);
 const summary = () => t.text('[data-testid="search-summary"]');
 const fileNames = () => t.ev(`[...document.querySelectorAll('[data-testid="search-file"] .sp__fname')].map((e) => e.textContent.trim())`);

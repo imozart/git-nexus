@@ -6,13 +6,20 @@ import { classifyRemoteFailure, remoteFailureMessage } from './askpass-pure.js';
 // eslint-disable-next-line no-control-regex
 const ILLEGAL_IN_NAME = /[<>:"/\\|?*\u0000-\u001f]/;
 
+/** Tira as barras (`/` e `\`) do fim. Laço simples: uma regex `[\\/]+$` fica quadrática em texto com muitas barras (CodeQL). */
+function trimSlashes(s: string): string {
+  let end = s.length;
+  while (end > 0 && (s[end - 1] === '/' || s[end - 1] === '\\')) end--;
+  return s.slice(0, end);
+}
+
 /**
  * Nome da pasta que o `git clone` criaria a partir da URL: `https://host/grupo/projeto.git` → `projeto`, `git@host:grupo/projeto.git` →
  * `projeto`, `C:\repos\projeto\` → `projeto`. Vazio quando não dá para saber.
  */
 export function repoNameFromUrl(url: string): string {
-  let s = url.trim().replace(/[\\/]+$/, '');
-  s = s.replace(/\.git$/i, '').replace(/[\\/]+$/, '');
+  let s = trimSlashes(url.trim());
+  if (s.toLowerCase().endsWith('.git')) s = trimSlashes(s.slice(0, -4));
   // a última parte depois de "/", "\" ou ":" (scp-like: git@host:grupo/projeto)
   const last = s.split(/[\\/:]/).pop() ?? '';
   const name = last.replace(/[<>"|?*\u0000-\u001f]/g, '').trim();

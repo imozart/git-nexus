@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
 import { join } from 'node:path';
-import { connect, git, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, git, lit, mkRepo, sleep, tmpRoot } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -56,15 +56,15 @@ writeFileSync(join(repo, 'a.bin'), contents['a.bin']); // baixado
 rmSync(join(repo, 'assets', 'c.psd')); // fora da pasta
 const plain = mkRepo(root, 'semlfs');
 
-await t.ev(`window.gitNexus.addRepositoryPath(${JSON.stringify(repo)})`);
-await t.ev(`window.gitNexus.addRepositoryPath(${JSON.stringify(plain)})`);
+await t.ev(`window.gitNexus.addRepositoryPath(${lit(repo)})`);
+await t.ev(`window.gitNexus.addRepositoryPath(${lit(plain)})`);
 await t.ev('location.reload()');
 await t.until(`document.querySelectorAll('li.repo').length >= 2`, 20000);
 await t.until(`[...document.querySelectorAll('li.repo')].every((r) => !/carregando/i.test(r.textContent))`, 30000);
 
 const openLfs = async (name) => {
-  await t.until(`[...document.querySelectorAll('li.repo')].some((x) => x.querySelector('strong')?.textContent.trim() === ${JSON.stringify(name)})`, 20000);
-  await t.ev(`[...document.querySelectorAll('li.repo')].find((x) => x.querySelector('strong')?.textContent.trim() === ${JSON.stringify(name)}).querySelector('.repo__btns button').click()`);
+  await t.until(`[...document.querySelectorAll('li.repo')].some((x) => x.querySelector('strong')?.textContent.trim() === ${lit(name)})`, 20000);
+  await t.ev(`[...document.querySelectorAll('li.repo')].find((x) => x.querySelector('strong')?.textContent.trim() === ${lit(name)}).querySelector('.repo__btns button').click()`);
   await t.until(`document.querySelector('.rv__btns')`, 20000);
   await sleep(500);
   await t.key('k', 2);
@@ -77,7 +77,7 @@ const openLfs = async (name) => {
   await sleep(300);
 };
 const rows = () => t.ev(`[...document.querySelectorAll('[data-testid="lfs-row"]')].map((r) => ({ path: r.querySelector('.lf__path').textContent.trim(), state: r.querySelector('[data-testid^="lfs-state-"]').getAttribute('data-testid').replace('lfs-state-', '') }))`);
-const rowBtn = (path, label) => t.ev(`[...document.querySelectorAll('[data-testid="lfs-row"]')].filter((r) => r.querySelector('.lf__path').textContent.trim() === ${JSON.stringify(path)}).forEach((r) => [...r.querySelectorAll('button')].filter((b) => b.textContent.trim() === ${JSON.stringify(label)} && !b.disabled).forEach((b) => b.click()))`);
+const rowBtn = (path, label) => t.ev(`[...document.querySelectorAll('[data-testid="lfs-row"]')].filter((r) => r.querySelector('.lf__path').textContent.trim() === ${lit(path)}).forEach((r) => [...r.querySelectorAll('button')].filter((b) => b.textContent.trim() === ${lit(label)} && !b.disabled).forEach((b) => b.click()))`);
 
 // 1. sem LFS
 await openLfs('semlfs');

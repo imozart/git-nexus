@@ -2,7 +2,7 @@
 // recusa branch/nome inválidos, mostra o erro do git sem fechar, cria um repositório novo com branch e .gitignore e abre o diálogo pela paleta.
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { connect, git, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, git, lit, mkRepo, sleep, tmpRoot } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -22,7 +22,7 @@ await t.ev('location.reload()');
 await t.until(`document.querySelector('[data-testid="home-clone"]')`, 20000);
 await sleep(500);
 
-const fill = (testid, v) => t.ev(`(() => { const i = document.querySelector('[data-testid="${testid}"]'); i.value = ${JSON.stringify(v)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+const fill = (testid, v) => t.ev(`(() => { const i = document.querySelector('[data-testid="${testid}"]'); i.value = ${lit(v)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
 const submitState = () => t.ev(`(() => { const b = document.querySelector('[data-testid="create-submit"]'); return { text: b.textContent.trim(), disabled: b.disabled }; })()`);
 const target = () => t.text('[data-testid="create-target"]');
 const dialogOpen = () => t.ev(`!!document.querySelector('[data-testid="create-clone"], [data-testid="create-init"]')`);
