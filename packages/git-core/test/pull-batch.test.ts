@@ -44,7 +44,8 @@ async function scenario(remoteFile: string): Promise<{ a: string; other: string 
   return { a, other };
 }
 
-describe('pullRepo (lote) = updateRepo (painel)', () => {
+// cada cenário monta remoto + 3 clones: com a suíte inteira rodando em paralelo passa de 30 s, então o teto aqui é maior
+describe('pullRepo (lote) = updateRepo (painel)', { timeout: 120_000 }, () => {
   it('com alterações locais em OUTRO arquivo: atualiza e devolve as alterações', async () => {
     const { a } = await scenario('g.txt');
     writeFileSync(join(a, 'f.txt'), 'minha edição\n');
