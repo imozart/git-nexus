@@ -14,6 +14,7 @@ import SyncButton from '../components/SyncButton.vue';
 import ChangesTree from '../components/ChangesTree.vue';
 import CommitForm from '../components/CommitForm.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
+import OperationBanner from '../components/OperationBanner.vue';
 import ContextMenu, { type MenuItem } from '../components/ContextMenu.vue';
 import DiffView from '../components/DiffView.vue';
 import GitLogPanel from '../components/GitLogPanel.vue';
@@ -32,10 +33,8 @@ const sync = ref<RepoSummary | null>(null);
 const base = ref<BaseComparison | null>(null);
 const syncBtn = ref<InstanceType<typeof SyncButton> | null>(null);
 const rebase = ref<RebaseState | null>(null);
-/** Cherry-pick ou revert parado no meio (o rebase tem a faixa própria). */
+/** Merge, cherry-pick ou revert parado no meio (o rebase tem a faixa própria): a faixa compartilhada `OperationBanner` cuida de continuar e abortar. */
 const inProgress = ref<InProgressKind | null>(null);
-const seqOp = computed(() => (inProgress.value === 'cherry-pick' || inProgress.value === 'revert' ? inProgress.value : null));
-const opBusy = ref(false);
 const entries = ref<FileEntry[]>([]);
 const conflicted = ref<string[]>([]);
 const error = ref('');
@@ -445,36 +444,11 @@ async function onStageLines(p: { content: string; what: 'linha' | 'bloco'; direc
 // --- descarte de arquivos inteiros -----------------------------------------------------------
 const confirm = ref<{ title: string; lines: string[]; label: string; run: () => Promise<void> } | null>(null);
 
-// --- cherry-pick / revert parado: continuar (depois de resolver os conflitos) ou abortar -----------------
-async function continueOp(): Promise<void> {
-  opBusy.value = true;
-  try {
-    const r = await api.continueOperation(props.repo.path);
-    if (!r.ok) error.value = r.message;
-    else showNotice(r.message);
-    ws.bump(props.repo.id);
-    await refresh(!r.ok);
-  } catch (e) {
-    error.value = errMsg(e);
-  } finally {
-    opBusy.value = false;
-  }
-}
-function askAbortOp(): void {
-  const kind = seqOp.value;
-  if (!kind) return;
-  confirm.value = {
-    title: t(kind === 'cherry-pick' ? 'rv.opAbortTitleCherry' : 'rv.opAbortTitleRevert'),
-    lines: [t('rv.opAbortBody')],
-    label: t('rv.opAbort'),
-    run: async () => {
-      const r = await api.abortOperation(props.repo.path);
-      if (!r.ok) error.value = r.message;
-      else showNotice(r.message);
-      ws.bump(props.repo.id);
-      await refresh(!r.ok);
-    },
-  };
+// --- merge / cherry-pick / revert parado: a faixa avisa o desfecho; aqui só se recarrega a tela ---------------
+async function onOpDone(message: string): Promise<void> {
+  showNotice(message);
+  ws.bump(props.repo.id);
+  await refresh();
 }
 
 function askDiscard(paths: string[]): void {
@@ -665,11 +639,7 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
       <span>⇅ {{ t('rv.rebaseRunning', { step: rebase.step, total: rebase.total }) }}{{ rebase.conflicted.length ? t('rv.rebaseConflicts', { n: rebase.conflicted.length }) : '' }}.</span>
       <GnButton size="sm" variant="primary" tone="warn" @click="ws.openTools(repo, 'rebase')">{{ t('rv.openRebase') }}</GnButton>
     </div>
-    <div v-if="seqOp" class="rv__rebase" role="status" data-testid="op-banner">
-      <span>⇅ {{ t(seqOp === 'cherry-pick' ? 'rv.opCherryPick' : 'rv.opRevert') }}{{ conflicted.length ? t('rv.opConflicts', { n: conflicted.length }) : '' }}</span>
-      <GnButton size="sm" variant="primary" tone="success" :disabled="conflicted.length > 0 || opBusy" :title="conflicted.length ? t('rv.opContinueNeedsResolve') : ''" data-testid="op-continue" @click="continueOp">{{ t('rv.opContinue') }}</GnButton>
-      <GnButton size="sm" tone="danger" :disabled="opBusy" data-testid="op-abort" @click="askAbortOp">{{ t('rv.opAbort') }}</GnButton>
-    </div>
+    <OperationBanner v-if="inProgress" :repo-path="repo.path" :kind="inProgress" :conflicts="conflicted.length" @done="onOpDone" @failed="error = $event" />
     <p v-if="error" class="rv__error">{{ error }}</p>
     <div v-if="notice" class="rv__notice">
       <span>{{ notice.text }}</span>

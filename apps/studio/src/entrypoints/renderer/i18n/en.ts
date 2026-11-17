@@ -566,6 +566,8 @@ const en: Partial<Record<MessageKey, string>> = {
   'rv.opContinue': 'Continue',
   'rv.opContinueNeedsResolve': 'Resolve the conflicts first',
   'rv.opAbort': 'Abort',
+  'rv.opMerge': 'Merge in progress.',
+  'rv.opAbortTitleMerge': 'Abort the merge?',
   'rv.opAbortTitleCherry': 'Abort the cherry-pick?',
   'rv.opAbortTitleRevert': 'Abort the revert?',
   'rv.opAbortBody': 'The repository goes back to how it was before the operation. Changes made to resolve the conflicts will be discarded.',
