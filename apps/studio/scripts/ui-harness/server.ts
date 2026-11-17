@@ -146,9 +146,13 @@ api.onGitProgress = (cb) => {
 let askSeen = -1;
 api.onAskpassRequest = (cb) => {
   const iv = setInterval(async () => {
-    const r = await (await fetch('/askpass?since=' + askSeen)).json();
-    askSeen = r.next;
-    for (const e of r.events) cb(e);
+    try {
+      const r = await (await fetch('/askpass?since=' + askSeen)).json();
+      askSeen = r.next;
+      for (const e of r.events) cb(e);
+    } catch {
+      /* a página está recarregando: a sondagem falha e recomeça na próxima */
+    }
   }, 100);
   return () => clearInterval(iv);
 };

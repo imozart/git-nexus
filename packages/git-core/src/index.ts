@@ -21,4 +21,5 @@ export * from './tags.js';
 export * from './clone.js';
 export * from './content-search.js';
 export * from './askpass.js';
+export * from './submodules.js';
 export * from './no-prompt.js';

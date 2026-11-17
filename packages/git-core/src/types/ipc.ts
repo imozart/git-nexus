@@ -85,6 +85,12 @@ export interface GitNexusIPC {
   scanDirectories(rootPaths: string[]): Promise<RepositoryMeta[]>;
   getKnownRepositories(): Promise<RepositoryMeta[]>;
   addRepositoryPath(path: string): Promise<RepositoryMeta>;
+  /** Submódulos do repositório com o estado de cada um (vazio se não há). */
+  getSubmodules(repoPath: string): Promise<SubmoduleInfo[]>;
+  /** Inicializa (baixa) submódulos ainda não inicializados; sem `paths`, todos. */
+  initSubmodules(repoPath: string, paths?: string[]): Promise<BranchActionResult>;
+  /** Leva submódulos ao commit que o repositório registra; pula, explicando, os com alterações locais ou commits próprios. */
+  updateSubmodules(repoPath: string, paths?: string[]): Promise<BranchActionResult>;
   /** Responde a um pedido de credencial do git/ssh (`null` = cancelou). A resposta nunca é registrada em log. */
   askpassAnswer(id: string, answer: string | null): Promise<void>;
   /** Procura um texto (ou expressão regular) no conteúdo dos arquivos do repositório (`git grep`), inclusive os novos não ignorados. */
@@ -497,6 +503,24 @@ export interface InitResult {
   path: string;
   /** `written` = criou o .gitignore; `exists` = a pasta já tinha um e ele foi mantido; `none` = não pedido. */
   gitignore: 'written' | 'exists' | 'none';
+}
+
+/** Situação de um submódulo: `outdated` = o commit em que ele está difere do que o repositório registra (típico depois de um pull). */
+export type SubmoduleState = 'ok' | 'uninitialized' | 'outdated' | 'conflict';
+
+export interface SubmoduleInfo {
+  /** Nome no `.gitmodules`. */
+  name: string;
+  path: string;
+  url: string;
+  branch?: string;
+  state: SubmoduleState;
+  /** Commit em que o submódulo está agora. */
+  sha: string;
+  /** Saída do `git describe` (ex.: `v1.2-3-gabc123`), quando existe. */
+  describe?: string;
+  /** Tem alterações locais não commitadas. */
+  dirty: boolean;
 }
 
 /** Busca no conteúdo dos arquivos (`git grep`). */

@@ -65,6 +65,8 @@ export function isReadOnlyGit(args: readonly string[]): boolean {
       return rest.some((a) => ['--get', '--get-all', '--get-regexp', '--list', '-l', '--get-urlmatch'].includes(a));
     case 'worktree':
       return positional(rest)[0] === 'list';
+    case 'submodule':
+      return positional(rest).length === 0 || positional(rest)[0] === 'status';
     case 'symbolic-ref':
       return positional(rest).length <= 1 && !rest.includes('-d');
     default:
