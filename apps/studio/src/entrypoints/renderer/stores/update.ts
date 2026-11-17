@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import type { UpdateInfo, UpdateProgress } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
+import { shouldCelebrate } from '../confetti-core';
 import { t } from '../i18n';
 
 const ENABLED_KEY = 'gitnexus.updateCheck';
@@ -15,6 +16,8 @@ export const useUpdateStore = defineStore('update', () => {
   const dismissed = ref(false);
   /** Mensagem passageira (resultado de uma verificação manual). */
   const flash = ref('');
+  /** Chuva de confete em andamento: liga na primeira abertura depois de uma atualização; o componente desliga ao terminar. */
+  const celebrating = ref(false);
   const enabled = ref(localStorage.getItem(ENABLED_KEY) !== '0');
   const skipped = ref(localStorage.getItem(SKIP_KEY) ?? '');
   /** Instalação dentro do app: baixando → pronto (conferido pelo SHA-256) → instalando (o app vai reiniciar). */
@@ -44,7 +47,10 @@ export const useUpdateStore = defineStore('update', () => {
   function announceUpdated(current: string): void {
     const prev = localStorage.getItem(LAST_KEY);
     localStorage.setItem(LAST_KEY, current);
-    if (prev && prev !== current) say(t('update.updated', { version: current }));
+    if (shouldCelebrate(prev, current)) {
+      say(t('update.updated', { version: current }));
+      celebrating.value = true;
+    }
   }
 
   /** `manual`: mostra o resultado mesmo quando não há novidade e ignora a opção "ignorar esta versão". */
@@ -122,5 +128,5 @@ export const useUpdateStore = defineStore('update', () => {
     if (info.value?.url) await api.openExternal(info.value.url).catch((e) => say(errMsg(e)));
   }
 
-  return { info, checking, flash, enabled, visible, phase, progress, percent, failed, preparing, canInstall, check, later, skip, setEnabled, download, downloadAndVerify, installAndRestart, openNotes };
+  return { info, checking, flash, celebrating, enabled, visible, phase, progress, percent, failed, preparing, canInstall, check, later, skip, setEnabled, download, downloadAndVerify, installAndRestart, openNotes };
 });
