@@ -6,6 +6,7 @@ import OperationsPanel from '../components/tools/OperationsPanel.vue';
 import StashPanel from '../components/tools/StashPanel.vue';
 import FilePanel from '../components/tools/FilePanel.vue';
 import RebasePanel from '../components/tools/RebasePanel.vue';
+import TagsPanel from '../components/tools/TagsPanel.vue';
 import VersionPanel from '../components/tools/VersionPanel.vue';
 import HostingPanel from '../components/tools/HostingPanel.vue';
 import { t, type MessageKey } from '../i18n';
@@ -20,6 +21,7 @@ const SECTIONS: Array<{ id: string; title: MessageKey; component: Component }> =
   { id: 'stash', title: 'tools.stash', component: StashPanel },
   { id: 'file', title: 'tools.file', component: FilePanel },
   { id: 'rebase', title: 'tools.rebase', component: RebasePanel },
+  { id: 'tags', title: 'tools.tags', component: TagsPanel },
   { id: 'hosting', title: 'tools.hosting', component: HostingPanel },
   { id: 'version', title: 'tools.version', component: VersionPanel },
 ];

@@ -17,3 +17,4 @@ export * from './repo-status.js';
 export * from './rebase.js';
 export * from './branches.js';
 export * from './commit-ops.js';
+export * from './tags.js';
