@@ -142,6 +142,7 @@ O que isso mudou no app:
 
 - **A janela lembra onde estava:** tamanho, posição e se estava maximizada voltam como você deixou (arquivo `window-state.json` nos dados do app: no portátil, `GitNexusData/`). Se o monitor onde ela estava não existe mais (notebook sem o monitor externo, resolução trocada), a posição é descartada e a janela abre centralizada, com o tamanho limitado à tela e ao mínimo do app. Apague o arquivo para voltar ao tamanho padrão (1360×860).
 - **Zoom da interface:** **Ctrl+=** (ou **Ctrl++**) aumenta, **Ctrl+-** diminui e **Ctrl+0** volta a 100 % (⌘ no macOS; o teclado numérico também vale). Os mesmos comandos estão na paleta (Ctrl+K, "zoom"). O zoom anda pelos degraus do navegador (50 %, 67 %, 75 %, 80 %, 90 %, 100 %, 110 %, 125 %, 150 %, 175 %, 200 %, 250 %, 300 %) e fica lembrado junto com a janela (`window-state.json`).
+- **Tema escuro, claro ou do sistema:** o seletor **Tema da interface**, ao lado do de idioma, escolhe **Sistema**, **Escuro** ou **Claro**; os mesmos comandos estão na paleta (Ctrl+K, "tema"). A troca vale na hora, sem reiniciar, e a escolha fica guardada. **Sistema** acompanha o tema do Windows, do macOS ou do Linux e muda sozinho quando ele muda. Sem escolha guardada, o app abre no escuro, como sempre foi. As cores do tema claro foram conferidas para o contraste mínimo de 4,5:1 (padrão WCAG AA) em botões, textos, links e linhas do diff; o editor de código também troca de tema.
 
 ## Idiomas
 

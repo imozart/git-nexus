@@ -5,6 +5,7 @@ import CoreInterface from './CoreInterface.vue';
 import CommandPalette from './components/CommandPalette.vue';
 import { api } from './api';
 import { LOCALES, locale, setLocale, t } from './i18n';
+import { THEME_PREFS, setThemePref, themePref } from './theme';
 import { useCommandsStore, type Command } from './stores/commands';
 import { useRepositoriesStore } from './stores/repositories';
 import { useGitLogStore } from './stores/gitlog';
@@ -34,6 +35,13 @@ function globalCommands(): Command[] {
     { id: 'app.zoomIn', title: t('cmd.zoomIn'), group: app, keywords: 'zoom aumentar ampliar maior lupa zoom in bigger', run: () => void api.setZoom('in') },
     { id: 'app.zoomOut', title: t('cmd.zoomOut'), group: app, keywords: 'zoom diminuir reduzir menor zoom out smaller', run: () => void api.setZoom('out') },
     { id: 'app.zoomReset', title: t('cmd.zoomReset'), group: app, keywords: 'zoom restaurar padrão 100 reset normal', run: () => void api.setZoom('reset') },
+    ...THEME_PREFS.filter((p) => p !== themePref.value).map((p) => ({
+      id: `app.theme.${p}`,
+      title: t('cmd.theme', { name: t(`theme.${p}`) }),
+      group: app,
+      keywords: 'tema claro escuro sistema theme light dark system aparência cores',
+      run: () => setThemePref(p),
+    })),
     { id: 'app.update', title: t('cmd.update'), group: app, keywords: 'nova versão upgrade atualizar update', run: () => upd.check(true) },
     {
       id: 'app.updateToggle',
