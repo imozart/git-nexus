@@ -205,6 +205,8 @@ export interface RepoSummary {
   branch: string;
   detached: boolean;
   upstream: string | null;
+  /** O upstream está configurado, mas a branch remota foi apagada. */
+  gone: boolean;
   /** Commits locais ainda não enviados / commits do remoto ainda não trazidos. */
   ahead: number;
   behind: number;

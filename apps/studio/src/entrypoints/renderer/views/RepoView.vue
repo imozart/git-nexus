@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { GnBadge, GnButton, GnButtonGroup, GnIconButton, GnSegmented } from '@git-nexus/ui-kit';
-import type { FileEntry, FileSides, RebaseState, RepositoryMeta } from '@git-nexus/git-core/pure';
+import type { FileEntry, FileSides, RebaseState, RepoSummary, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { checkState, groupEntries, hasStaged, isUntracked, statusLabel, statusLetter } from '../changes';
 import { t, type MessageKey } from '../i18n';
@@ -22,6 +22,8 @@ const ws = useWorkspaceStore();
 const cmds = useCommandsStore();
 
 const branch = ref('');
+/** Adiante/atrás da branch atual em relação ao remoto (indicador do cabeçalho). Fica null até o primeiro resumo chegar. */
+const sync = ref<RepoSummary | null>(null);
 const rebase = ref<RebaseState | null>(null);
 const entries = ref<FileEntry[]>([]);
 const conflicted = ref<string[]>([]);
@@ -132,12 +134,14 @@ async function refresh(keepError = false): Promise<void> {
   loading.value = true;
   if (!keepError) error.value = '';
   try {
-    const [st, conflicts, rb] = await Promise.all([
+    const [st, conflicts, rb, summary] = await Promise.all([
       api.getGitStatus(props.repo.path),
       api.getMergeConflicts(props.repo.path),
       api.getRebaseState(props.repo.path).catch(() => null),
+      api.getRepoSummary(props.repo.path).catch(() => null), // o indicador é um extra: se falhar, a tela segue sem ele
     ]);
     rebase.value = rb;
+    sync.value = summary;
     const bad = new Set(conflicts.map((c) => c.filePath));
     conflicted.value = [...bad];
     branch.value = st.branch;
@@ -568,7 +572,7 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
     <header class="rv__head">
       <div class="rv__id">
         <strong>{{ repo.name }}</strong>
-        <BranchPicker :repo="repo" :branch="branch" @changed="onBranchChanged" @notice="showNotice($event)" @conflict="onBranchConflict" />
+        <BranchPicker :repo="repo" :branch="branch" :sync="sync" @changed="onBranchChanged" @notice="showNotice($event)" @conflict="onBranchConflict" />
         <GnBadge v-if="repo.isWsl">WSL2</GnBadge>
         <span class="muted rv__path">{{ repo.path }}</span>
       </div>

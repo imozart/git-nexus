@@ -57,6 +57,7 @@ describe('parseSummary', () => {
       branch: 'feature/x',
       detached: false,
       upstream: 'origin/feature/x',
+      gone: false,
       ahead: 2,
       behind: 3,
       staged: 3,
@@ -68,7 +69,16 @@ describe('parseSummary', () => {
 
   it('HEAD desanexado e sem upstream', () => {
     const s = parseSummary(['# branch.oid abc', '# branch.head (detached)', ''].join('\0'));
-    expect(s).toMatchObject({ detached: true, upstream: null, ahead: 0, behind: 0 });
+    expect(s).toMatchObject({ detached: true, upstream: null, gone: false, ahead: 0, behind: 0 });
+  });
+
+  it('upstream configurado sem "branch.ab": a branch remota foi apagada', () => {
+    const s = parseSummary(['# branch.oid abc', '# branch.head velha', '# branch.upstream origin/velha', ''].join('\0'));
+    expect(s).toMatchObject({ upstream: 'origin/velha', gone: true, ahead: 0, behind: 0 });
+  });
+
+  it('sem upstream não é "apagada"', () => {
+    expect(parseSummary(['# branch.oid abc', '# branch.head nova', ''].join('\0'))).toMatchObject({ upstream: null, gone: false });
   });
 });
 
@@ -112,6 +122,16 @@ describe('painel (repositórios reais com remoto)', () => {
     expect(r.message).toContain('divergiu');
     expect((await g(a, 'rev-parse', 'HEAD')).stdout).toBe(before);
     expect(await getRepoSummary(a)).toMatchObject({ ahead: 1, behind: 1 });
+  });
+
+  it('remota apagada: o git diz "gone" depois do fetch --prune', async () => {
+    await g(a, 'checkout', '-b', 'temporaria');
+    await g(a, 'push', '-u', 'origin', 'temporaria');
+    expect(await getRepoSummary(a)).toMatchObject({ upstream: 'origin/temporaria', gone: false });
+    await g(b, 'push', 'origin', '--delete', 'temporaria');
+    expect(await fetchRepo(a)).toMatchObject({ ok: true });
+    expect(await getRepoSummary(a)).toMatchObject({ branch: 'temporaria', upstream: 'origin/temporaria', gone: true });
+    await g(a, 'checkout', 'main');
   });
 
   it('sem upstream e com remoto inacessível', async () => {

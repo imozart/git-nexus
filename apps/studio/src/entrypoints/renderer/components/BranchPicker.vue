@@ -4,13 +4,16 @@
 // nova branch a partir dela, merge, rebase, pull, excluir). Todas as operações passam por git-core/branches.ts; aqui só há interface.
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { GnBadge, GnButton, GnIcon, GnIconButton } from '@git-nexus/ui-kit';
-import type { BranchActionResult, BranchInfo, BranchList, PullMode, RepositoryMeta } from '@git-nexus/git-core/pure';
+import type { BranchActionResult, BranchInfo, BranchList, PullMode, RepositoryMeta, SyncInfo } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { t } from '../i18n';
+import { syncText } from '../sync';
 import BranchDialog, { type NewBranchSubmit } from './BranchDialog.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
+import SyncIndicator from './SyncIndicator.vue';
 
-const props = defineProps<{ repo: RepositoryMeta; branch: string }>();
+/** `sync`: estado da branch atual com o remoto (adiante/atrás); sem ele o botão mostra só o nome. */
+const props = defineProps<{ repo: RepositoryMeta; branch: string; sync?: SyncInfo | null }>();
 const emit = defineEmits<{
   (e: 'changed'): void;
   (e: 'notice', text: string): void;
@@ -42,6 +45,11 @@ try {
 
 /** Antes de o status chegar a branch vem vazia: mostra reticências (como o cabeçalho sempre fez), não "desanexado". */
 const label = computed(() => props.branch || '…');
+const syncLine = computed(() => syncText(props.sync));
+/** Tooltip: o que o botão faz e, em seguida, em que pé a branch está com o remoto. */
+const triggerTitle = computed(() => (syncLine.value ? `${t('bp.triggerTip')}\n${syncLine.value}` : t('bp.triggerTip')));
+/** O nome acessível do botão leva o estado por extenso (as setas ficam escondidas dos leitores de tela). */
+const triggerLabel = computed(() => (syncLine.value ? `${label.value}. ${syncLine.value}` : label.value));
 const cur = computed(() => data.value?.current ?? props.branch);
 const curLabel = computed(() => cur.value || data.value?.head || t('bp.detached'));
 const needle = computed(() => q.value.trim().toLowerCase());
@@ -351,9 +359,10 @@ onBeforeUnmount(() => {
 
 <template>
   <span ref="trigger" class="bp">
-    <GnButton size="sm" tone="accent" class="bp__btn" aria-haspopup="dialog" :aria-expanded="open" :title="t('bp.triggerTip')" @click="toggle">
+    <GnButton size="sm" tone="accent" class="bp__btn" aria-haspopup="dialog" :aria-expanded="open" :aria-label="triggerLabel" :title="triggerTitle" @click="toggle">
       <GnIcon name="git-branch" />
       <span class="bp__name">{{ label }}</span>
+      <SyncIndicator :sync="sync ?? null" />
       <GnIcon name="chevron-down" />
     </GnButton>
   </span>

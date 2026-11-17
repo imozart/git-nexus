@@ -8,6 +8,7 @@ export function parseSummary(raw: string): RepoSummary {
     branch: '',
     detached: false,
     upstream: null,
+    gone: false,
     ahead: 0,
     behind: 0,
     staged: 0,
@@ -16,6 +17,7 @@ export function parseSummary(raw: string): RepoSummary {
     conflicted: 0,
   };
   const parts = raw.split('\0').filter(Boolean);
+  let sawAb = false;
   for (let i = 0; i < parts.length; i++) {
     const p = parts[i]!;
     if (p.startsWith('# branch.head ')) {
@@ -26,6 +28,7 @@ export function parseSummary(raw: string): RepoSummary {
     else if (p.startsWith('# branch.ab ')) {
       const m = /\+(\d+) -(\d+)/.exec(p);
       if (m) {
+        sawAb = true;
         s.ahead = Number(m[1]);
         s.behind = Number(m[2]);
       }
@@ -37,6 +40,8 @@ export function parseSummary(raw: string): RepoSummary {
     } else if (p.startsWith('u ')) s.conflicted++;
     else if (p.startsWith('? ')) s.untracked++;
   }
+  // Com upstream configurado, o git omite "branch.ab" quando a branch remota não existe mais (foi apagada).
+  s.gone = s.upstream !== null && !sawAb;
   return s;
 }
 
