@@ -4,6 +4,16 @@ Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https:/
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.11.0] - 2026-11-16
+
+### ✨ Novidades
+
+- **branches:** indicador de sincronização único em todas as telas e filtro de branches desatualizadas ([`f7da463`](https://github.com/imozart/git-nexus/commit/f7da463babbf780bf11958de14e2abd3f3a3309c))
+- **branches:** botão de sincronização com progresso, painel de commits, push e atualizar com alterações locais ([`f56f3ac`](https://github.com/imozart/git-nexus/commit/f56f3ac8a025261885681302bc7f8e12b34f889a))
+- **branches:** comparar a branch atual com a branch base (origin/main) ([`5d88bd5`](https://github.com/imozart/git-nexus/commit/5d88bd50a6861bfa3ff43af8b34702e0c43f3028))
+- **branches:** busca automática em segundo plano para manter o adiante/atrás fiel ao remoto ([`b8ffa60`](https://github.com/imozart/git-nexus/commit/b8ffa6010c2aaefd8762e4702bba6ff4faa8d3b4))
+- **branches:** indicador de sincronização (adiante/atrás) no botão do seletor de branch ([`2ad95e6`](https://github.com/imozart/git-nexus/commit/2ad95e678bd4d35c72532f8f907510b97759c1e6))
+
 ## [1.10.0] - 2026-11-16
 
 ### ✨ Novidades
@@ -252,6 +262,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.11.0]: https://github.com/imozart/git-nexus/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/imozart/git-nexus/compare/v1.9.1...v1.10.0
 [1.9.1]: https://github.com/imozart/git-nexus/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/imozart/git-nexus/compare/v1.8.2...v1.9.0
