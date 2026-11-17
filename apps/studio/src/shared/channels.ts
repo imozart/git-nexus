@@ -21,6 +21,8 @@ export const WORKER_METHODS = [
   'addToGitignore',
   'setLocale',
   'executeCommit',
+  'getAmendInfo',
+  'executeAmend',
   'getReleaseInfo',
   'createReleaseTag',
   'writeChangelog',

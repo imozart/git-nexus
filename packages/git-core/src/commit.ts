@@ -1,5 +1,6 @@
 import { GitError, runGit } from './runner.js';
 import { tm } from './messages.js';
+import type { AmendInfo } from './types/ipc.js';
 
 export interface CommitOutput {
   commitHash: string;
@@ -73,8 +74,29 @@ function friendly(kind: Exclude<CommitFailureKind, 'other'>): string {
  * (inclusive qualquer hook) vira `CommitRejectedError` com a saída completa.
  */
 export async function commit(repoPath: string, message: string): Promise<CommitOutput> {
+  return runCommit(repoPath, ['commit', '-F', '-'], message);
+}
+
+/**
+ * Emenda o último commit com o que está no stage e a mensagem dada (`git commit --amend`). Mesmos hooks, mesmas mensagens de erro.
+ * Sem nada no stage, só troca a mensagem.
+ */
+export async function amendCommit(repoPath: string, message: string): Promise<CommitOutput> {
+  return runCommit(repoPath, ['commit', '--amend', '-F', '-'], message);
+}
+
+export async function getAmendInfo(repoPath: string): Promise<AmendInfo> {
+  const log = await runGit(repoPath, ['log', '-1', '--format=%B%x00%P'], { check: false });
+  if (log.code !== 0 || !log.stdout.trim()) return { hasHead: false, message: '', pushed: false, isMerge: false };
+  const [message = '', parents = ''] = log.stdout.split('\0');
+  const upstream = await runGit(repoPath, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], { check: false });
+  const pushed = upstream.code === 0 && (await runGit(repoPath, ['merge-base', '--is-ancestor', 'HEAD', '@{u}'], { check: false })).code === 0;
+  return { hasHead: true, message: message.trim(), pushed, isMerge: parents.trim().split(/\s+/).filter(Boolean).length > 1 };
+}
+
+async function runCommit(repoPath: string, args: string[], message: string): Promise<CommitOutput> {
   try {
-    const r = await runGit(repoPath, ['commit', '-F', '-'], { stdin: message });
+    const r = await runGit(repoPath, args, { stdin: message });
     const { stdout: hash } = await runGit(repoPath, ['rev-parse', 'HEAD']);
     return { commitHash: hash.trim(), output: r.stdout + r.stderr };
   } catch (e) {
