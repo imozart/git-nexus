@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { encodingLabel, type EncodingChoice } from '@git-nexus/git-core/pure';
 import { GnButton, GnTabs, type GnTab } from '@git-nexus/ui-kit';
 import { t } from './i18n';
+import EncodingMenu from './components/EncodingMenu.vue';
 import LanguagePicker from './components/LanguagePicker.vue';
+import { useFileEncodingStore } from './stores/file-encoding';
 import { useCommandsStore, shortcutLabel } from './stores/commands';
 import { useUpdateStore } from './stores/update';
 import { HOME_TAB, useWorkspaceStore } from './stores/workspace';
@@ -15,10 +18,35 @@ import ToolsView from './views/ToolsView.vue';
 const ws = useWorkspaceStore();
 const cmds = useCommandsStore();
 const upd = useUpdateStore();
+const fileEnc = useFileEncodingStore();
 
 const mb = (bytes: number) => (bytes / 1048576).toFixed(1);
 
 const LABEL = computed(() => ({ repo: t('tab.staging'), graph: t('tab.graph'), merge: t('tab.merge'), tools: t('tab.tools') }));
+
+// --- rodapé: codificação do arquivo aberto no diff da aba ativa (clicar abre a lista para escolher outra) ---
+const openFile = computed(() => (ws.active?.kind === 'repo' && ws.active.repo ? fileEnc.open[ws.active.repo.id] ?? null : null));
+const isAuto = computed(() => !openFile.value || fileEnc.choiceFor(openFile.value.repoPath, openFile.value.path) === 'auto');
+const encTip = computed(() => {
+  const f = openFile.value;
+  if (!f) return '';
+  if (f.invalid) return t('enc.invalid', { name: encodingLabel(f.encoding) });
+  return isAuto.value
+    ? t('enc.tipAuto', { name: encodingLabel(f.encoding) })
+    : t('enc.tipChosen', { name: encodingLabel(f.encoding), detected: encodingLabel(f.detected) });
+});
+const encOpen = ref<{ left: number; top: number } | null>(null);
+function toggleEnc(ev: MouseEvent): void {
+  if (encOpen.value) return void (encOpen.value = null);
+  const r = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+  encOpen.value = { left: r.left, top: r.top };
+}
+function pickEnc(choice: EncodingChoice): void {
+  const f = openFile.value;
+  encOpen.value = null;
+  if (f) fileEnc.choose(f.repoPath, f.path, choice); // a tela do repositório relê o arquivo sozinha
+}
+watch(openFile, (f) => f || (encOpen.value = null)); // trocou de aba ou fechou o arquivo: a lista fecha
 
 const tabs = computed<GnTab[]>(() =>
   ws.tabs.map((tab) =>
@@ -87,6 +115,12 @@ const tabs = computed<GnTab[]>(() =>
         <ToolsView v-else-if="t.kind === 'tools' && t.repo" :repo="t.repo" />
       </section>
     </div>
+    <footer v-if="openFile" class="core__foot" data-testid="statusbar">
+      <span class="core__file" :title="openFile.path">{{ openFile.path }}</span>
+      <span v-if="openFile.invalid" class="core__encwarn" role="alert" data-testid="encoding-warning">{{ t('enc.invalidShort') }}</span>
+      <GnButton size="sm" :tone="openFile.invalid ? 'warn' : 'neutral'" :title="encTip" :aria-label="encTip" aria-haspopup="dialog" :aria-expanded="encOpen !== null" data-testid="encoding-btn" @click="toggleEnc">{{ encodingLabel(openFile.encoding) }}</GnButton>
+    </footer>
+    <EncodingMenu v-if="encOpen && openFile" :anchor="encOpen" :current="openFile.encoding" :detected="openFile.detected" :auto="isAuto" @select="pickEnc" @close="encOpen = null" />
   </div>
 </template>
 
@@ -100,6 +134,9 @@ const tabs = computed<GnTab[]>(() =>
   &__cmd { margin: 6px 10px; padding: 0 10px; display: inline-flex; align-items: center; gap: 8px; font: inherit; font-size: 12px; color: var(--gn-muted); background: var(--gn-surface); border: 1px solid var(--gn-border); border-radius: var(--gn-radius); cursor: pointer; &:hover { color: var(--gn-text); border-color: var(--gn-accent); } kbd { font-family: var(--gn-mono); font-size: 11px; } }
   &__panes { flex: 1; min-height: 0; background: var(--gn-surface); }
   &__pane { height: 100%; overflow: auto; }
+  &__foot { display: flex; align-items: center; gap: 10px; padding: 3px 10px; background: var(--gn-bg); border-top: 1px solid var(--gn-border); font-size: 12px; color: var(--gn-muted); }
+  &__file { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  &__encwarn { color: var(--gn-warn, #d6a23a); }
 }
 @keyframes upd-busy { from { margin-left: 0; } to { margin-left: 65%; } }
 .upd {

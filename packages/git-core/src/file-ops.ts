@@ -1,6 +1,8 @@
 import { cp, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { DiffMode, DiscardScope, FileSides } from './types/ipc.js';
+import type { EncodingChoice, FileEncoding, FileEncodingInfo } from './file-encoding.js';
+import { decodeText, detectEncodingOf, encodeText, resolveEncoding } from './encoding.js';
 import { resolveInsideRepo } from './conflicts.js';
 import { runGit } from './runner.js';
 
@@ -14,26 +16,48 @@ const empty = (over: Partial<FileSides> = {}): FileSides => ({
   isNew: false,
   isDeleted: false,
   isDirectory: false,
+  encoding: 'utf-8',
+  detectedEncoding: 'utf-8',
+  invalid: false,
   ...over,
 });
 
-async function gitShow(repoPath: string, spec: string): Promise<string | null> {
+/** Bytes de `git show <spec>` (sem decodificar); `null` se não existe. */
+async function gitShowBytes(repoPath: string, spec: string): Promise<Buffer | null> {
   const r = await runGit(repoPath, ['show', spec], { check: false });
-  return r.code === 0 ? r.stdout : null;
+  return r.code === 0 ? r.bytes : null;
 }
 
-const TOO_LARGE = '\u0000TOO_LARGE';
+const TOO_LARGE = 'too-large';
 
-/** Lê o arquivo do disco; `null` se não existe/não é arquivo; marcador especial se for grande demais. */
-async function readWorking(repoPath: string, file: string): Promise<string | null> {
+/** Bytes do arquivo no disco; `null` se não existe/não é arquivo; marcador especial se for grande demais. */
+async function readWorkingBytes(repoPath: string, file: string): Promise<Buffer | null | typeof TOO_LARGE> {
   const abs = resolveInsideRepo(repoPath, file);
   try {
     const s = await stat(abs);
     if (!s.isFile()) return null;
-    return s.size > MAX_TEXT_BYTES ? TOO_LARGE : await readFile(abs, 'utf8');
+    return s.size > MAX_TEXT_BYTES ? TOO_LARGE : await readFile(abs);
   } catch {
     return null;
   }
+}
+
+/** As duas versões (em bytes) que o modo compara: antiga (HEAD ou índice) e nova (índice ou disco). */
+async function loadSideBytes(repoPath: string, file: string, mode: DiffMode): Promise<[Buffer | null | typeof TOO_LARGE, Buffer | null | typeof TOO_LARGE]> {
+  if (mode === 'staged') return Promise.all([gitShowBytes(repoPath, `HEAD:${file}`), gitShowBytes(repoPath, `:${file}`)]);
+  return Promise.all([gitShowBytes(repoPath, mode === 'head' ? `HEAD:${file}` : `:${file}`), readWorkingBytes(repoPath, file)]);
+}
+
+const normalizeMode = (m: DiffMode | boolean): DiffMode => (m === true ? 'staged' : m === false ? 'index' : m);
+const isBuffer = (b: Buffer | null | typeof TOO_LARGE): b is Buffer => b !== null && b !== TOO_LARGE;
+
+/**
+ * Codificação do arquivo no disco (ou, se ele não existe, no índice/HEAD): é a que as gravações usam quando a interface não
+ * informa uma, para que regravar o arquivo nunca mude os bytes que não foram editados.
+ */
+async function detectForFile(repoPath: string, file: string): Promise<FileEncoding> {
+  const [working, index, head] = await Promise.all([readWorkingBytes(repoPath, file), gitShowBytes(repoPath, `:${file}`), gitShowBytes(repoPath, `HEAD:${file}`)]);
+  return detectEncodingOf(isBuffer(working) ? working : null, index, head);
 }
 
 /**
@@ -43,34 +67,49 @@ async function readWorking(repoPath: string, file: string): Promise<string | nul
  *  - staged: HEAD x índice
  * (`boolean` por compatibilidade: false = index, true = staged)
  */
-export async function getFileSides(repoPath: string, file: string, modeArg: DiffMode | boolean): Promise<FileSides> {
+export async function getFileSides(repoPath: string, file: string, modeArg: DiffMode | boolean, encoding?: EncodingChoice): Promise<FileSides> {
   if (file.endsWith('/')) return empty({ isDirectory: true });
-  const mode: DiffMode = modeArg === true ? 'staged' : modeArg === false ? 'index' : modeArg;
+  const [oldB, newB] = await loadSideBytes(repoPath, file, normalizeMode(modeArg));
 
-  let oldText: string | null;
-  let newText: string | null;
-  if (mode === 'staged') {
-    [oldText, newText] = await Promise.all([gitShow(repoPath, `HEAD:${file}`), gitShow(repoPath, `:${file}`)]);
-  } else {
-    [oldText, newText] = await Promise.all([
-      gitShow(repoPath, mode === 'head' ? `HEAD:${file}` : `:${file}`),
-      readWorking(repoPath, file),
-    ]);
-  }
+  if (oldB === TOO_LARGE || newB === TOO_LARGE) return empty({ tooLarge: true });
+  if ((oldB?.length ?? 0) > MAX_TEXT_BYTES || (newB?.length ?? 0) > MAX_TEXT_BYTES) return empty({ tooLarge: true });
 
-  if (oldText === TOO_LARGE || newText === TOO_LARGE) return empty({ tooLarge: true });
-  const o = oldText ?? '';
-  const n = newText ?? '';
-  if (o.length > MAX_TEXT_BYTES || n.length > MAX_TEXT_BYTES) return empty({ tooLarge: true });
-  if (o.includes('\u0000') || n.includes('\u0000')) return empty({ binary: true });
-  return empty({ oldText: o, newText: n, isNew: oldText === null, isDeleted: newText === null });
+  // a mais nova primeiro: é a que a pessoa está vendo
+  const detected = detectEncodingOf(newB, oldB);
+  const enc = resolveEncoding(encoding, detected);
+  const wide = enc === 'utf-16le' || enc === 'utf-16be'; // UTF-16 tem bytes 0 de verdade; nas outras, byte 0 = binário
+  if (!wide && (oldB?.includes(0) || newB?.includes(0))) return empty({ binary: true });
+
+  const o = oldB ? decodeText(oldB, enc) : { text: '', invalid: false };
+  const n = newB ? decodeText(newB, enc) : { text: '', invalid: false };
+  if (o.text.includes('\u0000') || n.text.includes('\u0000')) return empty({ binary: true });
+  return empty({
+    oldText: o.text,
+    newText: n.text,
+    isNew: oldB === null,
+    isDeleted: newB === null,
+    encoding: enc,
+    detectedEncoding: detected,
+    invalid: o.invalid || n.invalid,
+  });
+}
+
+/** Só a codificação do arquivo (para o rodapé quando o diff está no modo unificado, que não carrega as duas versões). */
+export async function getFileEncoding(repoPath: string, file: string, modeArg: DiffMode | boolean, encoding?: EncodingChoice): Promise<FileEncodingInfo> {
+  const none: FileEncodingInfo = { encoding: 'utf-8', detected: 'utf-8', invalid: false };
+  if (file.endsWith('/')) return none;
+  const [oldB, newB] = await loadSideBytes(repoPath, file, normalizeMode(modeArg));
+  const detected = detectEncodingOf(isBuffer(newB) ? newB : null, isBuffer(oldB) ? oldB : null);
+  const enc = resolveEncoding(encoding, detected);
+  const invalid = [oldB, newB].some((b) => isBuffer(b) && decodeText(b, enc).invalid);
+  return { encoding: enc, detected, invalid };
 }
 
 /**
  * Grava `content` como a versão do arquivo no ÍNDICE (stage), sem tocar no disco: base do stage por linha/trecho.
  * Preserva o modo do arquivo (executável etc.). Conteúdo vazio de um arquivo que não existe no HEAD remove a entrada.
  */
-export async function writeIndexContent(repoPath: string, file: string, content: string): Promise<void> {
+export async function writeIndexContent(repoPath: string, file: string, content: string, encoding?: EncodingChoice): Promise<void> {
   resolveInsideRepo(repoPath, file); // valida o caminho
   const inHead = await exists(repoPath, ['cat-file', '-e', `HEAD:${file}`]);
   const ls = await runGit(repoPath, ['ls-files', '-s', '--', file], { check: false });
@@ -79,14 +118,18 @@ export async function writeIndexContent(repoPath: string, file: string, content:
     if (ls.stdout.trim()) await runGit(repoPath, ['rm', '--cached', '-f', '-q', '--', file]);
     return;
   }
-  const h = await runGit(repoPath, ['hash-object', '-w', '--no-filters', '--stdin'], { stdin: content });
+  // na codificação do arquivo (a escolhida ou a detectada): nada de regravar tudo como UTF-8; se um caractere não existir nela, lança antes de gravar
+  const bytes = encodeText(content, resolveEncoding(encoding, await detectForFile(repoPath, file)));
+  const h = await runGit(repoPath, ['hash-object', '-w', '--no-filters', '--stdin'], { stdin: bytes });
   await runGit(repoPath, ['update-index', '--add', '--cacheinfo', `${mode},${h.stdout.trim()},${file}`]);
 }
 
-export async function writeWorkingFile(repoPath: string, file: string, content: string): Promise<void> {
+export async function writeWorkingFile(repoPath: string, file: string, content: string, encoding?: EncodingChoice): Promise<void> {
   const abs = resolveInsideRepo(repoPath, file);
+  // codifica ANTES de tocar no disco: se um caractere não existir na codificação do arquivo, o arquivo fica como estava
+  const bytes = encodeText(content, resolveEncoding(encoding, await detectForFile(repoPath, file)));
   await mkdir(dirname(abs), { recursive: true });
-  await writeFile(abs, content, 'utf8');
+  await writeFile(abs, bytes);
 }
 
 async function exists(repoPath: string, args: string[]): Promise<boolean> {

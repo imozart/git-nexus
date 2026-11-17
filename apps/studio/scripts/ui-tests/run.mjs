@@ -121,6 +121,8 @@ async function main() {
     format: 'esm',
     target: 'node24',
     outfile: harness,
+    // dependências CommonJS (iconv-lite) pedem módulos do Node com require(): num bundle ESM ele não existe sem isto
+    banner: { js: "import { createRequire as __gnRequire } from 'node:module'; const require = __gnRequire(import.meta.url);" },
     logLevel: 'warning',
   });
   const browser = findBrowser();

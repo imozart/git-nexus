@@ -4,11 +4,12 @@ import type { MergeConflictBlock } from './types/ipc.js';
 import { hasConflictMarkers } from './conflict-markers.js';
 import { runGit } from './runner.js';
 import { tm } from './messages.js';
+import { decodeText, detectEncodingOf, encodeText } from './encoding.js';
 
-async function stage(repoPath: string, n: 1 | 2 | 3, file: string): Promise<string> {
+async function stage(repoPath: string, n: 1 | 2 | 3, file: string): Promise<Buffer | null> {
   // Estágios do índice: 1 = base (ancestral), 2 = ours, 3 = theirs. Ausente => add/delete.
   const r = await runGit(repoPath, ['show', `:${n}:${file}`], { check: false });
-  return r.code === 0 ? r.stdout : '';
+  return r.code === 0 ? r.bytes : null;
 }
 
 /**
@@ -26,12 +27,17 @@ export async function getMergeConflicts(repoPath: string): Promise<MergeConflict
   const files = await unmergedFiles(repoPath);
   return Promise.all(
     files.map(async (filePath) => {
-      const [base, ours, theirs, working] = await Promise.all([
+      const [baseB, oursB, theirsB, workingB] = await Promise.all([
         stage(repoPath, 1, filePath),
         stage(repoPath, 2, filePath),
         stage(repoPath, 3, filePath),
-        readFile(join(repoPath, filePath), 'utf8').catch(() => undefined),
+        readFile(join(repoPath, filePath)).catch(() => undefined),
       ]);
+      // uma codificação para as quatro versões (a do arquivo em conflito), para o merge não misturar UTF-8 com Windows-1252
+      const enc = detectEncodingOf(workingB, oursB, theirsB, baseB);
+      const text = (b: Buffer | null | undefined) => (b ? decodeText(b, enc).text : '');
+      const working = workingB ? decodeText(workingB, enc).text : undefined;
+      const [base, ours, theirs] = [text(baseB), text(oursB), text(theirsB)];
       return {
         filePath,
         ours,
@@ -59,7 +65,10 @@ export async function resolveConflictFile(
   mergedContent: string,
 ): Promise<boolean> {
   if (hasConflictMarkers(mergedContent)) return false;
-  await writeFile(resolveInsideRepo(repoPath, filePath), mergedContent, 'utf8');
+  const abs = resolveInsideRepo(repoPath, filePath);
+  // regrava na codificação do arquivo em conflito (e recusa, sem tocar nele, se um caractere não existir nela)
+  const [current, ours, theirs] = await Promise.all([readFile(abs).catch(() => null), stage(repoPath, 2, filePath), stage(repoPath, 3, filePath)]);
+  await writeFile(abs, encodeText(mergedContent, detectEncodingOf(current, ours, theirs)));
   await runGit(repoPath, ['add', '--', filePath]);
   return true;
 }
