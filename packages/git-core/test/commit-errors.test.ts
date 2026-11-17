@@ -108,3 +108,20 @@ describe('commit(): cada causa com a sua mensagem', () => {
     expect(r.commitHash).toMatch(/^[0-9a-f]{40}$/);
   });
 });
+
+describe('runGit com entrada que o git não lê', () => {
+  it('mandar uma entrada grande para um comando que termina sem lê-la não derruba o processo (EPIPE)', async () => {
+    const dir = await repo();
+    const grande = 'x'.repeat(8 * 1024 * 1024);
+    for (let i = 0; i < 5; i++) {
+      const r = await runGit(dir, ['--version'], { stdin: grande, check: false });
+      expect(r.code).toBe(0);
+    }
+  });
+
+  it('a saída longa e repetitiva do git é classificada em tempo curto (sem regex quadrática)', () => {
+    const t0 = Date.now();
+    expect(classifyCommitFailure('unable to create '.repeat(60_000))).toBe('other');
+    expect(Date.now() - t0).toBeLessThan(1000);
+  });
+});
