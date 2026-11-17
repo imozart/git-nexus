@@ -19,13 +19,55 @@ export interface SplitText {
   endsWithNewline: boolean;
 }
 
-/** Quebra em linhas ignorando a diferença CRLF/LF (guarda o EOL dominante para regravar). */
+/** Quebra em linhas ignorando a diferença CRLF/LF (guarda o EOL dominante, o que mais aparece, para linhas novas). */
 export function splitLines(text: string): SplitText {
-  const eol = text.includes('\r\n') ? '\r\n' : '\n';
+  const crlf = (text.match(/\r\n/g) ?? []).length;
+  const lf = (text.match(/\n/g) ?? []).length - crlf;
+  const eol = crlf > 0 && crlf >= lf ? '\r\n' : '\n';
   const endsWithNewline = text.endsWith('\n');
   const lines = text.split(/\r?\n/);
   if (endsWithNewline || text === '') lines.pop();
   return { lines, eol, endsWithNewline };
+}
+
+/**
+ * Terminador REAL de cada linha (`\r\n`, `\n` ou `''` para a última sem quebra). `splitLines` ignora a diferença para o diff não
+ * acusar linhas que só mudaram de fim de linha; este vetor é o que permite regravar cada linha exatamente como estava.
+ */
+export function lineEols(text: string): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(/\r?\n/g)) out.push(m[0]);
+  if (text !== '' && !text.endsWith('\n')) out.push('');
+  return out;
+}
+
+/** Fim de linha de cada versão (índice = linha, de 0 em diante): sem isto, tudo é regravado com `opts.eol`. */
+export interface LineEols {
+  old?: string[];
+  new?: string[];
+}
+
+interface OutLine {
+  text: string;
+  /** Terminador que a linha tinha onde nasceu (undefined = usa o dominante). */
+  eol?: string;
+}
+
+const srcLine = (text: string | undefined, eols: string[] | undefined, no: number | undefined): OutLine => ({
+  text: text!,
+  eol: eols && no !== undefined ? eols[no - 1] : undefined,
+});
+
+/** Junta as linhas: cada uma com o próprio terminador; o da última só existe se o arquivo termina em quebra. */
+function joinLines(out: OutLine[], opts: { eol: '\n' | '\r\n'; endsWithNewline: boolean }): string {
+  if (out.length === 0) return '';
+  let s = '';
+  out.forEach((l, i) => {
+    s += l.text;
+    if (i < out.length - 1) s += l.eol ? l.eol : opts.eol;
+    else if (opts.endsWithNewline) s += l.eol ? l.eol : opts.eol;
+  });
+  return s;
 }
 
 type Op = { t: 'eq' | 'del' | 'add'; a?: number; b?: number };
@@ -144,28 +186,29 @@ export function diffLines(oldLines: string[], newLines: string[]): DiffRow[] {
 export function applyDiscard(
   rows: DiffRow[],
   discard: ReadonlySet<number>,
-  opts: { eol: '\n' | '\r\n'; endsWithNewline: boolean },
+  opts: { eol: '\n' | '\r\n'; endsWithNewline: boolean; eols?: LineEols },
 ): string {
-  const out: string[] = [];
+  const out: OutLine[] = [];
+  const o = (r: DiffRow) => srcLine(r.oldText, opts.eols?.old, r.oldNo);
+  const n = (r: DiffRow) => srcLine(r.newText, opts.eols?.new, r.newNo);
   rows.forEach((r, idx) => {
     const revert = discard.has(idx);
     switch (r.kind) {
       case 'eq':
-        out.push(r.newText!);
+        out.push(n(r));
         break;
       case 'change':
-        out.push(revert ? r.oldText! : r.newText!);
+        out.push(revert ? o(r) : n(r));
         break;
       case 'del':
-        if (revert) out.push(r.oldText!);
+        if (revert) out.push(o(r));
         break;
       case 'add':
-        if (!revert) out.push(r.newText!);
+        if (!revert) out.push(n(r));
         break;
     }
   });
-  if (out.length === 0) return '';
-  return out.join(opts.eol) + (opts.endsWithNewline ? opts.eol : '');
+  return joinLines(out, opts);
 }
 
 /**
@@ -176,28 +219,29 @@ export function applyDiscard(
 export function applyStage(
   rows: DiffRow[],
   accept: ReadonlySet<number>,
-  opts: { eol: '\n' | '\r\n'; endsWithNewline: boolean },
+  opts: { eol: '\n' | '\r\n'; endsWithNewline: boolean; eols?: LineEols },
 ): string {
-  const out: string[] = [];
+  const out: OutLine[] = [];
+  const o = (r: DiffRow) => srcLine(r.oldText, opts.eols?.old, r.oldNo);
+  const n = (r: DiffRow) => srcLine(r.newText, opts.eols?.new, r.newNo);
   rows.forEach((r, idx) => {
     const take = accept.has(idx);
     switch (r.kind) {
       case 'eq':
-        out.push(r.oldText!);
+        out.push(o(r));
         break;
       case 'change':
-        out.push(take ? r.newText! : r.oldText!);
+        out.push(take ? n(r) : o(r));
         break;
       case 'del':
-        if (!take) out.push(r.oldText!);
+        if (!take) out.push(o(r));
         break;
       case 'add':
-        if (take) out.push(r.newText!);
+        if (take) out.push(n(r));
         break;
     }
   });
-  if (out.length === 0) return '';
-  return out.join(opts.eol) + (opts.endsWithNewline ? opts.eol : '');
+  return joinLines(out, opts);
 }
 
 /** Índices das linhas de um bloco. */

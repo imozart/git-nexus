@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import { applyDiscard, applyStage, blockRows, diffLines, splitLines, type DiffRow } from '@git-nexus/git-core/pure';
+import { applyDiscard, applyStage, blockRows, diffLines, lineEols, splitLines, type DiffRow } from '@git-nexus/git-core/pure';
 import { GnIcon } from '@git-nexus/ui-kit';
 import { t } from '../i18n';
 
@@ -34,6 +34,8 @@ const MAX_ITEMS = 4000;
 const oldSplit = computed(() => splitLines(props.oldText));
 const newSplit = computed(() => splitLines(props.newText));
 const rows = computed(() => diffLines(oldSplit.value.lines, newSplit.value.lines));
+// fim de linha REAL de cada linha: o diff os ignora, mas regravar tem de devolver cada linha com o que ela tinha
+const eols = computed(() => ({ old: lineEols(props.oldText), new: lineEols(props.newText) }));
 const blocks = computed(() => [...new Set(rows.value.filter((r) => r.block >= 0).map((r) => r.block))]);
 const stats = computed(() => ({
   added: rows.value.filter((r) => r.newNo !== undefined && r.kind !== 'eq').length,
@@ -120,6 +122,7 @@ function discard(indices: number[], what: 'linha' | 'bloco') {
   const content = applyDiscard(rows.value, new Set(indices), {
     eol: base.eol,
     endsWithNewline: props.newText === '' ? true : base.endsWithNewline,
+    eols: eols.value,
   });
   emit('discard', { content, what });
 }
@@ -132,11 +135,11 @@ function stageIndices(indices: number[], what: 'linha' | 'bloco') {
   if (direction === 'stage') {
     // rows = diff(índice, disco): o índice é a base e recebe só as linhas escolhidas
     const base = props.oldText === '' ? newSplit.value : oldSplit.value;
-    content = applyStage(rows.value, set, { eol: base.eol, endsWithNewline: base.endsWithNewline });
+    content = applyStage(rows.value, set, { eol: base.eol, endsWithNewline: base.endsWithNewline, eols: eols.value });
   } else {
     // rows = diff(HEAD, índice): o índice é a versão nova; reverte para o HEAD as linhas escolhidas
     const base = props.newText === '' ? oldSplit.value : newSplit.value;
-    content = applyDiscard(rows.value, set, { eol: base.eol, endsWithNewline: base.endsWithNewline });
+    content = applyDiscard(rows.value, set, { eol: base.eol, endsWithNewline: base.endsWithNewline, eols: eols.value });
   }
   emit('stageLines', { content, what, direction });
 }
