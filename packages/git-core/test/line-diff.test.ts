@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyDiscard, blockRows, diffLines, splitLines } from '../src/pure.js';
+import { applyDiscard, applyStage, blockRows, diffLines, lineEols, splitLines } from '../src/pure.js';
 
 const lines = (s: string) => splitLines(s).lines;
 const rebuild = (rows: ReturnType<typeof diffLines>, side: 'old' | 'new') =>
@@ -98,5 +98,58 @@ describe('applyDiscard', () => {
   it('descartar tudo de um arquivo novo gera texto vazio', () => {
     const rows = diffLines([], ['x', 'y']);
     expect(applyDiscard(rows, new Set(rows.keys()), opts)).toBe('');
+  });
+});
+
+describe('fim de linha misto (CRLF e LF no mesmo arquivo)', () => {
+  const rowsOf = (a: string, b: string) => diffLines(splitLines(a).lines, splitLines(b).lines);
+  const optsFor = (a: string, b: string) => ({ eol: splitLines(b).eol, endsWithNewline: splitLines(b).endsWithNewline, eols: { old: lineEols(a), new: lineEols(b) } });
+
+  it('o EOL dominante é o que mais aparece (antes: CRLF se houvesse qualquer um)', () => {
+    expect(splitLines('a\nb\nc\r\n').eol).toBe('\n');
+    expect(splitLines('a\r\nb\r\nc\n').eol).toBe('\r\n');
+  });
+
+  it('lineEols devolve o terminador real de cada linha', () => {
+    expect(lineEols('a\nb\r\nc')).toEqual(['\n', '\r\n', '']);
+    expect(lineEols('a\r\n')).toEqual(['\r\n']);
+    expect(lineEols('')).toEqual([]);
+  });
+
+  it('descartar uma linha NÃO muda o fim de linha das outras', () => {
+    const a = 'l1\nl2\r\nl3\nvelho\n';
+    const b = 'l1\nl2\r\nl3\nnovo\n';
+    const rows = rowsOf(a, b);
+    expect(applyDiscard(rows, new Set(rows.keys()), optsFor(a, b))).toBe(a); // idêntico byte a byte
+    expect(applyDiscard(rows, new Set(), optsFor(a, b))).toBe(b);
+  });
+
+  it('descartar uma linha adicionada no fim devolve o arquivo original, com o CRLF onde ele estava', () => {
+    const a = 'l1\nl2\r\n';
+    const b = 'l1\nl2\r\nextra\n';
+    const rows = rowsOf(a, b);
+    expect(applyDiscard(rows, new Set(rows.keys()), optsFor(a, b))).toBe(a);
+  });
+
+  it('incluir uma linha no stage mantém o fim de linha de cada linha do índice', () => {
+    const idx = 'a\r\nb\nc\r\n';
+    const work = 'a\r\nb\nc\r\nnova\n';
+    const rows = rowsOf(idx, work);
+    expect(applyStage(rows, new Set(rows.keys()), optsFor(idx, work))).toBe(work);
+    expect(applyStage(rows, new Set(), optsFor(idx, work))).toBe(idx);
+  });
+
+  it('linha nova em arquivo CRLF usa o EOL dominante (sem eols a regra antiga continua valendo)', () => {
+    const a = 'a\r\nb\r\n';
+    const b = 'a\r\nx\r\nb\r\n';
+    const rows = rowsOf(a, b);
+    expect(applyDiscard(rows, new Set(), { eol: '\r\n', endsWithNewline: true })).toBe(b);
+  });
+
+  it('arquivo sem quebra no fim continua sem quebra', () => {
+    const a = 'l1\r\nl2';
+    const b = 'l1\r\nl2 mudou';
+    const rows = rowsOf(a, b);
+    expect(applyDiscard(rows, new Set(rows.keys()), optsFor(a, b))).toBe(a);
   });
 });
