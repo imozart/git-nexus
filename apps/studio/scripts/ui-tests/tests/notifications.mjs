@@ -3,7 +3,7 @@
 // processo principal do Electron (simulado aqui): o teste confere O QUE a interface pediu e QUANDO.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { connect, git, sleep, tmpRoot } from '../lib.mjs';
+import { connect, git, lit, sleep, tmpRoot } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -45,8 +45,8 @@ for (const n of [1, 2, 3]) {
 }
 git(outro, 'push', '-q', 'origin', 'main');
 
-await t.ev(`window.gitNexus.addRepositoryPath(${JSON.stringify(clones.alfa)})`);
-await t.ev(`window.gitNexus.addRepositoryPath(${JSON.stringify(clones.beta)})`);
+await t.ev(`window.gitNexus.addRepositoryPath(${lit(clones.alfa)})`);
+await t.ev(`window.gitNexus.addRepositoryPath(${lit(clones.beta)})`);
 await t.ev('location.reload()');
 await t.until(`document.querySelectorAll('li.repo').length >= 2`, 20000);
 await t.until(`[...document.querySelectorAll('li.repo')].every((r) => !/carregando/i.test(r.textContent))`, 30000);
@@ -55,8 +55,8 @@ await t.until(`[...document.querySelectorAll('li.repo')].every((r) => !/carregan
 await t.ev(`(() => { window.__notif = []; const o = window.gitNexus.notify; window.gitNexus.notify = (n) => { window.__notif.push(n); return o(n); }; document.hasFocus = () => false; return true; })()`);
 const notifs = () => t.ev('window.__notif');
 const openRepo = async (name) => {
-  await t.until(`[...document.querySelectorAll('li.repo')].some((x) => x.querySelector('strong')?.textContent.trim() === ${JSON.stringify(name)})`, 20000);
-  await t.ev(`[...document.querySelectorAll('li.repo')].find((x) => x.querySelector('strong')?.textContent.trim() === ${JSON.stringify(name)}).querySelector('.repo__btns button').click()`);
+  await t.until(`[...document.querySelectorAll('li.repo')].some((x) => x.querySelector('strong')?.textContent.trim() === ${lit(name)})`, 20000);
+  await t.ev(`[...document.querySelectorAll('li.repo')].find((x) => x.querySelector('strong')?.textContent.trim() === ${lit(name)}).querySelector('.repo__btns button').click()`);
   await t.until(`document.querySelector('.rv__btns')`, 20000);
 };
 
@@ -88,10 +88,10 @@ t.check('com as notificações desligadas nada é pedido ao sistema', (await not
 const runCommand = async (query, titlePart) => {
   await t.key('k', 2);
   await t.until(`document.querySelector('.cp__input')`, 5000);
-  await t.ev(`(() => { const i = document.querySelector('.cp__input'); i.value = ${JSON.stringify(query)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+  await t.ev(`(() => { const i = document.querySelector('.cp__input'); i.value = ${lit(query)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
   await sleep(300);
   const titles = await t.ev(`[...document.querySelectorAll('.cp__list [role="option"], .cp__list .cp__item')].map((e) => e.textContent.trim())`);
-  await t.ev(`[...document.querySelectorAll('.cp__list [role="option"], .cp__list .cp__item')].find((e) => e.textContent.includes(${JSON.stringify(titlePart)}))?.click()`);
+  await t.ev(`[...document.querySelectorAll('.cp__list [role="option"], .cp__list .cp__item')].find((e) => e.textContent.includes(${lit(titlePart)}))?.click()`);
   await sleep(500);
   return titles;
 };

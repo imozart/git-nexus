@@ -70,7 +70,7 @@ export function classifyRemoteFailure(output: string): RemoteFailure {
   ) {
     return 'auth';
   }
-  if (low.includes('repository not found') || (low.includes("repository '") && low.includes("' not found")) || low.includes('does not appear to be a git repository') || low.includes('the requested url returned error: 404')) return 'notFound';
+  if (low.includes('repository not found') || (low.includes("repository '") && (low.includes("' not found") || low.includes("' does not exist"))) || low.includes('does not appear to be a git repository') || low.includes('the requested url returned error: 404')) return 'notFound';
   if (low.includes('could not resolve host') || low.includes('unable to access') || low.includes('connection timed out') || low.includes('connection refused') || low.includes('network is unreachable') || low.includes('could not connect') || low.includes('connection reset')) {
     return 'network';
   }
