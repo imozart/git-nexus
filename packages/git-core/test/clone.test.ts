@@ -87,10 +87,17 @@ describe('mensagens de falha do clone', () => {
     expect(classifyCloneFailure('fatal: could not read Username for \'https://x\': terminal prompts disabled')).toBe('auth');
     expect(classifyCloneFailure("remote: Repository not found.\nfatal: repository 'https://x/y.git/' not found")).toBe('notFound');
     expect(classifyCloneFailure("fatal: 'C:/nada' does not appear to be a git repository")).toBe('notFound');
+    expect(classifyCloneFailure("fatal: repository '/tmp/x/nao-existe.git' does not exist")).toBe('notFound'); // texto do git no Linux
     expect(classifyCloneFailure("fatal: unable to access 'https://x/': Could not resolve host: x")).toBe('network');
     expect(classifyCloneFailure("fatal: destination path 'a' already exists and is not an empty directory.")).toBe('exists');
     expect(classifyCloneFailure('fatal: Remote branch zzz not found in upstream origin')).toBe('branch');
     expect(classifyCloneFailure('qualquer coisa estranha')).toBe('other');
+  });
+
+  it('endereço com milhares de barras no fim é lido em tempo curto (sem regex quadrática)', () => {
+    const t0 = Date.now();
+    expect(repoNameFromUrl('https://x.y/z/' + '/'.repeat(100_000))).toBe('z');
+    expect(Date.now() - t0).toBeLessThan(1000);
   });
 
   it('a mensagem de autenticação explica o que configurar (o app não pergunta senha)', () => {
