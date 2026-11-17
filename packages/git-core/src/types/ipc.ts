@@ -698,6 +698,11 @@ export interface GitNexusApi extends GitNexusIPC {
   cherryPickCommit(repoPath: string, hash: string): Promise<BranchActionResult>;
   /** Cria um commit que desfaz o commit dado (revert), sem reescrever o histórico. */
   revertCommit(repoPath: string, hash: string): Promise<BranchActionResult>;
+  /**
+   * Envio forçado SEGURO (`--force-with-lease`), para depois de reescrever o histórico (rebase, amend). Recusa se o remoto recebeu commits que
+   * esta cópia não viu; nunca na branch principal ou de release; nunca sem upstream.
+   */
+  pushWithLease(repoPath: string): Promise<BranchActionResult>;
   /** Operação parada no meio (cherry-pick, revert ou merge) ou `null`. */
   getInProgress(repoPath: string): Promise<InProgressKind | null>;
   /** Continua a operação parada, depois de resolver os conflitos. */

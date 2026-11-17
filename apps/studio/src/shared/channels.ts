@@ -28,6 +28,7 @@ export const WORKER_METHODS = [
   'deleteTag',
   'pushTag',
   'cherryPickCommit',
+  'pushWithLease',
   'revertCommit',
   'getInProgress',
   'continueOperation',
