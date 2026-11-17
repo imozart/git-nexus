@@ -4,6 +4,12 @@ Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https:/
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.13.0] - 2026-11-16
+
+### ✨ Novidades
+
+- **diff:** codificação do arquivo no rodapé, lista completa e gravação sem corromper bytes ([`3842656`](https://github.com/imozart/git-nexus/commit/3842656e78a1d75cf561cd367d225be547067c68))
+
 ## [1.12.0] - 2026-11-16
 
 ### ✨ Novidades
@@ -273,6 +279,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.13.0]: https://github.com/imozart/git-nexus/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/imozart/git-nexus/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/imozart/git-nexus/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/imozart/git-nexus/compare/v1.9.1...v1.10.0
