@@ -58,6 +58,7 @@ describe('causa da falha com o remoto', () => {
     expect(classifyRemoteFailure("remote: Invalid username or password.\nfatal: Authentication failed for 'https://x/'")).toBe('auth');
     expect(classifyRemoteFailure('Host key verification failed.')).toBe('hostKey');
     expect(classifyRemoteFailure("fatal: repository 'https://x/y.git/' not found")).toBe('notFound');
+    expect(classifyRemoteFailure("fatal: repository '/tmp/x.git' does not exist")).toBe('notFound'); // texto do git no Linux
     expect(classifyRemoteFailure("fatal: unable to access 'https://x/': Could not resolve host: x")).toBe('network');
     expect(classifyRemoteFailure('estranho')).toBe('other');
   });

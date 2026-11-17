@@ -70,6 +70,12 @@ describe('leitura da saída do git', () => {
     ]);
   });
 
+  it('linha enorme e repetitiva é lida em tempo curto (sem regex quadrática)', () => {
+    const t0 = Date.now();
+    parseSubmoduleStatus(' ' + 'a'.repeat(40) + ' ' + ' ('.repeat(50_000));
+    expect(Date.now() - t0).toBeLessThan(1000);
+  });
+
   it('.gitmodules: nome com ponto e os três campos', () => {
     const out = 'submodule.a.b.path\nlib/ab\0submodule.a.b.url\nhttps://x/ab.git\0submodule.c.path\nc\0submodule.c.branch\ndev\0';
     const m = parseGitmodules(out);
