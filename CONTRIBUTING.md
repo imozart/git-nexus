@@ -37,7 +37,7 @@ A interface também pode ser exercitada sem o Electron (harness em `apps/studio/
 3. **Mensagens de commit no padrão Conventional Commits** (`feat(escopo): …`, `fix: …`). Elas são o que o pipeline lê: a **versão** e o
    **`CHANGELOG.md`** saem dos commits da branch (não do título do PR). `feat` → minor, `fix` e o resto → patch, `!` ou `BREAKING CHANGE:` → major.
    Mensagens como `wip` ou `ajustes` caem em "Outras alterações".
-4. Abra o pull request **para a `main`** preenchendo o modelo. O **título** também segue o Conventional Commits (um check confere).
+4. Abra o pull request **para a `main`** preenchendo o modelo. O **título** também segue o Conventional Commits e tem **no máximo 100 caracteres** (um check confere; título maior reprova o job "Título do PR").
 5. O CI precisa passar. Os checks de todo PR:
    - **Título do PR (Conventional Commits)** e **Nome da branch (tipo/descrição)**;
    - **Typecheck, testes e build** (Ubuntu e Windows), **Cobertura de testes**, **Empacotamento** (Ubuntu e Windows);

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 // @ts-expect-error módulo .mjs sem tipos
 import { BRANCH_PREFIXES } from '../lib/branch-name.mjs';
 // @ts-expect-error módulo .mjs sem tipos
-import { PR_TYPES } from '../lib/pr-title.mjs';
+import { MAX_TITLE, PR_TYPES } from '../lib/pr-title.mjs';
 
 // Os documentos da comunidade afirmam coisas sobre o código e a CI. Estes testes amarram cada afirmação ao que existe de verdade:
 // se alguém renomear um check, mudar o sandbox do Electron ou criar um workflow sem `permissions`, o texto deixa de ser verdade e o teste reprova.
@@ -98,6 +98,11 @@ describe('modelo de PR e código de conduta', () => {
     expect(t.match(/^- \[ \] /gm)?.length).toBeGreaterThanOrEqual(5);
     expect(t).toContain('pt-BR.ts');
     expect(t).toContain('en.ts');
+  });
+
+  it('o modelo de PR e o guia de contribuição dizem o limite do título (o mesmo que o check aplica)', () => {
+    expect(read('.github/pull_request_template.md')).toContain(`${MAX_TITLE} caracteres`);
+    expect(read('CONTRIBUTING.md')).toContain(`${MAX_TITLE} caracteres`);
   });
 
   it('o código de conduta diz como relatar e não deixa e-mail pessoal', () => {

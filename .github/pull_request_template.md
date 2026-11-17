@@ -12,7 +12,7 @@
 
 ## Checklist
 
-- [ ] O **título** segue o Conventional Commits (`tipo(escopo): descrição`) e a **branch** é `tipo/descricao` com o mesmo tipo
+- [ ] O **título** segue o Conventional Commits (`tipo(escopo): descrição`) e tem **no máximo 100 caracteres**, e a **branch** é `tipo/descricao` com o mesmo tipo
 - [ ] As **mensagens dos commits** também seguem o padrão (delas saem a versão e o `CHANGELOG.md`)
 - [ ] Testes escritos ou ajustados (`pnpm typecheck` e `pnpm test` passam)
 - [ ] Textos novos da interface estão em `pt-BR.ts` **e** `en.ts`
