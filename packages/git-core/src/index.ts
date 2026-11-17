@@ -22,4 +22,5 @@ export * from './clone.js';
 export * from './content-search.js';
 export * from './askpass.js';
 export * from './submodules.js';
+export * from './lfs.js';
 export * from './no-prompt.js';

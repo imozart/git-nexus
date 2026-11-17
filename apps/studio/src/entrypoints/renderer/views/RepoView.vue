@@ -292,6 +292,7 @@ function repoCommands(): Command[] {
   const gDiff = t('rv.group.diff');
   const gFile = t('rv.group.file');
   return [
+    { id: 'rv.lfs', title: t('rv.cmd.lfs'), group: gStaging, keywords: 'lfs large file storage arquivos grandes ponteiro pointer', when, run: () => ws.openTools(props.repo, 'lfs') },
     { id: 'rv.submodules', title: t('rv.cmd.submodules'), group: gStaging, keywords: 'submódulos submodulos submodule init update', when, run: () => ws.openTools(props.repo, 'submodules') },
     { id: 'rv.search', title: t('rv.cmd.search'), group: gStaging, shortcut: 'Mod+Shift+F', keywords: 'buscar procurar grep conteudo código texto search find', when, run: () => ws.openTools(props.repo, 'search') },
     { id: 'rv.refresh', title: t('rv.cmd.refresh'), group: gStaging, shortcut: 'F5', when, run: () => refresh() },

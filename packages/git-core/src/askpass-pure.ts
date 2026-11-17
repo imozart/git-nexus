@@ -66,7 +66,9 @@ export function classifyRemoteFailure(output: string): RemoteFailure {
     low.includes('invalid username or password') ||
     low.includes('the requested url returned error: 401') ||
     low.includes('the requested url returned error: 403') ||
-    low.includes('no supported authentication methods')
+    low.includes('no supported authentication methods') ||
+    low.includes('authorization error') ||
+    low.includes('git credentials for')
   ) {
     return 'auth';
   }

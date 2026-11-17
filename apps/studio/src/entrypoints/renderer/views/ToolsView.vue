@@ -9,6 +9,7 @@ import RebasePanel from '../components/tools/RebasePanel.vue';
 import TagsPanel from '../components/tools/TagsPanel.vue';
 import SearchPanel from '../components/tools/SearchPanel.vue';
 import SubmodulesPanel from '../components/tools/SubmodulesPanel.vue';
+import LfsPanel from '../components/tools/LfsPanel.vue';
 import VersionPanel from '../components/tools/VersionPanel.vue';
 import HostingPanel from '../components/tools/HostingPanel.vue';
 import { t, type MessageKey } from '../i18n';
@@ -26,6 +27,7 @@ const SECTIONS: Array<{ id: string; title: MessageKey; component: Component }> =
   { id: 'search', title: 'tools.search', component: SearchPanel },
   { id: 'tags', title: 'tools.tags', component: TagsPanel },
   { id: 'submodules', title: 'tools.submodules', component: SubmodulesPanel },
+  { id: 'lfs', title: 'tools.lfs', component: LfsPanel },
   { id: 'hosting', title: 'tools.hosting', component: HostingPanel },
   { id: 'version', title: 'tools.version', component: VersionPanel },
 ];

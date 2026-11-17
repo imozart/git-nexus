@@ -85,6 +85,10 @@ export interface GitNexusIPC {
   scanDirectories(rootPaths: string[]): Promise<RepositoryMeta[]>;
   getKnownRepositories(): Promise<RepositoryMeta[]>;
   addRepositoryPath(path: string): Promise<RepositoryMeta>;
+  /** Situação do Git LFS: se o repositório usa, quais arquivos e se estão baixados ou só como ponteiro. */
+  getLfsInfo(repoPath: string): Promise<LfsInfo>;
+  /** `git lfs pull`: baixa os arquivos LFS que são só ponteiro (todos, ou só os `paths`). */
+  pullLfs(repoPath: string, paths?: string[]): Promise<BranchActionResult>;
   /** Submódulos do repositório com o estado de cada um (vazio se não há). */
   getSubmodules(repoPath: string): Promise<SubmoduleInfo[]>;
   /** Inicializa (baixa) submódulos ainda não inicializados; sem `paths`, todos. */
@@ -521,6 +525,32 @@ export interface SubmoduleInfo {
   describe?: string;
   /** Tem alterações locais não commitadas. */
   dirty: boolean;
+}
+
+/** Um arquivo controlado pelo Git LFS: `pointer` = só o ponteiro (conteúdo ainda não baixado), `downloaded` = conteúdo na pasta, `missing` = não está na pasta. */
+export interface LfsFile {
+  path: string;
+  state: 'pointer' | 'downloaded' | 'missing';
+  /** Tamanho do conteúdo real (do ponteiro) ou do arquivo baixado, em bytes. */
+  size?: number;
+  oid?: string;
+}
+
+export interface LfsInfo {
+  /** Algum .gitattributes do repositório tem `filter=lfs`. */
+  enabled: boolean;
+  /** O comando `git lfs` existe neste computador (necessário para baixar). */
+  installed: boolean;
+  version?: string;
+  /** Padrões do .gitattributes com o filtro (ex.: `*.psd`). */
+  patterns: string[];
+  files: LfsFile[];
+  /** Quantos arquivos o LFS controla (pode ser maior que `files.length`). */
+  total: number;
+  /** Quantos dos listados ainda são só o ponteiro. */
+  pointers: number;
+  /** Há mais arquivos LFS do que os listados. */
+  truncated: boolean;
 }
 
 /** Busca no conteúdo dos arquivos (`git grep`). */
