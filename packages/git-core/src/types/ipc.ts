@@ -84,6 +84,10 @@ export interface GitNexusIPC {
   scanDirectories(rootPaths: string[]): Promise<RepositoryMeta[]>;
   getKnownRepositories(): Promise<RepositoryMeta[]>;
   addRepositoryPath(path: string): Promise<RepositoryMeta>;
+  /** Procura um texto (ou expressão regular) no conteúdo dos arquivos do repositório (`git grep`), inclusive os novos não ignorados. */
+  searchContent(repoPath: string, query: ContentSearch): Promise<ContentSearchResult>;
+  /** As linhas ao redor de uma ocorrência, para a pré-visualização dos resultados. */
+  getFileContext(repoPath: string, file: string, line: number, radius?: number): Promise<FileContext>;
   /** `git clone` para `<pasta>/<nome>` (nome padrão: o da URL) e já cataloga o repositório. O andamento chega por `onGitProgress` (`op: 'clone'`). */
   cloneRepository(input: CloneInput): Promise<RepositoryMeta>;
   /** `git init` em `<pasta>/<nome>` com branch inicial e `.gitignore` opcionais, e já cataloga o repositório. */
@@ -490,6 +494,48 @@ export interface InitResult {
   path: string;
   /** `written` = criou o .gitignore; `exists` = a pasta já tinha um e ele foi mantido; `none` = não pedido. */
   gitignore: 'written' | 'exists' | 'none';
+}
+
+/** Busca no conteúdo dos arquivos (`git grep`). */
+export interface ContentSearch {
+  pattern: string;
+  /** O texto é uma expressão regular (extendida); senão, é procurado como está. */
+  regex?: boolean;
+  /** Diferenciar maiúsculas de minúsculas (padrão: não diferencia). */
+  caseSensitive?: boolean;
+  /** Só palavras inteiras. */
+  wholeWord?: boolean;
+  /** Filtro de caminhos separados por espaço, ex.: `*.ts src/`. Vazio = tudo. */
+  paths?: string;
+}
+
+export interface ContentMatch {
+  file: string;
+  /** 1 = primeira linha. */
+  line: number;
+  text: string;
+}
+
+export interface ContentSearchResult {
+  ok: boolean;
+  /** Quando `ok` é false: por que a busca não rodou (expressão inválida...). */
+  message?: string;
+  matches: ContentMatch[];
+  /** Em quantos arquivos há ocorrências (das devolvidas). */
+  files: number;
+  /** Havia mais ocorrências do que as devolvidas. */
+  truncated: boolean;
+}
+
+/** Linhas ao redor de uma ocorrência. */
+export interface FileContext {
+  file: string;
+  /** A linha pedida (já ajustada ao tamanho do arquivo). */
+  line: number;
+  /** Número da primeira linha de `lines`. */
+  start: number;
+  lines: string[];
+  total: number;
 }
 
 /** Quantos commits de cada lado o painel de sincronização lista. O resto vira "e mais N" (o total vem do adiante/atrás). */

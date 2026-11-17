@@ -6,6 +6,8 @@ import {
   abortOperation,
   cloneRepository,
   initRepository,
+  searchContent,
+  getFileContext,
   createTag,
   deleteTag,
   listRemoteTags,
@@ -78,6 +80,7 @@ import {
   type BumpChoice,
   type CommitPolicy,
   type CloneInput,
+  type ContentSearch,
   type InitInput,
   type CreateBranchInput,
   type CreateStashInput,
@@ -174,6 +177,8 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
     },
     getKnownRepositories: async () => sorted(await loadRepos()),
     addRepositoryPath: register,
+    searchContent: (repoPath: string, q: ContentSearch) => searchContent(repoPath, q),
+    getFileContext: (repoPath: string, file: string, line: number, radius?: number) => getFileContext(repoPath, file, line, radius),
     cloneRepository: async (input: CloneInput) => register((await cloneRepository(input)).path),
     initRepository: async (input: InitInput) => {
       const r = await initRepository(input);

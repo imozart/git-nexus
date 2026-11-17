@@ -5,6 +5,8 @@ export const WORKER_METHODS = [
   'scanDirectories',
   'getKnownRepositories',
   'addRepositoryPath',
+  'searchContent',
+  'getFileContext',
   'cloneRepository',
   'initRepository',
   'removeRepository',

@@ -290,6 +290,7 @@ function repoCommands(): Command[] {
   const gDiff = t('rv.group.diff');
   const gFile = t('rv.group.file');
   return [
+    { id: 'rv.search', title: t('rv.cmd.search'), group: gStaging, shortcut: 'Mod+Shift+F', keywords: 'buscar procurar grep conteudo código texto search find', when, run: () => ws.openTools(props.repo, 'search') },
     { id: 'rv.refresh', title: t('rv.cmd.refresh'), group: gStaging, shortcut: 'F5', when, run: () => refresh() },
     {
       id: 'rv.stageAll',

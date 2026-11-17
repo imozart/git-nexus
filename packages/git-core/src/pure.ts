@@ -8,4 +8,5 @@ export * from './git-command.js';
 export * from './sync-state.js';
 export * from './progress.js';
 export * from './clone-pure.js';
+export * from './content-search-pure.js';
 export * from './file-encoding.js';
