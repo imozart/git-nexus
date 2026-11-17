@@ -1,4 +1,4 @@
-import type { GitCommandEvent, GitNexusApi } from '@git-nexus/git-core/pure';
+import type { GitCommandEvent, GitNexusApi, GitProgressEvent } from '@git-nexus/git-core/pure';
 
 /** Métodos executados no UtilityProcess (trabalho pesado de Git / disco). */
 export const WORKER_METHODS = [
@@ -55,6 +55,9 @@ export const WORKER_METHODS = [
   'resolveConflictFile',
   'listBranches',
   'compareWithBase',
+  'getSyncCommits',
+  'pushRepo',
+  'updateRepo',
   'checkoutBranch',
   'checkoutRevision',
   'createBranch',
@@ -80,10 +83,7 @@ export interface UtilityRequest {
 export type UtilityResponse = { id: number; ok: true; result: unknown } | { id: number; ok: false; error: string };
 
 /** Mensagem espontânea do worker (sem pedido): lote de comandos git executados, para a aba "Log". */
-export interface UtilityEvent {
-  event: 'gitCommands';
-  data: GitCommandEvent[];
-}
+export type UtilityEvent = { event: 'gitCommands'; data: GitCommandEvent[] } | { event: 'gitProgress'; data: GitProgressEvent };
 
 /** Prefixo usado para sinalizar rejeição de commit por hook (carrega a saída do hook). */
 export const HOOK_REJECTED_PREFIX = 'GITNEXUS_COMMIT_REJECTED\n';

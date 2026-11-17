@@ -9,6 +9,7 @@ import { t, type MessageKey } from '../i18n';
 import { useCommandsStore, type Command } from '../stores/commands';
 import { useWorkspaceStore } from '../stores/workspace';
 import BranchPicker from '../components/BranchPicker.vue';
+import SyncButton from '../components/SyncButton.vue';
 import ChangesTree from '../components/ChangesTree.vue';
 import CommitForm from '../components/CommitForm.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
@@ -27,6 +28,7 @@ const branch = ref('');
 const sync = ref<RepoSummary | null>(null);
 /** A branch atual em relação à base do remoto (origin/main); null quando não se aplica. */
 const base = ref<BaseComparison | null>(null);
+const syncBtn = ref<InstanceType<typeof SyncButton> | null>(null);
 const rebase = ref<RebaseState | null>(null);
 const entries = ref<FileEntry[]>([]);
 const conflicted = ref<string[]>([]);
@@ -301,8 +303,9 @@ function repoCommands(): Command[] {
     { id: 'rv.toggleCommit', title: t('rv.cmd.toggleCommit'), group: gStaging, shortcut: 'Mod+Shift+B', when, run: () => (showCommit.value = !showCommit.value) },
     { id: 'rv.toggleFiles', title: t('rv.cmd.toggleFiles'), group: gStaging, shortcut: 'Mod+Shift+E', keywords: 'arquivos files lista list painel panel', when, run: () => (showFiles.value = !showFiles.value) },
     { id: 'rv.toggleLog', title: t('log.cmd.toggle'), group: gRepo, shortcut: 'Mod+Shift+L', keywords: 'log comandos commands console', when, run: () => (showLog.value = !showLog.value) },
-    { id: 'rv.fetch', title: t('rv.cmd.fetch'), group: gRepo, keywords: 'remoto', when, run: () => syncThis('fetch') },
-    { id: 'rv.pull', title: t('rv.cmd.pull'), group: gRepo, keywords: 'remoto', when, run: () => syncThis('pull') },
+    { id: 'rv.fetch', title: t('rv.cmd.fetch'), group: gRepo, keywords: 'remoto', when, run: () => syncBtn.value?.doFetch() },
+    { id: 'rv.pull', title: t('rv.cmd.pull'), group: gRepo, keywords: 'remoto', when, run: () => syncBtn.value?.doUpdate('ff') },
+    { id: 'rv.push', title: t('rv.cmd.push'), group: gRepo, keywords: 'remoto enviar publicar', when, run: () => syncBtn.value?.doPush() },
     { id: 'rv.nextDiff', title: t('rv.cmd.nextDiff'), group: gDiff, shortcut: 'F7', when, run: () => goDiff(1) },
     { id: 'rv.prevDiff', title: t('rv.cmd.prevDiff'), group: gDiff, shortcut: 'Shift+F7', when, run: () => goDiff(-1) },
     { id: 'rv.nextFile', title: t('rv.cmd.nextFile'), group: gDiff, shortcut: 'Alt+ArrowRight', when, run: () => goFile(1) },
@@ -318,12 +321,6 @@ function repoCommands(): Command[] {
     { id: 'rv.fileHistory', title: t('rv.cmd.fileHistory'), group: gFile, when: withFile, run: () => ws.openTools(props.repo, 'file', active.value!, 'history') },
     { id: 'rv.blame', title: t('rv.cmd.blame'), group: gFile, keywords: 'autoria author', when: withFile, run: () => ws.openTools(props.repo, 'file', active.value!, 'blame') },
   ];
-}
-
-async function syncThis(kind: 'fetch' | 'pull'): Promise<void> {
-  const r = kind === 'fetch' ? await api.fetchRepo(props.repo.path) : await api.pullRepo(props.repo.path);
-  showNotice(`${kind === 'fetch' ? t('rv.syncFetch') : t('rv.syncPull')}: ${r.message}`);
-  if (r.ok) ws.bump(props.repo.id);
 }
 
 // --- incluir / remover do commit (stage) ---------------------------------------------------
@@ -593,6 +590,7 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
       <div class="rv__id">
         <strong>{{ repo.name }}</strong>
         <BranchPicker :repo="repo" :branch="branch" :sync="sync" :base="base" @changed="onBranchChanged" @notice="showNotice($event)" @conflict="onBranchConflict" />
+        <SyncButton ref="syncBtn" :repo="repo" :sync="sync" :base="base" @changed="onBranchChanged" @notice="showNotice($event)" @conflict="onBranchConflict" />
         <GnBadge v-if="repo.isWsl">WSL2</GnBadge>
         <span class="muted rv__path">{{ repo.path }}</span>
       </div>

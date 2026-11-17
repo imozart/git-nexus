@@ -401,6 +401,37 @@ export interface UpdateInfo {
   install?: 'installer' | 'appimage' | 'portable' | 'manual';
 }
 
+/** Um commit na lista "o que chega / o que sai" do painel de sincronização. */
+export interface SyncCommit {
+  /** Hash curto. */
+  hash: string;
+  subject: string;
+  author: string;
+  /** Segundos desde 1970. */
+  date: number;
+}
+
+/** Commits que o upstream tem e a branch não (`incoming`) e o contrário (`outgoing`), os mais recentes primeiro, até `SYNC_COMMITS_LIMIT`. */
+export interface SyncCommits {
+  incoming: SyncCommit[];
+  outgoing: SyncCommit[];
+}
+
+/** Quantos commits de cada lado o painel de sincronização lista. O resto vira "e mais N" (o total vem do adiante/atrás). */
+export const SYNC_COMMITS_LIMIT = 20;
+
+/** Como atualizar a branch com o remoto: só avançar (fast-forward), mesclar ou reaplicar os commits locais (rebase). */
+export type UpdateMethod = 'ff' | 'merge' | 'rebase';
+
+/** Andamento de uma operação com o remoto (fetch, pull, push), lido da saída `--progress` do git. `percent` é null quando o git não informa número. */
+export interface GitProgressEvent {
+  repoPath: string;
+  op: 'fetch' | 'pull' | 'push';
+  /** Etapa do git em inglês, já normalizada: "Receiving objects", "Resolving deltas"… */
+  phase: string;
+  percent: number | null;
+}
+
 /** Um comando git executado pelo app (alimenta a aba "Log"). Sem segredos: o texto já passou por `redactSecrets`. */
 export interface GitCommandEvent {
   id: number;
@@ -678,6 +709,12 @@ export interface GitNexusApi extends GitNexusIPC {
   mergeBranch(repoPath: string, ref: string): Promise<BranchActionResult>;
   rebaseOntoBranch(repoPath: string, ref: string): Promise<BranchActionResult>;
   pullBranch(repoPath: string, remoteRef: string, mode: PullMode): Promise<BranchActionResult>;
+  /** Os commits que chegam e os que saem em relação ao upstream (sem upstream: os que ainda não existem em nenhum remoto). */
+  getSyncCommits(repoPath: string): Promise<SyncCommits>;
+  /** Envia a branch atual (push simples, NUNCA forçado); sem upstream, publica criando o upstream no remoto padrão. */
+  pushRepo(repoPath: string): Promise<BranchActionResult>;
+  /** Busca no remoto e atualiza a branch atual, guardando e devolvendo as alterações locais (autostash). */
+  updateRepo(repoPath: string, method: UpdateMethod): Promise<BranchActionResult>;
 
   // Busca no histórico, histórico de arquivo, detalhe de commit e blame
   searchHistory(repoPath: string, query: HistorySearch, limit?: number): Promise<CommitInfo[]>;
@@ -726,6 +763,8 @@ export interface GitNexusApi extends GitNexusIPC {
   getChangelog(): Promise<ChangelogData>;
   /** Recebe cada comando git que o app executa (aba "Log"); devolve a função que cancela a assinatura. */
   onGitCommand(cb: (events: GitCommandEvent[]) => void): () => void;
+  /** Recebe o andamento (porcentagem) das buscas, atualizações e envios; devolve a função que cancela a assinatura. */
+  onGitProgress(cb: (e: GitProgressEvent) => void): () => void;
 
   // Integração com o sistema (processo principal)
   copyText(text: string): Promise<void>;

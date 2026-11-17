@@ -4,8 +4,8 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import { onGitCommand } from '@git-nexus/git-core';
-import type { GitCommandEvent } from '@git-nexus/git-core/pure';
+import { onGitCommand, onGitProgress } from '@git-nexus/git-core';
+import type { GitCommandEvent, GitProgressEvent } from '@git-nexus/git-core/pure';
 import { validateCommitMessage } from '@git-nexus/governance-policy';
 import { createHandlers } from '../../src/worker/handlers';
 import { checkForUpdate } from '../../src/entrypoints/update';
@@ -19,6 +19,8 @@ let clipboard = '';
 // Comandos git do harness: o navegador pergunta por eles (no app real o processo principal os envia).
 const gitEvents: GitCommandEvent[] = [];
 onGitCommand((e) => gitEvents.push(e));
+const progressEvents: GitProgressEvent[] = [];
+onGitProgress((e) => progressEvents.push(e));
 
 // Armazenamento de tokens do harness: em memória (o app real usa safeStorage do Electron).
 class PlainTokenStore implements TokenStore {
@@ -107,6 +109,15 @@ api.onGitCommand = (cb) => {
   }, 150);
   return () => clearInterval(iv);
 };
+let progressSeen = 0;
+api.onGitProgress = (cb) => {
+  const iv = setInterval(async () => {
+    const r = await (await fetch('/gitprogress?since=' + progressSeen)).json();
+    progressSeen = r.next;
+    for (const e of r.events) cb(e);
+  }, 100);
+  return () => clearInterval(iv);
+};
 api.validateCommitMessage = (input, policy, locale) => {
   const x = new XMLHttpRequest();
   x.open('POST', '/validate', false);
@@ -144,6 +155,10 @@ createServer(async (req, res) => {
     if (url.pathname === '/gitlog') {
       const since = Number(url.searchParams.get('since') ?? 0);
       return void res.end(JSON.stringify({ next: gitEvents.length, events: gitEvents.slice(since) }));
+    }
+    if (url.pathname === '/gitprogress') {
+      const since = Number(url.searchParams.get('since') ?? 0);
+      return void res.end(JSON.stringify({ next: progressEvents.length, events: progressEvents.slice(since) }));
     }
     if (url.pathname === '/clipboard') return void res.end(clipboard);
     if (url.pathname === '/stub.js') {

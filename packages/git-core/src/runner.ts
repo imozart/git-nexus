@@ -47,6 +47,8 @@ export interface GitRunOptions {
   env?: NodeJS.ProcessEnv;
   /** Lança erro se o exit code != 0 (padrão: true). */
   check?: boolean;
+  /** Recebe o stderr à medida que chega (para ler o progresso do git). Não substitui `GitResult.stderr`. */
+  onStderr?: (chunk: string) => void;
 }
 
 export class GitError extends Error {
@@ -80,7 +82,16 @@ export function runGit(repoPath: string, args: string[], opts: GitRunOptions = {
     const out: Buffer[] = [];
     const err: Buffer[] = [];
     child.stdout.on('data', (d: Buffer) => out.push(d));
-    child.stderr.on('data', (d: Buffer) => err.push(d));
+    child.stderr.on('data', (d: Buffer) => {
+      err.push(d);
+      if (opts.onStderr) {
+        try {
+          opts.onStderr(d.toString('utf8'));
+        } catch {
+          /* quem observa não pode derrubar o git */
+        }
+      }
+    });
     child.on('error', (err) => {
       emit(repoPath, args, startedAt, -1, '', err.message);
       reject(err);
