@@ -114,6 +114,9 @@ export function runGit(repoPath: string, args: string[], opts: GitRunOptions = {
         resolve(result);
       }
     });
+    // O git pode terminar sem ler tudo o que mandamos (um hook que recusa, um comando que ignora a entrada): escrever num pipe já fechado
+    // dá EPIPE no `stdin`. Sem ouvinte, isso era uma exceção não tratada que derrubava o processo (e a suíte de testes no Linux).
+    child.stdin.on('error', () => undefined);
     if (opts.stdin !== undefined) child.stdin.end(opts.stdin);
     else child.stdin.end();
   });
