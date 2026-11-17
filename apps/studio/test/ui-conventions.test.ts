@@ -14,7 +14,7 @@ const template = (text: string) => text.slice(0, text.indexOf('<style') < 0 ? te
 
 /** `<button>` cru permitido por arquivo (quantidade máxima). Cada um tem um motivo; o resto deve usar GnButton/GnIconButton/GnSegmented. */
 const RAW_BUTTONS: Record<string, { max: number; why: string }> = {
-  'components/BranchPicker.vue': { max: 6, why: 'cabeçalho de seção, 3 ações do topo, linha de branch e item do menu da branch: itens de lista/menu com teclado próprio (setas, Enter), sem aparência de botão' },
+  'components/BranchPicker.vue': { max: 8, why: 'cabeçalho de seção, 3 ações do topo, merge e rebase da base, linha de branch e item do menu da branch: itens de lista/menu com teclado próprio (setas, Enter), sem aparência de botão' },
   'components/ComboBox.vue': { max: 1, why: 'gatilho do combo: é o próprio componente de seleção' },
   'components/ContextMenu.vue': { max: 1, why: 'item de menu (não é botão de ação com aparência de botão)' },
   'components/GitHubButton.vue': { max: 1, why: 'botão da marca do GitHub: segue o padrão do GitHub, de propósito' },

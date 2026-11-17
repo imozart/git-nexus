@@ -54,6 +54,7 @@ export const WORKER_METHODS = [
   'getMergeConflicts',
   'resolveConflictFile',
   'listBranches',
+  'compareWithBase',
   'checkoutBranch',
   'checkoutRevision',
   'createBranch',

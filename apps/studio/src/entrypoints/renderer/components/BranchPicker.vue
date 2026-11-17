@@ -4,17 +4,17 @@
 // nova branch a partir dela, merge, rebase, pull, excluir). Todas as operações passam por git-core/branches.ts; aqui só há interface.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { GnBadge, GnButton, GnIcon, GnIconButton } from '@git-nexus/ui-kit';
-import type { BranchActionResult, BranchInfo, BranchList, PullMode, RepositoryMeta, SyncInfo } from '@git-nexus/git-core/pure';
+import type { BaseComparison, BranchActionResult, BranchInfo, BranchList, PullMode, RepositoryMeta, SyncInfo } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { autoFetchEnabled } from '../auto-fetch';
 import { t } from '../i18n';
-import { lastFetchText, syncText } from '../sync';
+import { baseChip, baseText, lastFetchText, syncText } from '../sync';
 import BranchDialog, { type NewBranchSubmit } from './BranchDialog.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
 import SyncIndicator from './SyncIndicator.vue';
 
-/** `sync`: estado da branch atual com o remoto (adiante/atrás); sem ele o botão mostra só o nome. */
-const props = defineProps<{ repo: RepositoryMeta; branch: string; sync?: SyncInfo | null }>();
+/** `sync`: estado da branch atual com o remoto (adiante/atrás); `base`: o mesmo em relação à branch principal (origin/main). Sem eles o botão mostra só o nome. */
+const props = defineProps<{ repo: RepositoryMeta; branch: string; sync?: SyncInfo | null; base?: BaseComparison | null }>();
 const emit = defineEmits<{
   (e: 'changed'): void;
   (e: 'notice', text: string): void;
@@ -47,6 +47,8 @@ try {
 /** Antes de o status chegar a branch vem vazia: mostra reticências (como o cabeçalho sempre fez), não "desanexado". */
 const label = computed(() => props.branch || '…');
 const syncLine = computed(() => syncText(props.sync));
+const baseLine = computed(() => baseText(props.base));
+const baseChipText = computed(() => baseChip(props.base));
 /** Relógio do tooltip ("há 4 min" precisa andar sozinho): um tique por minuto, só enquanto o botão existe. */
 const now = ref(Date.now());
 let nowTimer: ReturnType<typeof setInterval> | undefined;
@@ -54,9 +56,9 @@ onMounted(() => {
   nowTimer = setInterval(() => (now.value = Date.now()), 60_000);
 });
 /** Tooltip: o que o botão faz, em que pé a branch está com o remoto e quando foi a última busca. */
-const triggerTitle = computed(() => [t('bp.triggerTip'), syncLine.value, lastFetchText(props.sync, now.value)].filter(Boolean).join('\n'));
+const triggerTitle = computed(() => [t('bp.triggerTip'), syncLine.value, baseLine.value, lastFetchText(props.sync, now.value)].filter(Boolean).join('\n'));
 /** O nome acessível do botão leva o estado por extenso (as setas ficam escondidas dos leitores de tela). */
-const triggerLabel = computed(() => (syncLine.value ? `${label.value}. ${syncLine.value}` : label.value));
+const triggerLabel = computed(() => [label.value, syncLine.value, baseLine.value].filter(Boolean).join('. '));
 const cur = computed(() => data.value?.current ?? props.branch);
 const curLabel = computed(() => cur.value || data.value?.head || t('bp.detached'));
 const needle = computed(() => q.value.trim().toLowerCase());
@@ -209,7 +211,7 @@ async function run(fn: () => Promise<BranchActionResult>): Promise<boolean> {
 }
 
 const doCheckout = (b: BranchInfo) => run(() => api.checkoutBranch(props.repo.path, b.name, b.kind));
-const doMerge = (b: BranchInfo) => run(() => api.mergeBranch(props.repo.path, b.name));
+const doMerge = (b: { name: string }) => run(() => api.mergeBranch(props.repo.path, b.name));
 const doPull = (b: BranchInfo, mode: PullMode) => run(() => api.pullBranch(props.repo.path, b.name, mode));
 const doUpdate = () =>
   run(async () => {
@@ -220,9 +222,9 @@ const doUpdate = () =>
   });
 
 // ---------------------------------------------------------------- confirmações (rebase e exclusão)
-type Confirm = { kind: 'rebase'; b: BranchInfo } | { kind: 'delete'; b: BranchInfo; force: boolean };
+type Confirm = { kind: 'rebase'; b: { name: string } } | { kind: 'delete'; b: BranchInfo; force: boolean };
 const confirm = ref<Confirm | null>(null);
-const askRebase = (b: BranchInfo) => {
+const askRebase = (b: { name: string }) => {
   fly.value = null;
   open.value = false;
   confirm.value = { kind: 'rebase', b };
@@ -371,6 +373,7 @@ onBeforeUnmount(() => {
       <GnIcon name="git-branch" />
       <span class="bp__name">{{ label }}</span>
       <SyncIndicator :sync="sync ?? null" />
+      <GnBadge v-if="baseChipText" class="bp__basechip" :title="baseLine" aria-hidden="true">{{ baseChipText }}</GnBadge>
       <GnIcon name="chevron-down" />
     </GnButton>
   </span>
@@ -399,6 +402,13 @@ onBeforeUnmount(() => {
             </button>
             <button type="button" class="bp__item" data-nav :disabled="!data" @click="startNew()"><GnIcon name="plus" /> {{ t('bp.new') }}</button>
             <button type="button" class="bp__item" data-nav :disabled="!data" @click="startRevision()"><GnIcon name="tag" /> {{ t('bp.revision') }}</button>
+            <template v-if="base">
+              <p class="bp__baseinfo" data-testid="base-info" :title="baseLine">{{ t('bp.baseInfo', { base: base.base, ahead: base.ahead, behind: base.behind }) }}</p>
+              <template v-if="base.behind > 0">
+                <button type="button" class="bp__item" data-nav data-testid="base-merge" :disabled="busy || !cur" @click="doMerge({ name: base.base })">{{ t('bp.merge', { ref: base.base, cur: curLabel }) }}</button>
+                <button type="button" class="bp__item" data-nav data-testid="base-rebase" :disabled="busy || !cur" @click="askRebase({ name: base.base })">{{ t('bp.rebase', { ref: base.base, cur: curLabel }) }}</button>
+              </template>
+            </template>
             <label class="bp__opt" :title="t('bp.autoFetchTip')"><input v-model="autoFetchEnabled" type="checkbox" data-nav data-testid="auto-fetch" /> {{ t('bp.autoFetch') }}</label>
             <hr />
           </template>
@@ -505,6 +515,7 @@ onBeforeUnmount(() => {
   &:focus-visible { outline: 2px solid var(--gn-accent); outline-offset: -2px; }
   &:disabled { opacity: 0.45; cursor: default; }
 }
+.bp__baseinfo { margin: 6px 10px 2px; color: var(--gn-muted); font-size: 12.5px; }
 .bp__opt { display: flex; align-items: center; gap: 8px; padding: 5px 10px; color: var(--gn-muted); font-size: 12.5px; cursor: pointer; input { margin: 0; } }
 .bp__sec { color: var(--gn-muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
 .bp__remote { display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 22px; color: var(--gn-muted); font-size: 12.5px; }

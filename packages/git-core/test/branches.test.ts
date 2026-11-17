@@ -5,6 +5,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import {
   checkoutBranch,
   checkoutRevision,
+  compareWithBase,
   createBranch,
   deleteBranch,
   isSafeRef,
@@ -291,5 +292,49 @@ describe('merge, rebase e pull', () => {
     expect(mer.ok).toBe(true);
     expect((await g(repo, 'log', '--merges', '--format=%s', '-1')).stdout).toMatch(/Merge/);
     expect((await pullBranch(repo, 'semremoto/x', 'merge')).ok).toBe(false);
+  });
+});
+
+describe('compareWithBase', () => {
+  it('feature branch sem upstream: conta quantos commits está atrás e à frente da origin/main', async () => {
+    const { repo, other } = await withRemote();
+    await createBranch(repo, { name: 'feat/x', base: 'origin/main', checkout: true }); // --no-track: sem upstream
+    await commitFile(repo, 'f1.txt', 'f1\n', 'feature 1');
+    await commitFile(repo, 'f2.txt', 'f2\n', 'feature 2');
+    await commitFile(other, 'o1.txt', 'o1\n', 'main andou 1');
+    await commitFile(other, 'o2.txt', 'o2\n', 'main andou 2');
+    await commitFile(other, 'o3.txt', 'o3\n', 'main andou 3');
+    await g(other, 'push', 'origin', 'main');
+    expect(await compareWithBase(repo)).toEqual({ base: 'origin/main', short: 'main', ahead: 2, behind: 0 }); // ainda não buscou
+    await g(repo, 'fetch', 'origin');
+    expect(await compareWithBase(repo)).toEqual({ base: 'origin/main', short: 'main', ahead: 2, behind: 3 });
+  });
+
+  it('não se aplica na própria base: main local, ou branch que acompanha a origin/main', async () => {
+    const { repo } = await withRemote();
+    expect(await compareWithBase(repo)).toBeNull(); // a main
+    await g(repo, 'checkout', '-b', 'acompanha', '--track', 'origin/main');
+    expect(await compareWithBase(repo)).toBeNull(); // o upstream dela já é a base
+  });
+
+  it('não se aplica com HEAD desanexado nem sem remoto', async () => {
+    const { repo } = await withRemote();
+    await g(repo, 'checkout', '-b', 'feat/y');
+    expect(await compareWithBase(repo)).toMatchObject({ ahead: 0, behind: 0 });
+    await g(repo, 'checkout', '--detach');
+    expect(await compareWithBase(repo)).toBeNull();
+    const lonely = tmp('gn-br-lonely-');
+    await g(lonely, 'init', '-b', 'main');
+    await config(lonely);
+    await commitFile(lonely, 'a.txt', 'a\n', 'init');
+    await g(lonely, 'checkout', '-b', 'feat/z');
+    expect(await compareWithBase(lonely)).toBeNull();
+  });
+
+  it('sem origin/HEAD, acha a base por main/master/develop', async () => {
+    const { repo } = await withRemote();
+    await g(repo, 'remote', 'set-head', 'origin', '--delete');
+    await g(repo, 'checkout', '-b', 'feat/w');
+    expect(await compareWithBase(repo)).toMatchObject({ base: 'origin/main', short: 'main' });
   });
 });

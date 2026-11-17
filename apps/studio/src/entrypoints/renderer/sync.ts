@@ -1,5 +1,5 @@
 // Texto do estado de sincronização de uma branch (adiante/atrás do remoto). Uma única fonte para o tooltip, o aria-label e as telas.
-import { syncState, type SyncInfo } from '@git-nexus/git-core/pure';
+import { syncState, type BaseComparison, type SyncInfo } from '@git-nexus/git-core/pure';
 import { agoParts } from './auto-fetch-core';
 import { t } from './i18n';
 
@@ -32,4 +32,14 @@ export function syncText(s: SyncInfo | null | undefined): string {
     case 'in-sync':
       return t('sync.inSync', { up });
   }
+}
+
+/** Em relação à branch base (origin/main): "12 commits atrás de origin/main", "Divergida de…", "Em dia com…". Vazia sem comparação. */
+export function baseText(b: BaseComparison | null | undefined): string {
+  return b ? syncText({ upstream: b.base, ahead: b.ahead, behind: b.behind, gone: false }) : '';
+}
+
+/** Chip discreto do cabeçalho: "↓12 main", só quando a branch está atrás da base (é o que pede ação). Vazio nos outros casos. */
+export function baseChip(b: BaseComparison | null | undefined): string {
+  return b && b.behind > 0 ? `↓${b.behind} ${b.short}` : '';
 }

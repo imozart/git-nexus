@@ -427,6 +427,7 @@ const en: Partial<Record<MessageKey, string>> = {
   'sync.noUpstream': 'No upstream: the branch does not track any remote branch',
   'sync.gone': 'The remote branch {up} was deleted',
   'sync.detached': 'Detached HEAD',
+  'bp.baseInfo': 'Compared with {base}: ↑{ahead} ↓{behind}',
   'sync.lastFetch': 'Last fetch from the remote: {when}',
   'sync.neverFetched': 'Has not fetched from the remote yet',
   'sync.agoNow': 'just now',

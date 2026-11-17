@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { GnBadge, GnButton, GnButtonGroup, GnIconButton, GnSegmented } from '@git-nexus/ui-kit';
-import type { FileEntry, FileSides, RebaseState, RepoSummary, RepositoryMeta } from '@git-nexus/git-core/pure';
+import type { BaseComparison, FileEntry, FileSides, RebaseState, RepoSummary, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { AUTO_FETCH_TICK_MS, autoFetch } from '../auto-fetch';
 import { checkState, groupEntries, hasStaged, isUntracked, statusLabel, statusLetter } from '../changes';
@@ -25,6 +25,8 @@ const cmds = useCommandsStore();
 const branch = ref('');
 /** Adiante/atrás da branch atual em relação ao remoto (indicador do cabeçalho). Fica null até o primeiro resumo chegar. */
 const sync = ref<RepoSummary | null>(null);
+/** A branch atual em relação à base do remoto (origin/main); null quando não se aplica. */
+const base = ref<BaseComparison | null>(null);
 const rebase = ref<RebaseState | null>(null);
 const entries = ref<FileEntry[]>([]);
 const conflicted = ref<string[]>([]);
@@ -135,14 +137,16 @@ async function refresh(keepError = false): Promise<void> {
   loading.value = true;
   if (!keepError) error.value = '';
   try {
-    const [st, conflicts, rb, summary] = await Promise.all([
+    const [st, conflicts, rb, summary, cmp] = await Promise.all([
       api.getGitStatus(props.repo.path),
       api.getMergeConflicts(props.repo.path),
       api.getRebaseState(props.repo.path).catch(() => null),
       api.getRepoSummary(props.repo.path).catch(() => null), // o indicador é um extra: se falhar, a tela segue sem ele
+      api.compareWithBase(props.repo.path).catch(() => null),
     ]);
     rebase.value = rb;
     sync.value = summary;
+    base.value = cmp;
     const bad = new Set(conflicts.map((c) => c.filePath));
     conflicted.value = [...bad];
     branch.value = st.branch;
@@ -556,8 +560,10 @@ async function onMenu(id: string): Promise<void> {
 async function maybeAutoFetch(): Promise<void> {
   const path = props.repo.path;
   if (!(await autoFetch(path, sync.value?.lastFetch))) return;
-  const fresh = await api.getRepoSummary(path).catch(() => null);
-  if (fresh && path === props.repo.path) sync.value = fresh;
+  const [fresh, cmp] = await Promise.all([api.getRepoSummary(path).catch(() => null), api.compareWithBase(path).catch(() => null)]);
+  if (path !== props.repo.path) return;
+  if (fresh) sync.value = fresh;
+  base.value = cmp;
 }
 
 const onFocus = () => void refresh().then(maybeAutoFetch);
@@ -586,7 +592,7 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
     <header class="rv__head">
       <div class="rv__id">
         <strong>{{ repo.name }}</strong>
-        <BranchPicker :repo="repo" :branch="branch" :sync="sync" @changed="onBranchChanged" @notice="showNotice($event)" @conflict="onBranchConflict" />
+        <BranchPicker :repo="repo" :branch="branch" :sync="sync" :base="base" @changed="onBranchChanged" @notice="showNotice($event)" @conflict="onBranchConflict" />
         <GnBadge v-if="repo.isWsl">WSL2</GnBadge>
         <span class="muted rv__path">{{ repo.path }}</span>
       </div>

@@ -10,6 +10,7 @@ import {
   listBranches,
   mergeBranch,
   pullBranch,
+  compareWithBase,
   rebaseOntoBranch,
   abortRebase,
   addToGitignore,
@@ -224,6 +225,7 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
     resolveConflictFile: (repoPath: string, filePath: string, merged: string) =>
       resolveConflictFile(repoPath, filePath, merged),
     listBranches: (repoPath: string) => listBranches(repoPath),
+    compareWithBase: (repoPath: string) => compareWithBase(repoPath),
     checkoutBranch: (repoPath: string, ref: string, kind: 'local' | 'remote') => checkoutBranch(repoPath, ref, kind),
     checkoutRevision: (repoPath: string, rev: string) => checkoutRevision(repoPath, rev),
     createBranch: (repoPath: string, input: CreateBranchInput) => createBranch(repoPath, input),
