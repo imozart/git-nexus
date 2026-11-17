@@ -3,7 +3,7 @@ import { accessSync, constants, existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
-import { BrowserWindow, Menu, app, clipboard, dialog, ipcMain, screen, shell, utilityProcess, type UtilityProcess } from 'electron';
+import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, screen, shell, utilityProcess, type UtilityProcess } from 'electron';
 import { setMessageLocale, tm } from '@git-nexus/git-core';
 import { WORKER_METHODS, channel, type UtilityEvent, type UtilityRequest, type UtilityResponse } from '../shared/channels';
 import { isAllowedUpdateUrl } from '../shared/update';
@@ -336,6 +336,26 @@ function applyZoom(wc: Electron.WebContents, factor: number): number {
   saveWindowState();
   return currentZoom;
 }
+
+// --- Notificações do sistema (a interface decide QUANDO avisar; aqui só se mostra) ---
+// Guarda as notificações abertas: sem uma referência o coletor de lixo pode apagá-las antes do clique.
+const openNotifications = new Set<Notification>();
+ipcMain.handle(channel('notify'), (e, input: { title?: unknown; body?: unknown }) => {
+  if (!Notification.isSupported()) return false;
+  const cut = (v: unknown, max: number) => String(v ?? '').slice(0, max);
+  const n = new Notification({ title: cut(input?.title, 120) || 'GitNexus', body: cut(input?.body, 400) });
+  const win = BrowserWindow.fromWebContents(e.sender);
+  n.on('click', () => {
+    if (!win || win.isDestroyed()) return;
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  });
+  n.on('close', () => openNotifications.delete(n));
+  openNotifications.add(n);
+  n.show();
+  return true;
+});
 
 // Zoom pelos comandos da paleta: a interface só pede a ação; quem sabe o fator atual é este processo.
 ipcMain.handle(channel('setZoom'), (e, action: string) => {

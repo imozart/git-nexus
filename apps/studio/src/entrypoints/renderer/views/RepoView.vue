@@ -4,6 +4,8 @@ import { GnBadge, GnButton, GnButtonGroup, GnIconButton, GnSegmented } from '@gi
 import type { BaseComparison, FileEntry, FileSides, InProgressKind, RebaseState, RepoSummary, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { AUTO_FETCH_TICK_MS, autoFetch } from '../auto-fetch';
+import { newCommitsFromFetch } from '../notifications-core';
+import { notificationsEnabled, notifyUser } from '../notifications';
 import { checkState, groupEntries, hasStaged, isUntracked, statusLabel, statusLetter } from '../changes';
 import { t, type MessageKey } from '../i18n';
 import { useCommandsStore, type Command } from '../stores/commands';
@@ -588,11 +590,15 @@ async function onMenu(id: string): Promise<void> {
 /** Busca automática no remoto (se ligada e se já passou o intervalo). Só relê o resumo do indicador, não a tela toda, e só se trouxe resultado. */
 async function maybeAutoFetch(): Promise<void> {
   const path = props.repo.path;
+  const before = sync.value;
   if (!(await autoFetch(path, sync.value?.lastFetch))) return;
   const [fresh, cmp] = await Promise.all([api.getRepoSummary(path).catch(() => null), api.compareWithBase(path).catch(() => null)]);
   if (path !== props.repo.path) return;
   if (fresh) sync.value = fresh;
   base.value = cmp;
+  // com o app em segundo plano, avisa que chegaram commits novos para a branch atual
+  const n = newCommitsFromFetch(before, fresh);
+  if (n > 0) void notifyUser({ title: t('notif.newCommitsTitle', { repo: props.repo.name }), body: t('notif.newCommits', { n, branch: fresh?.branch ?? '' }) });
 }
 
 const onFocus = () => void refresh().then(maybeAutoFetch);
@@ -603,7 +609,8 @@ onMounted(() => {
   void refresh().then(maybeAutoFetch);
   window.addEventListener('focus', onFocus);
   autoFetchTimer = setInterval(() => {
-    if (document.visibilityState === 'visible') void maybeAutoFetch();
+    // com as notificações ligadas a busca continua com a janela em segundo plano: é quando o aviso serve
+    if (document.visibilityState === 'visible' || notificationsEnabled.value) void maybeAutoFetch();
   }, AUTO_FETCH_TICK_MS);
   offCommands = cmds.register(repoCommands);
 });

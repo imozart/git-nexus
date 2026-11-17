@@ -82,6 +82,8 @@ const MAIN_STUBS: Record<string, (...a: any[]) => unknown> = {
     await mkdir(dataDir, { recursive: true });
     await writeFile(join(dataDir, 'installed.txt'), 'restart', 'utf8');
   },
+  // Notificação simulada: só diz que mostrou (o teste observa a chamada na própria página).
+  notify: async () => true,
   // Zoom simulado: guarda o fator em disco (o teste lê zoom.txt) e devolve o novo, com os mesmos degraus do app.
   setZoom: async (action: string) => {
     const steps = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];

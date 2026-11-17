@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import type { UpdateInfo, UpdateProgress } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { shouldCelebrate } from '../confetti-core';
+import { notifyUser } from '../notifications';
 import { t } from '../i18n';
 
 const ENABLED_KEY = 'gitnexus.updateCheck';
@@ -95,6 +96,7 @@ export const useUpdateStore = defineStore('update', () => {
       const r = await api.downloadUpdate();
       readyVersion = r.version;
       phase.value = 'ready';
+      void notifyUser({ title: t('notif.updateReadyTitle'), body: t('notif.updateReady', { version: r.version }) });
     } catch (e) {
       phase.value = 'idle';
       failed.value = true;
@@ -128,5 +130,5 @@ export const useUpdateStore = defineStore('update', () => {
     if (info.value?.url) await api.openExternal(info.value.url).catch((e) => say(errMsg(e)));
   }
 
-  return { info, checking, flash, celebrating, enabled, visible, phase, progress, percent, failed, preparing, canInstall, check, later, skip, setEnabled, download, downloadAndVerify, installAndRestart, openNotes };
+  return { say, info, checking, flash, celebrating, enabled, visible, phase, progress, percent, failed, preparing, canInstall, check, later, skip, setEnabled, download, downloadAndVerify, installAndRestart, openNotes };
 });

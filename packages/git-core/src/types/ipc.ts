@@ -932,6 +932,8 @@ export interface GitNexusApi extends GitNexusIPC {
 
   // Integração com o sistema (processo principal)
   copyText(text: string): Promise<void>;
+  /** Mostra uma notificação do sistema (clicar nela traz a janela do app para a frente). Devolve se o sistema a mostrou. */
+  notify(input: { title: string; body: string }): Promise<boolean>;
   /** Zoom da interface: aumenta, diminui ou volta a 100 %. Devolve o fator novo (1 = 100 %). Também por Ctrl/⌘ + = / - / 0. */
   setZoom(action: 'in' | 'out' | 'reset'): Promise<number>;
   /** Registra no log do app (`gitnexus-app.log`) um erro inesperado da interface. Devolve o caminho do arquivo. */

@@ -5,6 +5,7 @@ import CoreInterface from './CoreInterface.vue';
 import CommandPalette from './components/CommandPalette.vue';
 import { api } from './api';
 import { LOCALES, locale, setLocale, t } from './i18n';
+import { notificationsEnabled, notifyUser } from './notifications';
 import { THEME_PREFS, setThemePref, themePref } from './theme';
 import { useCommandsStore, type Command } from './stores/commands';
 import { useRepositoriesStore } from './stores/repositories';
@@ -42,6 +43,23 @@ function globalCommands(): Command[] {
       keywords: 'tema claro escuro sistema theme light dark system aparência cores',
       run: () => setThemePref(p),
     })),
+    {
+      id: 'app.notifToggle',
+      title: notificationsEnabled.value ? t('cmd.notifOff') : t('cmd.notifOn'),
+      group: app,
+      keywords: 'notificação notificacoes aviso avisos alerta notifications alerts desligar ligar',
+      run: () => {
+        notificationsEnabled.value = !notificationsEnabled.value;
+        upd.say(notificationsEnabled.value ? t('notif.on') : t('notif.off'));
+      },
+    },
+    {
+      id: 'app.notifTest',
+      title: t('cmd.notifTest'),
+      group: app,
+      keywords: 'notificação teste testar notifications test',
+      run: async () => upd.say((await notifyUser({ title: t('notif.testTitle'), body: t('notif.testBody') }, true)) ? t('notif.testSent') : t('notif.testBlocked')),
+    },
     { id: 'app.update', title: t('cmd.update'), group: app, keywords: 'nova versão upgrade atualizar update', run: () => upd.check(true) },
     {
       id: 'app.updateToggle',
