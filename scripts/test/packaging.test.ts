@@ -7,8 +7,8 @@ const sha = (c: string) => c.repeat(64);
 const SUMS = [
   [`GitNexus-${V}-win-x64-setup.exe`, sha('a')],
   [`GitNexus-${V}-win-arm64-setup.exe`, sha('b')],
-  [`GitNexus-${V}-win-x64.zip`, sha('c')],
-  [`GitNexus-${V}-win-arm64.zip`, sha('d')],
+  [`GitNexus-${V}-win-x64-portable.zip`, sha('c')],
+  [`GitNexus-${V}-win-arm64-portable.zip`, sha('d')],
   [`GitNexus-${V}-mac-x64.dmg`, sha('e')],
   [`GitNexus-${V}-mac-arm64.dmg`, sha('f')],
   [`GitNexus-${V}-linux-x64.tar.gz`, sha('1')],
@@ -61,11 +61,11 @@ describe('manifestos', () => {
     const j = JSON.parse(gen()['scoop/gitnexus.json']!);
     expect(j.version).toBe(V);
     expect(j.license).toBe('GPL-3.0-only');
-    expect(j.architecture['64bit']).toEqual({ url: `https://github.com/imozart/git-nexus/releases/download/v${V}/GitNexus-${V}-win-x64.zip`, hash: sha('c') });
+    expect(j.architecture['64bit']).toEqual({ url: `https://github.com/imozart/git-nexus/releases/download/v${V}/GitNexus-${V}-win-x64-portable.zip`, hash: sha('c') });
     expect(j.architecture.arm64.hash).toBe(sha('d'));
     expect(j.persist).toBe('GitNexusData');
     expect(j.shortcuts).toEqual([['GitNexus.exe', 'GitNexus']]);
-    expect(j.autoupdate.architecture['64bit'].url).toContain('v$version/GitNexus-$version-win-x64.zip');
+    expect(j.autoupdate.architecture['64bit'].url).toContain('v$version/GitNexus-$version-win-x64-portable.zip');
     expect(j.autoupdate.hash.url).toContain('SHA256SUMS.txt');
   });
 

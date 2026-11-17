@@ -121,7 +121,7 @@ const fmtSize = (bytes) => (bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} 
 
 const DOWNLOAD_ROWS = [
   { os: 'Windows', kind: 'Instalador', re: /-win-(x64|arm64)-setup\.exe$/ },
-  { os: 'Windows', kind: 'ZIP (portátil, sem instalar)', re: /-win-(x64|arm64)\.zip$/ },
+  { os: 'Windows', kind: 'ZIP (portátil, sem instalar)', re: /-win-(x64|arm64)(?:-portable)?\.zip$/ },
   { os: 'macOS', kind: 'DMG', re: /-mac-(x64|arm64)\.dmg$/ },
   { os: 'macOS', kind: 'ZIP', re: /-mac-(x64|arm64)\.zip$/ },
   { os: 'Linux', kind: 'AppImage (portátil)', re: /-linux-(x64|arm64)\.AppImage$/ },

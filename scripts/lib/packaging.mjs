@@ -80,7 +80,7 @@ export function wingetFiles({ version, repo, sums, date }) {
 }
 
 export function scoopFile({ version, repo, sums }) {
-  const zip = (arch) => `GitNexus-${version}-win-${arch}.zip`;
+  const zip = (arch) => `GitNexus-${version}-win-${arch}-portable.zip`;
   const base = `https://github.com/${repo}/releases/download/v$version`;
   const manifest = {
     version,
@@ -97,8 +97,8 @@ export function scoopFile({ version, repo, sums }) {
     checkver: 'github',
     autoupdate: {
       architecture: {
-        '64bit': { url: `${base}/GitNexus-$version-win-x64.zip` },
-        arm64: { url: `${base}/GitNexus-$version-win-arm64.zip` },
+        '64bit': { url: `${base}/GitNexus-$version-win-x64-portable.zip` },
+        arm64: { url: `${base}/GitNexus-$version-win-arm64-portable.zip` },
       },
       hash: { url: `${base}/SHA256SUMS.txt`, regex: '$sha256\\s+$basename' },
     },
