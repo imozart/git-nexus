@@ -1,5 +1,8 @@
 import type { EncodingChoice, FileEncoding, FileEncodingInfo } from '../file-encoding.js';
 
+/** Operação parada no meio que o app sabe continuar ou abortar (o rebase tem o painel próprio). */
+export type InProgressKind = 'merge' | 'cherry-pick' | 'revert';
+
 /** Veja `getAmendInfo`. */
 export interface AmendInfo {
   hasHead: boolean;
@@ -661,6 +664,17 @@ export interface GitNexusApi extends GitNexusIPC {
   getAmendInfo(repoPath: string): Promise<AmendInfo>;
   /** Emenda o último commit com o stage atual e a mensagem validada (`git commit --amend`). */
   executeAmend(repoPath: string, input: ConventionalCommitInput, localPolicy?: CommitPolicy): Promise<CommitResult>;
+
+  /** Aplica UM commit na branch atual (cherry-pick). Para por conflitos sem lançar erro (`conflicted`). */
+  cherryPickCommit(repoPath: string, hash: string): Promise<BranchActionResult>;
+  /** Cria um commit que desfaz o commit dado (revert), sem reescrever o histórico. */
+  revertCommit(repoPath: string, hash: string): Promise<BranchActionResult>;
+  /** Operação parada no meio (cherry-pick, revert ou merge) ou `null`. */
+  getInProgress(repoPath: string): Promise<InProgressKind | null>;
+  /** Continua a operação parada, depois de resolver os conflitos. */
+  continueOperation(repoPath: string): Promise<BranchActionResult>;
+  /** Abandona a operação parada e volta ao estado de antes. */
+  abortOperation(repoPath: string): Promise<BranchActionResult>;
 
   /** Abre o diálogo nativo de seleção de pastas. */
   pickDirectories(): Promise<string[]>;
