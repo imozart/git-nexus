@@ -69,8 +69,8 @@ defineExpose({ go, goTo });
   font-family: var(--gn-mono);
   font-size: 12px;
   &__l { display: block; padding: 0 12px; white-space: pre; min-height: 1.45em; }
-  .add { background: rgba(79, 181, 106, 0.14); color: #8fd7a1; }
-  .del { background: rgba(239, 106, 98, 0.14); color: #f0a09a; }
+  .add { background: rgba(79, 181, 106, 0.14); color: var(--gn-diff-add-text); }
+  .del { background: rgba(239, 106, 98, 0.14); color: var(--gn-diff-del-text); }
   .hunk { color: var(--gn-accent); background: rgba(79, 134, 247, 0.08); }
   .hunk--cur { background: rgba(79, 134, 247, 0.35); font-weight: 700; }
   .meta { color: var(--gn-muted); }

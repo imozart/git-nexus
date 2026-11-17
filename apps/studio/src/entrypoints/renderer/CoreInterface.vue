@@ -5,6 +5,7 @@ import { GnButton, GnTabs, type GnTab } from '@git-nexus/ui-kit';
 import { t } from './i18n';
 import EncodingMenu from './components/EncodingMenu.vue';
 import LanguagePicker from './components/LanguagePicker.vue';
+import ThemePicker from './components/ThemePicker.vue';
 import { useAppErrorsStore } from './stores/app-errors';
 import { useFileEncodingStore } from './stores/file-encoding';
 import { useCommandsStore, shortcutLabel } from './stores/commands';
@@ -63,6 +64,7 @@ const tabs = computed<GnTab[]>(() =>
   <div class="core">
     <div class="core__top">
       <GnTabs class="core__tabs" :tabs="tabs" :model-value="ws.activeId" @update:model-value="ws.activeId = $event" @close="ws.close" />
+      <ThemePicker />
       <LanguagePicker />
       <button type="button" class="core__cmd" :title="t('core.commandsTitle')" @click="cmds.open()">
         {{ t('core.commands') }} <kbd>{{ shortcutLabel('Mod+K') }}</kbd>

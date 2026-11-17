@@ -2,16 +2,22 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// Contraste das cores dos botões no tema escuro. As cores são lidas dos próprios arquivos (tokens.scss e GnButton.vue), então mudar um token
-// ou o texto sobre o fundo sólido sem conferir a legibilidade reprova aqui. Fórmulas: WCAG 2.x (luminância relativa e razão de contraste).
+// Contraste das cores dos botões nos dois temas (escuro e claro). As cores são lidas dos próprios arquivos (tokens.scss e GnButton.vue), então
+// mudar um token ou o texto sobre o fundo sólido sem conferir a legibilidade reprova aqui. Fórmulas: WCAG 2.x (luminância relativa e contraste).
 const root = join(__dirname, '..');
-const tokens = readFileSync(join(root, 'src', 'styles', 'tokens.scss'), 'utf8');
+const tokens = readFileSync(join(root, 'src', 'styles', 'tokens.scss'), 'utf8').replace(/\r\n/g, '\n');
 const button = readFileSync(join(root, 'src', 'components', 'GnButton.vue'), 'utf8').replace(/\r\n/g, '\n');
 const badge = readFileSync(join(root, 'src', 'components', 'GnBadge.vue'), 'utf8');
 
 type RGB = [number, number, number];
 const hex = (h: string): RGB => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) as RGB;
-const token = (name: string): RGB => hex(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`).exec(tokens)![1]!);
+const darkBlock = /:root \{([^}]*)\}/.exec(tokens)![1]!;
+const lightBlock = /:root\[data-theme='light'\] \{([^}]*)\}/.exec(tokens)![1]!;
+/** Cor de um token no tema: o bloco do próprio tema, e, se ele não redefine, o do escuro (a base). */
+const tokenIn = (block: string, name: string): RGB => {
+  const re = new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`);
+  return hex((re.exec(block) ?? re.exec(darkBlock))![1]!);
+};
 /** `color-mix(in srgb, a pct%, b)`: mistura linear em sRGB, como o navegador. */
 const mix = (a: RGB, pct: number, b: RGB): RGB => a.map((v, i) => (v * pct) / 100 + b[i]! * (1 - pct / 100)) as RGB;
 const lum = (c: RGB): number => {
@@ -28,48 +34,92 @@ const contrast = (a: RGB, b: RGB): number => {
 
 const WHITE: RGB = [255, 255, 255];
 // As porcentagens da mistura vêm do próprio CSS do botão: mudar o CSS muda o que o teste mede.
-const TEXT_PCT = Number(/color: color-mix\(in srgb, var\(--tone\) (\d+)%, #fff\)/.exec(button)![1]);
+const TEXT_PCT = Number(/color: color-mix\(in srgb, var\(--tone\) (\d+)%, var\(--gn-mix\)\)/.exec(button)![1]);
 const TINTS = [...button.matchAll(/background: color-mix\(in srgb, var\(--tone\) (\d+)%, var\(--gn-surface-2\)\)/g)].map((m) => Number(m[1]));
-const surface2 = token('gn-surface-2');
-const TONES = { accent: token('gn-accent'), success: token('gn-success'), warn: token('gn-warn'), danger: token('gn-danger') };
-/** Texto sobre o preenchimento sólido, lido de `--on-tone` de cada tom em GnButton.vue (accent usa o `#fff` padrão). */
-const onTone = (tone: string): RGB => {
-  const m = new RegExp(`&--tone-${tone} \\{[^}]*--on-tone: (#[0-9a-fA-F]{6})`).exec(button);
-  return m ? hex(m[1]!) : WHITE;
-};
 
-describe('contraste dos botões coloridos (tema escuro)', () => {
-  for (const [tone, color] of Object.entries(TONES)) {
-    it(`${tone}: texto do botão de contorno (tom clareado) tem contraste AA (4,5:1) sobre o fundo tingido, também no hover`, () => {
-      const text = mix(color, TEXT_PCT, WHITE);
-      expect(TINTS.length, "fundo normal e fundo no hover").toBe(2);
-      for (const tint of TINTS) {
-        const bg = mix(color, tint, surface2);
-        expect(contrast(text, bg), `${tone} com fundo a ${tint}%`).toBeGreaterThanOrEqual(4.5);
+const THEMES = { escuro: darkBlock, claro: lightBlock } as const;
+
+for (const [themeName, block] of Object.entries(THEMES)) {
+  const token = (name: string): RGB => tokenIn(block, name);
+  const surface2 = token('gn-surface-2');
+  const mixColor = token('gn-mix');
+  const TONES = { accent: token('gn-accent'), success: token('gn-success'), warn: token('gn-warn'), danger: token('gn-danger') };
+  /** Texto sobre o preenchimento sólido: o accent usa branco; os outros, o token `--gn-on-<tom>` que o GnButton referencia. */
+  const onTone = (tone: string): RGB => {
+    const ref = new RegExp(`&--tone-${tone} \\{[^}]*--on-tone: var\\(--(gn-on-[a-z]+)\\)`).exec(button);
+    return ref ? token(ref[1]!) : WHITE;
+  };
+
+  describe(`contraste dos botões coloridos (tema ${themeName})`, () => {
+    for (const [tone, color] of Object.entries(TONES)) {
+      it(`${tone}: texto do botão de contorno tem contraste AA (4,5:1) sobre o fundo tingido, também no hover`, () => {
+        const text = mix(color, TEXT_PCT, mixColor);
+        expect(TINTS.length, 'fundo normal e fundo no hover').toBe(2);
+        for (const tint of TINTS) {
+          const bg = mix(color, tint, surface2);
+          expect(contrast(text, bg), `${tone} com fundo a ${tint}%`).toBeGreaterThanOrEqual(4.5);
+        }
+      });
+
+      it(`${tone}: o texto sobre o botão sólido tem contraste AA (4,5:1)`, () => {
+        // o azul sólido usa o token próprio (--gn-accent-solid), mais escuro que o azul de bordas e foco, para o texto branco passar
+        const bg = tone === 'accent' ? token('gn-accent-solid') : color;
+        expect(contrast(onTone(tone), bg), tone).toBeGreaterThanOrEqual(4.5);
+      });
+    }
+
+    it('azul sólido: o texto branco passa de 4,5:1 em repouso e no hover (que escurece, nunca clareia)', () => {
+      expect(contrast(WHITE, token('gn-accent-solid'))).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(WHITE, token('gn-accent-solid-hover'))).toBeGreaterThanOrEqual(contrast(WHITE, token('gn-accent-solid')));
+      expect(button).toContain('&:hover:not(:disabled) { background: var(--gn-accent-solid-hover)');
+    });
+
+    it('botão leve colorido (ghost + tom): texto do tom sobre o fundo da tela, também com 4,5:1', () => {
+      const page = token('gn-bg');
+      for (const [tone, color] of Object.entries(TONES)) expect(contrast(mix(color, TEXT_PCT, mixColor), page), tone).toBeGreaterThanOrEqual(4.5);
+      expect(button).toContain('&--ghost-tone { background: transparent; border-color: transparent; }');
+    });
+
+    it('o texto do botão neutro continua legível sobre o fundo do botão', () => {
+      expect(contrast(token('gn-text'), surface2)).toBeGreaterThanOrEqual(4.5);
+    });
+  });
+}
+
+describe('tema claro: legibilidade do restante da paleta', () => {
+  const light = (name: string): RGB => tokenIn(lightBlock, name);
+  const pages = ['gn-bg', 'gn-surface', 'gn-surface-2'];
+
+  it('texto e texto secundário passam de 4,5:1 sobre o fundo, a superfície e o botão', () => {
+    for (const p of pages) {
+      expect(contrast(light('gn-text'), light(p)), `texto em ${p}`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(light('gn-muted'), light(p)), `secundário em ${p}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('as cores de destaque (links, estados) passam de 4,5:1 sobre o fundo e a superfície', () => {
+    for (const p of ['gn-bg', 'gn-surface']) {
+      for (const c of ['gn-accent', 'gn-success', 'gn-warn', 'gn-danger', 'gn-renamed', 'gn-untracked']) {
+        expect(contrast(light(c), light(p)), `${c} em ${p}`).toBeGreaterThanOrEqual(4.5);
       }
-    });
-
-    it(`${tone}: o texto sobre o botão sólido tem contraste AA (4,5:1)`, () => {
-      // o azul sólido usa o token próprio (--gn-accent-solid), mais escuro que o azul de bordas e foco, para o texto branco passar
-      const bg = tone === 'accent' ? token('gn-accent-solid') : color;
-      expect(contrast(onTone(tone), bg), tone).toBeGreaterThanOrEqual(4.5);
-    });
-  }
-
-  it('azul sólido: o texto branco passa de 4,5:1 em repouso e no hover (que escurece, nunca clareia)', () => {
-    expect(contrast(WHITE, token('gn-accent-solid'))).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(WHITE, token('gn-accent-solid-hover'))).toBeGreaterThanOrEqual(contrast(WHITE, token('gn-accent-solid')));
-    expect(button).toContain('&:hover:not(:disabled) { background: var(--gn-accent-solid-hover)');
+    }
   });
 
-  it('botão leve colorido (ghost + tom): texto clareado sobre o fundo da tela, também com 4,5:1', () => {
-    const page = token('gn-bg');
-    for (const [tone, color] of Object.entries(TONES)) expect(contrast(mix(color, TEXT_PCT, WHITE), page), tone).toBeGreaterThanOrEqual(4.5);
-    expect(button).toContain('&--ghost-tone { background: transparent; border-color: transparent; }');
+  it('texto das linhas adicionadas e removidas do diff passa de 4,5:1 sobre o fundo tingido', () => {
+    const surface = light('gn-surface');
+    expect(contrast(light('gn-diff-add-text'), mix(light('gn-success'), 14, surface))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(light('gn-diff-del-text'), mix(light('gn-danger'), 14, surface))).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('o texto do botão neutro (cinza claro) continua legível sobre o fundo do botão', () => {
-    expect(contrast(token('gn-text'), surface2)).toBeGreaterThanOrEqual(4.5);
+  it('o tema claro declara color-scheme: light (barras de rolagem e campos nativos)', () => {
+    expect(lightBlock).toContain('color-scheme: light');
+    expect(darkBlock).toContain('color-scheme: dark');
+  });
+
+  it('todo token de cor do escuro que o claro precisa redefinir foi redefinido', () => {
+    const names = (b: string) => [...b.matchAll(/--(gn-[a-z0-9-]+):\s*#[0-9a-fA-F]{6}/g)].map((m) => m[1]!);
+    const faltando = names(darkBlock).filter((n) => !names(lightBlock).includes(n));
+    expect(faltando, 'tokens só no escuro').toEqual([]);
   });
 });
 
@@ -81,7 +131,7 @@ describe('vocabulário dos tons', () => {
   });
 
   it('todo tom colorido tem a cor definida e o conjunto de tokens existe', () => {
-    for (const t of ['gn-accent', 'gn-success', 'gn-warn', 'gn-danger']) expect(token(t)).toHaveLength(3);
+    for (const t of ['gn-accent', 'gn-success', 'gn-warn', 'gn-danger']) expect(tokenIn(darkBlock, t)).toHaveLength(3);
     for (const tone of ['accent', 'success', 'warn', 'danger']) expect(button).toContain(`&--tone-${tone} {`);
   });
 

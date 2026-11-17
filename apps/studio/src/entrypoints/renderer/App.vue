@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted } from 'vue';
+import AskpassDialog from './components/AskpassDialog.vue';
 import ConfettiRain from './components/ConfettiRain.vue';
 import CoreInterface from './CoreInterface.vue';
 import CommandPalette from './components/CommandPalette.vue';
 import { api } from './api';
 import { LOCALES, locale, setLocale, t } from './i18n';
+import { notificationsEnabled, notifyUser } from './notifications';
+import { THEME_PREFS, setThemePref, themePref } from './theme';
+import { useAskpassStore } from './stores/askpass';
 import { useCommandsStore, type Command } from './stores/commands';
 import { useRepositoriesStore } from './stores/repositories';
 import { useGitLogStore } from './stores/gitlog';
@@ -15,6 +19,7 @@ const cmds = useCommandsStore();
 const ws = useWorkspaceStore();
 const repos = useRepositoriesStore();
 const upd = useUpdateStore();
+const askpass = useAskpassStore();
 const gitLog = useGitLogStore();
 
 const inRepo = () => !!ws.active?.repo;
@@ -34,6 +39,30 @@ function globalCommands(): Command[] {
     { id: 'app.zoomIn', title: t('cmd.zoomIn'), group: app, keywords: 'zoom aumentar ampliar maior lupa zoom in bigger', run: () => void api.setZoom('in') },
     { id: 'app.zoomOut', title: t('cmd.zoomOut'), group: app, keywords: 'zoom diminuir reduzir menor zoom out smaller', run: () => void api.setZoom('out') },
     { id: 'app.zoomReset', title: t('cmd.zoomReset'), group: app, keywords: 'zoom restaurar padrão 100 reset normal', run: () => void api.setZoom('reset') },
+    ...THEME_PREFS.filter((p) => p !== themePref.value).map((p) => ({
+      id: `app.theme.${p}`,
+      title: t('cmd.theme', { name: t(`theme.${p}`) }),
+      group: app,
+      keywords: 'tema claro escuro sistema theme light dark system aparência cores',
+      run: () => setThemePref(p),
+    })),
+    {
+      id: 'app.notifToggle',
+      title: notificationsEnabled.value ? t('cmd.notifOff') : t('cmd.notifOn'),
+      group: app,
+      keywords: 'notificação notificacoes aviso avisos alerta notifications alerts desligar ligar',
+      run: () => {
+        notificationsEnabled.value = !notificationsEnabled.value;
+        upd.say(notificationsEnabled.value ? t('notif.on') : t('notif.off'));
+      },
+    },
+    {
+      id: 'app.notifTest',
+      title: t('cmd.notifTest'),
+      group: app,
+      keywords: 'notificação teste testar notifications test',
+      run: async () => upd.say((await notifyUser({ title: t('notif.testTitle'), body: t('notif.testBody') }, true)) ? t('notif.testSent') : t('notif.testBlocked')),
+    },
     { id: 'app.update', title: t('cmd.update'), group: app, keywords: 'nova versão upgrade atualizar update', run: () => upd.check(true) },
     {
       id: 'app.updateToggle',
@@ -49,6 +78,8 @@ function globalCommands(): Command[] {
       keywords: 'idioma língua language locale',
       run: () => setLocale(l.id),
     })),
+    { id: 'repo.clone', title: t('cmd.clone'), group: reposGroup, keywords: 'clonar clone baixar url git clone', run: () => { ws.activeId = HOME_TAB; repos.createDialog = 'clone'; } },
+    { id: 'repo.new', title: t('cmd.newRepo'), group: reposGroup, keywords: 'novo criar init iniciar repositório new create', run: () => { ws.activeId = HOME_TAB; repos.createDialog = 'init'; } },
     { id: 'repo.add', title: t('cmd.addRepo'), group: reposGroup, keywords: 'novo pasta new folder add', run: () => repos.addRepository() },
     { id: 'repo.scan', title: t('cmd.scan'), group: reposGroup, keywords: 'scanner catalogar scan catalog', run: () => repos.scanRoots() },
     { id: 'repo.status', title: t('cmd.status'), group: reposGroup, keywords: 'refresh', run: () => repos.refreshSummaries() },
@@ -132,6 +163,7 @@ let updTimers: ReturnType<typeof setTimeout>[] = [];
 onMounted(() => {
   off = cmds.register(globalCommands);
   gitLog.start();
+  askpass.listen();
   // atualização: 8 s depois de abrir (não atrasa a abertura) e a cada 12 h
   updTimers = [setTimeout(() => void upd.check(), 8000)];
   const iv = setInterval(() => void upd.check(), 12 * 3600 * 1000);
@@ -148,5 +180,6 @@ onBeforeUnmount(() => {
 <template>
   <CoreInterface />
   <CommandPalette />
+  <AskpassDialog />
   <ConfettiRain v-if="upd.celebrating" @done="upd.celebrating = false" />
 </template>

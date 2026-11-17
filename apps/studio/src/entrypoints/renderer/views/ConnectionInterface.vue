@@ -6,6 +6,7 @@ import { dateLocale, t } from '../i18n';
 import { useRepositoriesStore } from '../stores/repositories';
 import { useWorkspaceStore } from '../stores/workspace';
 import ChangelogDialog from '../components/ChangelogDialog.vue';
+import RepoCreateDialog from '../components/RepoCreateDialog.vue';
 import SyncIndicator from '../components/SyncIndicator.vue';
 
 const store = useRepositoriesStore();
@@ -20,9 +21,23 @@ async function open(repo: RepositoryMeta): Promise<void> {
   await store.touch(repo.id);
 }
 
+/** Clonou ou criou: atualiza a lista, abre o repositório numa aba e avisa (com a observação, se houver). */
+async function created(v: { repo: RepositoryMeta; note?: string }, mode: 'clone' | 'init'): Promise<void> {
+  store.createDialog = null;
+  await store.load();
+  store.message = { kind: 'info', text: [t(mode === 'clone' ? 'clone.done' : 'create.done', { name: v.repo.name }), v.note].filter(Boolean).join(' ') };
+  await open(v.repo);
+}
+
 async function remove(repo: RepositoryMeta): Promise<void> {
   ws.closeRepo(repo.id);
   await store.remove(repo.id);
+}
+
+/** Buscar de um repositório: mostra o resultado (antes a falha, por exemplo de autenticação, ficava muda; só o Pull avisava). */
+async function fetchOne(r: RepositoryMeta): Promise<void> {
+  const res = await store.syncOne(r, 'fetch');
+  store.message = { kind: res.ok ? 'info' : 'error', text: `${r.name}: ${res.message}` };
 }
 
 async function pullOne(r: RepositoryMeta): Promise<void> {
@@ -60,6 +75,8 @@ const fmt = (ts: number) => (ts ? new Date(ts).toLocaleString(dateLocale.value) 
       </div>
       <div class="conn__actions">
         <GnButton variant="primary" :disabled="store.busy" @click="store.addRepository()">{{ t('home.add') }}</GnButton>
+        <GnButton :disabled="store.busy" data-testid="home-clone" :title="t('clone.tip')" @click="store.createDialog = 'clone'">{{ t('home.clone') }}</GnButton>
+        <GnButton :disabled="store.busy" data-testid="home-new" :title="t('create.tip')" @click="store.createDialog = 'init'">{{ t('home.new') }}</GnButton>
         <GnButton :disabled="store.busy" @click="store.scanRoots()">{{ t('home.scan') }}</GnButton>
         <GnButton :title="t('home.changelogTitle')" @click="showChangelog = true">{{ t('home.changelog') }}</GnButton>
       </div>
@@ -123,13 +140,14 @@ const fmt = (ts: number) => (ts ? new Date(ts).toLocaleString(dateLocale.value) 
         </div>
         <div class="repo__btns">
           <GnButton size="sm" tone="accent" @click="open(r)">{{ t('home.open') }}</GnButton>
-          <GnButton size="sm" :disabled="!!store.working[r.id]" :title="t('home.fetchTitle')" @click="store.syncOne(r, 'fetch')">{{ t('home.fetch') }}</GnButton>
+          <GnButton size="sm" :disabled="!!store.working[r.id]" :title="t('home.fetchTitle')" @click="fetchOne(r)">{{ t('home.fetch') }}</GnButton>
           <GnButton size="sm" tone="accent" :disabled="!!store.working[r.id] || !sum(r)?.upstream" :title="t('home.pullTitle')" @click="pullOne(r)">{{ t('home.pull') }}</GnButton>
           <GnIconButton icon="trash" tone="danger" :label="t('home.remove')" :title="t('home.removeTitle')" @click="remove(r)" />
         </div>
       </li>
     </ul>
     <ChangelogDialog v-if="showChangelog" @close="showChangelog = false" />
+    <RepoCreateDialog v-if="store.createDialog" :mode="store.createDialog" @cancel="store.createDialog = null" @done="created($event, store.createDialog!)" />
   </div>
 </template>
 

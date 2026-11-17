@@ -4,6 +4,17 @@ import { join, resolve } from 'node:path';
 import {
   CommitRejectedError,
   abortOperation,
+  cloneRepository,
+  getActiveAskpass,
+  getSigningInfo,
+  getLfsInfo,
+  pullLfs,
+  getSubmodules,
+  initSubmodules,
+  updateSubmodules,
+  initRepository,
+  searchContent,
+  getFileContext,
   createTag,
   deleteTag,
   listRemoteTags,
@@ -75,6 +86,9 @@ import {
   unstageFiles,
   type BumpChoice,
   type CommitPolicy,
+  type CloneInput,
+  type ContentSearch,
+  type InitInput,
   type CreateBranchInput,
   type CreateStashInput,
   type PullMode,
@@ -152,6 +166,16 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
   const sorted = (repos: RepositoryMeta[]) =>
     [...repos].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt || a.name.localeCompare(b.name));
 
+  /** Valida que a pasta é um repositório, normaliza para a raiz e cataloga. */
+  async function register(path: string): Promise<RepositoryMeta> {
+    await runGit(path, ['rev-parse', '--git-dir']); // valida que é um repositório
+    // Para caminhos locais normaliza para a raiz do repositório; em WSL (UNC) mantém o caminho informado.
+    const { stdout } = await runGit(path, ['rev-parse', '--show-toplevel']);
+    const meta = toRepositoryMeta(isWslPath(path) ? path : resolve(stdout.trim() || path));
+    await upsert([meta]);
+    return meta;
+  }
+
   return {
     scanDirectories: async (roots: string[]) => {
       const found = await scanDirectories(roots);
@@ -159,13 +183,21 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
       return found;
     },
     getKnownRepositories: async () => sorted(await loadRepos()),
-    addRepositoryPath: async (path: string) => {
-      await runGit(path, ['rev-parse', '--git-dir']); // valida que é um repositório
-      // Para caminhos locais normaliza para a raiz do repositório; em WSL (UNC) mantém o caminho informado.
-      const { stdout } = await runGit(path, ['rev-parse', '--show-toplevel']);
-      const meta = toRepositoryMeta(isWslPath(path) ? path : resolve(stdout.trim() || path));
-      await upsert([meta]);
-      return meta;
+    addRepositoryPath: register,
+    getSigningInfo: (repoPath: string) => getSigningInfo(repoPath),
+    getLfsInfo: (repoPath: string) => getLfsInfo(repoPath),
+    pullLfs: (repoPath: string, paths?: string[]) => pullLfs(repoPath, paths),
+    getSubmodules: (repoPath: string) => getSubmodules(repoPath),
+    initSubmodules: (repoPath: string, paths?: string[]) => initSubmodules(repoPath, paths),
+    updateSubmodules: (repoPath: string, paths?: string[]) => updateSubmodules(repoPath, paths),
+    // a resposta de um diálogo de credencial segue direto para a ponte (nunca é registrada em log)
+    askpassAnswer: async (id: string, answer: string | null) => getActiveAskpass()?.answer(String(id), answer === null ? null : String(answer)),
+    searchContent: (repoPath: string, q: ContentSearch) => searchContent(repoPath, q),
+    getFileContext: (repoPath: string, file: string, line: number, radius?: number) => getFileContext(repoPath, file, line, radius),
+    cloneRepository: async (input: CloneInput) => register((await cloneRepository(input)).path),
+    initRepository: async (input: InitInput) => {
+      const r = await initRepository(input);
+      return { ...r, repo: await register(r.path) };
     },
     removeRepository: (id: string) =>
       serial(async () => saveRepos((await loadRepos()).filter((r) => r.id !== id))),
@@ -196,8 +228,8 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
     skipRebase: (repoPath: string) => skipRebase(repoPath),
     abortRebase: (repoPath: string) => abortRebase(repoPath),
     getRepoSummary: (repoPath: string) => getRepoSummary(repoPath),
-    fetchRepo: (repoPath: string) => fetchRepo(repoPath),
-    pullRepo: (repoPath: string) => pullRepo(repoPath),
+    fetchRepo: (repoPath: string, silent?: boolean) => fetchRepo(repoPath, silent === true),
+    pullRepo: (repoPath: string, silent?: boolean) => pullRepo(repoPath, silent === true),
     searchHistory: (repoPath: string, query: HistorySearch, limit?: number) => searchHistory(repoPath, query, limit),
     getFileHistory: (repoPath: string, file: string, limit?: number) => getFileHistory(repoPath, file, limit),
     listTrackedFiles: (repoPath: string) => listTrackedFiles(repoPath),
@@ -230,14 +262,14 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
     setLocale: async (locale: string) => {
       setMessageLocale(locale);
     },
-    executeCommit: async (repoPath: string, input: ConventionalCommitInput, localPolicy?: CommitPolicy) => {
+    executeCommit: async (repoPath: string, input: ConventionalCommitInput, localPolicy?: CommitPolicy, sign?: boolean) => {
       // A política do time (.gitnexus.json) é obrigatória: sobrepõe o que a interface enviou.
       const team = (await readRepoPolicy(repoPath)).commit;
       const policy = mergePolicy(localPolicy ?? DEFAULT_POLICY, team);
       const v = validateCommitMessage(input, policy);
       if (!v.isValid) throw new Error(v.errors.join('\n'));
       try {
-        return await commit(repoPath, formatCommitMessage(input));
+        return await commit(repoPath, formatCommitMessage(input), { sign: typeof sign === 'boolean' ? sign : undefined });
       } catch (e) {
         if (e instanceof CommitRejectedError) throw new Error(HOOK_REJECTED_PREFIX + (e.hookOutput || e.message));
         throw e;
@@ -255,14 +287,14 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
     getInProgress: (repoPath: string) => getInProgress(repoPath),
     continueOperation: (repoPath: string) => continueOperation(repoPath),
     abortOperation: (repoPath: string) => abortOperation(repoPath),
-    executeAmend: async (repoPath: string, input: ConventionalCommitInput, localPolicy?: CommitPolicy) => {
+    executeAmend: async (repoPath: string, input: ConventionalCommitInput, localPolicy?: CommitPolicy, sign?: boolean) => {
       // mesma regra do commit: a política do time (.gitnexus.json) prevalece
       const team = (await readRepoPolicy(repoPath)).commit;
       const policy = mergePolicy(localPolicy ?? DEFAULT_POLICY, team);
       const v = validateCommitMessage(input, policy);
       if (!v.isValid) throw new Error(v.errors.join('\n'));
       try {
-        return await amendCommit(repoPath, formatCommitMessage(input));
+        return await amendCommit(repoPath, formatCommitMessage(input), { sign: typeof sign === 'boolean' ? sign : undefined });
       } catch (e) {
         if (e instanceof CommitRejectedError) throw new Error(HOOK_REJECTED_PREFIX + (e.hookOutput || e.message));
         throw e;

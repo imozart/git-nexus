@@ -379,15 +379,15 @@ watch(
   &--M { color: var(--gn-accent); }
   &--A, &--N { color: var(--gn-success); }
   &--D { color: var(--gn-muted); }
-  &--R, &--C { color: #c678dd; }
+  &--R, &--C { color: var(--gn-renamed); }
   &--T { color: var(--gn-warn); }
   &--U { color: var(--gn-warn); }
 }
 .name--M { color: var(--gn-accent); }
 .name--A { color: var(--gn-success); }
-.name--N { color: #d99a54; }
+.name--N { color: var(--gn-untracked); }
 .name--D { color: var(--gn-muted); text-decoration: line-through; }
-.name--R, .name--C { color: #c678dd; }
+.name--R, .name--C { color: var(--gn-renamed); }
 .tag { font-size: 10px; color: var(--gn-warn); border: 1px solid var(--gn-warn); border-radius: 999px; padding: 0 6px; }
 .empty { margin: 0; padding: 2px 28px 8px; font-size: 12px; color: var(--gn-muted); }
 .hint { margin: 0; padding: 10px 12px; font-size: 11px; color: var(--gn-muted); }

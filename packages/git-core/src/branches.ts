@@ -1,5 +1,7 @@
+import { classifyRemoteFailure, remoteFailureMessage } from './askpass-pure.js';
+import { remoteEnv } from './askpass.js';
 import { emitGitProgress, progressReader } from './progress.js';
-import { NO_PROMPT, getRepoSummary } from './repo-status.js';
+import { getRepoSummary } from './repo-status.js';
 import { runGit } from './runner.js';
 import { SYNC_COMMITS_LIMIT } from './types/ipc.js';
 import type { BaseComparison, BranchActionResult, BranchInfo, BranchList, CreateBranchInput, PullMode, SyncCommit, SyncCommits, SyncResult, UpdateMethod } from './types/ipc.js';
@@ -158,8 +160,8 @@ export function explain(out: string, fallback: string): string {
     return tm('Há alterações locais que seriam sobrescritas: faça commit ou guarde (stash) antes.', 'Local changes would be overwritten: commit or stash them first.');
   if (/unmerged files|You have unmerged paths|needs merge/i.test(out)) return tm('Há conflitos a resolver antes.', 'There are conflicts to resolve first.');
   if (/not fully merged/i.test(out)) return tm('A branch tem commits que não estão em nenhuma outra.', 'The branch has commits that are not in any other branch.');
-  if (/Authentication failed|could not read Username|Permission denied|Could not resolve host|unable to access/i.test(out))
-    return tm('Não consegui falar com o remoto (rede ou credencial).', 'Could not reach the remote (network or credentials).');
+  const remote = remoteFailureMessage(classifyRemoteFailure(out));
+  if (remote) return remote;
   return firstError(out) || fallback;
 }
 
@@ -228,7 +230,7 @@ export async function createBranch(repoPath: string, input: CreateBranchInput): 
   let warning: string | undefined;
   const remote = input.fetch ? await splitRemoteRef(repoPath, base) : null;
   if (remote) {
-    const f = await runGit(repoPath, ['fetch', remote.remote, remote.branch], { check: false, env: NO_PROMPT });
+    const f = await runGit(repoPath, ['fetch', remote.remote, remote.branch], { check: false, env: remoteEnv() });
     if (f.code !== 0) {
       warning = tm(`Não consegui buscar '${base}' agora: usei a última cópia local, que pode estar desatualizada.`, `Could not fetch '${base}' now: used the last local copy, which may be out of date.`);
     }
@@ -286,7 +288,7 @@ export async function pullBranch(repoPath: string, remoteRef: string, mode: Pull
   const parts = await splitRemoteRef(repoPath, remoteRef);
   if (!parts) return { ok: false, message: tm(`Não encontrei o remoto de ${remoteRef}.`, `Could not find the remote of ${remoteRef}.`) };
   const args = ['pull', mode === 'rebase' ? '--rebase' : '--no-rebase', ...(mode === 'merge' ? ['--no-edit'] : []), parts.remote, parts.branch];
-  const r = await runGit(repoPath, args, { check: false, env: NO_PROMPT });
+  const r = await runGit(repoPath, args, { check: false, env: remoteEnv() });
   const out = r.stderr + r.stdout;
   if (r.code === 0) return { ok: true, message: upToDate(out) ? tm('Já estava atualizado.', 'Already up to date.') : tm(`Atualizado com '${remoteRef}'.`, `Updated from '${remoteRef}'.`) };
   if (hadConflict(out)) return { ok: false, conflicted: true, message: tm('O pull parou por conflitos: resolva-os na tela de conflitos.', 'The pull stopped on conflicts: resolve them in the conflicts view.') };
@@ -363,7 +365,7 @@ export async function pushRepo(repoPath: string): Promise<BranchActionResult> {
 
   const onStderr = progressReader((p) => emitGitProgress({ repoPath, op: 'push', phase: p.phase, percent: p.percent }));
   const args = ['push', '--progress', ...(publishing ? ['-u'] : []), remote, `${cur}:refs/heads/${branch}`];
-  const r = await runGit(repoPath, args, { check: false, env: NO_PROMPT, onStderr });
+  const r = await runGit(repoPath, args, { check: false, env: remoteEnv(), onStderr });
   const out = r.stderr + r.stdout;
   if (r.code === 0) {
     if (/Everything up-to-date/i.test(out)) return { ok: true, message: tm('Nada a enviar: já está em dia.', 'Nothing to push: already up to date.') };
@@ -410,7 +412,7 @@ export async function pushWithLease(repoPath: string): Promise<BranchActionResul
   }
   const expected = (await runGit(repoPath, ['rev-parse', up])).stdout.trim();
   const onStderr = progressReader((p) => emitGitProgress({ repoPath, op: 'push', phase: p.phase, percent: p.percent }));
-  const r = await runGit(repoPath, ['push', '--progress', `--force-with-lease=refs/heads/${branch}:${expected}`, owner, `${cur}:refs/heads/${branch}`], { check: false, env: NO_PROMPT, onStderr });
+  const r = await runGit(repoPath, ['push', '--progress', `--force-with-lease=refs/heads/${branch}:${expected}`, owner, `${cur}:refs/heads/${branch}`], { check: false, env: remoteEnv(), onStderr });
   const out = r.stderr + r.stdout;
   if (r.code === 0) {
     if (/Everything up-to-date/i.test(out)) return { ok: true, message: tm('Nada a enviar: já está em dia.', 'Nothing to push: already up to date.') };
@@ -448,7 +450,7 @@ const STASH_NAME = 'GitNexus: guardado antes de atualizar';
  * O stash é feito aqui, e não com `git pull --autostash`, para ter controle do que dizer em cada desfecho (voltou limpo, conflitou, a atualização
  * falhou) e porque o `--autostash` do pull com merge só existe a partir do Git 2.27.
  */
-export async function updateRepo(repoPath: string, method: UpdateMethod): Promise<BranchActionResult> {
+export async function updateRepo(repoPath: string, method: UpdateMethod, silent = false): Promise<BranchActionResult> {
   const cur = await currentBranch(repoPath);
   if (!cur) return { ok: false, message: tm('HEAD desanexado: nada a atualizar.', 'Detached HEAD: nothing to update.') };
   if (!(await upstreamRef(repoPath, cur))) return { ok: false, message: tm('A branch não tem upstream configurado: publique-a primeiro.', 'The branch has no upstream configured: publish it first.') };
@@ -462,7 +464,7 @@ export async function updateRepo(repoPath: string, method: UpdateMethod): Promis
   // 2) atualiza
   const flags = method === 'ff' ? ['--ff-only'] : method === 'merge' ? ['--no-rebase', '--no-edit'] : ['--rebase'];
   const onStderr = progressReader((p) => emitGitProgress({ repoPath, op: 'pull', phase: p.phase, percent: p.percent }));
-  const r = await runGit(repoPath, ['pull', '--progress', ...flags], { check: false, env: NO_PROMPT, onStderr });
+  const r = await runGit(repoPath, ['pull', '--progress', ...flags], { check: false, env: remoteEnv(silent), onStderr });
   const out = r.stderr + r.stdout;
 
   if (r.code !== 0) {
@@ -506,12 +508,12 @@ export async function updateRepo(repoPath: string, method: UpdateMethod): Promis
  * de guardar e devolver as alterações locais e os mesmos textos. Antes era um `pull --ff-only` à parte, que falhava com alterações locais.
  * Aqui ficam só as recusas que não valem a pena tentar (HEAD desanexado, sem upstream, conflitos em andamento).
  */
-export async function pullRepo(repoPath: string): Promise<SyncResult> {
+export async function pullRepo(repoPath: string, silent = false): Promise<SyncResult> {
   const s = await getRepoSummary(repoPath);
   if (s.detached) return { ok: false, message: tm('HEAD desanexado: nada a atualizar.', 'Detached HEAD: nothing to update.') };
   if (!s.upstream) return { ok: false, message: tm('A branch não tem upstream configurado.', 'The branch has no upstream configured.') };
   if (s.conflicted) return { ok: false, message: tm('Há conflitos a resolver antes de atualizar.', 'There are conflicts to resolve before updating.') };
-  const r = await updateRepo(repoPath, 'ff');
+  const r = await updateRepo(repoPath, 'ff', silent);
   return { ok: r.ok, message: r.message };
 }
 

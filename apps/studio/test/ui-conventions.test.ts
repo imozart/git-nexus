@@ -24,6 +24,7 @@ const RAW_BUTTONS: Record<string, { max: number; why: string }> = {
   'components/GitLogPanel.vue': { max: 3, why: 'alternância do painel e os dois botões em pílula (candidatos a GnButton)' },
   'components/MergeConflictResolver.vue': { max: 1, why: 'atalho de bloco dentro da lista de conflitos' },
   'components/SideBySideDiff.vue': { max: 5, why: 'controles compactos por linha do diff (candidatos a GnIconButton size="xs") e a dobra de linhas' },
+  'components/tools/SearchPanel.vue': { max: 5, why: 'três chaves independentes da busca (Aa, palavra inteira, regex: não são exclusivas, então não cabem no GnSegmented) e duas linhas de lista (cabeçalho do arquivo e ocorrência)' },
   'components/tools/StashPanel.vue': { max: 1, why: 'link-botão de "guardar só alguns arquivos"' },
   'CoreInterface.vue': { max: 1, why: 'botão "Comandos" da barra superior (candidato a GnButton)' },
 };

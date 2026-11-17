@@ -4,6 +4,8 @@ import { GnBadge, GnButton, GnButtonGroup, GnIconButton, GnSegmented } from '@gi
 import type { BaseComparison, FileEntry, FileSides, InProgressKind, RebaseState, RepoSummary, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { AUTO_FETCH_TICK_MS, autoFetch } from '../auto-fetch';
+import { newCommitsFromFetch } from '../notifications-core';
+import { notificationsEnabled, notifyUser } from '../notifications';
 import { checkState, groupEntries, hasStaged, isUntracked, statusLabel, statusLetter } from '../changes';
 import { t, type MessageKey } from '../i18n';
 import { useCommandsStore, type Command } from '../stores/commands';
@@ -292,6 +294,9 @@ function repoCommands(): Command[] {
   return [
     { id: 'rv.terminal', title: t('rv.cmd.terminal'), group: gStaging, keywords: 'terminal shell prompt powershell console bash abrir open', when, run: () => openTool('terminal') },
     { id: 'rv.editor', title: t('rv.cmd.editor'), group: gStaging, keywords: 'editor vscode code ide abrir open', when, run: () => openTool('editor') },
+    { id: 'rv.lfs', title: t('rv.cmd.lfs'), group: gStaging, keywords: 'lfs large file storage arquivos grandes ponteiro pointer', when, run: () => ws.openTools(props.repo, 'lfs') },
+    { id: 'rv.submodules', title: t('rv.cmd.submodules'), group: gStaging, keywords: 'submódulos submodulos submodule init update', when, run: () => ws.openTools(props.repo, 'submodules') },
+    { id: 'rv.search', title: t('rv.cmd.search'), group: gStaging, shortcut: 'Mod+Shift+F', keywords: 'buscar procurar grep conteudo código texto search find', when, run: () => ws.openTools(props.repo, 'search') },
     { id: 'rv.refresh', title: t('rv.cmd.refresh'), group: gStaging, shortcut: 'F5', when, run: () => refresh() },
     {
       id: 'rv.stageAll',
@@ -599,11 +604,15 @@ async function onMenu(id: string): Promise<void> {
 /** Busca automática no remoto (se ligada e se já passou o intervalo). Só relê o resumo do indicador, não a tela toda, e só se trouxe resultado. */
 async function maybeAutoFetch(): Promise<void> {
   const path = props.repo.path;
+  const before = sync.value;
   if (!(await autoFetch(path, sync.value?.lastFetch))) return;
   const [fresh, cmp] = await Promise.all([api.getRepoSummary(path).catch(() => null), api.compareWithBase(path).catch(() => null)]);
   if (path !== props.repo.path) return;
   if (fresh) sync.value = fresh;
   base.value = cmp;
+  // com o app em segundo plano, avisa que chegaram commits novos para a branch atual
+  const n = newCommitsFromFetch(before, fresh);
+  if (n > 0) void notifyUser({ title: t('notif.newCommitsTitle', { repo: props.repo.name }), body: t('notif.newCommits', { n, branch: fresh?.branch ?? '' }) });
 }
 
 const onFocus = () => void refresh().then(maybeAutoFetch);
@@ -614,7 +623,8 @@ onMounted(() => {
   void refresh().then(maybeAutoFetch);
   window.addEventListener('focus', onFocus);
   autoFetchTimer = setInterval(() => {
-    if (document.visibilityState === 'visible') void maybeAutoFetch();
+    // com as notificações ligadas a busca continua com a janela em segundo plano: é quando o aviso serve
+    if (document.visibilityState === 'visible' || notificationsEnabled.value) void maybeAutoFetch();
   }, AUTO_FETCH_TICK_MS);
   offCommands = cmds.register(repoCommands);
 });

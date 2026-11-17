@@ -23,6 +23,13 @@ const APP_PORT = Number(process.env.GN_UI_APP_PORT ?? 5199);
 const CDP_PORT = Number(process.env.GN_UI_CDP_PORT ?? 9400);
 const OUT = process.env.GN_UI_OUT ?? join(tmpdir(), 'gitnexus-ui-tests');
 
+// O git bloqueia submódulos a partir de pastas locais (protocol.file) desde 2022; os testes montam submódulos assim. Vale só para os processos
+// deste teste (o harness e os testes herdam o ambiente), e soma às variáveis GIT_CONFIG_* que já existirem.
+const gitCfg = Number(process.env.GIT_CONFIG_COUNT ?? 0) || 0;
+process.env[`GIT_CONFIG_KEY_${gitCfg}`] = 'protocol.file.allow';
+process.env[`GIT_CONFIG_VALUE_${gitCfg}`] = 'always';
+process.env.GIT_CONFIG_COUNT = String(gitCfg + 1);
+
 function findBrowser() {
   const candidates = [
     process.env.CHROME_PATH,

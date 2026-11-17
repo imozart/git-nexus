@@ -251,7 +251,7 @@ const KIND_CLASS: Record<DiffRow['kind'], string> = { eq: '', change: 'row--chan
   background: var(--gn-bg);
 }
 .code { padding: 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; min-height: 1.5em; }
-.code--empty { background: repeating-linear-gradient(135deg, transparent 0 5px, rgba(255, 255, 255, 0.04) 5px 10px); }
+.code--empty { background: repeating-linear-gradient(135deg, transparent 0 5px, var(--gn-stripe) 5px 10px); }
 .ctrl {
   display: flex;
   align-items: center;
@@ -274,10 +274,10 @@ const KIND_CLASS: Record<DiffRow['kind'], string> = { eq: '', change: 'row--chan
     border: 1px solid transparent;
     border-radius: 4px;
     cursor: pointer;
-    &:hover { color: #200a09; background: var(--gn-danger); }
+    &:hover { color: var(--gn-on-danger); background: var(--gn-danger); }
     &--block { border-color: currentColor; }
     &--discard-block { color: color-mix(in srgb, var(--gn-danger) 70%, var(--gn-muted)); }
-    &--stage { color: var(--gn-success); &:hover { color: #0d1a11; background: var(--gn-success); } }
+    &--stage { color: var(--gn-success); &:hover { color: var(--gn-on-success); background: var(--gn-success); } }
     &--unstage:hover { color: var(--gn-text); background: var(--gn-surface-2); }
   }
 }

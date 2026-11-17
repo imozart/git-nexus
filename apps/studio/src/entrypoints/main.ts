@@ -3,7 +3,7 @@ import { accessSync, constants, existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
-import { BrowserWindow, Menu, app, clipboard, dialog, ipcMain, screen, shell, utilityProcess, type UtilityProcess } from 'electron';
+import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, screen, shell, utilityProcess, type UtilityProcess } from 'electron';
 import { setMessageLocale, tm } from '@git-nexus/git-core';
 import { WORKER_METHODS, channel, type UtilityEvent, type UtilityRequest, type UtilityResponse } from '../shared/channels';
 import { isAllowedUpdateUrl } from '../shared/update';
@@ -78,7 +78,7 @@ function startWorker(): UtilityProcess {
     if ('event' in msg) {
       if (msg.event === 'appError') return void appLog(`${msg.data.source}: ${msg.data.message}${msg.data.stack ? `\n${msg.data.stack}` : ''}`);
       // eventos espontâneos do worker, repassados a todas as janelas: comandos git (aba "Log") e andamento de fetch/pull/push
-      const ch = msg.event === 'gitProgress' ? 'gitProgress' : 'gitCommands';
+      const ch = msg.event === 'gitProgress' ? 'gitProgress' : msg.event === 'askpass' ? 'askpass' : 'gitCommands';
       for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.send(channel(ch), msg.data);
       return;
     }
@@ -357,6 +357,26 @@ ipcMain.handle(channel('openInEditor'), async (_e, repoPath: string) => {
   const app = await launchFirst(editorLaunches(process.platform, dir, process.env, existsSync), spawn as unknown as SpawnFn);
   if (!app) throw new Error(tm('Não encontrei o VS Code (ou o VSCodium) instalado.', 'Could not find VS Code (or VSCodium) installed.'));
   return { app };
+});
+
+// --- Notificações do sistema (a interface decide QUANDO avisar; aqui só se mostra) ---
+// Guarda as notificações abertas: sem uma referência o coletor de lixo pode apagá-las antes do clique.
+const openNotifications = new Set<Notification>();
+ipcMain.handle(channel('notify'), (e, input: { title?: unknown; body?: unknown }) => {
+  if (!Notification.isSupported()) return false;
+  const cut = (v: unknown, max: number) => String(v ?? '').slice(0, max);
+  const n = new Notification({ title: cut(input?.title, 120) || 'GitNexus', body: cut(input?.body, 400) });
+  const win = BrowserWindow.fromWebContents(e.sender);
+  n.on('click', () => {
+    if (!win || win.isDestroyed()) return;
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  });
+  n.on('close', () => openNotifications.delete(n));
+  openNotifications.add(n);
+  n.show();
+  return true;
 });
 
 // Zoom pelos comandos da paleta: a interface só pede a ação; quem sabe o fator atual é este processo.

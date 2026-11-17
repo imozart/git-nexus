@@ -9,6 +9,7 @@ import type {
   RepoPolicyInfo,
   SecretFinding,
   SecretsMode,
+  SigningInfo,
 } from '@git-nexus/git-core/pure';
 import {
   COMMIT_TYPES,
@@ -134,7 +135,19 @@ const committing = ref(false);
 // Ligar carrega a mensagem do último commit no formulário (e guarda o rascunho, que volta ao desligar). Sem nada no stage, só troca a mensagem.
 // Se o commit já foi enviado ao remoto, emendar reescreve o histórico publicado: pede a confirmação explícita.
 const amend = ref(false);
+/** Como os commits deste repositório são assinados, e a escolha desta vez (começa no que o git está configurado para fazer). */
+const signing = ref<SigningInfo | null>(null);
+const sign = ref(false);
 const amendInfo = ref<AmendInfo | null>(null);
+// a configuração de assinatura vale por repositório: lê de novo ao trocar de repositório
+watch(
+  () => props.repoPath,
+  async (p) => {
+    signing.value = await api.getSigningInfo(p).catch(() => null);
+    sign.value = signing.value?.enabled ?? false;
+  },
+  { immediate: true },
+);
 const confirmRewrite = ref(false);
 let draft: typeof form | null = null;
 watch(amend, async (on) => {
@@ -205,7 +218,7 @@ async function commitAnyway(): Promise<void> {
 async function doCommit(): Promise<void> {
   try {
     const wasAmend = amend.value;
-    const r = wasAmend ? await api.executeAmend(props.repoPath, input.value, { ...policy.value }) : await api.executeCommit(props.repoPath, input.value, { ...policy.value });
+    const r = wasAmend ? await api.executeAmend(props.repoPath, input.value, { ...policy.value }, sign.value) : await api.executeCommit(props.repoPath, input.value, { ...policy.value }, sign.value);
     output.value = { ok: true, text: `${t(wasAmend ? 'commit.amended' : 'commit.created', { hash: r.commitHash.slice(0, 7) })}\n\n${r.output}`.trim() };
     if (wasAmend) {
       draft = null; // o rascunho antigo não volta: o commit emendado é o resultado
@@ -374,6 +387,11 @@ async function saveTeamPolicy(): Promise<void> {
         </GnButton>
       </div>
     </div>
+
+    <label v-if="signing" class="cf__amend" :title="t('commit.signHint', { format: t(`commit.signFormat.${signing.format}`) })">
+      <input v-model="sign" type="checkbox" data-testid="sign-toggle" /> {{ t('commit.sign') }}
+      <small class="muted" data-testid="sign-note">{{ signing.enabled ? t('commit.signOn') : signing.key ? t('commit.signKey') : t('commit.signNoKey') }}</small>
+    </label>
 
     <label class="cf__amend" :title="t('commit.amendHint')">
       <input v-model="amend" type="checkbox" data-testid="amend-toggle" /> {{ t('commit.amend') }}

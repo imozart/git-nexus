@@ -73,13 +73,13 @@ const ghostTone = computed(() => props.variant === 'ghost' && effectiveTone.valu
 
   // Tons: define a cor e, quando houver, o texto sobre o fundo sólido.
   &--tone-accent { --tone: var(--gn-accent); }
-  &--tone-success { --tone: var(--gn-success); --on-tone: #0d1a11; }
-  &--tone-warn { --tone: var(--gn-warn); --on-tone: #1c1503; }
-  &--tone-danger { --tone: var(--gn-danger); --on-tone: #200a09; }
+  &--tone-success { --tone: var(--gn-success); --on-tone: var(--gn-on-success); }
+  &--tone-warn { --tone: var(--gn-warn); --on-tone: var(--gn-on-warn); }
+  &--tone-danger { --tone: var(--gn-danger); --on-tone: var(--gn-on-danger); }
 
   // Contorno colorido (padrão para tom diferente de neutral): fundo levemente tingido, texto clareado para manter o contraste no tema escuro.
   &--tone-accent, &--tone-success, &--tone-warn, &--tone-danger {
-    color: color-mix(in srgb, var(--tone) 70%, #fff);
+    color: color-mix(in srgb, var(--tone) 70%, var(--gn-mix));
     border-color: color-mix(in srgb, var(--tone) 50%, var(--gn-border));
     background: color-mix(in srgb, var(--tone) 12%, var(--gn-surface-2));
     &:hover:not(:disabled) {
@@ -97,8 +97,8 @@ const ghostTone = computed(() => props.variant === 'ghost' && effectiveTone.valu
     border-color: var(--tone);
     color: var(--on-tone);
     &:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--tone) 82%, #fff);
-      border-color: color-mix(in srgb, var(--tone) 82%, #fff);
+      background: color-mix(in srgb, var(--tone) 82%, var(--gn-mix));
+      border-color: color-mix(in srgb, var(--tone) 82%, var(--gn-mix));
     }
   }
   // O azul sólido usa um azul um pouco mais escuro (--gn-accent-solid) para o texto branco passar de 4,5:1, e ESCURECE no hover (clarear
