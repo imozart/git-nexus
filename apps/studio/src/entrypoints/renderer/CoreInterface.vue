@@ -5,6 +5,7 @@ import { GnButton, GnTabs, type GnTab } from '@git-nexus/ui-kit';
 import { t } from './i18n';
 import EncodingMenu from './components/EncodingMenu.vue';
 import LanguagePicker from './components/LanguagePicker.vue';
+import { useAppErrorsStore } from './stores/app-errors';
 import { useFileEncodingStore } from './stores/file-encoding';
 import { useCommandsStore, shortcutLabel } from './stores/commands';
 import { useUpdateStore } from './stores/update';
@@ -19,6 +20,7 @@ const ws = useWorkspaceStore();
 const cmds = useCommandsStore();
 const upd = useUpdateStore();
 const fileEnc = useFileEncodingStore();
+const appErrors = useAppErrorsStore();
 
 const mb = (bytes: number) => (bytes / 1048576).toFixed(1);
 
@@ -105,6 +107,11 @@ const tabs = computed<GnTab[]>(() =>
       <GnButton size="sm" variant="ghost" :title="t('update.skipTitle')" @click="upd.skip()">{{ t('update.skip') }}</GnButton>
     </div>
     <div v-else-if="upd.flash" class="upd upd--info" role="status">{{ upd.flash }}</div>
+    <div v-if="appErrors.shown && appErrors.logFile" class="upd upd--error" role="alert" data-testid="app-error">
+      <span class="upd__msg">{{ t('err.unexpected', { file: appErrors.logFile }) }}</span>
+      <span class="upd__sp" />
+      <GnButton size="sm" variant="ghost" data-testid="app-error-close" @click="appErrors.dismiss()">{{ t('err.dismiss') }}</GnButton>
+    </div>
     <div class="core__panes">
       <!-- v-show: mantém o estado (editor, seleção, rascunho do commit) ao alternar entre abas -->
       <section v-for="t in ws.tabs" v-show="t.id === ws.activeId" :key="t.id" class="core__pane">
@@ -149,6 +156,7 @@ const tabs = computed<GnTab[]>(() =>
   border-bottom: 1px solid var(--gn-accent);
   font-size: 13px;
   &--info { background: var(--gn-surface-2); border-bottom-color: var(--gn-border); color: var(--gn-muted); }
+  &--error { background: rgba(229, 100, 107, 0.14); border-bottom-color: var(--gn-danger, #e5646b); word-break: break-all; }
   &__cur { color: var(--gn-muted); }
   &__sp { flex: 1; }
   &__err { color: var(--gn-danger, #e5646b); }

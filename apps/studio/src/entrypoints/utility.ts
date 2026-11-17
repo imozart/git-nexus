@@ -7,6 +7,14 @@ import { createHandlers } from '../worker/handlers';
 
 const handlers = createHandlers(process.env.GITNEXUS_DATA_DIR ?? join(process.cwd(), '.dev-data'));
 
+// Exceções não tratadas do worker: avisa o processo principal, que registra no log do app (o worker não tem janela nem onde mostrar).
+function reportCrash(source: string, e: unknown): void {
+  const err = e instanceof Error ? e : new Error(String(e));
+  process.parentPort.postMessage({ event: 'appError', data: { source, message: err.message, stack: err.stack } } satisfies UtilityEvent);
+}
+process.on('uncaughtException', (e) => reportCrash('worker: exceção não tratada', e));
+process.on('unhandledRejection', (e) => reportCrash('worker: promessa rejeitada sem tratamento', e));
+
 // Comandos git em lotes (a cada 120 ms): varreduras grandes executam centenas de comandos e não podem inundar a interface.
 let batch: GitCommandEvent[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | undefined;

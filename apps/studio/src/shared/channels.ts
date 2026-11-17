@@ -70,7 +70,7 @@ export const WORKER_METHODS = [
 export type WorkerMethod = (typeof WORKER_METHODS)[number];
 
 /** Métodos tratados pelo processo principal (APIs nativas do Electron). */
-export const MAIN_METHODS = ['pickDirectories', 'copyText', 'showItemInFolder', 'openPath', 'checkForUpdate', 'openExternal', 'downloadUpdate', 'installUpdate', 'getChangelog', 'hostingInfo', 'hostingSaveToken', 'hostingRemoveToken', 'listChangeRequests', 'getCiStatus', 'suggestChangeRequest', 'createChangeRequest', 'hostingOpen'] as const satisfies readonly (keyof GitNexusApi)[];
+export const MAIN_METHODS = ['pickDirectories', 'copyText', 'logRendererError', 'showItemInFolder', 'openPath', 'checkForUpdate', 'openExternal', 'downloadUpdate', 'installUpdate', 'getChangelog', 'hostingInfo', 'hostingSaveToken', 'hostingRemoveToken', 'listChangeRequests', 'getCiStatus', 'suggestChangeRequest', 'createChangeRequest', 'hostingOpen'] as const satisfies readonly (keyof GitNexusApi)[];
 export type MainMethod = (typeof MAIN_METHODS)[number];
 
 export const channel = (m: string) => `gitnexus:${m}`;
@@ -84,7 +84,11 @@ export interface UtilityRequest {
 export type UtilityResponse = { id: number; ok: true; result: unknown } | { id: number; ok: false; error: string };
 
 /** Mensagem espontânea do worker (sem pedido): lote de comandos git executados, para a aba "Log". */
-export type UtilityEvent = { event: 'gitCommands'; data: GitCommandEvent[] } | { event: 'gitProgress'; data: GitProgressEvent };
+export type UtilityEvent =
+  | { event: 'gitCommands'; data: GitCommandEvent[] }
+  | { event: 'gitProgress'; data: GitProgressEvent }
+  /** Exceção não tratada dentro do worker: o processo principal a registra no log do app. */
+  | { event: 'appError'; data: { source: string; message: string; stack?: string } };
 
 /** Prefixo usado para sinalizar rejeição de commit por hook (carrega a saída do hook). */
 export const HOOK_REJECTED_PREFIX = 'GITNEXUS_COMMIT_REJECTED\n';

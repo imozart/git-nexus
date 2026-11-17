@@ -274,6 +274,8 @@ const ptBR = {
   'rv.side.head': 'Último commit (HEAD)',
   'rv.side.staged': 'No commit (stage)',
   'rv.untrackedDir': '(pasta não rastreada)',
+  'err.unexpected': 'Ocorreu um erro inesperado e foi registrado em {file}. O app continua aberto; se algo parecer errado, recarregue a tela (F5).',
+  'err.dismiss': 'Fechar',
   'enc.title': 'Codificação do arquivo',
   'enc.tipAuto': 'Codificação do arquivo: {name} (detectada automaticamente). Clique para escolher outra.',
   'enc.tipChosen': 'Codificação do arquivo: {name} (escolhida por você; a detectada é {detected}). Clique para mudar.',

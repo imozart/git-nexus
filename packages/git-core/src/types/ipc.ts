@@ -781,6 +781,8 @@ export interface GitNexusApi extends GitNexusIPC {
 
   // Integração com o sistema (processo principal)
   copyText(text: string): Promise<void>;
+  /** Registra no log do app (`gitnexus-app.log`) um erro inesperado da interface. Devolve o caminho do arquivo. */
+  logRendererError(message: string, stack?: string): Promise<{ logFile: string }>;
   showItemInFolder(repoPath: string, file: string): Promise<void>;
   openPath(repoPath: string, file: string): Promise<string>;
 }
