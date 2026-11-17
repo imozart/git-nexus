@@ -1,6 +1,6 @@
 {
   "name": "@git-nexus/git-core",
-  "version": "1.11.0",
+  "version": "1.13.0",
   "private": true,
   "license": "GPL-3.0-only",
   "type": "module",
@@ -16,6 +16,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "iconv-lite": "^0.7.3",
     "typescript": "^7.0.2"
   }
 }

@@ -1,3 +1,5 @@
+import type { EncodingChoice, FileEncoding, FileEncodingInfo } from '../file-encoding.js';
+
 export interface RepositoryMeta {
   id: string;
   name: string;
@@ -599,6 +601,12 @@ export interface FileSides {
   isDeleted: boolean;
   /** Caminho é um diretório (não rastreado) — não há diff de linhas. */
   isDirectory: boolean;
+  /** Codificação com que as duas versões foram lidas (e com que as gravações do diff regravam o arquivo). */
+  encoding: FileEncoding;
+  /** O que a detecção automática concluiu. */
+  detectedEncoding: FileEncoding;
+  /** Há bytes que não existem em `encoding`: o texto tem "�" e gravar o arquivo o corromperia. */
+  invalid: boolean;
 }
 
 export type DiscardScope = 'worktree' | 'all';
@@ -648,16 +656,21 @@ export interface GitNexusApi extends GitNexusIPC {
   stageFiles(repoPath: string, files: string[]): Promise<void>;
   unstageFiles(repoPath: string, files: string[]): Promise<void>;
   /** `'head'` = diff de tudo que mudou localmente (último commit x disco). */
-  getFileDiff(repoPath: string, file: string, staged: boolean | 'head'): Promise<string>;
+  getFileDiff(repoPath: string, file: string, staged: boolean | 'head', encoding?: EncodingChoice): Promise<string>;
   getHistory(repoPath: string, limit?: number): Promise<CommitInfo[]>;
 
   // Diff lado a lado e descarte de alterações
   /** `mode` booleano é aceito por compatibilidade: false = `index`, true = `staged`. */
-  getFileSides(repoPath: string, file: string, mode: DiffMode | boolean): Promise<FileSides>;
-  /** Regrava o arquivo do working tree (descarte por linha/bloco). Não faz `git add`. */
-  writeWorkingFile(repoPath: string, file: string, content: string): Promise<void>;
-  /** Grava o conteúdo como versão do arquivo no ÍNDICE (stage por linha/trecho), sem alterar o disco. */
-  writeIndexContent(repoPath: string, file: string, content: string): Promise<void>;
+  getFileSides(repoPath: string, file: string, mode: DiffMode | boolean, encoding?: EncodingChoice): Promise<FileSides>;
+  /** Codificação do arquivo (a detectada ou a pedida), para o rodapé; também no diff unificado. */
+  getFileEncoding(repoPath: string, file: string, mode: DiffMode | boolean, encoding?: EncodingChoice): Promise<FileEncodingInfo>;
+  /**
+   * Regrava o arquivo do working tree (descarte por linha/bloco). Não faz `git add`. Grava na codificação do arquivo
+   * (`encoding` ou a detectada, com o BOM); se um caractere não existir nela, recusa sem alterar o arquivo.
+   */
+  writeWorkingFile(repoPath: string, file: string, content: string, encoding?: EncodingChoice): Promise<void>;
+  /** Grava o conteúdo como versão do arquivo no ÍNDICE (stage por linha/trecho), sem alterar o disco. Mesma regra de codificação. */
+  writeIndexContent(repoPath: string, file: string, content: string, encoding?: EncodingChoice): Promise<void>;
   /**
    * Descarta alterações do arquivo por completo. `worktree` = só as não staged; `all` = staged + working tree.
    * Antes de apagar, guarda uma cópia do arquivo (retornada em `backup`) para permitir desfazer.

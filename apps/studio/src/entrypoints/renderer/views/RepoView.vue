@@ -7,6 +7,7 @@ import { AUTO_FETCH_TICK_MS, autoFetch } from '../auto-fetch';
 import { checkState, groupEntries, hasStaged, isUntracked, statusLabel, statusLetter } from '../changes';
 import { t, type MessageKey } from '../i18n';
 import { useCommandsStore, type Command } from '../stores/commands';
+import { useFileEncodingStore } from '../stores/file-encoding';
 import { useWorkspaceStore } from '../stores/workspace';
 import BranchPicker from '../components/BranchPicker.vue';
 import SyncButton from '../components/SyncButton.vue';
@@ -21,6 +22,7 @@ import SideBySideDiff from '../components/SideBySideDiff.vue';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
 const ws = useWorkspaceStore();
+const fileEnc = useFileEncodingStore();
 const cmds = useCommandsStore();
 
 const branch = ref('');
@@ -167,25 +169,40 @@ async function loadDiff(): Promise<void> {
   if (!path) {
     sides.value = null;
     diffText.value = '';
+    fileEnc.setOpen(props.repo.id, null);
     return;
   }
+  const enc = fileEnc.choiceFor(props.repo.path, path); // a codificação que a pessoa escolheu no rodapé (ou 'auto')
   try {
     if (viewMode.value === 'split') {
-      sides.value = await api.getFileSides(props.repo.path, path, source.value);
+      sides.value = await api.getFileSides(props.repo.path, path, source.value, enc);
       diffText.value = '';
+      const s = sides.value;
       // binário/grande/pasta: cai para o diff textual do git
-      if (sides.value.binary || sides.value.tooLarge || sides.value.isDirectory) {
-        diffText.value = sides.value.isDirectory ? t('rv.untrackedDir') : await api.getFileDiff(props.repo.path, path, textMode.value);
+      if (s.binary || s.tooLarge || s.isDirectory) {
+        diffText.value = s.isDirectory ? t('rv.untrackedDir') : await api.getFileDiff(props.repo.path, path, textMode.value, enc);
+        fileEnc.setOpen(props.repo.id, null);
+      } else {
+        fileEnc.setOpen(props.repo.id, { repoPath: props.repo.path, path, encoding: s.encoding, detected: s.detectedEncoding, invalid: s.invalid });
       }
     } else {
       sides.value = null;
-      diffText.value = await api.getFileDiff(props.repo.path, path, textMode.value);
+      diffText.value = await api.getFileDiff(props.repo.path, path, textMode.value, enc);
+      fileEnc.setOpen(props.repo.id, { repoPath: props.repo.path, path, ...(await api.getFileEncoding(props.repo.path, path, textMode.value, enc)) });
     }
   } catch (e) {
     sides.value = null;
     diffText.value = errMsg(e);
+    fileEnc.setOpen(props.repo.id, null);
   }
 }
+
+// Escolheu outra codificação no rodapé: relê o arquivo nela.
+watch(
+  () => (active.value ? fileEnc.choiceFor(props.repo.path, active.value) : 'auto'),
+  () => void loadDiff(),
+);
+onBeforeUnmount(() => fileEnc.setOpen(props.repo.id, null));
 
 type Landing = 'first' | 'last';
 
@@ -399,8 +416,9 @@ async function onDiscardLines(p: { content: string; what: 'linha' | 'bloco' }): 
   const path = active.value;
   const before = sides.value?.newText;
   if (!path || before === undefined) return;
-  await act(() => api.writeWorkingFile(props.repo.path, path, p.content));
-  showNotice(t(p.what === 'linha' ? 'rv.discardedLine' : 'rv.discardedBlock', { path }), () => api.writeWorkingFile(props.repo.path, path, before));
+  const enc = sides.value?.encoding; // grava na MESMA codificação em que o arquivo foi lido
+  await act(() => api.writeWorkingFile(props.repo.path, path, p.content, enc));
+  showNotice(t(p.what === 'linha' ? 'rv.discardedLine' : 'rv.discardedBlock', { path }), () => api.writeWorkingFile(props.repo.path, path, before, enc));
 }
 
 // --- stage por linha / bloco (grava só o índice; o disco não muda) -------------------------------
@@ -410,10 +428,11 @@ async function onStageLines(p: { content: string; what: 'linha' | 'bloco'; direc
   if (!path || !s) return;
   // versão do índice ANTES da mudança, para o "Desfazer": no stage é o lado esquerdo; no unstage, o direito
   const before = p.direction === 'stage' ? s.oldText : s.newText;
-  await act(() => api.writeIndexContent(props.repo.path, path, p.content));
+  const enc = s.encoding;
+  await act(() => api.writeIndexContent(props.repo.path, path, p.content, enc));
   showNotice(
     t(p.what === 'linha' ? (p.direction === 'stage' ? 'rv.stagedLine' : 'rv.unstagedLine') : p.direction === 'stage' ? 'rv.stagedBlock' : 'rv.unstagedBlock', { path }),
-    () => api.writeIndexContent(props.repo.path, path, before),
+    () => api.writeIndexContent(props.repo.path, path, before, enc),
   );
 }
 
@@ -672,8 +691,8 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
                 ref="splitRef"
                 :old-text="sides.oldText"
                 :new-text="sides.newText"
-                :can-discard="source !== 'staged'"
-                :stage-action="stageAction"
+                :can-discard="source !== 'staged' && !sides.invalid"
+                :stage-action="sides.invalid ? null : stageAction"
                 :collapse="collapse"
                 :old-label="labels[0]!"
                 :new-label="labels[1]!"

@@ -36,13 +36,16 @@ function emit(repoPath: string, args: string[], startedAt: number, code: number,
 }
 
 export interface GitResult {
+  /** Saída como texto UTF-8. Para arquivos em outra codificação use `bytes`. */
   stdout: string;
+  /** A mesma saída, byte a byte (sem decodificar). */
+  bytes: Buffer;
   stderr: string;
   code: number;
 }
 
 export interface GitRunOptions {
-  stdin?: string;
+  stdin?: string | Buffer;
   /** Variáveis extras de ambiente. */
   env?: NodeJS.ProcessEnv;
   /** Lança erro se o exit code != 0 (padrão: true). */
@@ -97,8 +100,10 @@ export function runGit(repoPath: string, args: string[], opts: GitRunOptions = {
       reject(err);
     });
     child.on('close', (code) => {
+      const bytes = Buffer.concat(out);
       const result: GitResult = {
-        stdout: Buffer.concat(out).toString('utf8'),
+        stdout: bytes.toString('utf8'),
+        bytes,
         stderr: Buffer.concat(err).toString('utf8'),
         code: code ?? -1,
       };
