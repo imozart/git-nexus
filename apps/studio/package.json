@@ -1,6 +1,6 @@
 {
   "name": "@git-nexus/studio",
-  "version": "1.13.1",
+  "version": "1.13.2",
   "private": true,
   "license": "GPL-3.0-only",
   "type": "module",
