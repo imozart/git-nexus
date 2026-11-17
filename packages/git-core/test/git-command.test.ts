@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { formatGitCommand, isReadOnlyGit, onGitCommand, redactSecrets, runGit, trimOutput, type GitCommandEvent } from '../src/index.js';
+import { formatGitCommand, isReadOnlyGit, onGitCommand, readOnlyEnv, redactSecrets, runGit, trimOutput, type GitCommandEvent } from '../src/index.js';
 
 describe('formatGitCommand', () => {
   it('mostra o comando como o usuário digitaria, com aspas só quando precisa', () => {
@@ -142,5 +142,16 @@ describe('runGit emite eventos', () => {
     off2();
     await runGit(dir, ['status']);
     expect(seen).toEqual([]);
+  });
+});
+
+describe('readOnlyEnv', () => {
+  it('consultas não pedem o lock do índice (GIT_OPTIONAL_LOCKS=0); o que grava não recebe a variável', () => {
+    expect(readOnlyEnv(['status', '--porcelain=v1'])).toEqual({ GIT_OPTIONAL_LOCKS: '0' });
+    expect(readOnlyEnv(['-c', 'core.quotepath=off', 'diff', '--cached'])).toEqual({ GIT_OPTIONAL_LOCKS: '0' });
+    expect(readOnlyEnv(['show', 'HEAD:a.txt'])).toEqual({ GIT_OPTIONAL_LOCKS: '0' });
+    expect(readOnlyEnv(['commit', '-F', '-'])).toEqual({});
+    expect(readOnlyEnv(['add', '--', 'a.txt'])).toEqual({});
+    expect(readOnlyEnv(['pull', '--ff-only'])).toEqual({});
   });
 });

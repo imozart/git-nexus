@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { formatGitCommand, isReadOnlyGit, trimOutput } from './git-command.js';
+import { formatGitCommand, isReadOnlyGit, readOnlyEnv, trimOutput } from './git-command.js';
 import type { GitCommandEvent } from './types/ipc.js';
 import { parseWslPath } from './wsl.js';
 
@@ -79,7 +79,7 @@ export function runGit(repoPath: string, args: string[], opts: GitRunOptions = {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, cmdArgs, {
       cwd,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...opts.env },
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...readOnlyEnv(args), ...opts.env },
       windowsHide: true,
     });
     const out: Buffer[] = [];
