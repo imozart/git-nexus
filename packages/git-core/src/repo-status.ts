@@ -80,21 +80,4 @@ export async function fetchRepo(repoPath: string): Promise<SyncResult> {
   return { ok: true, message: 'Buscado.' };
 }
 
-/**
- * Atualiza a branch atual só por fast-forward: nunca cria merge nem reescreve nada.
- * Recusa se não houver upstream, se estiver desanexado ou se a branch tiver divergido.
- */
-export async function pullRepo(repoPath: string): Promise<SyncResult> {
-  const s = await getRepoSummary(repoPath);
-  if (s.detached) return { ok: false, message: tm('HEAD desanexado: nada a atualizar.', 'Detached HEAD: nothing to update.') };
-  if (!s.upstream) return { ok: false, message: tm('A branch não tem upstream configurado.', 'The branch has no upstream configured.') };
-  if (s.conflicted) return { ok: false, message: tm('Há conflitos a resolver antes de atualizar.', 'There are conflicts to resolve before updating.') };
-  const r = await runGit(repoPath, ['pull', '--ff-only'], { check: false, env: NO_PROMPT });
-  const out = (r.stderr + r.stdout).trim();
-  if (r.code === 0) return { ok: true, message: /Already up to date|Já está atualizado/i.test(out) ? tm('Já estava atualizado.', 'Already up to date.') : tm('Atualizado (fast-forward).', 'Updated (fast-forward).') };
-  if (/not possible to fast-forward|diverging|divergent/i.test(out)) return { ok: false, message: tm('A branch divergiu do remoto: atualize manualmente (merge ou rebase).', 'The branch diverged from the remote: update manually (merge or rebase).') };
-  if (/would be overwritten|Your local changes/i.test(out)) return { ok: false, message: tm('Alterações locais conflitam com o que veio do remoto.', 'Local changes conflict with what came from the remote.') };
-  return { ok: false, message: firstLine(out) || 'Falha ao atualizar.' };
-}
-
 const firstLine = (s: string) => s.trim().split('\n').find((l) => l.trim()) ?? '';

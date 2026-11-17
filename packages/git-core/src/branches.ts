@@ -1,8 +1,8 @@
 import { emitGitProgress, progressReader } from './progress.js';
-import { NO_PROMPT } from './repo-status.js';
+import { NO_PROMPT, getRepoSummary } from './repo-status.js';
 import { runGit } from './runner.js';
 import { SYNC_COMMITS_LIMIT } from './types/ipc.js';
-import type { BaseComparison, BranchActionResult, BranchInfo, BranchList, CreateBranchInput, PullMode, SyncCommit, SyncCommits, UpdateMethod } from './types/ipc.js';
+import type { BaseComparison, BranchActionResult, BranchInfo, BranchList, CreateBranchInput, PullMode, SyncCommit, SyncCommits, SyncResult, UpdateMethod } from './types/ipc.js';
 import { tm } from './messages.js';
 
 // Branches locais e remotas: listar (com recentes), trocar, criar a partir da versão mais recente, excluir, merge, rebase e pull.
@@ -449,6 +449,20 @@ export async function updateRepo(repoPath: string, method: UpdateMethod): Promis
       'The branch was updated, but your local changes conflicted when coming back: resolve the conflicts (the changes are also still saved in the stash).',
     ),
   };
+}
+
+/**
+ * "Atualizar" em lote (lista de repositórios): é o MESMO caminho do painel do repositório (`updateRepo` por fast-forward), com a mesma regra
+ * de guardar e devolver as alterações locais e os mesmos textos. Antes era um `pull --ff-only` à parte, que falhava com alterações locais.
+ * Aqui ficam só as recusas que não valem a pena tentar (HEAD desanexado, sem upstream, conflitos em andamento).
+ */
+export async function pullRepo(repoPath: string): Promise<SyncResult> {
+  const s = await getRepoSummary(repoPath);
+  if (s.detached) return { ok: false, message: tm('HEAD desanexado: nada a atualizar.', 'Detached HEAD: nothing to update.') };
+  if (!s.upstream) return { ok: false, message: tm('A branch não tem upstream configurado.', 'The branch has no upstream configured.') };
+  if (s.conflicted) return { ok: false, message: tm('Há conflitos a resolver antes de atualizar.', 'There are conflicts to resolve before updating.') };
+  const r = await updateRepo(repoPath, 'ff');
+  return { ok: r.ok, message: r.message };
 }
 
 /** Devolve o stash do topo à árvore de trabalho. `true` se voltou limpo (o stash some); `false` se conflitou (o stash continua guardado). */

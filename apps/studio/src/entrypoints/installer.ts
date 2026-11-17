@@ -2,7 +2,7 @@
 // `app`/`shell` fica em main.ts, e este arquivo é testável com um `fetch` falso e uma pasta temporária.
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
+import { createWriteStream, rmSync } from 'node:fs';
 import { chmod, copyFile, mkdir, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
@@ -44,12 +44,36 @@ const UPDATE_ENTRY = /^\.?gnupdate-/;
 /** Nome local do pacote baixado (na release continua sendo `name`). */
 export const updateFileName = (name: string) => `${UPDATE_PREFIX}${name}`;
 
+/**
+ * Apaga uma pasta (ou arquivo) por inteiro, inclusive pacotes que trazem um `resources/app.asar`.
+ *
+ * No processo principal do Electron o `fs` trata todo `.asar` como uma pasta virtual: um `rm` recursivo sobre o
+ * `app.asar` REAL de uma extração tenta `rmdir` num arquivo e falha com `EBUSY`. Foi o que impediu a atualização
+ * 1.12 → 1.13 (o preparo anterior nunca saía do lugar). `process.noAsar` desliga esse tratamento; a chamada é SÍNCRONA
+ * de propósito, para nenhum outro código do app rodar com o suporte a asar desligado enquanto isso.
+ */
+export function removeTree(target: string): void {
+  const p = process as unknown as { noAsar?: boolean };
+  const previous = p.noAsar;
+  p.noAsar = true;
+  try {
+    rmSync(target, { recursive: true, force: true });
+  } finally {
+    p.noAsar = previous;
+  }
+}
+
 /** Apaga de `dir` os restos de atualização (pacotes, preparo, backup). Não toca em mais nada; nunca lança. Devolve o que apagou. */
-export async function cleanupUpdateFiles(dir: string): Promise<string[]> {
+export async function cleanupUpdateFiles(dir: string, log: UpdateLog = noLog): Promise<string[]> {
   const removed: string[] = [];
   for (const entry of await readdir(dir).catch(() => [] as string[])) {
     if (!UPDATE_ENTRY.test(entry)) continue;
-    await rm(join(dir, entry), { force: true, recursive: true }).then(() => removed.push(entry), () => undefined);
+    try {
+      removeTree(join(dir, entry));
+      removed.push(entry);
+    } catch (e) {
+      log(`limpeza: não apagou ${entry}: ${describeError(e)}`);
+    }
   }
   return removed;
 }
@@ -80,7 +104,7 @@ export async function downloadVerified(o: DownloadOptions): Promise<Downloaded> 
 
   await mkdir(o.destDir, { recursive: true });
   // Limpa restos de atualizações anteriores. `destDir` pode ser a pasta do próprio app: só se toca no que tem o prefixo do updater.
-  const removed = await cleanupUpdateFiles(o.destDir);
+  const removed = await cleanupUpdateFiles(o.destDir, log);
   log(`download: pasta de destino ${o.destDir}${removed.length ? `; restos antigos apagados: ${removed.join(', ')}` : ''}`);
 
   const part = join(o.destDir, `${updateFileName(o.name)}.part`);
@@ -170,7 +194,7 @@ const systemDir = () => join(process.env.SystemRoot ?? 'C:\\Windows', 'System32'
 
 /** Extrai o ZIP em `dest` (que é recriada). Usa o `tar.exe` do Windows e, se faltar, o `Expand-Archive`. */
 export async function extractZip(zip: string, dest: string, log: UpdateLog = noLog): Promise<void> {
-  await rm(dest, { recursive: true, force: true });
+  removeTree(dest);
   await mkdir(dest, { recursive: true });
   const tar = join(systemDir(), 'tar.exe');
   try {
@@ -179,7 +203,7 @@ export async function extractZip(zip: string, dest: string, log: UpdateLog = noL
     log('extração: tar.exe concluiu');
   } catch (e) {
     log(`extração: tar.exe FALHOU: ${describeError(e)}; tentando o Expand-Archive`);
-    await rm(dest, { recursive: true, force: true });
+    removeTree(dest);
     await mkdir(dest, { recursive: true });
     try {
       await run(
@@ -216,7 +240,7 @@ export async function prepareStage(zip: string, destDir: string, exeName: string
   const root = await findAppRoot(stage, exeName);
   if (!root) {
     log(`preparo: FALHOU: o pacote não contém ${exeName}`);
-    await rm(stage, { recursive: true, force: true });
+    removeTree(stage);
     throw new Error(`O pacote baixado não contém ${exeName}.`);
   }
   log(`preparo: pronto, pasta do app novo ${root}`);
@@ -234,6 +258,9 @@ export async function prepareStage(zip: string, destDir: string, exeName: string
  * que o script consegue trocar o próprio executável que o está rodando.
  */
 export const SWAP_SCRIPT = String.raw`'use strict';
+// O Electron trata todo .asar como pasta virtual (inclusive em modo Node): sem isto, apagar o app.asar do pacote/backup
+// com rmSync recursivo falha com EBUSY e deixa .gnupdate-old para trás. O script é um processo à parte: pode desligar de vez.
+process.noAsar = true;
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
