@@ -138,6 +138,10 @@ O que isso mudou no app:
 - **Incluir/remover do commit em lotes:** antes, "incluir tudo" com milhares de arquivos estourava o limite de ~32 mil caracteres da linha de comando do Windows e simplesmente não funcionava; agora vai em lotes e com `--literal-pathspecs` (um arquivo chamado `a[1].txt` ou `*.md` não vira curinga).
 - **Detecção de conflitos pelo índice** (`git ls-files --unmerged`), em vez de `git diff`, que comparava o conteúdo de todos os arquivos alterados a cada atualização da tela.
 
+## Janela e aparência
+
+- **A janela lembra onde estava:** tamanho, posição e se estava maximizada voltam como você deixou (arquivo `window-state.json` nos dados do app: no portátil, `GitNexusData/`). Se o monitor onde ela estava não existe mais (notebook sem o monitor externo, resolução trocada), a posição é descartada e a janela abre centralizada, com o tamanho limitado à tela e ao mínimo do app. Apague o arquivo para voltar ao tamanho padrão (1360×860).
+
 ## Idiomas
 
 **Português (Brasil)** e **English**, com troca **na hora** (seletor ao lado de *Comandos* ou pela paleta). Na primeira abertura vale o idioma do sistema. **Todas as telas** estão traduzidas, e também as mensagens de erro e aviso do núcleo, do worker e da validação de commit. Só o texto gerado a partir dos commits (notas de release e CHANGELOG) fica em português, porque usa o mesmo núcleo do pipeline de release. Como contribuir com outro idioma: [`I18N.md`](I18N.md).
