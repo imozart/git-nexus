@@ -3,12 +3,13 @@ import { accessSync, constants, existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
-import { BrowserWindow, Menu, app, clipboard, dialog, ipcMain, shell, utilityProcess, type UtilityProcess } from 'electron';
+import { BrowserWindow, Menu, app, clipboard, dialog, ipcMain, screen, shell, utilityProcess, type UtilityProcess } from 'electron';
 import { setMessageLocale, tm } from '@git-nexus/git-core';
 import { WORKER_METHODS, channel, type UtilityEvent, type UtilityRequest, type UtilityResponse } from '../shared/channels';
 import { isAllowedUpdateUrl } from '../shared/update';
 import { checkForUpdate } from './update';
 import { WINDOWS_INSTALLER_ARGS, cleanupUpdateFiles, downloadVerified, isReadyFile, prepareStage, replaceAppImage, startPortableSwap } from './installer';
+import { fitWindowState, readWindowState, writeWindowState } from './window-state';
 import { APP_LOG_NAME, UPDATE_LOG_NAME, createUpdateLog, describeError } from './update-log';
 import { HostingService } from '../worker/hosting-service';
 import { SecureTokenStore } from './hosting-store';
@@ -328,9 +329,13 @@ function createWindow(): void {
   // Sem o menu padrão (Windows/Linux, app empacotado): ele reservaria Ctrl+W, Ctrl+R e o DevTools, que colidem com os atalhos do app.
   // No macOS o menu é mantido (precisa dele para copiar/colar e sair).
   if (app.isPackaged && process.platform !== 'darwin') Menu.setApplicationMenu(null);
+  // tamanho, posição e maximizado da última vez, ajustados às telas de agora (o monitor pode não existir mais)
+  const stateFile = join(dataDir, 'window-state.json');
+  const saved = fitWindowState(readWindowState(stateFile), screen.getAllDisplays().map((d) => d.workArea));
   const win = new BrowserWindow({
-    width: 1360,
-    height: 860,
+    ...(saved.x !== undefined && saved.y !== undefined ? { x: saved.x, y: saved.y } : {}),
+    width: saved.width,
+    height: saved.height,
     minWidth: 960,
     minHeight: 600,
     title: 'GitNexus',
@@ -344,6 +349,23 @@ function createWindow(): void {
       sandbox: true,
     },
   });
+  if (saved.maximized) win.maximize();
+  let rememberTimer: ReturnType<typeof setTimeout> | undefined;
+  const remember = (): void => {
+    clearTimeout(rememberTimer);
+    if (win.isDestroyed() || win.isMinimized() || win.isFullScreen()) return;
+    // `getNormalBounds` é o tamanho de janela normal, mesmo com ela maximizada (ao desmaximizar volta a ele)
+    writeWindowState(stateFile, { ...win.getNormalBounds(), maximized: win.isMaximized() });
+  };
+  const rememberSoon = (): void => {
+    clearTimeout(rememberTimer);
+    rememberTimer = setTimeout(remember, 400);
+  };
+  win.on('resize', rememberSoon);
+  win.on('move', rememberSoon);
+  win.on('maximize', remember);
+  win.on('unmaximize', remember);
+  win.on('close', remember);
   // Links externos abrem no navegador; a janela nunca navega para fora do app.
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url);
