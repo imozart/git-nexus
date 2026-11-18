@@ -306,7 +306,7 @@ function toggle(): void {
 <!-- A lista está no <body> (Teleport): estilos globais com prefixo próprio, iguais aos do seletor de idioma. -->
 <style lang="scss">
 .cbx__list {
-  position: fixed; z-index: 80; width: max-content; max-width: min(640px, 92vw); margin: 0; padding: 5px; list-style: none; overflow-y: auto;
+  position: fixed; z-index: 1101; /* acima dos diálogos (z-index 1100): o combobox também abre de dentro deles */ width: max-content; max-width: min(640px, 92vw); margin: 0; padding: 5px; list-style: none; overflow-y: auto;
   background: var(--gn-surface-2); border: 1px solid var(--gn-border); border-radius: 12px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.38);
   font-size: 13px;
   &--mono { font-family: var(--gn-mono); font-size: 12px; }
