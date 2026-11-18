@@ -41,6 +41,9 @@ const focusables = () => [...(box.value?.querySelectorAll<HTMLElement>(FOCUSABLE
 function onKey(e: KeyboardEvent) {
   if (!dialogStack.isTop(id)) return;
   if (e.key === 'Escape') {
+    // um controle de dentro da caixa com a lista aberta (aria-expanded="true": combobox, menu) trata o Esc primeiro: fecha a lista, não o diálogo
+    const a = document.activeElement;
+    if (a instanceof HTMLElement && box.value?.contains(a) && a.getAttribute('aria-expanded') === 'true') return;
     e.stopPropagation();
     e.preventDefault();
     if (props.dismissable) emit('close', 'escape');

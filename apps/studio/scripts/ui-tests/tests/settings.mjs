@@ -1,4 +1,4 @@
-// Diálogo de configurações (seções Geral e Aparência): abre por Ctrl+, pela paleta e pela engrenagem; é um GnDialog (aria-modal com nome, foco preso, #app inerte, Esc,
+// Diálogo de configurações (abas Geral e Aparência; idioma e tema em ComboBox): abre por Ctrl+, pela paleta e pela engrenagem; é um GnDialog (aria-modal com nome, foco preso, #app inerte, Esc,
 // clique no fundo, foco devolvido); as fontes e as ligaduras mudam o app e a pré-visualização na hora, ficam guardadas e "Restaurar padrões" volta ao início.
 // Idioma, atualização automática, busca automática e tema usam os MESMOS estados dos controles de antes: mudar no diálogo muda o controle de origem e vice-versa.
 import { join } from 'node:path';
@@ -21,6 +21,21 @@ const attrs = () => t.ev(`(() => { const d = document.documentElement.dataset; r
 const css = (sel, prop) => t.ev(`getComputedStyle(document.querySelector(${lit(sel)})).${prop}`);
 const fieldOf = (label) => `[...document.querySelectorAll('.sd__field')].find((f) => f.querySelector(':scope > span')?.textContent.trim() === ${lit(label)})`;
 const pick = (label, option) => t.ev(`${fieldOf(label)}?.querySelector('.gn-seg') && [...${fieldOf(label)}.querySelectorAll('.gn-seg__opt')].find((b) => b.textContent.trim() === ${lit(option)})?.click()`);
+const goTab = async (name) => {
+  await t.ev(`[...document.querySelectorAll('.sd [role="tab"]')].find((x) => x.textContent.trim() === ${lit(name)}).click()`);
+  await sleep(250);
+};
+const tabState = () => t.ev(`(() => { const a = document.activeElement; const sel = document.querySelector('.sd [role="tab"][aria-selected="true"]'); return { selected: sel?.textContent.trim(), focused: a?.getAttribute('role') === 'tab' ? a.textContent.trim() : null }; })()`);
+/** ComboBox do diálogo: abre a lista (no body), escolhe no mousedown (é onde o ComboBox confirma) e devolve como a lista se apresentou. */
+const pickCombo = async (label, option) => {
+  await t.ev(`${fieldOf(label)}.querySelector('.cbx__btn').click()`);
+  await t.until(`document.querySelector('.cbx__list')`, 3000);
+  const look = await t.ev(`(() => { const l = document.querySelector('.cbx__list'); const r = l.getBoundingClientRect(); const at = document.elementFromPoint(r.left + r.width / 2, r.top + 12); return { radius: parseFloat(getComputedStyle(l).borderRadius), above: !!at && l.contains(at), items: [...l.querySelectorAll('[role="option"]')].map((o) => o.textContent.trim()) }; })()`);
+  await t.ev(`[...document.querySelectorAll('.cbx__list [role="option"]')].find((o) => o.textContent.trim() === ${lit(option)})?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))`);
+  await sleep(300);
+  return look;
+};
+const comboValue = (label) => t.ev(`${fieldOf(label)}.querySelector('.cbx__value').textContent.trim()`);
 const checked = (label, option) => t.ev(`[...${fieldOf(label)}.querySelectorAll('.gn-seg__opt')].find((b) => b.getAttribute('aria-checked') === 'true')?.textContent.trim()`);
 const openGear = async () => {
   await t.ev(`(() => { const g = document.querySelector('[data-testid="settings-open"]'); g.focus(); g.click(); })()`);
@@ -37,9 +52,10 @@ await clearFonts();
 await reload();
 
 // 1. a engrenagem está na barra, com nome acessível e o atalho no tooltip
-const gear = await t.ev(`(() => { const g = document.querySelector('[data-testid="settings-open"]'); const c = document.querySelector('.core__cmd').getBoundingClientRect(); const r = g.getBoundingClientRect(); return { label: g.getAttribute('aria-label'), title: g.title, after: r.left >= c.right - 1, inside: r.right <= window.innerWidth }; })()`);
+const gear = await t.ev(`(() => { const g = document.querySelector('[data-testid="settings-open"]'); const c = document.querySelector('.core__cmd').getBoundingClientRect(); const r = g.getBoundingClientRect(); return { label: g.getAttribute('aria-label'), title: g.title, after: r.left >= c.right - 1, inside: r.right <= window.innerWidth, h: Math.round(r.height) === Math.round(c.height), w: Math.round(r.width), top: Math.round(r.top) === Math.round(c.top), border: getComputedStyle(g).borderTopWidth, margin: window.innerWidth - r.right }; })()`);
 t.check('a engrenagem tem o nome "Configurações" e o atalho no tooltip', gear.label === 'Configurações' && /Ctrl\+,/.test(gear.title), gear);
-t.check('a engrenagem fica depois do botão Comandos e dentro da janela', gear.after && gear.inside, gear);
+t.check('a engrenagem fica depois do botão Comandos e dentro da janela, com respiro até a borda', gear.after && gear.inside && gear.margin >= 8, gear);
+t.check('a engrenagem tem a mesma altura e o mesmo alinhamento do botão Comandos, com borda (não fica esmagada)', gear.h && gear.top && gear.w >= 28 && gear.border === '1px', gear);
 
 // 2. Ctrl+, abre; é um diálogo modal com nome acessível; foco dentro; o fundo fica inerte
 await t.key(',', 2);
@@ -47,9 +63,18 @@ await t.until(`document.querySelector('[role="dialog"][aria-modal="true"]')`, 50
 await sleep(300);
 t.check('Ctrl+, abre o diálogo de configurações', await isOpen());
 t.check('o diálogo tem nome acessível pelo título "Configurações"', (await dlg(`document.getElementById(d.getAttribute('aria-labelledby'))?.textContent.trim()`)) === 'Configurações');
-t.check('o foco foi para dentro do diálogo (primeiro controle: o idioma)', await dlg(`d.contains(document.activeElement) && document.activeElement.classList.contains('gn-seg__opt')`));
+t.check('o foco foi para dentro do diálogo (a aba ativa, Geral)', (await dlg(`d.contains(document.activeElement)`)) && (await tabState()).focused === 'Geral', await tabState());
 t.check('o fundo (#app) está inerte', await t.ev(`document.getElementById('app').hasAttribute('inert')`));
-t.check('mostra a seção Aparência, as duas fontes, as ligaduras e a pré-visualização', await dlg(`['Aparência', 'Fonte da interface', 'Fonte do código', 'Ligaduras de código', 'Pré-visualização'].every((x) => d.textContent.includes(x))`));
+t.check('há duas abas (Geral e Aparência) e a Geral abre selecionada', (await t.ev(`[...document.querySelectorAll('.sd [role="tab"]')].map((x) => x.textContent.trim()).join('|')`)) === 'Geral|Aparência' && (await tabState()).selected === 'Geral');
+t.check('aba Geral: idioma (ComboBox, não o select nativo), atualização e busca automáticas; nada de fonte aqui', await dlg(`['Idioma', 'Verificar atualizações automaticamente', 'Buscar automaticamente'].every((x) => d.textContent.includes(x)) && !!d.querySelector('.cbx') && !d.querySelector('select') && !d.textContent.includes('Fonte da interface')`));
+await t.key('ArrowRight');
+t.check('seta direita troca para a aba Aparência e leva o foco', JSON.stringify(await tabState()) === JSON.stringify({ selected: 'Aparência', focused: 'Aparência' }), await tabState());
+await t.key('ArrowLeft');
+t.check('seta esquerda volta para a Geral', (await tabState()).selected === 'Geral');
+await t.key('End');
+t.check('End vai para a última aba', (await tabState()).selected === 'Aparência');
+t.check('aba Aparência: tema (ComboBox), as duas fontes, as ligaduras e a pré-visualização', await dlg(`['Tema', 'Fonte da interface', 'Fonte do código', 'Ligaduras de código', 'Pré-visualização'].every((x) => d.textContent.includes(x)) && !!d.querySelector('.cbx') && !d.textContent.includes('Verificar atualizações')`));
+t.check('o botão Restaurar padrões só aparece na aba Aparência', await dlg(`[...d.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Restaurar padrões')`));
 
 // 3. Ctrl+K com o diálogo aberto não abre a paleta (a paleta está dentro do #app, inerte)
 await t.key('k', 2);
@@ -90,6 +115,7 @@ await escape();
 await reload();
 t.check('depois de recarregar as escolhas continuam aplicadas', (await attrs()) === 'system|system|on', await attrs());
 await openGear();
+await goTab('Aparência');
 t.check('e o diálogo as mostra (Sistema, Sistema, ligaduras marcadas)', (await checked('Fonte da interface')) === 'Sistema' && (await checked('Fonte do código')) === 'Sistema' && !!(await t.ev(`document.querySelector('[data-testid="settings-ligatures"]').checked`)));
 
 // 7. restaurar padrões
@@ -149,16 +175,17 @@ const paletteRun = async (query, title) => {
 
 // idioma: dialogo -> barra
 await openGear();
-t.check('seção Geral: o idioma atual (Português) vem marcado', (await checked('Idioma')) === 'Português (Brasil)');
-await pick('Idioma', 'English');
-await sleep(500);
+t.check('aba Geral: o idioma atual (Português) vem no ComboBox', (await comboValue('Idioma')) === 'Português (Brasil)');
+const langList = await pickCombo('Idioma', 'English');
+t.check('a lista do idioma tem cantos arredondados, fica acima do diálogo e traz os dois idiomas', langList.radius >= 6 && langList.above && langList.items.length === 2 && langList.items.includes('English'), langList);
+await sleep(300);
 t.check('Idioma "English" no diálogo troca o app e o próprio diálogo, sem recarregar', (await dlg(`document.getElementById(d.getAttribute('aria-labelledby'))?.textContent.trim()`)) === 'Settings' && (await ls('gitnexus.locale')) === 'en');
 await escape();
 t.check('o seletor de idioma da barra mostra EN', (await t.ev(`document.querySelector('.lang__code')?.textContent.trim()`)) === 'EN');
 // idioma: paleta -> dialogo
 t.check('o comando da paleta volta ao português', await paletteRun('language', 'Language: Português (Brasil)'));
 await openGear();
-t.check('o diálogo mostra o idioma escolhido na paleta (Português) e está em português', (await checked('Idioma')) === 'Português (Brasil)');
+t.check('o diálogo mostra o idioma escolhido na paleta (Português) e está em português', (await comboValue('Idioma')) === 'Português (Brasil)');
 
 // atualização automática: dialogo -> paleta e paleta -> dialogo
 t.check('"Verificar atualizações automaticamente" começa marcada (padrão)', await t.ev(`${chk('settings-auto-update')}.checked`));
@@ -189,16 +216,24 @@ await openGear();
 t.check('desmarcar na caixa do seletor de branch desmarca no diálogo', !(await t.ev(`${chk('settings-auto-fetch')}.checked`)) && (await ls('gitnexus.autoFetch')) === '0');
 
 // tema: dialogo -> app e paleta -> dialogo
-t.check('Tema: o padrão é "Escuro" (o tema que o app sempre teve)', (await checked('Tema')) === 'Escuro');
-await pick('Tema', 'Claro');
+await goTab('Aparência');
+t.check('Tema: o padrão é "Escuro" (o tema que o app sempre teve)', (await comboValue('Tema')) === 'Escuro');
+// Esc com a lista aberta fecha só a lista; o diálogo continua
+await t.ev(`${fieldOf('Tema')}.querySelector('.cbx__btn').focus(); ${fieldOf('Tema')}.querySelector('.cbx__btn').click()`);
+await t.until(`document.querySelector('.cbx__list')`, 3000);
+await escape();
+t.check('Esc com o ComboBox aberto fecha a lista e NÃO o diálogo', (await t.ev(`!document.querySelector('.cbx__list')`)) && (await isOpen()));
+const themeList = await pickCombo('Tema', 'Claro');
+t.check('a lista do tema traz Sistema, Escuro e Claro, com cantos arredondados', themeList.items.join('|') === 'Sistema|Escuro|Claro' && themeList.radius >= 6 && themeList.above, themeList);
 await sleep(400);
 t.check('Tema "Claro" muda o app na hora (data-theme=light) e fica guardado', (await t.ev(`document.documentElement.dataset.theme`)) === 'light' && (await ls('gitnexus.theme')) === 'light');
 await escape();
 t.check('o comando da paleta oferece o tema Sistema e o aplica', await paletteRun('tema', 'Tema da interface: Sistema'));
 await sleep(300);
 await openGear();
-t.check('o diálogo mostra "Sistema" (escolhido na paleta)', (await checked('Tema')) === 'Sistema');
-await pick('Tema', 'Escuro');
+await goTab('Aparência');
+t.check('o diálogo mostra "Sistema" (escolhido na paleta)', (await comboValue('Tema')) === 'Sistema');
+await pickCombo('Tema', 'Escuro');
 await escape();
 await t.ev(`localStorage.removeItem('gitnexus.theme'); localStorage.removeItem('gitnexus.updateCheck')`);
 
@@ -208,7 +243,9 @@ await reload();
 await t.key(',', 2);
 await t.until(`document.querySelector('[role="dialog"][aria-modal="true"]')`, 5000);
 await sleep(300);
-t.check('em inglês: título "Settings" e os campos', (await dlg(`document.getElementById(d.getAttribute('aria-labelledby'))?.textContent.trim()`)) === 'Settings' && (await dlg(`['Appearance', 'Interface font', 'Code font', 'Code ligatures', 'Preview', 'Restore defaults', 'Close'].every((x) => d.textContent.includes(x))`)));
+t.check('em inglês: título "Settings", abas e a aba Geral', (await dlg(`document.getElementById(d.getAttribute('aria-labelledby'))?.textContent.trim()`)) === 'Settings' && (await t.ev(`[...document.querySelectorAll('.sd [role="tab"]')].map((x) => x.textContent.trim()).join('|')`)) === 'General|Appearance' && (await dlg(`['Language', 'Check for updates automatically', 'Fetch automatically', 'Close'].every((x) => d.textContent.includes(x))`)));
+await goTab('Appearance');
+t.check('em inglês: aba Appearance com os campos', await dlg(`['Theme', 'Interface font', 'Code font', 'Code ligatures', 'Preview', 'Restore defaults'].every((x) => d.textContent.includes(x))`));
 await escape();
 
 // 12. janela mínima 960x600: o diálogo cabe e a engrenagem não esconde nada da barra
@@ -224,6 +261,10 @@ await sleep(400);
 const box = await dlg(`(() => { const r = d.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: window.innerWidth, h: window.innerHeight }; })()`);
 t.check('960x600: o diálogo cabe inteiro na janela', box.l >= 0 && box.t >= 0 && box.r <= box.w && box.b <= box.h, box);
 await t.shot('settings-960');
+await goTab('Aparência');
+const box2 = await dlg(`(() => { const r = d.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: window.innerWidth, h: window.innerHeight }; })()`);
+t.check('960x600: o diálogo também cabe na aba Aparência (a maior)', box2.l >= 0 && box2.t >= 0 && box2.r <= box2.w && box2.b <= box2.h, box2);
+await t.shot('settings-960-aparencia');
 await escape();
 await t.send('Emulation.clearDeviceMetricsOverride', {});
 
