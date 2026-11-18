@@ -4,6 +4,29 @@ Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https:/
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.16.0] - 2026-11-18
+
+### ✨ Novidades
+
+- **commit:** assinar commits (GPG, SSH ou X.509) pelo formulário, respeitando commit.gpgsign ([`a19709b`](https://github.com/imozart/git-nexus/commit/a19709bbab38ede085559e54cd2696ff8f660d58))
+- **lfs:** seção Git LFS em Ferramentas com estado dos arquivos e download ([`09d4a29`](https://github.com/imozart/git-nexus/commit/09d4a29bdbb77714aae32c8546f108644ac5f781))
+- **submodules:** seção Submódulos em Ferramentas com estado, inicializar e atualizar ([`d126e36`](https://github.com/imozart/git-nexus/commit/d126e36cd0038010e8361220def750d7cd1d8283))
+- **auth:** diálogo de usuário e senha e mensagens claras quando o remoto pede credenciais ([`22c2959`](https://github.com/imozart/git-nexus/commit/22c295916c79d7e6f5c2b5174b75cce8791502e8))
+- **app:** notificações do sistema quando a busca traz commits novos e a atualização está pronta ([`2707027`](https://github.com/imozart/git-nexus/commit/27070274a1f375e633e1c83aeaa953ad2ed7b82e))
+- **search:** busca no conteúdo dos arquivos (git grep) com resultados por arquivo e linha ([`43427c1`](https://github.com/imozart/git-nexus/commit/43427c16a78a4b9cae9d0a7347c5d1cbaee5758e))
+- **repos:** clonar um repositório e criar um novo (git clone e git init) pela tela inicial ([`5d9823d`](https://github.com/imozart/git-nexus/commit/5d9823d3c20c8916fe8fb27ca975f5ce44e2d630))
+- **ui:** tema claro e opção Escuro / Claro / Sistema, lembrada entre as aberturas ([`d9c90ac`](https://github.com/imozart/git-nexus/commit/d9c90ac0e62ebb133dca955c7103834a442c582e))
+
+### 🐛 Correções
+
+- **submodules:** teste configura a identidade do git dentro do submódulo (CI não tem global) ([`65ff688`](https://github.com/imozart/git-nexus/commit/65ff68817bd33b12022597cce263f5cf79534f79))
+- **commit:** teste de interface monta valores por base64 e propaga correções ([`67233ae`](https://github.com/imozart/git-nexus/commit/67233ae20e52e9e7fb17f309318e91e954174174))
+- **lfs:** teste de interface monta valores na página por base64 e propaga correções ([`95b990d`](https://github.com/imozart/git-nexus/commit/95b990d725d5ec021f6ec99446e1f684c974dc58))
+- **submodules:** ler o status campo a campo e propagar correções da pilha ([`ff8dc1a`](https://github.com/imozart/git-nexus/commit/ff8dc1ae4da43cf49a3a2f21ce51cd47a864db11))
+- **notifications:** teste de interface monta valores na página por base64 (alerta do CodeQL) ([`c0d7701`](https://github.com/imozart/git-nexus/commit/c0d7701ecb7baf03c43b9b9940388f0304303998))
+- **search:** teste de interface monta valores na página por base64 (alerta do CodeQL) ([`ced2702`](https://github.com/imozart/git-nexus/commit/ced270209831fe275bdebb702f23725606b6afb3))
+- **clone:** reconhecer repositório inexistente no Linux e evitar regex quadrática ([`136d7f5`](https://github.com/imozart/git-nexus/commit/136d7f5d76858250417901142686284fe2b4b946))
+
 ## [1.15.0] - 2026-11-17
 
 ### ✨ Novidades
@@ -326,6 +349,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.16.0]: https://github.com/imozart/git-nexus/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/imozart/git-nexus/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/imozart/git-nexus/compare/v1.13.2...v1.14.0
 [1.13.2]: https://github.com/imozart/git-nexus/compare/v1.13.1...v1.13.2
