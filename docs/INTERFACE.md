@@ -10,6 +10,7 @@ Tudo o que é botão, seletor, ícone, etiqueta e aba vem do **ui-kit** (`apps/u
 | `GnIconButton` | Botão só de ícone | `icon` e `label` **obrigatório** (vira `aria-label` e tooltip); leve por padrão |
 | `GnButtonGroup` | Par ou conjunto de botões colados | anterior/próximo; serve para `GnButton` e `GnIconButton` |
 | `GnSegmented` | Escolher **uma** opção entre poucas | `v-model`, `options`, teclado e `aria` prontos; ativo em azul tingido |
+| `GnDialog` | Diálogo modal | overlay, caixa com elevação, foco preso, Esc, clique no fundo, foco devolvido e fundo inerte; `width`, `maxHeight`, `role`, `labelledby`/`label`, `describedby`, `dismissable`, `initialFocus`; emite `close` (`'escape'` ou `'backdrop'`) e o pai segue dono do estado (`v-if`); `isDialogOpen()` diz se há algum aberto |
 | `GnIcon` | Ícone decorativo | `name` (ver `components/icons.ts`); herda a cor do texto; sem `v-html` |
 | `GnBadge` | Etiqueta de estado | `tone` com o mesmo vocabulário do botão |
 | `GnTabs` | Abas de documentos | usado na barra principal e em Ferramentas |
