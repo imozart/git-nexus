@@ -4,6 +4,8 @@ import AskpassDialog from './components/AskpassDialog.vue';
 import ConfettiRain from './components/ConfettiRain.vue';
 import CoreInterface from './CoreInterface.vue';
 import CommandPalette from './components/CommandPalette.vue';
+import SettingsDialog from './components/SettingsDialog.vue';
+import { isDialogOpen } from '@git-nexus/ui-kit';
 import { api } from './api';
 import { LOCALES, locale, setLocale, t } from './i18n';
 import { notificationsEnabled, notifyUser } from './notifications';
@@ -12,6 +14,7 @@ import { THEME_PREFS, setThemePref, themePref } from './theme';
 import { useAskpassStore } from './stores/askpass';
 import { useCommandsStore, type Command } from './stores/commands';
 import { useRepositoriesStore } from './stores/repositories';
+import { useSettingsStore } from './stores/settings';
 import { useGitLogStore } from './stores/gitlog';
 import { useUpdateStore } from './stores/update';
 import { HOME_TAB, useWorkspaceStore } from './stores/workspace';
@@ -22,6 +25,7 @@ const repos = useRepositoriesStore();
 const upd = useUpdateStore();
 const askpass = useAskpassStore();
 const gitLog = useGitLogStore();
+const settings = useSettingsStore();
 
 const inRepo = () => !!ws.active?.repo;
 
@@ -42,6 +46,14 @@ function globalCommands(): Command[] {
     { id: 'app.zoomIn', title: t('cmd.zoomIn'), group: app, keywords: 'zoom aumentar ampliar maior lupa zoom in bigger', run: () => void api.setZoom('in') },
     { id: 'app.zoomOut', title: t('cmd.zoomOut'), group: app, keywords: 'zoom diminuir reduzir menor zoom out smaller', run: () => void api.setZoom('out') },
     { id: 'app.zoomReset', title: t('cmd.zoomReset'), group: app, keywords: 'zoom restaurar padrão 100 reset normal', run: () => void api.setZoom('reset') },
+    {
+      id: 'app.settings',
+      title: t('cmd.settings'),
+      group: app,
+      shortcut: 'Mod+,',
+      keywords: 'configurações preferências opções ajustes fonte aparência settings preferences options appearance font',
+      run: () => settings.open(),
+    },
     ...THEME_PREFS.filter((p) => p !== themePref.value).map((p) => ({
       id: `app.theme.${p}`,
       title: t('cmd.theme', { name: t(`theme.${p}`) }),
@@ -166,6 +178,7 @@ function step(delta: number): void {
 }
 
 function onKeydown(ev: KeyboardEvent): void {
+  if (isDialogOpen()) return; // com um diálogo aberto, os atalhos globais (Ctrl+K inclusive) ficam quietos
   const mod = ev.ctrlKey || ev.metaKey;
   const k = ev.key.toLowerCase();
   // paleta: Ctrl/⌘+K (e Ctrl/⌘+Shift+P, como em outros editores)
@@ -204,6 +217,7 @@ onBeforeUnmount(() => {
 <template>
   <CoreInterface />
   <CommandPalette />
+  <SettingsDialog v-if="settings.isOpen" @close="settings.close()" />
   <AskpassDialog />
   <ConfettiRain v-if="upd.celebrating" @done="upd.celebrating = false" />
 </template>

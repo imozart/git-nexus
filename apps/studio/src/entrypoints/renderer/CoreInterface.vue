@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { encodingLabel, type EncodingChoice } from '@git-nexus/git-core/pure';
-import { GnButton, GnTabs, type GnTab } from '@git-nexus/ui-kit';
+import { GnButton, GnIconButton, GnTabs, type GnTab } from '@git-nexus/ui-kit';
 import { t } from './i18n';
 import EncodingMenu from './components/EncodingMenu.vue';
 import LanguagePicker from './components/LanguagePicker.vue';
@@ -9,6 +9,7 @@ import ThemePicker from './components/ThemePicker.vue';
 import { useAppErrorsStore } from './stores/app-errors';
 import { useFileEncodingStore } from './stores/file-encoding';
 import { useCommandsStore, shortcutLabel } from './stores/commands';
+import { useSettingsStore } from './stores/settings';
 import { useUpdateStore } from './stores/update';
 import { HOME_TAB, useWorkspaceStore } from './stores/workspace';
 import ConnectionInterface from './views/ConnectionInterface.vue';
@@ -19,6 +20,7 @@ import ToolsView from './views/ToolsView.vue';
 
 const ws = useWorkspaceStore();
 const cmds = useCommandsStore();
+const settings = useSettingsStore();
 const upd = useUpdateStore();
 const fileEnc = useFileEncodingStore();
 const appErrors = useAppErrorsStore();
@@ -69,6 +71,7 @@ const tabs = computed<GnTab[]>(() =>
       <button type="button" class="core__cmd" :title="t('core.commandsTitle')" @click="cmds.open()">
         {{ t('core.commands') }} <kbd>{{ shortcutLabel('Mod+K') }}</kbd>
       </button>
+      <GnIconButton icon="settings" :label="t('core.settings')" :title="`${t('core.settings')} (${shortcutLabel('Mod+,')})`" data-testid="settings-open" @click="settings.open()" />
     </div>
     <div v-if="upd.visible && upd.info" class="upd" role="status">
       <span class="upd__msg">
