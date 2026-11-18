@@ -9,6 +9,8 @@ export interface ComboOption {
   /** Texto auxiliar, mais claro, ao lado do rótulo. */
   hint?: string;
   disabled?: boolean;
+  /** Grupo da opção: a lista mostra o título do grupo antes do primeiro item dele. As opções do mesmo grupo devem vir juntas, e as sem grupo, primeiro. */
+  group?: string;
 }
 
 export type ComboInput = string | ComboOption;
@@ -64,4 +66,24 @@ export function filterOptions(options: readonly ComboInput[], query: string, max
   }
   const items = buckets.flat().slice(0, max).map(optionOf);
   return { items, total, hidden: total - items.length };
+}
+
+/** Título de grupo a mostrar ANTES do item `i` (o grupo dele, se for o primeiro do grupo); vazio quando não há título a mostrar. */
+export function groupHeaderAt(items: readonly ComboOption[], i: number): string {
+  const g = items[i]?.group;
+  return g && g !== items[i - 1]?.group ? g : '';
+}
+
+/**
+ * Devolve `items` (um filtro, que embaralha por relevância) com os grupos de volta juntos, na ordem em que aparecem em `options`
+ * (sem grupo primeiro). Estável: dentro de cada grupo a ordem de relevância do filtro continua.
+ */
+export function sortByGroup(options: readonly ComboInput[], items: readonly ComboOption[]): ComboOption[] {
+  const order = new Map<string, number>();
+  for (const o of options) {
+    const g = optionOf(o).group;
+    if (g && !order.has(g)) order.set(g, order.size);
+  }
+  const rank = (o: ComboOption) => (o.group ? (order.get(o.group) ?? order.size) : -1);
+  return items.map((o, i) => ({ o, i })).sort((a, b) => rank(a.o) - rank(b.o) || a.i - b.i).map((x) => x.o);
 }
