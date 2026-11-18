@@ -771,12 +771,17 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
   flex-direction: column;
   height: 100%;
   &__head {
-    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    display: flex; justify-content: space-between; align-items: center; gap: 6px 12px; flex-wrap: wrap; /* wrap: se nem a branch cabe, os botões descem para a linha de baixo */
     padding: 8px 14px; border-bottom: 1px solid var(--gn-border);
   }
-  &__id { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  &__id {
+    display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 380px;
+    // na janela mínima o que não cabe é a branch (reticências) e o caminho; o nome do repositório, o botão de sincronização e a marca WSL2 ficam inteiros
+    > strong, > :deep(.gn-badge) { flex-shrink: 0; }
+    > :deep(.ss) { flex-shrink: 0; }
+  }
   &__path { font-family: var(--gn-mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  &__btns { display: flex; gap: 6px; flex-shrink: 0; }
+  &__btns { display: flex; gap: 6px; flex-shrink: 0; margin-left: auto; }
   &__error { margin: 0; padding: 6px 14px; color: var(--gn-danger); background: rgba(239, 106, 98, 0.1); white-space: pre-wrap; }
   &__notice {
     display: flex; align-items: center; gap: 8px; padding: 5px 14px;

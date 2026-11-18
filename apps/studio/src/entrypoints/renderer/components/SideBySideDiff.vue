@@ -230,6 +230,7 @@ const KIND_CLASS: Record<DiffRow['kind'], string> = { eq: '', change: 'row--chan
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  min-width: 520px; /* com os dois painéis abertos na janela mínima o diff ficava com ~240px e o código quebrava letra por letra: rola na horizontal */
   &__head, .row { grid-template-columns: 50px minmax(0, 1fr) 86px 50px minmax(0, 1fr); }
   &__head {
     display: grid;
