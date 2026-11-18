@@ -6,6 +6,7 @@ import { GnButton } from '@git-nexus/ui-kit';
 import { GITIGNORE_TEMPLATES, isValidBranchName, isValidFolderName, repoNameFromUrl, type GitProgressEvent, type RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { t } from '../i18n';
+import ComboBox from './ComboBox.vue';
 
 const props = defineProps<{ mode: 'clone' | 'init' }>();
 const emit = defineEmits<{ (e: 'done', v: { repo: RepositoryMeta; note?: string }): void; (e: 'cancel'): void }>();
@@ -15,6 +16,8 @@ const parent = ref('');
 const name = ref('');
 const branch = ref(props.mode === 'init' ? 'main' : '');
 const gitignore = ref('none');
+/** Modelos de .gitignore para o ComboBox (o "nenhum" tem texto traduzido). */
+const gitignoreOptions = computed(() => GITIGNORE_TEMPLATES.map((g) => ({ value: g.id, label: g.id === 'none' ? t('create.gitignoreNone') : g.label })));
 const busy = ref(false);
 const error = ref('');
 const progress = ref<{ phase: string; percent: number | null } | null>(null);
@@ -118,12 +121,10 @@ onBeforeUnmount(() => {
           <small v-if="branchBad" class="rc__bad">{{ t('create.branchBad') }}</small>
         </label>
 
-        <label v-if="mode === 'init'" class="rc__field">
+        <div v-if="mode === 'init'" class="rc__field">
           <span>{{ t('create.gitignore') }}</span>
-          <select v-model="gitignore" data-testid="create-gitignore" :disabled="busy">
-            <option v-for="g in GITIGNORE_TEMPLATES" :key="g.id" :value="g.id">{{ g.id === 'none' ? t('create.gitignoreNone') : g.label }}</option>
-          </select>
-        </label>
+          <ComboBox v-model="gitignore" block :options="gitignoreOptions" :aria-label="t('create.gitignore')" data-testid="create-gitignore" :disabled="busy" />
+        </div>
 
         <p v-if="target" class="rc__target" data-testid="create-target">{{ t('create.target') }} <code>{{ target }}</code></p>
 

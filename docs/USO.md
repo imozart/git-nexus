@@ -158,10 +158,12 @@ O que isso mudou no app:
 
 O diálogo de **Configurações** reúne as preferências do app em um lugar só. Abra com **Ctrl+,** (⌘+, no macOS), pela **engrenagem** na barra superior (depois de "Comandos") ou pela paleta (Ctrl+K, "configurações"). **Esc**, clique fora ou **Fechar** fecham, e o foco volta a onde estava.
 
-- **Geral:** **Idioma**, **Verificar atualizações automaticamente** e **Buscar automaticamente** (a busca em segundo plano, a cada 5 minutos, sem alterar seus arquivos).
-- **Aparência:** **Tema** (Sistema, Escuro ou Claro), **Fonte da interface** e **Fonte do código** (JetBrains Mono ou Sistema) e **Ligaduras de código** (por exemplo `!==` ou `=>` viram um símbolo só). Uma **pré-visualização** mostra um trecho de código e uma linha de texto com a escolha feita.
+O diálogo tem **duas abas** (setas, Home e End trocam de aba):
+
+- **Geral:** **Idioma** (lista com a bandeira), **Verificar atualizações automaticamente** e **Buscar automaticamente** (a busca em segundo plano, a cada 5 minutos, sem alterar seus arquivos).
+- **Aparência:** **Tema** (lista: Sistema, Escuro ou Claro), **Fonte da interface** e **Fonte do código** (JetBrains Mono ou Sistema) e **Ligaduras de código** (por exemplo `!==` ou `=>` viram um símbolo só). Uma **pré-visualização** mostra um trecho de código e uma linha de texto com a escolha feita.
 - **A mudança vale na hora** e fica guardada: não há "Salvar" nem "Cancelar". Os campos são os **mesmos** controles de antes (seletor de idioma da barra, caixa do seletor de branch, comandos da paleta): mudar em um lugar muda nos outros.
-- **Restaurar padrões** volta as fontes e as ligaduras ao início: **JetBrains Mono** na interface e no código, com as ligaduras **desligadas** (para o diff mostrar exatamente o que foi digitado).
+- **Restaurar padrões** (na aba Aparência) volta as fontes e as ligaduras ao início: **JetBrains Mono** na interface e no código, com as ligaduras **desligadas** (para o diff mostrar exatamente o que foi digitado).
 
 ## Credenciais: usuário, senha, token e chaves SSH
 

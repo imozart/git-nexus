@@ -71,7 +71,7 @@ const tabs = computed<GnTab[]>(() =>
       <button type="button" class="core__cmd" :title="t('core.commandsTitle')" @click="cmds.open()">
         {{ t('core.commands') }} <kbd>{{ shortcutLabel('Mod+K') }}</kbd>
       </button>
-      <GnIconButton icon="settings" :label="t('core.settings')" :title="`${t('core.settings')} (${shortcutLabel('Mod+,')})`" data-testid="settings-open" @click="settings.open()" />
+      <GnIconButton class="core__gear" icon="settings" :label="t('core.settings')" :title="`${t('core.settings')} (${shortcutLabel('Mod+,')})`" data-testid="settings-open" @click="settings.open()" />
     </div>
     <div v-if="upd.visible && upd.info" class="upd" role="status">
       <span class="upd__msg">
@@ -143,6 +143,8 @@ const tabs = computed<GnTab[]>(() =>
   height: 100%;
   &__top { display: flex; align-items: stretch; background: var(--gn-bg); }
   &__tabs { flex: 1; min-width: 0; }
+  // engrenagem: mesma altura, borda e fundo do botão Comandos (e dos seletores de tema e idioma), com o mesmo respiro
+  &__gear.gn-btn { align-self: center; flex: none; width: 31px; height: 31px; margin: 0 10px 0 -4px; padding: 0; color: var(--gn-muted); background: var(--gn-surface); border: 1px solid var(--gn-border); border-radius: var(--gn-radius); &:hover:not(:disabled) { color: var(--gn-text); border-color: var(--gn-accent); background: var(--gn-surface); } }
   &__cmd { margin: 6px 10px; padding: 0 10px; display: inline-flex; align-items: center; gap: 8px; font: inherit; font-size: 12px; color: var(--gn-muted); background: var(--gn-surface); border: 1px solid var(--gn-border); border-radius: var(--gn-radius); cursor: pointer; &:hover { color: var(--gn-text); border-color: var(--gn-accent); } kbd { font-family: var(--gn-mono); font-size: 11px; } }
   &__panes { flex: 1; min-height: 0; background: var(--gn-surface); }
   &__pane { height: 100%; overflow: auto; }
