@@ -31,7 +31,17 @@
   /* arquivo renomeado/copiado e arquivo novo (não rastreado) na árvore de alterações */
   --gn-renamed: #c678dd;
   --gn-untracked: #d99a54;
-  --gn-mono: ui-monospace, 'Cascadia Code', Consolas, 'Courier New', monospace;
+  /* tipografia. Famílias: a JetBrains Mono é embutida (fonts.scss); a lista depois dela é só reserva */
+  --gn-font-jetbrains: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --gn-font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif; /* "Sistema": a fonte de antes da JetBrains Mono */
+  --gn-font-mono-system: ui-monospace, 'Cascadia Code', Consolas, 'Courier New', monospace; /* "Sistema": o --gn-mono de antes */
+  /* o que vale agora (padrão: JetBrains Mono em tudo; os atributos data-font-* do <html> trocam, veja mais abaixo) */
+  --gn-font-ui: var(--gn-font-jetbrains);
+  --gn-font-code: var(--gn-font-jetbrains);
+  --gn-mono: var(--gn-font-code); /* apelido: os usos de var(--gn-mono) no app continuam valendo */
+  --gn-font-size: 12px;
+  --gn-line: 1.5;
+  --gn-ligatures: none; /* ligaduras desligadas por padrão: o diff mostra exatamente o que foi digitado */
   color-scheme: dark;
 }
 
@@ -62,6 +72,11 @@
   color-scheme: light;
 }
 
+/* Preferências de fonte (renderer/font.ts liga os atributos no <html>). Sem atributo, vale o padrão acima: sem "pisca" na abertura. */
+html[data-font-ui='system'] { --gn-font-ui: var(--gn-font-sans); --gn-font-size: 13px; --gn-line: 1.45; } /* os valores de antes */
+html[data-font-code='system'] { --gn-font-code: var(--gn-font-mono-system); }
+html[data-ligatures='on'] { --gn-ligatures: normal; }
+
 *, *::before, *::after { box-sizing: border-box; }
 
 html, body, #app { height: 100%; margin: 0; }
@@ -69,8 +84,13 @@ html, body, #app { height: 100%; margin: 0; }
 body {
   background: var(--gn-bg);
   color: var(--gn-text);
-  font: 13px/1.45 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font: var(--gn-font-size)/var(--gn-line) var(--gn-font-ui);
+  font-variant-ligatures: var(--gn-ligatures); /* none desliga liga e calt (as ligaduras da JetBrains Mono); normal liga */
+  font-synthesis: none; /* só há as faces normais 400/500/600/700: não inventar negrito nem itálico */
 }
+
+/* sem isto caem no `monospace` do navegador, que não é o --gn-mono */
+pre, code, kbd, samp { font-family: var(--gn-font-code); }
 
 input, textarea, select {
   background: var(--gn-bg);

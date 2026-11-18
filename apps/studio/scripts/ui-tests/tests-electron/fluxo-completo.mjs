@@ -13,6 +13,7 @@ const t = await connect(OUT, report);
 // --- é a janela real, não um navegador ------------------------------------------------------------------------------------
 t.check('é o Electron (e não um navegador)', /Electron\//.test(await t.ev('navigator.userAgent')), await t.ev('navigator.userAgent'));
 t.check('a interface foi carregada do pacote (file://)', (await t.ev('location.protocol')) === 'file:', await t.ev('location.href'));
+t.check('a JetBrains Mono embutida chegou no app empacotado (as 4 faces carregam do app.asar)', await t.ev(`Promise.all([400, 500, 600, 700].map((w) => document.fonts.load(w + ' 12px "JetBrains Mono"').then(() => document.fonts.check(w + ' 12px "JetBrains Mono"')))).then((r) => r.every(Boolean))`));
 t.check('a ponte do preload existe', (await t.ev(`typeof window.gitNexus?.getKnownRepositories`)) === 'function');
 t.check('a lista de repositórios vem do processo principal', Array.isArray(await t.ev('window.gitNexus.getKnownRepositories()')));
 t.check('o teclado atravessa o app: Ctrl+K abre a paleta', await (async () => {

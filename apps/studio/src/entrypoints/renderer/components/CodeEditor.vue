@@ -127,11 +127,16 @@ function extensions(): Extension[] {
   return ext;
 }
 
+/** O editor mede a largura dos caracteres: se a fonte carrega depois (ou muda), o cursor e as quebras ficam desalinhados. */
+const remeasure = () => view?.requestMeasure();
+
 onMounted(() => {
   view = new EditorView({
     parent: host.value!,
     state: EditorState.create({ doc: props.modelValue, extensions: extensions() }),
   });
+  document.fonts?.ready.then(remeasure);
+  document.fonts?.addEventListener('loadingdone', remeasure);
 });
 
 watch(theme, (v) => view?.dispatch({ effects: themeSlot.reconfigure(v === 'dark' ? oneDark : []) }));
@@ -145,7 +150,10 @@ watch(
   },
 );
 
-onBeforeUnmount(() => view?.destroy());
+onBeforeUnmount(() => {
+  document.fonts?.removeEventListener('loadingdone', remeasure);
+  view?.destroy();
+});
 
 /** Rola até a posição (offset) informada. */
 function scrollTo(pos: number): void {
