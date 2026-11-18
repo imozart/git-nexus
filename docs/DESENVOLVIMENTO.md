@@ -37,7 +37,19 @@ Os dados (lista de repositórios, preferências) ficam em `GitNexusData/` ao lad
 
 ## Imagens e GIFs da documentação
 
-As mídias de `docs/media` (e a vitrine do README) **não têm script de geração**: são gravadas com o app real. Método para regravar: o harness de interface (`apps/studio/scripts/ui-harness`) serve o renderer compilado e o Edge/Chrome headless é dirigido por CDP (`apps/studio/scripts/ui-tests/lib.mjs`: `connect`, `mkRepo`, `t.shot`), num repositório de demonstração (`gn-demo`, criado por `mkRepo`), com a janela em **1320x760** e **sem caminhos pessoais nem dados de clientes**. Cada quadro é uma captura (`Page.captureScreenshot`); os GIFs são apresentações de poucos quadros (3 a 5, de 1,5 a 3 s cada), montadas com qualquer ferramenta (por exemplo Pillow, em Python). O `commit-linter.png` também é a imagem do manifesto do Flatpak (`scripts/lib/flatpak.mjs`): se ele mudar de nome, o manifesto muda junto.
+As mídias de `docs/media` (e a vitrine do README) são gravadas com o **app real** pelo harness de interface, sem caminho pessoal nem dado de cliente:
+
+```bash
+cd apps/studio && npx vite build
+# grava os quadros (<cena>-<n>.png, janela 1320x760, pt-BR, tema escuro): todas as cenas, ou uma com GN_MEDIA_ONLY=paleta
+GN_MEDIA=1 GN_MEDIA_OUT=<pasta> node scripts/ui-tests/run.mjs media
+# monta os GIFs e o commit-linter.png (precisa de Pillow: pip install pillow)
+python scripts/ui-tests/montar-gifs.py <pasta> ../../docs/media
+```
+
+- `scripts/ui-tests/tests/media.mjs` tem uma **cena por GIF** (`paleta`, `commit-linter`, `desfazer`, `rebase`, `stage-por-linha`, `conflito`). Cada uma monta um repositório de demonstração em `C:\gn-demo` (ou `/tmp/gn-demo`), dirige a tela por CDP e grava um quadro por passo. Sem `GN_MEDIA=1` o arquivo sai na hora com sucesso: o `ui-test` normal não grava nada.
+- `scripts/ui-tests/montar-gifs.py` junta os quadros (apresentações de 3 a 5 quadros, de 1,5 a 3 s cada, em loop) e salva o `commit-linter.png`, que também é a imagem do manifesto do Flatpak (`scripts/lib/flatpak.mjs`) e da página do projeto: se ele mudar de nome, esses dois mudam junto.
+- Para mudar um GIF, ajuste a cena correspondente (o que cada quadro mostra) e a tabela `CENAS` do script (duração de cada quadro). Regrave quando a interface mudar de forma visível.
 
 ## Notas sobre versões
 
