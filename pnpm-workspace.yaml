@@ -13,3 +13,13 @@ allowBuilds:
 # a versão corrigida mantém a API que ele usa. Pode sair quando o electron-builder atualizar a própria dependência.
 overrides:
   "minimatch@>=7.0.0 <11.0.1": ">=11.0.1"
+
+# picomatch <= 4.0.7: ReDoS em extglobs repetidos (GHSA-fc5q-39xc-vjpf). RISCO ACEITO, com prazo de revisão (issue #200):
+#  - não existe versão corrigida (o `pnpm audit` mostra "Patched versions: None");
+#  - chega só por ferramentas de desenvolvimento (vitest, vite, tinyglobby, electron-builder); `pnpm audit --prod` não encontra nada, então não vai no app;
+#  - os padrões de glob são os do próprio repositório (entrada confiável, não de usuário).
+# Condição de saída: quando o picomatch publicar a correção, atualizar (ou usar `overrides`) e APAGAR esta linha. Reavaliar a cada atualização do vitest/vite.
+# Todo outro aviso alto ou crítico continua reprovando a auditoria.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-fc5q-39xc-vjpf
