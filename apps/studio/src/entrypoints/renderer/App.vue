@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import AskpassDialog from './components/AskpassDialog.vue';
 import ConfettiRain from './components/ConfettiRain.vue';
 import CoreInterface from './CoreInterface.vue';
 import CommandPalette from './components/CommandPalette.vue';
+import LocaleWelcome from './components/LocaleWelcome.vue';
 import SettingsDialog from './components/SettingsDialog.vue';
+import { LOCALE_ASKED_KEY, shouldAskLocale } from './i18n/core';
 import { isDialogOpen } from '@git-nexus/ui-kit';
 import { api } from './api';
 import { LOCALES, locale, setLocale, t } from './i18n';
@@ -26,6 +28,8 @@ const upd = useUpdateStore();
 const askpass = useAskpassStore();
 const gitLog = useGitLogStore();
 const settings = useSettingsStore();
+// primeira abertura: pergunta o idioma antes da primeira tela (só sem preferência guardada)
+const askLocale = ref(shouldAskLocale(localStorage.getItem('gitnexus.locale'), localStorage.getItem(LOCALE_ASKED_KEY)));
 
 const inRepo = () => !!ws.active?.repo;
 
@@ -218,6 +222,7 @@ onBeforeUnmount(() => {
   <CoreInterface />
   <CommandPalette />
   <SettingsDialog v-if="settings.isOpen" @close="settings.close()" />
+  <LocaleWelcome v-if="askLocale" @done="askLocale = false" />
   <AskpassDialog />
   <ConfettiRain v-if="upd.celebrating" @done="upd.celebrating = false" />
 </template>

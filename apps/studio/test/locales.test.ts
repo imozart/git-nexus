@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import en from '../src/entrypoints/renderer/i18n/en';
 import ptBR from '../src/entrypoints/renderer/i18n/pt-BR';
-import { SUPPORTED_LOCALES, LOCALES, normalizeLocale, pickLocale, pickLocalePref, placeholders, pluralForms, resolveLocale, systemLocale, translate, type Dict, type Locale } from '../src/entrypoints/renderer/i18n/core';
+import { SUPPORTED_LOCALES, LOCALES, normalizeLocale, pickLocale, shouldAskLocale, LOCALE_ASKED_KEY, pickLocalePref, placeholders, pluralForms, resolveLocale, systemLocale, translate, type Dict, type Locale } from '../src/entrypoints/renderer/i18n/core';
 
 // Cada idioma do catálogo precisa de um dicionário aqui (o Record<Locale, ...> faz o TypeScript reclamar se um idioma novo ficar sem ele).
 const DICTS: Record<Locale, Dict> = { 'pt-BR': ptBR as Dict, en: en as Dict };
@@ -110,5 +110,19 @@ describe('plural por idioma (Intl.PluralRules)', () => {
     expect(translate(d, 'pt-BR', 'k', { n: 3 })).toBe('3 itens');
     expect(translate(d, 'en', 'k', { n: 1 })).toBe('one');
     expect(translate(d, 'en', 'k', { n: 0 })).toBe('0 items');
+  });
+});
+
+describe('escolha de idioma na primeira abertura', () => {
+  it('só pergunta sem nada guardado: quem já tem idioma (atualizou de uma versão anterior) ou já viu a escolha (mesmo pulando) não vê', () => {
+    expect(shouldAskLocale(null, null)).toBe(true);
+    expect(shouldAskLocale('pt-BR', null)).toBe(false);
+    expect(shouldAskLocale('en', null)).toBe(false);
+    expect(shouldAskLocale(null, '1')).toBe(false);
+    expect(shouldAskLocale('system', null)).toBe(false);
+  });
+
+  it('a marca tem um nome estável (o harness de interface a usa para não cobrir os outros testes)', () => {
+    expect(LOCALE_ASKED_KEY).toBe('gitnexus.localeAsked');
   });
 });

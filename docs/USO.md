@@ -176,7 +176,7 @@ Quando o servidor pede credenciais, o app mostra um **diálogo próprio** (no vi
 
 ## Idiomas
 
-**Português (Brasil)** e **English**, com troca **na hora** (seletor ao lado de *Comandos* ou pela paleta). Na primeira abertura vale o idioma do sistema. **Todas as telas** estão traduzidas, e também as mensagens de erro e aviso do núcleo, do worker e da validação de commit. Só o texto gerado a partir dos commits (notas de release e CHANGELOG) fica em português, porque usa o mesmo núcleo do pipeline de release. Como contribuir com outro idioma: [`I18N.md`](I18N.md).
+**Português (Brasil)** e **English**, com troca **na hora** (seletor ao lado de *Comandos* ou pela paleta). Na **primeira abertura** o app pergunta o idioma antes da primeira tela (nomes nativos, com o do sistema já marcado): escolher troca a interface na hora e guarda a escolha; dá para **pular** ("Usar o idioma do sistema" ou Esc) e o idioma do sistema continua valendo. Quem atualiza de uma versão anterior, com o idioma já guardado, não vê a pergunta. Nas **Configurações** (Ctrl+,) o idioma tem também a opção **Sistema**, que acompanha o idioma do sistema a cada abertura (qualquer português vira pt-BR; o resto, inglês). **Todas as telas** estão traduzidas, e também as mensagens de erro e aviso do núcleo, do worker e da validação de commit. Só o texto gerado a partir dos commits (notas de release e CHANGELOG) fica em português, porque usa o mesmo núcleo do pipeline de release. Como contribuir com outro idioma: [`I18N.md`](I18N.md).
 
 ## Atualizações
 

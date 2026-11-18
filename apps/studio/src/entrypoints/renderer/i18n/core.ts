@@ -35,6 +35,13 @@ export const LOCALES: ReadonlyArray<LocaleDefinition & { id: Locale }> = SUPPORT
 
 export const DEFAULT_LOCALE: Locale = 'en';
 
+/** Marca de que a escolha de idioma da primeira abertura já foi mostrada (escolhida ou pulada). */
+export const LOCALE_ASKED_KEY = 'gitnexus.localeAsked';
+/** Mostrar a escolha de idioma na primeira abertura? Só sem nada guardado: quem atualiza de uma versão anterior (idioma já guardado) não a vê. */
+export function shouldAskLocale(saved: string | null, asked: string | null): boolean {
+  return saved === null && asked === null;
+}
+
 export const localeDef = (id: Locale): LocaleDefinition => LOCALES.find((l) => l.id === id)!;
 
 /**
