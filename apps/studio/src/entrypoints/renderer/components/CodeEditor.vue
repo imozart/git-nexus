@@ -13,6 +13,7 @@ import { xml } from '@codemirror/lang-xml';
 import { bracketMatching, syntaxHighlighting, defaultHighlightStyle, type LanguageSupport } from '@codemirror/language';
 import { Compartment, EditorState, RangeSetBuilder, type Extension } from '@codemirror/state';
 import { oneDark } from '@codemirror/theme-one-dark';
+import { fontRevision } from '../font';
 import { theme } from '../theme';
 import { Decoration, EditorView, ViewPlugin, keymap, lineNumbers, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 
@@ -127,11 +128,18 @@ function extensions(): Extension[] {
   return ext;
 }
 
+/** O editor mede a largura dos caracteres: se a fonte carrega depois (ou muda), o cursor e as quebras ficam desalinhados. */
+const remeasure = () => view?.requestMeasure();
+// trocar a fonte do código ou as ligaduras (font.ts) muda a largura dos caracteres: re-mede ao vivo
+watch(fontRevision, remeasure);
+
 onMounted(() => {
   view = new EditorView({
     parent: host.value!,
     state: EditorState.create({ doc: props.modelValue, extensions: extensions() }),
   });
+  document.fonts?.ready.then(remeasure);
+  document.fonts?.addEventListener('loadingdone', remeasure);
 });
 
 watch(theme, (v) => view?.dispatch({ effects: themeSlot.reconfigure(v === 'dark' ? oneDark : []) }));
@@ -145,7 +153,10 @@ watch(
   },
 );
 
-onBeforeUnmount(() => view?.destroy());
+onBeforeUnmount(() => {
+  document.fonts?.removeEventListener('loadingdone', remeasure);
+  view?.destroy();
+});
 
 /** Rola até a posição (offset) informada. */
 function scrollTo(pos: number): void {

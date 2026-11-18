@@ -5,6 +5,8 @@ export { default as GnIcon } from './components/GnIcon.vue';
 export { default as GnIconButton } from './components/GnIconButton.vue';
 export { default as GnButtonGroup } from './components/GnButtonGroup.vue';
 export { default as GnSegmented } from './components/GnSegmented.vue';
+export { default as GnDialog } from './components/GnDialog.vue';
+export { isDialogOpen } from './dialog-core';
 export type { GnSegment } from './components/GnSegmented.vue';
 export { ICONS } from './components/icons';
 export type { GnIconName } from './components/icons';

@@ -30,6 +30,15 @@ t.check('mostra a versão em uso', /Você usa a versão \d+\.\d+\.\d+/.test((awa
 t.check('lista as versões do CHANGELOG.md', (await t.count('.ver')) >= 2);
 t.check('versão mais recente aberta', (await t.ev(`document.querySelector('.ver').open`)) === true);
 t.check('versão antiga fechada (recolhível)', (await t.ev(`document.querySelectorAll('.ver')[1].open`)) === false);
+// cada versão é um cartão clicável e expansível (o desenho das linhas da aba Repositórios)
+const card = await t.ev(`(() => { const v = document.querySelectorAll('.ver')[1]; const s = getComputedStyle(v); const sm = v.querySelector('summary'); return { border: s.borderTopWidth, radius: parseFloat(s.borderTopLeftRadius), bg: s.backgroundColor, marker: getComputedStyle(sm).listStyleType, chev: !!sm.querySelector('svg'), cursor: getComputedStyle(sm).cursor, gap: v.getBoundingClientRect().top - document.querySelectorAll('.ver')[0].getBoundingClientRect().bottom }; })()`);
+t.check('a versão é um cartão: contorno de 1px, cantos arredondados e fundo próprio', card.border === '1px' && card.radius >= 4 && card.bg !== 'rgba(0, 0, 0, 0)', card);
+t.check('o cabeçalho do cartão tem seta (sem o triângulo do navegador), cursor de clique e há respiro entre os cartões', card.chev && card.marker === 'none' && card.cursor === 'pointer' && card.gap >= 4, card);
+await t.ev(`document.querySelectorAll('.ver')[1].querySelector('summary').click()`);
+t.check('clicar no cabeçalho expande o cartão e a seta gira', (await t.ev(`(() => { const v = document.querySelectorAll('.ver')[1]; return v.open && getComputedStyle(v.querySelector('.ver__chev')).transform !== 'none'; })()`)) === true);
+await t.ev(`document.querySelectorAll('.ver')[1].querySelector('summary').click()`);
+t.check('clicar de novo recolhe', (await t.ev(`document.querySelectorAll('.ver')[1].open`)) === false);
+
 t.check('itens renderizados com seções', (await t.count('.ver:first-of-type h4')) >= 1 && (await t.count('.ver:first-of-type li')) >= 1);
 t.check('hash do commit é link', (await t.count('.ver a.is-code')) >= 1);
 t.check('nada de HTML injetado no changelog', (await t.count('.cl__body img, .cl__body script')) === 0);

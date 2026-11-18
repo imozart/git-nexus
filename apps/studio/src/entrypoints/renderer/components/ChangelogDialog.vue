@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { GnBadge, GnButton } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnIcon } from '@git-nexus/ui-kit';
 import type { ChangelogData } from '@git-nexus/git-core/pure';
 import { CHANGELOG_URL, parseChangelog, releaseUrl, withCurrentVersion } from '../../../shared/changelog';
 import { isAllowedUpdateUrl } from '../../../shared/update';
@@ -64,6 +64,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
 
           <details v-for="(v, i) in versions" :key="v.version" class="ver" :open="i === 0 || isCurrent(v.version)">
             <summary>
+              <GnIcon class="ver__chev" name="chevron-right" />
               <strong>v{{ v.version }}</strong>
               <span v-if="v.date" class="muted">{{ fmtDate(v.date) }}</span>
               <GnBadge v-if="isCurrent(v.version)" tone="accent">{{ t('changelog.current') }}</GnBadge>
@@ -126,15 +127,23 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
     p { margin: 2px 0 0; font-size: 12px; }
   }
   &__actions { display: flex; align-items: center; gap: 8px; }
-  &__body { padding: 8px 20px 18px; overflow: auto; }
+  &__body { display: grid; gap: 8px; align-content: start; padding: 14px 20px 18px; overflow: auto; }
   &__err { color: var(--gn-danger, #e5646b); }
 }
 .muted { color: var(--gn-muted); }
+// cada versão é um cartão (o mesmo desenho das linhas da aba Repositórios): fundo, contorno, cantos arredondados e destaque ao passar o mouse e quando aberto
 .ver {
-  padding: 8px 0;
-  border-bottom: 1px solid var(--gn-border);
-  &:last-child { border-bottom: 0; }
-  summary { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; list-style-position: inside; }
+  background: var(--gn-surface-2);
+  border: 1px solid var(--gn-border);
+  border-radius: var(--gn-radius);
+  padding: 0 14px;
+  &:hover, &[open] { border-color: var(--gn-accent); }
+  // a faixa inteira do cabeçalho é clicável; a seta (no lugar do triângulo do navegador) gira ao abrir
+  summary { display: flex; align-items: center; gap: 10px; padding: 10px 0; cursor: pointer; font-size: 14px; list-style: none; &::-webkit-details-marker { display: none; } &:focus-visible { outline: 2px solid var(--gn-accent); outline-offset: 2px; border-radius: var(--gn-radius); } }
+  &__chev { flex: none; color: var(--gn-muted); transition: transform var(--gn-enter, 140ms) ease-out; }
+  &[open] &__chev { transform: rotate(90deg); }
+  &[open] > summary { border-bottom: 1px solid var(--gn-border); }
+  &[open] { padding-bottom: 10px; }
   h4 { margin: 12px 0 4px; font-size: 13px; }
   &__pending { margin: 8px 0 4px; font-size: 13px; p { margin: 0 0 4px; } a { color: var(--gn-accent); text-decoration: none; &:hover { text-decoration: underline; } } }
   ul { margin: 0; padding-left: 20px; }

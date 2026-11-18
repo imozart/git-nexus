@@ -339,8 +339,9 @@ watch(
     padding: 5px 8px;
     &--warn .grp__title { color: var(--gn-warn); }
   }
-  &__title { font-weight: 600; cursor: default; }
-  &__count { color: var(--gn-muted); font-size: 12px; flex: 1; }
+  // coluna estreita: o título ganha reticências e a contagem ("1 arquivo") fica inteira em uma linha
+  &__title { font-weight: 600; cursor: default; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &__count { color: var(--gn-muted); font-size: 12px; flex: 1 0 auto; white-space: nowrap; }
 }
 .chev {
   width: 16px;

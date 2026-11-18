@@ -5,6 +5,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { GnButton } from '@git-nexus/ui-kit';
 import type { BranchList } from '@git-nexus/git-core/pure';
 import { t } from '../i18n';
+import ComboBox from './ComboBox.vue';
 
 export interface NewBranchSubmit {
   name: string;
@@ -31,6 +32,15 @@ const checkout = ref(true);
 const hasLatest = computed(() => !!props.data.defaultRemoteBranch);
 const base = ref(props.initialBase ?? (hasLatest.value ? 'latest' : 'head'));
 const input = ref<HTMLInputElement | null>(null);
+const formEl = ref<HTMLFormElement | null>(null);
+
+/** Bases possíveis no ComboBox: a mais recente do remoto e a branch atual (sem grupo, no topo), depois as branches agrupadas em Local (só as locais) e Remoto (só as do remoto). */
+const baseOptions = computed(() => [
+  ...(hasLatest.value ? [{ value: 'latest', label: t('bd.latest', { ref: props.data.defaultRemoteBranch ?? '' }) }] : []),
+  { value: 'head', label: props.data.detached ? t('bd.headDetached') : t('bd.head', { name: props.data.current }) },
+  ...props.data.locals.map((b) => ({ value: 'local:' + b.name, label: b.name, group: t('bd.groupLocal') })),
+  ...props.data.remotes.map((b) => ({ value: 'remote:' + b.name, label: b.name, group: t('bd.groupRemote'), hint: t('bd.fetchFirst') })),
+]);
 
 /** O que será criado, em uma frase (confere o que o app vai fazer antes de clicar em Criar). */
 const baseRef = computed(() => {
@@ -53,7 +63,7 @@ function onKey(ev: KeyboardEvent): void {
 onMounted(async () => {
   document.addEventListener('keydown', onKey);
   await nextTick();
-  input.value?.focus();
+  (input.value ?? formEl.value?.querySelector('input'))?.focus();
 });
 onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
 </script>
@@ -61,7 +71,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
 <template>
   <Teleport to="body">
     <div class="bd" @mousedown.self="emit('cancel')">
-      <form class="bd__box" role="dialog" aria-modal="true" :aria-label="mode === 'new' ? t('bd.newTitle') : t('bd.revTitle')" @submit.prevent="submit">
+      <form ref="formEl" class="bd__box" role="dialog" aria-modal="true" :aria-label="mode === 'new' ? t('bd.newTitle') : t('bd.revTitle')" @submit.prevent="submit">
         <h3>{{ mode === 'new' ? t('bd.newTitle') : t('bd.revTitle') }}</h3>
 
         <template v-if="mode === 'new'">
@@ -69,28 +79,18 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
             <span>{{ t('bd.name') }}</span>
             <input ref="input" v-model="name" :placeholder="t('bd.namePh')" spellcheck="false" autocomplete="off" />
           </label>
-          <label class="bd__field">
+          <div class="bd__field">
             <span>{{ t('bd.from') }}</span>
-            <select v-model="base">
-              <option v-if="hasLatest" value="latest">{{ t('bd.latest', { ref: data.defaultRemoteBranch ?? '' }) }}</option>
-              <option value="head">{{ data.detached ? t('bd.headDetached') : t('bd.head', { name: data.current }) }}</option>
-              <optgroup v-if="data.locals.length" :label="t('bd.groupLocal')">
-                <option v-for="b in data.locals" :key="'l' + b.name" :value="'local:' + b.name">{{ b.name }}</option>
-              </optgroup>
-              <optgroup v-if="data.remotes.length" :label="t('bd.groupRemote')">
-                <option v-for="b in data.remotes" :key="'r' + b.name" :value="'remote:' + b.name">{{ b.name }}</option>
-              </optgroup>
-            </select>
-          </label>
+            <ComboBox v-model="base" block filterable collapsible-groups :collapsed-groups="[t('bd.groupRemote')]" :options="baseOptions" :aria-label="t('bd.from')" data-testid="bd-base" />
+          </div>
           <label class="bd__chk"><input v-model="checkout" type="checkbox" /> {{ t('bd.checkout') }}</label>
         </template>
 
         <template v-else>
-          <label class="bd__field">
+          <div class="bd__field">
             <span>{{ t('bd.revLabel') }}</span>
-            <input ref="input" v-model="rev" list="bd-tags" spellcheck="false" autocomplete="off" />
-            <datalist id="bd-tags"><option v-for="tg in data.tags" :key="tg" :value="tg" /></datalist>
-          </label>
+            <ComboBox v-model="rev" searchable block mono :options="data.tags" :aria-label="t('bd.revLabel')" data-testid="bd-rev" />
+          </div>
           <p class="bd__hint">{{ t('bd.revHint') }}</p>
         </template>
 

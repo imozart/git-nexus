@@ -34,5 +34,7 @@
   { "name": "bloqueado", "color": "fef2c0", "description": "Depende de outro PR aberto (veja o comentário com a ordem de merge)" },
   { "name": "desatualizada", "color": "e4e669", "description": "A main tem commits novos que a branch não tem: atualize (merge ou rebase)" },
 
+  { "name": "layout", "color": "00b3a4", "description": "Layout/visual da interface (elevação, foco, camadas), sem mudar cores" },
+
   { "name": "sem-release", "color": "c2e0c6", "description": "Ao aceitar este PR, não publica release (entra na próxima). Marque antes do merge" }
 ]

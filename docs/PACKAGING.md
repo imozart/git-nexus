@@ -12,6 +12,12 @@ node scripts/gen-packaging.mjs --version 1.3.0 --repo imozart/git-nexus --sums S
 > **Pré-requisito geral:** o repositório precisa ser **público**, com licença de código aberto (GPL-3.0 ✔).
 > A publicação nos catálogos abaixo exige contas/PRs seus; nada disso é feito automaticamente.
 
+## O que vai dentro do pacote: fonte e licenças
+
+A fonte **JetBrains Mono** (4 arquivos `.woff2`) é empacotada **dentro do `app.asar`**, junto com o resto do renderer, e carregada por URL relativa: não há instalação de fonte no sistema nem acesso à internet. A **licença da fonte** (SIL OFL 1.1, `JetBrainsMono-OFL.txt`) e o `THIRD_PARTY_NOTICES.md` seguem **soltos em `resources/`** (`extraResources` em `apps/studio/electron-builder.yml`), para quem recebe o pacote conseguir ler sem abrir o `app.asar`. Os manifestos dos gerenciadores não precisam de nada a mais.
+
+**Atualizar a fonte no futuro:** baixar o release novo da JetBrains Mono, trocar os quatro arquivos e o `OFL.txt` em `apps/ui-kit/src/styles/fonts/` **sem modificar** (a licença exige outro nome para versões modificadas), recalcular os SHA-256 no `SOURCES.md` dessa pasta, atualizar o `THIRD_PARTY_NOTICES.md` e rodar `npx vitest run apps/ui-kit/test/fonts.test.ts`.
+
 ## winget (Windows)
 
 Catálogo oficial: <https://github.com/microsoft/winget-pkgs>.
