@@ -51,7 +51,7 @@ flatpak install flathub dev.gitnexus.studio     # Linux (quando estiver no Flath
 | entender a CI e o pipeline de release | [CI e releases](docs/CI.md) e [Automação](docs/AUTOMATION.md) |
 | ver o que mudou em cada versão | [CHANGELOG](CHANGELOG.md) |
 | adicionar um idioma | [Idiomas](docs/I18N.md) |
-| criar ou usar um componente de interface (botões, cores, ícones) | [Componentes e regras da interface](docs/INTERFACE.md) |
+| criar ou usar um componente de interface (botões, cores, ícones, tipografia) | [Componentes e regras da interface](docs/INTERFACE.md) |
 | a arquitetura e os contratos IPC | [Especificação](docs/ESPECIFICACAO.md) |
 
 Página do projeto: <https://imozart.github.io/git-nexus/> (fonte em [`docs/index.html`](docs/index.html), publicada pelo GitHub Pages). Os GIFs são gravados da interface real.

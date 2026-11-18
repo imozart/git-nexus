@@ -79,3 +79,89 @@ describe('cores dos botões (docs/INTERFACE.md)', () => {
     expect(template(stash.text)).not.toMatch(/<GnButton[^>]*variant="primary"[^>]*>\{\{\s*t\('stash\.applyDrop'\)/);
   });
 });
+
+// ---------- tipografia (docs/INTERFACE.md, seção "Tipografia") ----------
+// A fonte do app vem de tokens: a próxima tela não escreve 'Segoe UI', Consolas ou monospace à mão, não puxa fonte de CDN e não declara @font-face fora do kit.
+const repoRoot = join(__dirname, '..', '..', '..');
+const kitSrc = join(repoRoot, 'apps', 'ui-kit', 'src');
+function walk(dir: string, exts: string[]): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? (e.name === 'node_modules' || e.name === 'fonts' ? [] : walk(join(dir, e.name), exts)) : exts.some((x) => e.name.endsWith(x)) ? [join(dir, e.name)] : []));
+}
+const typo = [...walk(renderer, ['.vue', '.scss', '.css', '.ts', '.html']), ...walk(kitSrc, ['.vue', '.scss', '.css', '.ts'])].map((f) => ({
+  rel: relative(repoRoot, f).replace(/\\/g, '/'),
+  text: readFileSync(f, 'utf8').replace(/\r\n/g, '\n'),
+}));
+/** Arquivos que PODEM nomear famílias, @font-face e ligaduras: são onde os tokens nascem. Só encolhe. */
+const TYPOGRAPHY_HOMES: Record<string, string> = {
+  'apps/ui-kit/src/styles/tokens.scss': 'define os tokens de fonte (--gn-font-*, --gn-mono, --gn-ligatures) e aplica no body, pre, code, kbd e samp',
+  'apps/ui-kit/src/styles/fonts.scss': 'os quatro @font-face da JetBrains Mono embutida',
+};
+const ALLOWED_FAMILY = ['inherit', 'var(--gn-font-ui)', 'var(--gn-font-code)', 'var(--gn-mono)'];
+const outsideHomes = typo.filter((f) => !(f.rel in TYPOGRAPHY_HOMES));
+const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+describe('tipografia', () => {
+  it('toda exceção registrada ainda existe (se o arquivo sumiu, tire a linha da lista)', () => {
+    for (const rel of Object.keys(TYPOGRAPHY_HOMES)) expect(typo.some((f) => f.rel === rel), `${rel} não existe mais`).toBe(true);
+  });
+
+  it('a família da fonte só vem de token: nenhum font-family literal nas telas e no kit', () => {
+    for (const f of outsideHomes) {
+      for (const m of stripComments(f.text).matchAll(/font-family\s*:\s*([^;}\n]+)/g)) {
+        const v = m[1]!.replace(/!important/, '').trim();
+        expect(ALLOWED_FAMILY, `${f.rel}: font-family: ${v}. Use var(--gn-font-ui) para texto, var(--gn-font-code) (ou o apelido var(--gn-mono)) para código, ou inherit (docs/INTERFACE.md, Tipografia).`).toContain(v);
+      }
+    }
+  });
+
+  it('o atalho "font:" também: só inherit ou com a família de um token', () => {
+    for (const f of outsideHomes) {
+      for (const m of stripComments(f.text).matchAll(/(?<![-\w])font\s*:\s*([^;}\n]+)/g)) {
+        const v = m[1]!.replace(/!important/, '').trim();
+        if (/^\{|^\w+\s*\{/.test(v)) continue; // chave de texto (ex.: "Fonte: {name}") e não declaração CSS
+        expect(v === 'inherit' || /var\(--gn-(font-ui|font-code|mono)\)$/.test(v), `${f.rel}: font: ${v}. A família do atalho tem de ser var(--gn-font-ui), var(--gn-font-code) ou var(--gn-mono).`).toBe(true);
+      }
+    }
+  });
+
+  it('em JavaScript (tema do editor etc.) fontFamily só com var(--gn-*)', () => {
+    for (const f of outsideHomes.filter((x) => /\.(ts|vue)$/.test(x.rel))) {
+      for (const m of f.text.matchAll(/fontFamily\s*:\s*(['"`])([^'"`]*)\1/g)) {
+        expect(m[2], `${f.rel}: fontFamily '${m[2]}'. Use 'var(--gn-mono)' ou 'var(--gn-font-ui)'.`).toMatch(/^var\(--gn-(font-ui|font-code|mono)\)$/);
+      }
+    }
+  });
+
+  it('nada de fonte de fora: sem Google Fonts, CDN, @import de URL nem <link> de folha de estilo remota', () => {
+    for (const f of typo) {
+      expect(f.text, `${f.rel}: fonte de fora. A fonte é embutida (apps/ui-kit/src/styles/fonts.scss); o app funciona offline.`).not.toMatch(/fonts\.googleapis|fonts\.gstatic|\bcdn\.|@import\s+url\(\s*['"]?https?:|<link[^>]+rel=["']stylesheet["'][^>]*href=["']https?:/i);
+    }
+  });
+
+  it('@font-face só em apps/ui-kit/src/styles/fonts.scss, com woff2, URL relativa e sem data:', () => {
+    for (const f of typo.filter((x) => x.rel !== 'apps/ui-kit/src/styles/fonts.scss')) expect(stripComments(f.text), `${f.rel}: @font-face fora de fonts.scss`).not.toMatch(/@font-face/);
+    const css = stripComments(typo.find((x) => x.rel === 'apps/ui-kit/src/styles/fonts.scss')!.text);
+    const blocks = css.match(/@font-face\s*\{[^}]*\}/g) ?? [];
+    expect(blocks.length).toBeGreaterThanOrEqual(4);
+    for (const b of blocks) {
+      expect(b).toMatch(/format\('woff2'\)/);
+      expect(b).not.toMatch(/data:|https?:/);
+      for (const u of b.matchAll(/url\(\s*['"]?([^'")]+)['"]?\s*\)/g)) expect(u[1], 'URL do @font-face precisa ser relativa').toMatch(/^\.{1,2}\/|^[\w-]+\//);
+    }
+  });
+
+  it('ligaduras só pelo token: font-variant-ligatures e font-feature-settings literais só no tokens.scss', () => {
+    for (const f of outsideHomes) {
+      for (const m of stripComments(f.text).matchAll(/(font-variant-ligatures|font-feature-settings)\s*:\s*([^;}\n]+)/g)) {
+        expect(m[2]!.trim(), `${f.rel}: ${m[1]}. Ligaduras só pelo token --gn-ligatures (tokens.scss).`).toMatch(/^var\(--gn-ligatures\)$/);
+      }
+    }
+  });
+
+  it('a regra funciona: um font-family literal, um @font-face fora do kit e um <link> de CDN seriam pegos', () => {
+    const bad = "p { font-family: 'Segoe UI', sans-serif; }";
+    expect([...bad.matchAll(/font-family\s*:\s*([^;}\n]+)/g)].some((m) => !ALLOWED_FAMILY.includes(m[1]!.trim()))).toBe(true);
+    expect(/@font-face/.test('@font-face { font-family: x }')).toBe(true);
+    expect(/fonts\.googleapis|\bcdn\./i.test('<link href="https://fonts.googleapis.com/css2?family=Inter">')).toBe(true);
+  });
+});

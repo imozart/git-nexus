@@ -50,6 +50,27 @@ A cor tem significado, não é enfeite. Sólido = a ação que a pessoa veio faz
 - Pares de navegação (arquivo anterior/próximo, diferença anterior/próxima) são `GnButtonGroup` com dois `GnIconButton`, **cada contador junto do seu par**, em neutro.
 - Seletor de visão ou filtro é `GnSegmented`, nunca botões com CSS próprio. O ativo é azul **tingido**, nunca o sólido, para não parecer a ação principal.
 
+## Tipografia
+
+A fonte do app é a **JetBrains Mono** (v2.304, licença OFL 1.1), embutida: funciona sem internet e fica igual em todos os sistemas. Ninguém escreve nome de fonte nas telas: tudo vem de token, em `apps/ui-kit/src/styles/tokens.scss`.
+
+| Token | O que é |
+|---|---|
+| `--gn-font-jetbrains` | A JetBrains Mono (com reserva monoespaçada) |
+| `--gn-font-sans` | "Sistema" na interface: `Segoe UI`, `system-ui`... (a fonte de antes) |
+| `--gn-font-mono-system` | "Sistema" no código: `ui-monospace`, `Cascadia Code`, `Consolas`... |
+| `--gn-font-ui` | A fonte que vale agora na interface (do corpo do texto) |
+| `--gn-font-code` | A fonte que vale agora no código (`pre`, `code`, `kbd`, `samp`, editor, diff) |
+| `--gn-mono` | **Apelido** de `--gn-font-code`; os usos antigos continuam valendo |
+| `--gn-font-size`, `--gn-line` | Tamanho e altura de linha do corpo (12px e 1,5; em "Sistema" voltam a 13px e 1,45) |
+| `--gn-ligatures` | `none` (padrão) ou `normal`: as ligaduras (`!==`, `=>`) vêm **desligadas**, para o diff mostrar exatamente o que foi digitado |
+
+- **Pesos disponíveis: 400, 500, 600 e 700, sem itálico.** `font-synthesis: none` impede o navegador de inventar negrito ou itálico: não use `font-weight` fora desses quatro nem `font-style: italic` esperando uma face.
+- **Preferências:** a pessoa escolhe a fonte da interface, a do código e as ligaduras no diálogo de configurações (Ctrl+, ) ou pela paleta. A escolha vira os atributos `data-font-ui`, `data-font-code` (`jetbrains` ou `system`) e `data-ligatures` (`off` ou `on`) no `<html>`, que os tokens usam, e fica guardada em `gitnexus.fontUi`, `gitnexus.fontCode` e `gitnexus.ligatures` (o padrão não guarda chave). O código está em `renderer/font.ts` (reativo) e `renderer/font-core.ts` (puro).
+- **Texto de código num componente:** `font-family: var(--gn-mono);` (ou `var(--gn-font-code)`). Texto comum herda do corpo: não declare nada. No editor (CodeMirror), `fontFamily: 'var(--gn-mono)'`; ele re-mede os caracteres quando a fonte muda (`fontRevision`).
+- **O que não fazer:** família literal (`'Segoe UI'`, `Consolas`, `monospace`), fonte de CDN (Google Fonts etc.: o app funciona offline), `@font-face` fora de `apps/ui-kit/src/styles/fonts.scss`, `font-weight` que não exista, ligaduras ou `font-feature-settings` literais (só pelo `--gn-ligatures`).
+- **Regra do marco da fonte:** a fonte **não muda cor nem estrutura**; a revisão de layout com a fonte larga está no detector `ui-tests/tests/layout-font.mjs`.
+
 ## Como criar um componente do kit
 
 1. Nome `Gn` + substantivo, em `apps/ui-kit/src/components/`, exportado em `src/index.ts`.
@@ -61,3 +82,5 @@ A cor tem significado, não é enfeite. Sólido = a ação que a pessoa veio faz
 ## O que impede regressão
 
 `apps/studio/test/ui-conventions.test.ts` reprova `<button>` cru novo nas telas, o CSS de seletor copiado, emoji como ícone e "Atualizar" colorido. A lista de exceções ali tem o motivo de cada uma e só deve encolher.
+
+O mesmo arquivo trava a **tipografia** (bloco `tipografia`): `font-family` e `font:` só com token (`var(--gn-font-ui)`, `var(--gn-font-code)`, `var(--gn-mono)` ou `inherit`), `fontFamily` em JavaScript só com `var(--gn-*)`, nenhuma fonte de fora, `@font-face` só em `fonts.scss` e ligaduras só pelo token. A mensagem de erro aponta o arquivo e o token certo. Os dois arquivos que podem nomear famílias (`tokens.scss` e `fonts.scss`) estão listados ali com o motivo. O `apps/ui-kit/test/fonts.test.ts` confere os arquivos da fonte (assinatura e SHA-256) e o `typography.test.ts`, os tokens e os atributos.

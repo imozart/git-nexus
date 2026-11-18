@@ -35,6 +35,10 @@ Os dados (lista de repositórios, preferências) ficam em `GitNexusData/` ao lad
 
 **Testes de interface automatizados** (`apps/studio/scripts/ui-tests`): `pnpm --filter @git-nexus/studio build` e depois `pnpm test:ui` (ou `pnpm test:ui git-log` para um só). O runner sobe o harness e um Chrome/Edge headless (`CHROME_PATH` aponta outro navegador), roda cada `tests/*.mjs` com estado limpo, dirige a tela por CDP e guarda capturas em `GN_UI_OUT`. No CI é o `ui-tests.yml`. Para escrever um teste, copie um de `tests/` (use `mkRepo`, `openRepo`, `t.until`, `t.check`).
 
+## Imagens e GIFs da documentação
+
+As mídias de `docs/media` (e a vitrine do README) **não têm script de geração**: são gravadas com o app real. Método para regravar: o harness de interface (`apps/studio/scripts/ui-harness`) serve o renderer compilado e o Edge/Chrome headless é dirigido por CDP (`apps/studio/scripts/ui-tests/lib.mjs`: `connect`, `mkRepo`, `t.shot`), num repositório de demonstração (`gn-demo`, criado por `mkRepo`), com a janela em **1320x760** e **sem caminhos pessoais nem dados de clientes**. Cada quadro é uma captura (`Page.captureScreenshot`); os GIFs são apresentações de poucos quadros (3 a 5, de 1,5 a 3 s cada), montadas com qualquer ferramenta (por exemplo Pillow, em Python). O `commit-linter.png` também é a imagem do manifesto do Flatpak (`scripts/lib/flatpak.mjs`): se ele mudar de nome, o manifesto muda junto.
+
 ## Notas sobre versões
 
 Os números exatos estão no `package.json` de cada pacote e no `pnpm-lock.yaml` (esta página não repete o que muda a cada atualização). O que vale saber:
