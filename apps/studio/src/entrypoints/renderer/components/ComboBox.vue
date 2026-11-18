@@ -8,10 +8,13 @@
 //  - `filterable` (só no modo seleção): a lista ganha um campo de busca no topo que filtra as opções; o valor continua sendo sempre uma opção da lista
 //    (diferente do `searchable`, em que o texto digitado é o valor).
 //  - opções com `group`: a lista mostra o título do grupo antes do primeiro item dele (as opções do mesmo grupo vêm juntas).
+//  - `collapsibleGroups`: o título do grupo vira um botão que expande e recolhe os itens, com a seta que gira (como os cartões de Novidades);
+//    `collapsedGroups` diz quais começam recolhidos. Uma busca (`filterable`) mostra todos os resultados, e o grupo do valor atual abre sozinho.
 //
 // A lista vai para o <body> (Teleport) com posição fixa: não é cortada por painéis com rolagem e abre para cima se faltar espaço.
 import { computed, nextTick, onBeforeUnmount, ref, watch, type CSSProperties } from 'vue';
-import { DEFAULT_MAX, filterOptions, groupHeaderAt, labelOf, optionOf, sortByGroup, type ComboInput, type ComboOption } from '../combo-core';
+import { GnIcon } from '@git-nexus/ui-kit';
+import { DEFAULT_MAX, filterOptions, labelOf, optionOf, sortByGroup, type ComboInput, type ComboOption } from '../combo-core';
 import { t } from '../i18n';
 
 const props = withDefaults(
@@ -20,6 +23,10 @@ const props = withDefaults(
     searchable?: boolean;
     /** Modo seleção com busca: a lista abre com um campo de busca no topo que filtra as opções (o valor continua sendo uma opção). */
     filterable?: boolean;
+    /** Os títulos de grupo viram botões que expandem e recolhem os itens do grupo. */
+    collapsibleGroups?: boolean;
+    /** Grupos que começam recolhidos (com `collapsibleGroups`). */
+    collapsedGroups?: readonly string[];
     placeholder?: string;
     title?: string;
     ariaLabel?: string;
@@ -35,7 +42,7 @@ const props = withDefaults(
     max?: number;
     disabled?: boolean;
   }>(),
-  { searchable: false, filterable: false, align: 'left', max: DEFAULT_MAX },
+  { searchable: false, filterable: false, collapsibleGroups: false, collapsedGroups: () => [], align: 'left', max: DEFAULT_MAX },
 );
 const model = defineModel<string>({ default: '' });
 /** O usuário confirmou um valor: escolheu na lista, deu Enter ou saiu do campo com o texto alterado. */
@@ -64,7 +71,37 @@ const result = computed(() => {
   }
   return { items: normalized.value, total: normalized.value.length, hidden: 0 };
 });
-const shown = computed(() => result.value.items);
+/** Grupos recolhidos agora (a cada abertura volta ao que `collapsedGroups` diz). */
+const collapsed = ref(new Set<string>());
+const searching = computed(() => props.filterable && query.value.trim() !== '');
+/** Com busca ativa todos os resultados aparecem, mesmo de grupo recolhido. */
+const isCollapsed = (g?: string): boolean => !!g && props.collapsibleGroups && !searching.value && collapsed.value.has(g);
+/** Só os itens visíveis: é neles que valem o teclado e os índices de `active`. */
+const shown = computed(() => result.value.items.filter((o) => !isCollapsed(o.group)));
+type Row = { kind: 'group'; name: string; open: boolean; count: number } | { kind: 'opt'; o: ComboOption; i: number };
+/** As linhas da lista, na ordem: título de grupo (mesmo recolhido, com a contagem) e os itens visíveis dele. */
+const rows = computed<Row[]>(() => {
+  const counts = new Map<string, number>();
+  for (const o of result.value.items) if (o.group) counts.set(o.group, (counts.get(o.group) ?? 0) + 1);
+  const out: Row[] = [];
+  let last = '';
+  let i = 0;
+  for (const o of result.value.items) {
+    if (o.group && o.group !== last) out.push({ kind: 'group', name: o.group, open: !isCollapsed(o.group), count: counts.get(o.group) ?? 0 });
+    last = o.group ?? '';
+    if (!isCollapsed(o.group)) out.push({ kind: 'opt', o, i: i++ });
+  }
+  return out;
+});
+function toggleGroup(name: string): void {
+  if (!props.collapsibleGroups) return;
+  const next = new Set(collapsed.value);
+  if (next.has(name)) next.delete(name);
+  else next.add(name);
+  collapsed.value = next;
+  active.value = -1;
+  void nextTick(place); // a altura da lista mudou (pode abrir para cima)
+}
 const activeId = computed(() => (open.value && active.value >= 0 ? `${listId}-${active.value}` : undefined));
 const selectable = (o: ComboOption | undefined): o is ComboOption => !!o && !o.disabled;
 
@@ -99,6 +136,9 @@ function show(): void {
   open.value = true;
   place();
   query.value = '';
+  collapsed.value = new Set(props.collapsedGroups);
+  const cur = props.searchable ? undefined : props.options.map(optionOf).find((o) => o.value === model.value);
+  if (cur?.group) collapsed.value.delete(cur.group); // o grupo do valor atual abre sozinho
   active.value = props.searchable ? -1 : shown.value.findIndex((o) => o.value === model.value);
   document.addEventListener('mousedown', onDocDown, true);
   window.addEventListener('resize', onViewportChange);
@@ -297,26 +337,39 @@ function toggle(): void {
             @keydown="onSearchKey"
           />
         </li>
-        <template v-for="(o, i) in shown" :key="o.value">
-        <li v-if="groupHeaderAt(shown, i)" class="cbx__group" role="presentation">{{ groupHeaderAt(shown, i) }}</li>
-        <li
-          :id="`${listId}-${i}`"
-          role="option"
-          class="cbx__opt"
-          :class="{ 'cbx__opt--active': i === active, 'cbx__opt--selected': o.value === model, 'cbx__opt--disabled': o.disabled }"
-          :aria-selected="o.value === model"
-          :aria-disabled="o.disabled"
-          @mousedown.prevent="pick(o)"
-          @mousemove="!o.disabled && (active = i)"
-        >
-          <slot name="option" :option="o" :selected="o.value === model">
-            <span class="cbx__label">{{ labelOf(o) }}</span>
-            <span v-if="o.hint" class="cbx__hint">{{ o.hint }}</span>
-          </slot>
-          <svg v-if="o.value === model" class="cbx__check" viewBox="0 0 12 10" width="12" height="10" aria-hidden="true"><path d="M1 5.2l3.2 3.2L11 1.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>
-        </li>
+        <template v-for="r in rows" :key="r.kind === 'group' ? 'g:' + r.name : r.o.value">
+          <li
+            v-if="r.kind === 'group'"
+            class="cbx__group"
+            :class="{ 'cbx__group--toggle': collapsibleGroups }"
+            :role="collapsibleGroups ? 'button' : 'presentation'"
+            :aria-expanded="collapsibleGroups ? r.open : undefined"
+            :tabindex="collapsibleGroups ? -1 : undefined"
+            @mousedown.prevent="toggleGroup(r.name)"
+          >
+            <GnIcon v-if="collapsibleGroups" class="cbx__chev" name="chevron-right" />
+            <span class="cbx__group-name">{{ r.name }}</span>
+            <span v-if="collapsibleGroups" class="cbx__group-count">{{ r.count }}</span>
+          </li>
+          <li
+            v-else
+            :id="`${listId}-${r.i}`"
+            role="option"
+            class="cbx__opt"
+            :class="{ 'cbx__opt--active': r.i === active, 'cbx__opt--selected': r.o.value === model, 'cbx__opt--disabled': r.o.disabled }"
+            :aria-selected="r.o.value === model"
+            :aria-disabled="r.o.disabled"
+            @mousedown.prevent="pick(r.o)"
+            @mousemove="!r.o.disabled && (active = r.i)"
+          >
+            <slot name="option" :option="r.o" :selected="r.o.value === model">
+              <span class="cbx__label">{{ labelOf(r.o) }}</span>
+              <span v-if="r.o.hint" class="cbx__hint">{{ r.o.hint }}</span>
+            </slot>
+            <svg v-if="r.o.value === model" class="cbx__check" viewBox="0 0 12 10" width="12" height="10" aria-hidden="true"><path d="M1 5.2l3.2 3.2L11 1.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          </li>
         </template>
-        <li v-if="!shown.length" class="cbx__note">{{ t('combo.none') }}</li>
+        <li v-if="!result.items.length" class="cbx__note">{{ t('combo.none') }}</li>
         <li v-else-if="result.hidden > 0" class="cbx__note">{{ t('combo.more', { n: result.hidden }) }}</li>
       </ul>
     </Teleport>
@@ -361,7 +414,13 @@ function toggle(): void {
   &--disabled { opacity: 0.45; cursor: default; }
 }
 .cbx__search { position: sticky; top: -5px; z-index: 1; margin: -5px -5px 4px; padding: 6px 5px 6px; background: var(--gn-surface-2); border-radius: 12px 12px 0 0; input { width: 100%; font-size: 12px; } }
-.cbx__group { padding: 8px 10px 3px; color: var(--gn-muted); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; cursor: default; }
+.cbx__group { display: flex; align-items: center; gap: 6px; padding: 8px 10px 3px; color: var(--gn-muted); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; cursor: default; }
+// título de grupo recolhível: um cartão pequeno (contorno, cantos, seta que gira ao abrir), como as versões do diálogo Novidades
+.cbx__group--toggle { margin: 4px 0 2px; padding: 6px 10px; border: 1px solid var(--gn-border); border-radius: 8px; color: var(--gn-text); font-size: 12px; letter-spacing: 0; text-transform: none; cursor: pointer; user-select: none; &:hover, &[aria-expanded='true'] { border-color: var(--gn-accent); } }
+.cbx__chev { flex: none; color: var(--gn-muted); transition: transform 140ms ease-out; }
+.cbx__group[aria-expanded='true'] .cbx__chev { transform: rotate(90deg); }
+.cbx__group-name { flex: 1; }
+.cbx__group-count { color: var(--gn-muted); font-size: 11px; font-weight: 400; }
 .cbx__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cbx__hint { color: var(--gn-muted); font-size: 11px; white-space: nowrap; }
 .cbx__check { flex: none; color: var(--gn-accent); }
