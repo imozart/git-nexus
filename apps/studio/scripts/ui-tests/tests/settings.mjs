@@ -1,6 +1,8 @@
-// Diálogo de configurações (seção Aparência): abre por Ctrl+, pela paleta e pela engrenagem; é um GnDialog (aria-modal com nome, foco preso, #app inerte, Esc,
+// Diálogo de configurações (seções Geral e Aparência): abre por Ctrl+, pela paleta e pela engrenagem; é um GnDialog (aria-modal com nome, foco preso, #app inerte, Esc,
 // clique no fundo, foco devolvido); as fontes e as ligaduras mudam o app e a pré-visualização na hora, ficam guardadas e "Restaurar padrões" volta ao início.
-import { connect, lit, sleep } from '../lib.mjs';
+// Idioma, atualização automática, busca automática e tema usam os MESMOS estados dos controles de antes: mudar no diálogo muda o controle de origem e vice-versa.
+import { join } from 'node:path';
+import { connect, git, lit, mkRepo, sleep, tmpRoot } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -45,7 +47,7 @@ await t.until(`document.querySelector('[role="dialog"][aria-modal="true"]')`, 50
 await sleep(300);
 t.check('Ctrl+, abre o diálogo de configurações', await isOpen());
 t.check('o diálogo tem nome acessível pelo título "Configurações"', (await dlg(`document.getElementById(d.getAttribute('aria-labelledby'))?.textContent.trim()`)) === 'Configurações');
-t.check('o foco foi para dentro do diálogo (primeiro controle: a fonte da interface)', await dlg(`d.contains(document.activeElement) && document.activeElement.classList.contains('gn-seg__opt')`));
+t.check('o foco foi para dentro do diálogo (primeiro controle: o idioma)', await dlg(`d.contains(document.activeElement) && document.activeElement.classList.contains('gn-seg__opt')`));
 t.check('o fundo (#app) está inerte', await t.ev(`document.getElementById('app').hasAttribute('inert')`));
 t.check('mostra a seção Aparência, as duas fontes, as ligaduras e a pré-visualização', await dlg(`['Aparência', 'Fonte da interface', 'Fonte do código', 'Ligaduras de código', 'Pré-visualização'].every((x) => d.textContent.includes(x))`));
 
@@ -77,10 +79,10 @@ t.check('a pré-visualização da interface acompanha (Segoe UI)', /Segoe UI/.te
 await pick('Fonte do código', 'Sistema');
 await sleep(400);
 t.check('"Sistema" na fonte do código muda a pré-visualização do código', (await attrs()) === 'system|system|off' && !/JetBrains/.test(await css('.sd__code', 'fontFamily')), await css('.sd__code', 'fontFamily'));
-await t.ev(`document.querySelector('.sd__chk input').click()`);
+await t.ev(`document.querySelector('[data-testid="settings-ligatures"]').click()`);
 await sleep(400);
 t.check('ligar as ligaduras: corpo e pré-visualização em "normal"', (await attrs()).endsWith('|on') && (await css('body', 'fontVariantLigatures')) === 'normal' && (await css('.sd__code', 'fontVariantLigatures')) === 'normal');
-t.check('a caixa de seleção fica marcada', await t.ev(`document.querySelector('.sd__chk input').checked`));
+t.check('a caixa de seleção fica marcada', await t.ev(`document.querySelector('[data-testid="settings-ligatures"]').checked`));
 t.check('as escolhas ficam guardadas (só o que foge do padrão)', (await t.ev(`['gitnexus.fontUi', 'gitnexus.fontCode', 'gitnexus.ligatures'].map((k) => localStorage.getItem(k)).join('|')`)) === 'system|system|on');
 
 // 6. reabrir depois de recarregar: guardado
@@ -88,14 +90,14 @@ await escape();
 await reload();
 t.check('depois de recarregar as escolhas continuam aplicadas', (await attrs()) === 'system|system|on', await attrs());
 await openGear();
-t.check('e o diálogo as mostra (Sistema, Sistema, ligaduras marcadas)', (await checked('Fonte da interface')) === 'Sistema' && (await checked('Fonte do código')) === 'Sistema' && !!(await t.ev(`document.querySelector('.sd__chk input').checked`)));
+t.check('e o diálogo as mostra (Sistema, Sistema, ligaduras marcadas)', (await checked('Fonte da interface')) === 'Sistema' && (await checked('Fonte do código')) === 'Sistema' && !!(await t.ev(`document.querySelector('[data-testid="settings-ligatures"]').checked`)));
 
 // 7. restaurar padrões
 await t.ev(`[...document.querySelectorAll('.sd button')].find((b) => b.textContent.trim() === 'Restaurar padrões')?.click()`);
 await sleep(400);
 t.check('"Restaurar padrões" volta a JetBrains Mono, JetBrains Mono e ligaduras desligadas', (await attrs()) === 'jetbrains|jetbrains|off', await attrs());
 t.check('e apaga o que estava guardado', (await t.ev(`['gitnexus.fontUi', 'gitnexus.fontCode', 'gitnexus.ligatures'].map((k) => localStorage.getItem(k)).join('|')`)) === '||');
-t.check('o diálogo segue aberto e mostra os padrões', (await isOpen()) && (await checked('Fonte da interface')) === 'JetBrains Mono' && !(await t.ev(`document.querySelector('.sd__chk input').checked`)));
+t.check('o diálogo segue aberto e mostra os padrões', (await isOpen()) && (await checked('Fonte da interface')) === 'JetBrains Mono' && !(await t.ev(`document.querySelector('[data-testid="settings-ligatures"]').checked`)));
 
 // 8. fechar: Esc devolve o foco à engrenagem; o fundo deixa de ser inerte
 await escape();
@@ -127,6 +129,78 @@ await t.ev(`[...document.querySelectorAll('.cp__list [role="option"], .cp__list 
 await t.until(`document.querySelector('[role="dialog"][aria-modal="true"]')`, 5000);
 t.check('o comando da paleta abre o diálogo', await isOpen());
 await escape();
+
+// 10b. seção Geral e Tema: cada campo reflete o controle de origem e o altera na hora, nos dois sentidos
+const root = tmpRoot('gn-settings-');
+const repo = mkRepo(root, 'settingsrepo');
+await t.ev(`window.gitNexus.addRepositoryPath(${lit(repo)})`);
+await reload();
+const ls = (k) => t.ev(`localStorage.getItem(${lit(k)})`);
+const chk = (id) => `document.querySelector('[data-testid="${id}"]')`;
+const paletteRun = async (query, title) => {
+  await t.key('k', 2);
+  await t.until(`document.querySelector('.cp__input')`, 5000);
+  await t.ev(`(() => { const i = document.querySelector('.cp__input'); i.value = ${lit(query)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+  await sleep(300);
+  const ok = await t.ev(`(() => { const e = [...document.querySelectorAll('.cp__list [role="option"], .cp__list .cp__item')].find((x) => x.textContent.includes(${lit(title)})); e?.click(); return !!e; })()`);
+  await sleep(300);
+  return ok;
+};
+
+// idioma: dialogo -> barra
+await openGear();
+t.check('seção Geral: o idioma atual (Português) vem marcado', (await checked('Idioma')) === 'Português (Brasil)');
+await pick('Idioma', 'English');
+await sleep(500);
+t.check('Idioma "English" no diálogo troca o app e o próprio diálogo, sem recarregar', (await dlg(`document.getElementById(d.getAttribute('aria-labelledby'))?.textContent.trim()`)) === 'Settings' && (await ls('gitnexus.locale')) === 'en');
+await escape();
+t.check('o seletor de idioma da barra mostra EN', (await t.ev(`document.querySelector('.lang__code')?.textContent.trim()`)) === 'EN');
+// idioma: paleta -> dialogo
+t.check('o comando da paleta volta ao português', await paletteRun('language', 'Language: Português (Brasil)'));
+await openGear();
+t.check('o diálogo mostra o idioma escolhido na paleta (Português) e está em português', (await checked('Idioma')) === 'Português (Brasil)');
+
+// atualização automática: dialogo -> paleta e paleta -> dialogo
+t.check('"Verificar atualizações automaticamente" começa marcada (padrão)', await t.ev(`${chk('settings-auto-update')}.checked`));
+await t.ev(`${chk('settings-auto-update')}.click()`);
+await sleep(300);
+t.check('desmarcar guarda gitnexus.updateCheck=0', (await ls('gitnexus.updateCheck')) === '0');
+await escape();
+t.check('e o comando da paleta passa a oferecer "Ligar a verificação automática"', await paletteRun('verificacao automatica', 'Ligar a verificação automática'));
+await openGear();
+t.check('o comando da paleta (ligar) marca a caixa do diálogo de novo', await t.ev(`${chk('settings-auto-update')}.checked`) && (await ls('gitnexus.updateCheck')) === '1');
+
+// busca automática: dialogo -> caixa do seletor de branch e de volta
+t.check('"Buscar automaticamente" reflete o estado atual (desligada neste teste)', !(await t.ev(`${chk('settings-auto-fetch')}.checked`)));
+await t.ev(`${chk('settings-auto-fetch')}.click()`);
+await sleep(300);
+t.check('marcar guarda gitnexus.autoFetch=1', (await ls('gitnexus.autoFetch')) === '1');
+await escape();
+await t.until(`[...document.querySelectorAll('li.repo')].some((x) => x.querySelector('strong')?.textContent.trim() === 'settingsrepo')`, 20000);
+await t.ev(`[...document.querySelectorAll('li.repo')].find((x) => x.querySelector('strong')?.textContent.trim() === 'settingsrepo').querySelector('.repo__btns button').click()`);
+await t.until(`document.querySelector('.bp__btn')`, 20000);
+await t.ev(`document.querySelector('.bp__btn').click()`);
+await t.until(`document.querySelector('[data-testid="auto-fetch"]')`, 5000);
+t.check('a caixa "Buscar automaticamente" do seletor de branch ficou marcada', await t.ev(`document.querySelector('[data-testid="auto-fetch"]').checked`));
+await t.ev(`document.querySelector('[data-testid="auto-fetch"]').click()`);
+await sleep(300);
+await escape();
+await openGear();
+t.check('desmarcar na caixa do seletor de branch desmarca no diálogo', !(await t.ev(`${chk('settings-auto-fetch')}.checked`)) && (await ls('gitnexus.autoFetch')) === '0');
+
+// tema: dialogo -> app e paleta -> dialogo
+t.check('Tema: o padrão é "Escuro" (o tema que o app sempre teve)', (await checked('Tema')) === 'Escuro');
+await pick('Tema', 'Claro');
+await sleep(400);
+t.check('Tema "Claro" muda o app na hora (data-theme=light) e fica guardado', (await t.ev(`document.documentElement.dataset.theme`)) === 'light' && (await ls('gitnexus.theme')) === 'light');
+await escape();
+t.check('o comando da paleta oferece o tema Sistema e o aplica', await paletteRun('tema', 'Tema da interface: Sistema'));
+await sleep(300);
+await openGear();
+t.check('o diálogo mostra "Sistema" (escolhido na paleta)', (await checked('Tema')) === 'Sistema');
+await pick('Tema', 'Escuro');
+await escape();
+await t.ev(`localStorage.removeItem('gitnexus.theme'); localStorage.removeItem('gitnexus.updateCheck')`);
 
 // 11. em inglês
 await t.ev(`localStorage.setItem('gitnexus.locale', 'en')`);
