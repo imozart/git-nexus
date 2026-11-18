@@ -106,18 +106,18 @@ export async function getLfsInfo(repoPath: string): Promise<LfsInfo> {
  */
 export async function pullLfs(repoPath: string, paths?: string[]): Promise<BranchActionResult> {
   const info = await getLfsInfo(repoPath);
-  if (!info.enabled) return { ok: false, message: tm('Este repositório não usa Git LFS.', 'This repository does not use Git LFS.') };
+  if (!info.enabled) return { ok: false, message: tm('lfs.notUsed') };
   if (!info.installed) {
-    return { ok: false, message: tm('O Git LFS não está instalado neste computador. Instale-o (git-lfs.com) para baixar os arquivos.', 'Git LFS is not installed on this computer. Install it (git-lfs.com) to download the files.') };
+    return { ok: false, message: tm('lfs.notInstalled') };
   }
   const known = new Set(info.files.map((f) => f.path));
   const chosen = paths?.length ? paths.filter((p) => known.has(p)) : [];
-  if (paths?.length && !chosen.length) return { ok: false, message: tm('Esses arquivos não são do Git LFS.', 'Those files are not Git LFS files.') };
-  if (!info.pointers && !chosen.length) return { ok: true, message: tm('Todos os arquivos LFS já estão baixados.', 'All LFS files are already downloaded.') };
+  if (paths?.length && !chosen.length) return { ok: false, message: tm('lfs.notLfsFiles') };
+  if (!info.pointers && !chosen.length) return { ok: true, message: tm('lfs.allDownloaded') };
   // `--include` recebe uma lista separada por vírgula; um nome com vírgula não cabe nela: baixa-se tudo nesse caso
   const include = chosen.length && !chosen.some((p) => p.includes(',')) ? [`--include=${chosen.join(',')}`] : [];
   const r = await runGit(repoPath, ['lfs', 'pull', ...include], { check: false, env: remoteEnv() });
-  if (r.code !== 0) return { ok: false, message: remoteErrorText(r.stderr + r.stdout, tm('Não foi possível baixar os arquivos do Git LFS.', 'Could not download the Git LFS files.')) };
+  if (r.code !== 0) return { ok: false, message: remoteErrorText(r.stderr + r.stdout, tm('lfs.downloadFailed')) };
   const after = await getLfsInfo(repoPath);
-  return { ok: true, message: tm(`Baixado. Ainda como ponteiro: ${after.pointers}.`, `Downloaded. Still pointers: ${after.pointers}.`) };
+  return { ok: true, message: tm('lfs.downloaded', { pointers: after.pointers }) };
 }
