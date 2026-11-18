@@ -81,7 +81,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
           </label>
           <div class="bd__field">
             <span>{{ t('bd.from') }}</span>
-            <ComboBox v-model="base" block filterable :options="baseOptions" :aria-label="t('bd.from')" data-testid="bd-base" />
+            <ComboBox v-model="base" block filterable collapsible-groups :collapsed-groups="[t('bd.groupRemote')]" :options="baseOptions" :aria-label="t('bd.from')" data-testid="bd-base" />
           </div>
           <label class="bd__chk"><input v-model="checkout" type="checkbox" /> {{ t('bd.checkout') }}</label>
         </template>
