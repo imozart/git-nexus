@@ -1,5 +1,7 @@
 import { stat } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
+import { remoteErrorText } from './askpass-pure.js';
+import { remoteEnv } from './askpass.js';
 import { emitGitProgress, progressReader } from './progress.js';
 import { runGit } from './runner.js';
 import type { RepoSummary, SyncResult } from './types/ipc.js';
@@ -69,14 +71,13 @@ export async function getRepoSummary(repoPath: string): Promise<RepoSummary> {
   return { ...parseSummary(r.stdout), lastFetch };
 }
 
-/** Sem terminal: nunca pergunta senha (o git falha em vez de travar esperando entrada). */
-export const NO_PROMPT = { GIT_TERMINAL_PROMPT: '0', GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND ?? 'ssh -o BatchMode=yes' };
+export { NO_PROMPT } from './no-prompt.js';
 
-/** `git fetch --all --prune`. */
-export async function fetchRepo(repoPath: string): Promise<SyncResult> {
+/** `git fetch --all --prune`. `silent` (busca em segundo plano ou em lote): nunca pede credenciais, falha logo. */
+export async function fetchRepo(repoPath: string, silent = false): Promise<SyncResult> {
   const onStderr = progressReader((p) => emitGitProgress({ repoPath, op: 'fetch', phase: p.phase, percent: p.percent }));
-  const r = await runGit(repoPath, ['fetch', '--all', '--prune', '--progress'], { check: false, env: NO_PROMPT, onStderr });
-  if (r.code !== 0) return { ok: false, message: firstLine(r.stderr) || tm('Falha ao buscar do remoto.', 'Failed to fetch from the remote.') };
+  const r = await runGit(repoPath, ['fetch', '--all', '--prune', '--progress'], { check: false, env: remoteEnv(silent), onStderr });
+  if (r.code !== 0) return { ok: false, message: remoteErrorText(r.stderr, tm('Falha ao buscar do remoto.', 'Failed to fetch from the remote.')) };
   return { ok: true, message: 'Buscado.' };
 }
 

@@ -1,10 +1,21 @@
-import type { GitCommandEvent, GitNexusApi, GitProgressEvent } from '@git-nexus/git-core/pure';
+import type { AskpassRequest, GitCommandEvent, GitNexusApi, GitProgressEvent } from '@git-nexus/git-core/pure';
 
 /** Métodos executados no UtilityProcess (trabalho pesado de Git / disco). */
 export const WORKER_METHODS = [
   'scanDirectories',
   'getKnownRepositories',
   'addRepositoryPath',
+  'getSigningInfo',
+  'getLfsInfo',
+  'pullLfs',
+  'getSubmodules',
+  'initSubmodules',
+  'updateSubmodules',
+  'askpassAnswer',
+  'searchContent',
+  'getFileContext',
+  'cloneRepository',
+  'initRepository',
   'removeRepository',
   'touchRepository',
   'getGitStatus',
@@ -83,7 +94,7 @@ export const WORKER_METHODS = [
 export type WorkerMethod = (typeof WORKER_METHODS)[number];
 
 /** Métodos tratados pelo processo principal (APIs nativas do Electron). */
-export const MAIN_METHODS = ['pickDirectories', 'copyText', 'openInTerminal', 'openInEditor', 'setZoom', 'logRendererError', 'showItemInFolder', 'openPath', 'checkForUpdate', 'openExternal', 'downloadUpdate', 'installUpdate', 'getChangelog', 'hostingInfo', 'hostingSaveToken', 'hostingRemoveToken', 'listChangeRequests', 'getCiStatus', 'suggestChangeRequest', 'createChangeRequest', 'hostingOpen'] as const satisfies readonly (keyof GitNexusApi)[];
+export const MAIN_METHODS = ['pickDirectories', 'copyText', 'openInTerminal', 'openInEditor', 'notify', 'setZoom', 'logRendererError', 'showItemInFolder', 'openPath', 'checkForUpdate', 'openExternal', 'downloadUpdate', 'installUpdate', 'getChangelog', 'hostingInfo', 'hostingSaveToken', 'hostingRemoveToken', 'listChangeRequests', 'getCiStatus', 'suggestChangeRequest', 'createChangeRequest', 'hostingOpen'] as const satisfies readonly (keyof GitNexusApi)[];
 export type MainMethod = (typeof MAIN_METHODS)[number];
 
 export const channel = (m: string) => `gitnexus:${m}`;
@@ -100,6 +111,8 @@ export type UtilityResponse = { id: number; ok: true; result: unknown } | { id: 
 export type UtilityEvent =
   | { event: 'gitCommands'; data: GitCommandEvent[] }
   | { event: 'gitProgress'; data: GitProgressEvent }
+  /** O git/ssh pediu uma credencial: o processo principal repassa à interface, que mostra o diálogo. */
+  | { event: 'askpass'; data: AskpassRequest }
   /** Exceção não tratada dentro do worker: o processo principal a registra no log do app. */
   | { event: 'appError'; data: { source: string; message: string; stack?: string } };
 

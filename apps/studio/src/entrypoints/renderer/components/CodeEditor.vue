@@ -11,8 +11,9 @@ import { python } from '@codemirror/lang-python';
 import { sql } from '@codemirror/lang-sql';
 import { xml } from '@codemirror/lang-xml';
 import { bracketMatching, syntaxHighlighting, defaultHighlightStyle, type LanguageSupport } from '@codemirror/language';
-import { EditorState, RangeSetBuilder, type Extension } from '@codemirror/state';
+import { Compartment, EditorState, RangeSetBuilder, type Extension } from '@codemirror/state';
 import { oneDark } from '@codemirror/theme-one-dark';
+import { theme } from '../theme';
 import { Decoration, EditorView, ViewPlugin, keymap, lineNumbers, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 
 const props = withDefaults(
@@ -93,10 +94,13 @@ const conflictPlugin = ViewPlugin.fromClass(
   { decorations: (p) => p.decorations },
 );
 
+/** Espaço do tema do editor: trocado ao vivo quando o tema da interface muda. */
+const themeSlot = new Compartment();
+
 const baseTheme = EditorView.theme({
   '&': { height: '100%', fontSize: '12.5px' },
   '.cm-scroller': { fontFamily: 'var(--gn-mono)', overflow: 'auto' },
-  '.cm-cf-marker': { backgroundColor: 'rgba(224,169,59,0.25)', color: '#e0a93b' },
+  '.cm-cf-marker': { backgroundColor: 'rgba(224,169,59,0.25)', color: 'var(--gn-warn)' },
   '.cm-cf-ours': { backgroundColor: 'rgba(79,181,106,0.13)' },
   '.cm-cf-base': { backgroundColor: 'rgba(144,151,161,0.13)' },
   '.cm-cf-theirs': { backgroundColor: 'rgba(79,134,247,0.15)' },
@@ -108,7 +112,7 @@ function extensions(): Extension[] {
     history(),
     bracketMatching(),
     syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-    oneDark,
+    themeSlot.of(theme.value === 'dark' ? oneDark : []),
     baseTheme,
     keymap.of([...defaultKeymap, ...historyKeymap]),
     EditorState.readOnly.of(props.readOnly),
@@ -129,6 +133,8 @@ onMounted(() => {
     state: EditorState.create({ doc: props.modelValue, extensions: extensions() }),
   });
 });
+
+watch(theme, (v) => view?.dispatch({ effects: themeSlot.reconfigure(v === 'dark' ? oneDark : []) }));
 
 watch(
   () => props.modelValue,

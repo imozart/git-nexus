@@ -1,3 +1,4 @@
+import type { AskpassRequest } from '../askpass-pure.js';
 import type { EncodingChoice, FileEncoding, FileEncodingInfo } from '../file-encoding.js';
 
 /** Operação parada no meio que o app sabe continuar ou abortar (o rebase tem o painel próprio). */
@@ -84,6 +85,28 @@ export interface GitNexusIPC {
   scanDirectories(rootPaths: string[]): Promise<RepositoryMeta[]>;
   getKnownRepositories(): Promise<RepositoryMeta[]>;
   addRepositoryPath(path: string): Promise<RepositoryMeta>;
+  /** Como os commits deste repositório são assinados (commit.gpgsign, gpg.format, user.signingkey). */
+  getSigningInfo(repoPath: string): Promise<SigningInfo>;
+  /** Situação do Git LFS: se o repositório usa, quais arquivos e se estão baixados ou só como ponteiro. */
+  getLfsInfo(repoPath: string): Promise<LfsInfo>;
+  /** `git lfs pull`: baixa os arquivos LFS que são só ponteiro (todos, ou só os `paths`). */
+  pullLfs(repoPath: string, paths?: string[]): Promise<BranchActionResult>;
+  /** Submódulos do repositório com o estado de cada um (vazio se não há). */
+  getSubmodules(repoPath: string): Promise<SubmoduleInfo[]>;
+  /** Inicializa (baixa) submódulos ainda não inicializados; sem `paths`, todos. */
+  initSubmodules(repoPath: string, paths?: string[]): Promise<BranchActionResult>;
+  /** Leva submódulos ao commit que o repositório registra; pula, explicando, os com alterações locais ou commits próprios. */
+  updateSubmodules(repoPath: string, paths?: string[]): Promise<BranchActionResult>;
+  /** Responde a um pedido de credencial do git/ssh (`null` = cancelou). A resposta nunca é registrada em log. */
+  askpassAnswer(id: string, answer: string | null): Promise<void>;
+  /** Procura um texto (ou expressão regular) no conteúdo dos arquivos do repositório (`git grep`), inclusive os novos não ignorados. */
+  searchContent(repoPath: string, query: ContentSearch): Promise<ContentSearchResult>;
+  /** As linhas ao redor de uma ocorrência, para a pré-visualização dos resultados. */
+  getFileContext(repoPath: string, file: string, line: number, radius?: number): Promise<FileContext>;
+  /** `git clone` para `<pasta>/<nome>` (nome padrão: o da URL) e já cataloga o repositório. O andamento chega por `onGitProgress` (`op: 'clone'`). */
+  cloneRepository(input: CloneInput): Promise<RepositoryMeta>;
+  /** `git init` em `<pasta>/<nome>` com branch inicial e `.gitignore` opcionais, e já cataloga o repositório. */
+  initRepository(input: InitInput): Promise<InitResult & { repo: RepositoryMeta }>;
 
   // Execução Git via UtilityProcess
   getGitStatus(repoPath: string): Promise<{ branch: string; staged: string[]; unstaged: string[] }>;
@@ -459,6 +482,132 @@ export interface SyncCommits {
   outgoing: SyncCommit[];
 }
 
+/** Pedido de clone: de onde, em que pasta e (opcional) com que nome de pasta e branch. */
+export interface CloneInput {
+  url: string;
+  /** Pasta-mãe (já existente): o repositório é criado dentro dela. */
+  parentDir: string;
+  /** Nome da pasta do repositório; vazio = o nome que vem da URL. */
+  name?: string;
+  /** Branch a baixar; vazio = a padrão do remoto. */
+  branch?: string;
+}
+
+/** Pedido de repositório novo (`git init`). */
+export interface InitInput {
+  /** Pasta escolhida (já existente). */
+  parentDir: string;
+  /** Se informado, cria esta subpasta dentro da escolhida; vazio = inicia na própria pasta escolhida. */
+  name?: string;
+  /** Branch inicial (padrão: main). */
+  branch?: string;
+  /** Modelo de `.gitignore` (`none`, `node`, `java`, ...). */
+  gitignore?: string;
+}
+
+export interface InitResult {
+  path: string;
+  /** `written` = criou o .gitignore; `exists` = a pasta já tinha um e ele foi mantido; `none` = não pedido. */
+  gitignore: 'written' | 'exists' | 'none';
+}
+
+/** Situação de um submódulo: `outdated` = o commit em que ele está difere do que o repositório registra (típico depois de um pull). */
+export type SubmoduleState = 'ok' | 'uninitialized' | 'outdated' | 'conflict';
+
+export interface SubmoduleInfo {
+  /** Nome no `.gitmodules`. */
+  name: string;
+  path: string;
+  url: string;
+  branch?: string;
+  state: SubmoduleState;
+  /** Commit em que o submódulo está agora. */
+  sha: string;
+  /** Saída do `git describe` (ex.: `v1.2-3-gabc123`), quando existe. */
+  describe?: string;
+  /** Tem alterações locais não commitadas. */
+  dirty: boolean;
+}
+
+/** Um arquivo controlado pelo Git LFS: `pointer` = só o ponteiro (conteúdo ainda não baixado), `downloaded` = conteúdo na pasta, `missing` = não está na pasta. */
+export interface LfsFile {
+  path: string;
+  state: 'pointer' | 'downloaded' | 'missing';
+  /** Tamanho do conteúdo real (do ponteiro) ou do arquivo baixado, em bytes. */
+  size?: number;
+  oid?: string;
+}
+
+export interface LfsInfo {
+  /** Algum .gitattributes do repositório tem `filter=lfs`. */
+  enabled: boolean;
+  /** O comando `git lfs` existe neste computador (necessário para baixar). */
+  installed: boolean;
+  version?: string;
+  /** Padrões do .gitattributes com o filtro (ex.: `*.psd`). */
+  patterns: string[];
+  files: LfsFile[];
+  /** Quantos arquivos o LFS controla (pode ser maior que `files.length`). */
+  total: number;
+  /** Quantos dos listados ainda são só o ponteiro. */
+  pointers: number;
+  /** Há mais arquivos LFS do que os listados. */
+  truncated: boolean;
+}
+
+export type SigningFormat = 'openpgp' | 'ssh' | 'x509';
+
+/** Como os commits do repositório são assinados (configuração do git). */
+export interface SigningInfo {
+  /** `commit.gpgsign` está ligado: o git assina todo commit sozinho. */
+  enabled: boolean;
+  format: SigningFormat;
+  /** `user.signingkey` (id da chave GPG, ou caminho/conteúdo da chave SSH), se configurada. */
+  key: string | null;
+}
+
+/** Busca no conteúdo dos arquivos (`git grep`). */
+export interface ContentSearch {
+  pattern: string;
+  /** O texto é uma expressão regular (extendida); senão, é procurado como está. */
+  regex?: boolean;
+  /** Diferenciar maiúsculas de minúsculas (padrão: não diferencia). */
+  caseSensitive?: boolean;
+  /** Só palavras inteiras. */
+  wholeWord?: boolean;
+  /** Filtro de caminhos separados por espaço, ex.: `*.ts src/`. Vazio = tudo. */
+  paths?: string;
+}
+
+export interface ContentMatch {
+  file: string;
+  /** 1 = primeira linha. */
+  line: number;
+  text: string;
+}
+
+export interface ContentSearchResult {
+  ok: boolean;
+  /** Quando `ok` é false: por que a busca não rodou (expressão inválida...). */
+  message?: string;
+  matches: ContentMatch[];
+  /** Em quantos arquivos há ocorrências (das devolvidas). */
+  files: number;
+  /** Havia mais ocorrências do que as devolvidas. */
+  truncated: boolean;
+}
+
+/** Linhas ao redor de uma ocorrência. */
+export interface FileContext {
+  file: string;
+  /** A linha pedida (já ajustada ao tamanho do arquivo). */
+  line: number;
+  /** Número da primeira linha de `lines`. */
+  start: number;
+  lines: string[];
+  total: number;
+}
+
 /** Quantos commits de cada lado o painel de sincronização lista. O resto vira "e mais N" (o total vem do adiante/atrás). */
 export const SYNC_COMMITS_LIMIT = 20;
 
@@ -468,7 +617,7 @@ export type UpdateMethod = 'ff' | 'merge' | 'rebase';
 /** Andamento de uma operação com o remoto (fetch, pull, push), lido da saída `--progress` do git. `percent` é null quando o git não informa número. */
 export interface GitProgressEvent {
   repoPath: string;
-  op: 'fetch' | 'pull' | 'push';
+  op: 'fetch' | 'pull' | 'push' | 'clone';
   /** Etapa do git em inglês, já normalizada: "Receiving objects", "Resolving deltas"… */
   phase: string;
   percent: number | null;
@@ -683,16 +832,18 @@ export interface GitNexusApi extends GitNexusIPC {
   ): { isValid: boolean; errors: string[] };
   /** Idioma das mensagens de erro/aviso geradas pelo núcleo (a interface avisa ao trocar de idioma). */
   setLocale(locale: string): Promise<void>;
+  /** `sign`: `true` assina (`-S`), `false` não assina mesmo com `commit.gpgsign` ligado, ausente segue a configuração do git. */
   executeCommit(
     repoPath: string,
     input: ConventionalCommitInput,
     policy?: CommitPolicy,
+    sign?: boolean,
   ): Promise<CommitResult>;
 
   /** Dados para emendar o último commit (mensagem atual, se já foi enviado, se é merge). */
   getAmendInfo(repoPath: string): Promise<AmendInfo>;
   /** Emenda o último commit com o stage atual e a mensagem validada (`git commit --amend`). */
-  executeAmend(repoPath: string, input: ConventionalCommitInput, localPolicy?: CommitPolicy): Promise<CommitResult>;
+  executeAmend(repoPath: string, input: ConventionalCommitInput, localPolicy?: CommitPolicy, sign?: boolean): Promise<CommitResult>;
 
   /** Aplica UM commit na branch atual (cherry-pick). Para por conflitos sem lançar erro (`conflicted`). */
   cherryPickCommit(repoPath: string, hash: string): Promise<BranchActionResult>;
@@ -780,8 +931,9 @@ export interface GitNexusApi extends GitNexusIPC {
 
   // Painel de repositórios: resumo, fetch e pull (somente fast-forward)
   getRepoSummary(repoPath: string): Promise<RepoSummary>;
-  fetchRepo(repoPath: string): Promise<SyncResult>;
-  pullRepo(repoPath: string): Promise<SyncResult>;
+  /** `silent`: busca em segundo plano ou em lote, que nunca pede credenciais (falha logo). Sem ele, o app pergunta usuário/senha quando o git pede. */
+  fetchRepo(repoPath: string, silent?: boolean): Promise<SyncResult>;
+  pullRepo(repoPath: string, silent?: boolean): Promise<SyncResult>;
 
   // Branches: listar, trocar, criar, excluir, merge, rebase e pull
   listBranches(repoPath: string): Promise<BranchList>;
@@ -850,6 +1002,8 @@ export interface GitNexusApi extends GitNexusIPC {
   onGitCommand(cb: (events: GitCommandEvent[]) => void): () => void;
   /** Recebe o andamento (porcentagem) das buscas, atualizações e envios; devolve a função que cancela a assinatura. */
   onGitProgress(cb: (e: GitProgressEvent) => void): () => void;
+  /** O git/ssh precisa de usuário, senha, token ou frase-senha: a interface mostra o diálogo e responde com `askpassAnswer`. */
+  onAskpassRequest(cb: (r: AskpassRequest) => void): () => void;
 
   // Integração com o sistema (processo principal)
   copyText(text: string): Promise<void>;
@@ -857,6 +1011,8 @@ export interface GitNexusApi extends GitNexusIPC {
   openInTerminal(repoPath: string): Promise<{ app: string }>;
   /** Abre a pasta do repositório no editor (VS Code ou VSCodium, se instalado). Devolve o programa usado. */
   openInEditor(repoPath: string): Promise<{ app: string }>;
+  /** Mostra uma notificação do sistema (clicar nela traz a janela do app para a frente). Devolve se o sistema a mostrou. */
+  notify(input: { title: string; body: string }): Promise<boolean>;
   /** Zoom da interface: aumenta, diminui ou volta a 100 %. Devolve o fator novo (1 = 100 %). Também por Ctrl/⌘ + = / - / 0. */
   setZoom(action: 'in' | 'out' | 'reset'): Promise<number>;
   /** Registra no log do app (`gitnexus-app.log`) um erro inesperado da interface. Devolve o caminho do arquivo. */

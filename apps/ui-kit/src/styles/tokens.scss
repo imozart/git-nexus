@@ -14,8 +14,49 @@
   --gn-success: #4fb56a;
   --gn-warn: #e0a93b;
   --gn-radius: 6px;
+  /* texto sobre o preenchimento sólido de cada tom (escuro nos tons claros do tema escuro) */
+  --gn-on-success: #0d1a11;
+  --gn-on-warn: #1c1503;
+  --gn-on-danger: #200a09;
+  /* cor que clareia (escuro) ou escurece (claro) um tom ao misturar: texto de contorno colorido, hover do botão sólido */
+  --gn-mix: #ffffff;
+  /* texto das linhas adicionadas/removidas do diff */
+  --gn-diff-add-text: #8fd7a1;
+  --gn-diff-del-text: #f0a09a;
+  /* listras do lado vazio do diff lado a lado */
+  --gn-stripe: rgba(255, 255, 255, 0.04);
+  /* arquivo renomeado/copiado e arquivo novo (não rastreado) na árvore de alterações */
+  --gn-renamed: #c678dd;
+  --gn-untracked: #d99a54;
   --gn-mono: ui-monospace, 'Cascadia Code', Consolas, 'Courier New', monospace;
   color-scheme: dark;
+}
+
+/* Tema claro: escolhido por `data-theme="light"` no <html> (veja renderer/theme.ts). Os acentos escurecem para manter 4,5:1 de contraste sobre o claro. */
+:root[data-theme='light'] {
+  --gn-bg: #f4f5f7;
+  --gn-surface: #ffffff;
+  --gn-surface-2: #e9ebef;
+  --gn-border: #ced2d9;
+  --gn-text: #1f2328;
+  --gn-muted: #5a6370;
+  --gn-accent: #2a62d1;
+  --gn-accent-hover: #1f4fb0;
+  --gn-accent-solid: #2a62d1;
+  --gn-accent-solid-hover: #234fa8;
+  --gn-danger: #c62f2a;
+  --gn-success: #1a7f37;
+  --gn-warn: #8a5a00;
+  --gn-on-success: #ffffff;
+  --gn-on-warn: #ffffff;
+  --gn-on-danger: #ffffff;
+  --gn-mix: #000000;
+  --gn-diff-add-text: #14612b;
+  --gn-diff-del-text: #a1221d;
+  --gn-stripe: rgba(0, 0, 0, 0.05);
+  --gn-renamed: #8a3fa3;
+  --gn-untracked: #a35a10;
+  color-scheme: light;
 }
 
 *, *::before, *::after { box-sizing: border-box; }

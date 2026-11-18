@@ -71,7 +71,7 @@ function onKey(e: KeyboardEvent, i: number) {
     &:focus-visible { outline: 2px solid var(--gn-accent); outline-offset: -2px; }
     // ativo: azul tingido com texto clareado (mesma receita do botão de contorno), contraste de 4,5:1 ou mais
     &--on {
-      color: color-mix(in srgb, var(--gn-accent) 70%, #fff);
+      color: color-mix(in srgb, var(--gn-accent) 70%, var(--gn-mix));
       background: color-mix(in srgb, var(--gn-accent) 18%, var(--gn-surface-2));
     }
   }

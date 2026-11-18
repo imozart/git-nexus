@@ -9,6 +9,8 @@ export const useRepositoriesStore = defineStore('repositories', () => {
   const query = ref('');
   const busy = ref(false);
   const message = ref<{ kind: 'info' | 'error'; text: string } | null>(null);
+  /** Diálogo de clonar / criar repositório aberto na tela inicial (a paleta de comandos também o abre). */
+  const createDialog = ref<'clone' | 'init' | null>(null);
 
   const filtered = computed(() => {
     const q = query.value.trim().toLowerCase();
@@ -61,10 +63,11 @@ export const useRepositoriesStore = defineStore('repositories', () => {
     return !s || !isOk(s) || isDirty(s) || s.untracked > 0 || s.ahead > 0 || s.behind > 0 || s.gone;
   };
 
-  async function syncOne(r: RepositoryMeta, kind: 'fetch' | 'pull'): Promise<{ ok: boolean; message: string }> {
+  /** `silent`: em lote (vários repositórios) nunca abre diálogo de credencial; o botão da linha, sim. */
+  async function syncOne(r: RepositoryMeta, kind: 'fetch' | 'pull', silent = false): Promise<{ ok: boolean; message: string }> {
     working.value[r.id] = kind;
     try {
-      const res = kind === 'fetch' ? await api.fetchRepo(r.path) : await api.pullRepo(r.path);
+      const res = kind === 'fetch' ? await api.fetchRepo(r.path, silent) : await api.pullRepo(r.path, silent);
       await summarize(r);
       return res;
     } catch (e) {
@@ -82,7 +85,7 @@ export const useRepositoriesStore = defineStore('repositories', () => {
     const items: { name: string; ok: boolean; text: string }[] = [];
     progress.value = { label: title, done: 0, total: list.length };
     await pool(list, 4, async (r) => {
-      const res = await syncOne(r, kind);
+      const res = await syncOne(r, kind, true);
       items.push({ name: r.name, ok: res.ok, text: res.message });
       progress.value!.done++;
     });
@@ -150,5 +153,5 @@ export const useRepositoriesStore = defineStore('repositories', () => {
     await load();
   }
 
-  return { summaries, working, progress, report, onlyPending, needsAttention, refreshSummaries, fetchAll, pullSafe, syncOne, repos, query, busy, message, filtered, load, scanRoots, scanPaths, addRepository, addPath, remove, touch };
+  return { createDialog, summaries, working, progress, report, onlyPending, needsAttention, refreshSummaries, fetchAll, pullSafe, syncOne, repos, query, busy, message, filtered, load, scanRoots, scanPaths, addRepository, addPath, remove, touch };
 });

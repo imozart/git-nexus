@@ -1,7 +1,8 @@
 import { explain } from './branches.js';
 import { tm } from './messages.js';
 import { runGit } from './runner.js';
-import { NO_PROMPT } from './repo-status.js';
+import { remoteEnv } from './askpass.js';
+import { NO_PROMPT } from './no-prompt.js';
 import type { BranchActionResult, CreateTagInput, RemoteTags, TagInfo } from './types/ipc.js';
 
 // Tags: listar, criar (leve ou anotada), apagar (local e remota) e enviar ao remoto. Ir para uma tag é `checkoutRevision`.
@@ -98,7 +99,7 @@ export async function deleteTag(repoPath: string, name: string, remote = false):
   if (remote) {
     const where = await defaultRemote(repoPath);
     if (!where) return { ok: false, message: tm('O repositório não tem remoto.', 'The repository has no remote.') };
-    const r = await runGit(repoPath, ['push', where, `:refs/tags/${n}`], { check: false, env: NO_PROMPT });
+    const r = await runGit(repoPath, ['push', where, `:refs/tags/${n}`], { check: false, env: remoteEnv() });
     if (r.code !== 0) return { ok: false, message: explain(r.stderr + r.stdout, tm('Não foi possível apagar a tag no remoto.', 'Could not delete the tag on the remote.')) };
     return { ok: true, message: tm(`Tag '${n}' apagada no remoto (${where}).`, `Tag '${n}' deleted on the remote (${where}).`) };
   }
@@ -113,7 +114,7 @@ export async function pushTag(repoPath: string, name?: string): Promise<BranchAc
   if (!where) return { ok: false, message: tm('O repositório não tem remoto.', 'The repository has no remote.') };
   const n = name?.trim();
   if (n && n.startsWith('-')) return { ok: false, message: tm('Tag inválida.', 'Invalid tag.') };
-  const r = await runGit(repoPath, n ? ['push', where, `refs/tags/${n}`] : ['push', where, '--tags'], { check: false, env: NO_PROMPT });
+  const r = await runGit(repoPath, n ? ['push', where, `refs/tags/${n}`] : ['push', where, '--tags'], { check: false, env: remoteEnv() });
   const out = r.stderr + r.stdout;
   if (r.code !== 0) {
     if (/already exists|rejected/i.test(out)) return { ok: false, message: tm('O remoto já tem uma tag com esse nome apontando para outro commit: o envio foi recusado (nada é forçado).', 'The remote already has a tag with that name pointing to another commit: the push was refused (nothing is forced).') };

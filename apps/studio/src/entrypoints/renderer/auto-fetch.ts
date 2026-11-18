@@ -30,7 +30,7 @@ export async function autoFetch(repoPath: string, lastFetch: number | null | und
       'fetch',
       () => {
         attempts.set(repoPath, now);
-        return api.fetchRepo(repoPath);
+        return api.fetchRepo(repoPath, true); // em segundo plano: nunca abre diálogo de credencial
       },
       true,
     );
