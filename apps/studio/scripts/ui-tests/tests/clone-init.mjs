@@ -80,7 +80,14 @@ t.check('sem pasta o botão Criar fica desligado', (await submitState()).disable
 await fill('create-parent', destino);
 await fill('create-name', 'novinho');
 await fill('create-branch', 'develop');
-await t.ev(`(() => { const s = document.querySelector('[data-testid="create-gitignore"]'); s.value = 'node'; s.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+// o campo é o ComboBox do app (lista flutuante de cantos arredondados), não o <select> nativo
+t.check('o campo .gitignore é o ComboBox do app, não um select nativo', (await t.ev(`!!document.querySelector('[data-testid="create-gitignore"].cbx') && !document.querySelector('select')`)) === true);
+await t.ev(`document.querySelector('[data-testid="create-gitignore"] .cbx__btn').click()`);
+await t.until(`document.querySelector('.cbx__list')`, 5000);
+const listBox = await t.ev(`(() => { const l = document.querySelector('.cbx__list'); const d = document.querySelector('.rc__box, [role="dialog"]'); const o = document.querySelector('[data-testid="create-gitignore"]').getBoundingClientRect(); const r = l.getBoundingClientRect(); return { radius: parseFloat(getComputedStyle(l).borderRadius), z: Number(getComputedStyle(l).zIndex), top: document.elementFromPoint(r.left + r.width / 2, r.top + 10) === l || l.contains(document.elementFromPoint(r.left + r.width / 2, r.top + 10)), items: [...l.querySelectorAll('[role="option"]')].map((x) => x.textContent.trim()) }; })()`);
+t.check('a lista aberta tem cantos arredondados e fica acima do diálogo (visível e clicável)', listBox.radius >= 6 && listBox.z > 1100 && listBox.top, listBox);
+t.check('a lista traz os modelos (— e Node.js entre eles)', listBox.items.includes('Node.js') && listBox.items.length >= 5, listBox.items);
+await t.ev(`[...document.querySelectorAll('.cbx__list [role="option"]')].find((x) => x.textContent.trim() === 'Node.js').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))`); // o ComboBox escolhe no mousedown
 await sleep(300);
 t.check('mostra onde ficará (pasta + subpasta)', ((await target()) ?? '').includes('novinho'), await target());
 await t.shot('novo-repositorio');
