@@ -164,6 +164,7 @@ describe('tipografia', () => {
     expect(/@font-face/.test('@font-face { font-family: x }')).toBe(true);
     expect(/fonts\.googleapis|\bcdn\./i.test('<link href="https://fonts.googleapis.com/css2?family=Inter">')).toBe(true);
   });
+});
 
 describe('listas vêm do ComboBox', () => {
   const noComments = (s: string) => s.replace(/<!--[\s\S]*?-->/g, '');
