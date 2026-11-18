@@ -79,3 +79,14 @@ describe('cores dos botões (docs/INTERFACE.md)', () => {
     expect(template(stash.text)).not.toMatch(/<GnButton[^>]*variant="primary"[^>]*>\{\{\s*t\('stash\.applyDrop'\)/);
   });
 });
+
+describe('listas vêm do ComboBox', () => {
+  const noComments = (s: string) => s.replace(/<!--[\s\S]*?-->/g, '');
+  it('nenhuma tela usa <select> nem <datalist> nativos (a lista aberta é do sistema, de cantos quadrados): use o ComboBox', () => {
+    for (const f of files.filter((x) => x.rel !== 'components/ComboBox.vue')) {
+      // (o próprio ComboBox cita <select> e <datalist> nos comentários: é o componente que os substitui)
+      expect(noComments(template(f.text)), `${f.rel}: <select> nativo. Use o ComboBox (components/ComboBox.vue): lista flutuante no padrão do app.`).not.toMatch(/<select[\s>]/);
+      expect(noComments(template(f.text)), `${f.rel}: <datalist> nativo. Use o ComboBox em modo searchable.`).not.toMatch(/<datalist[\s>]|\slist="/);
+    }
+  });
+});

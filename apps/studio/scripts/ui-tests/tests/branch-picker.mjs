@@ -111,7 +111,14 @@ t.check('Esc fecha só o menu da branch e mantém o painel', (await t.count('.bp
 t.check('antes: a main local do clone não conhece a novidade do remoto', git(repo, 'rev-parse', 'origin/main').trim() !== remoteMain);
 await clickText('.bp__item', 'Nova branch');
 await t.until(`document.querySelector('.bd__box')`, 5000);
-t.check('o diálogo oferece a versão mais recente de origin/main como padrão', (await t.ev(`document.querySelector('.bd select').value`)) === 'latest' && /Mais recente de origin\/main/.test(await t.ev(`document.querySelector('.bd select option:checked').textContent`)));
+t.check('o campo "Criar a partir de" é o ComboBox do app (sem select nativo) e oferece a versão mais recente de origin/main como padrão', (await t.ev(`!!document.querySelector('.bd [data-testid="bd-base"].cbx') && !document.querySelector('.bd select')`)) === true && /Mais recente de origin\/main/.test(await t.ev(`document.querySelector('.bd [data-testid="bd-base"] .cbx__value').textContent`)));
+await t.ev(`(() => { const b = document.querySelector('.bd [data-testid="bd-base"] .cbx__btn'); b.focus(); b.click(); })()`); // com foco, como o clique de verdade
+await t.until(`document.querySelector('.cbx__list')`, 3000);
+const baseList = await t.ev(`(() => { const l = document.querySelector('.cbx__list'); const r = l.getBoundingClientRect(); const at = document.elementFromPoint(r.left + r.width / 2, r.top + 12); return { radius: parseFloat(getComputedStyle(l).borderRadius), above: !!at && l.contains(at), items: [...l.querySelectorAll('[role="option"]')].map((o) => o.textContent.replace(/\\s+/g, ' ').trim()) }; })()`);
+t.check('a lista tem cantos arredondados, fica acima do diálogo e traz a mais recente, o HEAD e as branches com o texto Locais/Remotas', baseList.radius >= 6 && baseList.above && baseList.items.length >= 3 && baseList.items.some((x) => /Mais recente/.test(x)) && baseList.items.some((x) => /Locais?|Remotas?/i.test(x)), baseList);
+await t.key('Escape');
+await sleep(200);
+t.check('Esc fecha só a lista e o diálogo continua aberto', (await t.count('.cbx__list')) === 0 && (await t.count('.bd__box')) === 1);
 t.check('o botão Criar só habilita com um nome', (await t.ev(`document.querySelector('.bd [type=submit]').disabled`)) === true);
 await set('.bd__field input', 'feat/nova-teste');
 t.check('com nome, Criar habilita', (await t.ev(`document.querySelector('.bd [type=submit]').disabled`)) === false);
@@ -144,7 +151,17 @@ await t.key('Escape');
 await sleep(200);
 t.check('Esc cancela o diálogo', (await t.count('.bd__box')) === 0);
 
+// --- "Ir para tag ou commit": o campo também é o ComboBox (modo busca), não o datalist nativo ---------------------------------------
+await t.ev(`document.querySelector('.bp__btn').click()`);
+await t.until(`document.querySelector('.bp__panel')`, 5000);
+await clickText('.bp__item', 'Ir para tag ou commit');
+await t.until(`document.querySelector('.bd__box')`, 5000);
+t.check('o campo de tag ou commit é o ComboBox em modo busca (sem datalist nativo) e recebe o foco', (await t.ev(`!!document.querySelector('.bd [data-testid="bd-rev"] input.cbx__input') && !document.querySelector('.bd datalist') && document.activeElement === document.querySelector('.bd [data-testid="bd-rev"] input.cbx__input')`)) === true);
+await t.key('Escape');
+await sleep(200);
+t.check('Esc cancela também esse diálogo', (await t.count('.bd__box')) === 0);
+
 // o harness e o navegador geram ruído de rede ao encerrar (favicon, polling do log); só conta erro da própria interface
-const appErrors = t.errors().filter((e) => !/favicon|Failed to fetch|ERR_CONNECTION|Failed to load resource/.test(String(e)));
+const appErrors = t.errors().filter((e) => !/favicon|Failed to fetch|ERR_CONNECTION|Failed to load resource|chrome-extension|Could not establish connection/.test(String(e))); // extensões do navegador de teste não são erro do app
 t.check('nenhum erro da interface no console', appErrors.length === 0, appErrors);
 t.close();
