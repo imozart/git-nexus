@@ -1,3 +1,6 @@
+// a fonte JetBrains Mono (@font-face) vem junto com os tokens: o renderer só importa este arquivo
+@use './fonts';
+
 :root {
   --gn-bg: #17181b;
   --gn-surface: #1f2023;

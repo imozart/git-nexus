@@ -72,4 +72,6 @@ Estrutura do monorepo, comandos e testes de interface: [docs/DESENVOLVIMENTO.md]
 
 GitNexus é software livre, distribuído sob a **GNU General Public License v3.0 (somente a versão 3)**. Veja o arquivo [`LICENSE`](LICENSE). Você pode usar, estudar, modificar e redistribuir, inclusive comercialmente, desde que mantenha a mesma licença nas versões distribuídas e disponibilize o código-fonte delas.
 
+O app embute a fonte **JetBrains Mono** (SIL Open Font License 1.1), distribuída sem modificação e com a própria licença; as duas licenças convivem. Detalhes em [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
 Copyright (C) 2026 contribuidores do GitNexus.
