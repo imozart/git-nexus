@@ -114,11 +114,37 @@ await t.until(`document.querySelector('.bd__box')`, 5000);
 t.check('o campo "Criar a partir de" é o ComboBox do app (sem select nativo) e oferece a versão mais recente de origin/main como padrão', (await t.ev(`!!document.querySelector('.bd [data-testid="bd-base"].cbx') && !document.querySelector('.bd select')`)) === true && /Mais recente de origin\/main/.test(await t.ev(`document.querySelector('.bd [data-testid="bd-base"] .cbx__value').textContent`)));
 await t.ev(`(() => { const b = document.querySelector('.bd [data-testid="bd-base"] .cbx__btn'); b.focus(); b.click(); })()`); // com foco, como o clique de verdade
 await t.until(`document.querySelector('.cbx__list')`, 3000);
-const baseList = await t.ev(`(() => { const l = document.querySelector('.cbx__list'); const r = l.getBoundingClientRect(); const at = document.elementFromPoint(r.left + r.width / 2, r.top + 12); return { radius: parseFloat(getComputedStyle(l).borderRadius), above: !!at && l.contains(at), items: [...l.querySelectorAll('[role="option"]')].map((o) => o.textContent.replace(/\\s+/g, ' ').trim()) }; })()`);
-t.check('a lista tem cantos arredondados, fica acima do diálogo e traz a mais recente, o HEAD e as branches com o texto Locais/Remotas', baseList.radius >= 6 && baseList.above && baseList.items.length >= 3 && baseList.items.some((x) => /Mais recente/.test(x)) && baseList.items.some((x) => /Locais?|Remotas?/i.test(x)), baseList);
+// a lista, na ordem em que aparece: 'G:título' (grupo), 'S' (busca) e 'O:texto' (opção)
+const listRows = () => t.ev(`[...document.querySelector('.cbx__list').children].map((li) => li.classList.contains('cbx__group') ? 'G:' + li.textContent.trim() : li.classList.contains('cbx__search') ? 'S' : li.getAttribute('role') === 'option' ? 'O:' + li.textContent.trim() : '?')`);
+const baseList = await t.ev(`(() => { const l = document.querySelector('.cbx__list'); const r = l.getBoundingClientRect(); const at = document.elementFromPoint(r.left + r.width / 2, r.top + 12); return { radius: parseFloat(getComputedStyle(l).borderRadius), above: !!at && l.contains(at) }; })()`);
+t.check('a lista tem cantos arredondados e fica acima do diálogo', baseList.radius >= 6 && baseList.above, baseList);
+const bdRows = await listRows();
+const gLocal = bdRows.indexOf('G:Local');
+const gRemoto = bdRows.indexOf('G:Remoto');
+t.check('a lista traz a busca, depois "Mais recente de origin/main" e a branch atual sem grupo, e então os grupos Local e Remoto', bdRows[0] === 'S' && /^O:Mais recente de origin\/main/.test(bdRows[1]) && /^O:Branch atual/.test(bdRows[2]) && gLocal === 3 && gRemoto > gLocal, bdRows);
+const locais = bdRows.slice(gLocal + 1, gRemoto).map((x) => x.slice(2));
+const remotos = bdRows.slice(gRemoto + 1).map((x) => x.slice(2));
+t.check('Local tem só branches locais e Remoto só as do remoto (origin/...)', locais.length >= 2 && locais.every((x) => !x.startsWith('origin/') && !bdRows.includes('G:' + x)) && locais.includes('feat/local-a') && remotos.length >= 2 && remotos.every((x) => x.startsWith('origin/')) && remotos.some((x) => x.startsWith('origin/main')), { locais, remotos });
+t.check('a busca da lista recebe o foco ao abrir', (await t.ev(`document.activeElement === document.querySelector('.cbx__list .cbx__search input')`)) === true);
+// busca: digitar filtra, mantém os grupos e Enter escolhe o primeiro resultado
+await t.ev(`(() => { const i = document.querySelector('.cbx__list .cbx__search input'); i.value = 'local-a'; i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+await sleep(200);
+const filtered = await listRows();
+t.check('digitar "local-a" filtra a lista (só o grupo Local com feat/local-a) e esconde o resto', filtered.join('|').startsWith('S|G:Local|O:feat/local-a') && !filtered.includes('G:Remoto'), filtered);
+await t.key('Enter');
+await sleep(300);
+t.check('Enter escolhe o primeiro resultado, fecha a lista e o campo mostra a branch', (await t.count('.cbx__list')) === 0 && (await t.ev(`document.querySelector('.bd [data-testid="bd-base"] .cbx__value').textContent.trim()`)) === 'feat/local-a');
+// volta à base padrão ("Mais recente") para os testes seguintes
+await t.ev(`document.querySelector('.bd [data-testid="bd-base"] .cbx__btn').click()`);
+await t.until(`document.querySelector('.cbx__list')`, 3000);
+await t.ev(`[...document.querySelectorAll('.cbx__list [role="option"]')].find((o) => /Mais recente/.test(o.textContent))?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))`);
+await sleep(300);
+t.check('escolher "Mais recente" no clique volta ao padrão', /Mais recente de origin\/main/.test(await t.ev(`document.querySelector('.bd [data-testid="bd-base"] .cbx__value').textContent`)));
+await t.ev(`document.querySelector('.bd [data-testid="bd-base"] .cbx__btn').click()`);
+await t.until(`document.querySelector('.cbx__list')`, 3000);
 await t.key('Escape');
 await sleep(200);
-t.check('Esc fecha só a lista e o diálogo continua aberto', (await t.count('.cbx__list')) === 0 && (await t.count('.bd__box')) === 1);
+t.check('Esc fecha só a lista, o diálogo continua aberto e o foco volta ao botão', (await t.count('.cbx__list')) === 0 && (await t.count('.bd__box')) === 1 && (await t.ev(`document.activeElement === document.querySelector('.bd [data-testid="bd-base"] .cbx__btn')`)) === true);
 t.check('o botão Criar só habilita com um nome', (await t.ev(`document.querySelector('.bd [type=submit]').disabled`)) === true);
 await set('.bd__field input', 'feat/nova-teste');
 t.check('com nome, Criar habilita', (await t.ev(`document.querySelector('.bd [type=submit]').disabled`)) === false);

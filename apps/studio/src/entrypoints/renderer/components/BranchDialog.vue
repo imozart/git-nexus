@@ -34,12 +34,12 @@ const base = ref(props.initialBase ?? (hasLatest.value ? 'latest' : 'head'));
 const input = ref<HTMLInputElement | null>(null);
 const formEl = ref<HTMLFormElement | null>(null);
 
-/** Bases possíveis no ComboBox: a mais recente do remoto, o HEAD e as branches (o "Locais/Remotas" do antigo optgroup vira o texto auxiliar de cada item). */
+/** Bases possíveis no ComboBox: a mais recente do remoto e a branch atual (sem grupo, no topo), depois as branches agrupadas em Local (só as locais) e Remoto (só as do remoto). */
 const baseOptions = computed(() => [
   ...(hasLatest.value ? [{ value: 'latest', label: t('bd.latest', { ref: props.data.defaultRemoteBranch ?? '' }) }] : []),
   { value: 'head', label: props.data.detached ? t('bd.headDetached') : t('bd.head', { name: props.data.current }) },
-  ...props.data.locals.map((b) => ({ value: 'local:' + b.name, label: b.name, hint: t('bd.groupLocal') })),
-  ...props.data.remotes.map((b) => ({ value: 'remote:' + b.name, label: b.name, hint: t('bd.groupRemote') })),
+  ...props.data.locals.map((b) => ({ value: 'local:' + b.name, label: b.name, group: t('bd.groupLocal') })),
+  ...props.data.remotes.map((b) => ({ value: 'remote:' + b.name, label: b.name, group: t('bd.groupRemote'), hint: t('bd.fetchFirst') })),
 ]);
 
 /** O que será criado, em uma frase (confere o que o app vai fazer antes de clicar em Criar). */
@@ -81,7 +81,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
           </label>
           <div class="bd__field">
             <span>{{ t('bd.from') }}</span>
-            <ComboBox v-model="base" block :options="baseOptions" :aria-label="t('bd.from')" data-testid="bd-base" />
+            <ComboBox v-model="base" block filterable :options="baseOptions" :aria-label="t('bd.from')" data-testid="bd-base" />
           </div>
           <label class="bd__chk"><input v-model="checkout" type="checkbox" /> {{ t('bd.checkout') }}</label>
         </template>
