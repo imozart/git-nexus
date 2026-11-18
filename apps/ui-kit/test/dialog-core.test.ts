@@ -122,6 +122,10 @@ describe('GnDialog.vue (regras que o compilador não vê)', () => {
     expect(script).not.toMatch(/from '(\.\.?\/)+(renderer|i18n|store|api)|useI18n|window\.gitNexus/);
   });
 
+  it('com uma lista aberta dentro da caixa (aria-expanded), o Esc fecha a lista e não o diálogo', () => {
+    expect(script).toContain("getAttribute('aria-expanded') === 'true'");
+  });
+
   it('Esc na captura, foco devolvido e fundo inerte', () => {
     expect(script).toContain("document.addEventListener('keydown', onKey, true)");
     expect(script).toContain("document.getElementById('app')");
