@@ -4,6 +4,46 @@ Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https:/
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.17.0] - 2026-11-18
+
+### ✨ Novidades
+
+- **ui:** grupos do ComboBox recolhíveis, com seta que gira (Local aberto e Remoto recolhido no Nova branch) ([`a26c350`](https://github.com/imozart/git-nexus/commit/a26c350e4280d36d0e97b7c64335a65b4035ae1d))
+- **ui:** ComboBox com grupos e busca na lista; Nova branch agrupa em Local e Remoto ([`342c6bb`](https://github.com/imozart/git-nexus/commit/342c6bba8a748ccfa56f77069ce468bf99270ea8))
+- **ui:** versões do diálogo Novidades em cartões clicáveis e expansíveis ([`faf30bc`](https://github.com/imozart/git-nexus/commit/faf30bc98328b4822daafea4bcf040aadcf734ce))
+- **ui:** configurações em abas por grupo, com idioma e tema em ComboBox ([`1000172`](https://github.com/imozart/git-nexus/commit/1000172ef76caab0d94f9f975225de4a6742cdb9))
+- **ui:** regra de convenção para fontes e documentação de tipografia e configurações ([`a7f66f0`](https://github.com/imozart/git-nexus/commit/a7f66f0a64bc0cedc865ec214fef6ef1b32d37c5))
+- **ui:** reunir idioma, atualização, busca automática e tema no diálogo de configurações ([`8e3ef1d`](https://github.com/imozart/git-nexus/commit/8e3ef1d4f3a0e5c691d9c54a3a106ff2ab9b9981))
+- **ui:** diálogo de configurações com a seção Aparência (fontes e ligaduras) ([`be1a371`](https://github.com/imozart/git-nexus/commit/be1a3711cec23085906a95100859badf58105a74))
+- **ui-kit:** componente GnDialog (overlay, foco preso, Esc e entrada animada) ([`758d472`](https://github.com/imozart/git-nexus/commit/758d472f9af2ff311e77b3fccdfa20da1e0d6d96))
+- **ui-kit:** tokens de elevação, raio, fundo de overlay, camadas e foco ([`b5aa032`](https://github.com/imozart/git-nexus/commit/b5aa032d912f35ce162d500564ea5dff88db59a1))
+- **ui:** revisar o layout com a fonte monoespaçada e detector de quebras na janela mínima ([`9a8eb0f`](https://github.com/imozart/git-nexus/commit/9a8eb0f53be66df5344d94f00b450734e6deb01a))
+- **ui:** preferências de fonte (interface, código e ligaduras) guardadas e aplicadas ao abrir ([`8892745`](https://github.com/imozart/git-nexus/commit/8892745aa52f2d516c99894f68b0dad58288ceb5))
+- **ui:** aplicar a JetBrains Mono ao app inteiro, com ligaduras desligadas por padrão ([`8e8e8c0`](https://github.com/imozart/git-nexus/commit/8e8e8c0eb7fd2f504f94fc4a03daadf65b6bb9fd))
+- **ui:** embutir a JetBrains Mono v2.304 no app (arquivos, @font-face, licença OFL e pacote) ([`7c7eaf2`](https://github.com/imozart/git-nexus/commit/7c7eaf2aab2d9a9f30b0024b31677c38cb83519d))
+
+### 🐛 Correções
+
+- **ui:** corrige o fechamento do bloco de tipografia na junção dos testes de convenção ([`8e21dbd`](https://github.com/imozart/git-nexus/commit/8e21dbd934c8807a27ca94f4a1f0b64d74f05066))
+- **ui:** Nova branch e Ir para tag ou commit usam o ComboBox do app em vez de select e datalist nativos ([`f13f544`](https://github.com/imozart/git-nexus/commit/f13f544f3cbb9400326acf0a2bba1fa3d449bd12))
+- **ui:** campo .gitignore do Novo repositório usa o ComboBox do app ([`951f02f`](https://github.com/imozart/git-nexus/commit/951f02f03a171ee6f51bc93849f8bd8a9de78b3c))
+- **ui-kit:** Esc do GnDialog fecha antes a lista aberta de dentro (combobox) e só depois o diálogo ([`e660fc0`](https://github.com/imozart/git-nexus/commit/e660fc04455df4f6c2ff7d4770a07249d5f2df8c))
+- **ui:** engrenagem das configurações com a mesma altura, borda e respiro do botão Comandos ([`5031842`](https://github.com/imozart/git-nexus/commit/50318428666aad7969528965085da7d8660a9174))
+
+### 📚 Documentação
+
+- regrava as imagens e GIFs de docs/media com a interface nova e registra o método ([`9676296`](https://github.com/imozart/git-nexus/commit/96762967c91440137b49723308e297bf9cedf10f))
+- configurações em abas, com idioma e tema em lista ([`650af91`](https://github.com/imozart/git-nexus/commit/650af9169091c1b033604a6ea4ac854cb06c66bb))
+
+### 🧹 Manutenção
+
+- **ci:** registra o picomatch (GHSA-fc5q-39xc-vjpf) como risco aceito em auditConfig.ignoreGhsas ([`dadc7a1`](https://github.com/imozart/git-nexus/commit/dadc7a1f241c8d7542b9f544d8439f8e9f560a32))
+- **ci:** aceitar com prazo o aviso do picomatch (sem correção, só dev) na auditoria ([`f6d3637`](https://github.com/imozart/git-nexus/commit/f6d3637ec66d799c3b326c8bc5869e31e7d699c0))
+
+### 🔹 Outras alterações
+
+- Revert "Merge branch 'chore/audit-picomatch' into release/homologacao-v1.17" ([`1753724`](https://github.com/imozart/git-nexus/commit/1753724036f10f64c0a213d39ad812d2dc446f34))
+
 ## [1.16.0] - 2026-11-18
 
 ### ✨ Novidades
@@ -349,6 +389,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.17.0]: https://github.com/imozart/git-nexus/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/imozart/git-nexus/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/imozart/git-nexus/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/imozart/git-nexus/compare/v1.13.2...v1.14.0
