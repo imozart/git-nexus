@@ -7,6 +7,7 @@ import CommandPalette from './components/CommandPalette.vue';
 import { api } from './api';
 import { LOCALES, locale, setLocale, t } from './i18n';
 import { notificationsEnabled, notifyUser } from './notifications';
+import { FONT_PREFS, fontCode, fontUi, ligatures, setFontCode, setFontUi, setLigatures } from './font';
 import { THEME_PREFS, setThemePref, themePref } from './theme';
 import { useAskpassStore } from './stores/askpass';
 import { useCommandsStore, type Command } from './stores/commands';
@@ -23,6 +24,8 @@ const askpass = useAskpassStore();
 const gitLog = useGitLogStore();
 
 const inRepo = () => !!ws.active?.repo;
+
+const FONT_KEYWORDS = 'fonte tipografia jetbrains mono ligaduras código interface font typeface ligatures code ui';
 
 /** Comandos globais; os do repositório aberto são registrados pelas próprias telas. */
 function globalCommands(): Command[] {
@@ -46,6 +49,27 @@ function globalCommands(): Command[] {
       keywords: 'tema claro escuro sistema theme light dark system aparência cores',
       run: () => setThemePref(p),
     })),
+    ...FONT_PREFS.filter((p) => p !== fontUi.value).map((p) => ({
+      id: `app.fontUi.${p}`,
+      title: t('cmd.fontUi', { name: t(`font.${p}`) }),
+      group: app,
+      keywords: FONT_KEYWORDS,
+      run: () => setFontUi(p),
+    })),
+    ...FONT_PREFS.filter((p) => p !== fontCode.value).map((p) => ({
+      id: `app.fontCode.${p}`,
+      title: t('cmd.fontCode', { name: t(`font.${p}`) }),
+      group: app,
+      keywords: FONT_KEYWORDS,
+      run: () => setFontCode(p),
+    })),
+    {
+      id: 'app.ligatures',
+      title: ligatures.value === 'on' ? t('cmd.ligaturesOff') : t('cmd.ligaturesOn'),
+      group: app,
+      keywords: FONT_KEYWORDS,
+      run: () => setLigatures(ligatures.value === 'on' ? 'off' : 'on'),
+    },
     {
       id: 'app.notifToggle',
       title: notificationsEnabled.value ? t('cmd.notifOff') : t('cmd.notifOn'),
