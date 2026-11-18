@@ -29,6 +29,25 @@
   --gn-renamed: #c678dd;
   --gn-untracked: #d99a54;
   --gn-mono: ui-monospace, 'Cascadia Code', Consolas, 'Courier New', monospace;
+  /* elevação: só preto com transparência (nenhuma cor nova), 3 níveis por função */
+  --gn-shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.35); /* tooltip, item arrastado */
+  --gn-shadow-md: 0 8px 28px rgba(0, 0, 0, 0.45); /* menus e popovers ancorados */
+  --gn-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.55); /* diálogos e paleta de comandos */
+  /* fundo atrás de diálogos e da paleta */
+  --gn-backdrop: rgba(0, 0, 0, 0.5);
+  /* raios de overlay (--gn-radius continua sendo o dos controles) */
+  --gn-radius-sm: 4px;
+  --gn-radius-lg: 10px;
+  /* anel de foco dos campos de texto: o azul de destaque a 30% */
+  --gn-ring: 0 0 0 3px color-mix(in srgb, var(--gn-accent) 30%, transparent);
+  /* camadas (o ComboBox, z-index 80, fica como está) */
+  --gn-z-popover: 1000;
+  --gn-z-dialog: 1100;
+  --gn-z-palette: 2000;
+  --gn-z-tooltip: 2100;
+  --gn-z-confetti: 3000;
+  /* duração da entrada animada dos overlays (cai para quase zero com movimento reduzido) */
+  --gn-enter: 140ms;
   color-scheme: dark;
 }
 
@@ -56,8 +75,18 @@
   --gn-stripe: rgba(0, 0, 0, 0.05);
   --gn-renamed: #8a3fa3;
   --gn-untracked: #a35a10;
+  /* a sombra preta de 55% do escuro fica pesada sobre o claro: só a opacidade muda */
+  --gn-shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --gn-shadow-md: 0 8px 28px rgba(0, 0, 0, 0.16);
+  --gn-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.22);
+  --gn-backdrop: rgba(0, 0, 0, 0.32);
   color-scheme: light;
 }
+
+/* movimento: entrada de diálogos e da paleta (pop) e de menus, popovers e tooltip (fade); uso: animation: gn-pop-in var(--gn-enter) ease-out */
+@keyframes gn-pop-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes gn-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { :root { --gn-enter: 0.01ms; } }
 
 *, *::before, *::after { box-sizing: border-box; }
 
