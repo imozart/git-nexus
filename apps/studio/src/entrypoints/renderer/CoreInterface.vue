@@ -141,7 +141,8 @@ const tabs = computed<GnTab[]>(() =>
   display: flex;
   flex-direction: column;
   height: 100%;
-  &__top { display: flex; align-items: stretch; background: var(--gn-bg); }
+  // 43px: a altura que a barra sempre teve (antes vinha da bandeira do seletor de idioma, que saiu); os seletores e o botão Comandos esticam até ela
+  &__top { display: flex; align-items: stretch; min-height: 43px; background: var(--gn-bg); }
   &__tabs { flex: 1; min-width: 0; }
   // engrenagem: mesma altura, borda e fundo do botão Comandos (e dos seletores de tema e idioma), com o mesmo respiro
   &__gear.gn-btn { align-self: center; flex: none; width: 31px; height: 31px; margin: 0 10px 0 -4px; padding: 0; color: var(--gn-muted); background: var(--gn-surface); border: 1px solid var(--gn-border); border-radius: var(--gn-radius); &:hover:not(:disabled) { color: var(--gn-text); border-color: var(--gn-accent); background: var(--gn-surface); } }

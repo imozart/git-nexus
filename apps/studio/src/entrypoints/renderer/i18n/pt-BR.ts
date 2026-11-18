@@ -137,6 +137,7 @@ const ptBR = {
   'settings.previewText': 'Commit (1 arquivo) · Aa Bb Cc 0123',
   'settings.reset': 'Restaurar padrões',
   'combo.none': 'Nada encontrado.',
+  'lang.system': 'Sistema',
   'combo.search': 'Buscar…',
   'combo.more': '+ {n} resultado… continue digitando para filtrar|+ {n} resultados… continue digitando para filtrar',
   'log.title': 'Log do Git',

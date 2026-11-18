@@ -139,6 +139,7 @@ const en: Partial<Record<MessageKey, string>> = {
   'settings.previewText': 'Commit (1 file) · Aa Bb Cc 0123',
   'settings.reset': 'Restore defaults',
   'combo.none': 'Nothing found.',
+  'lang.system': 'System',
   'combo.search': 'Search…',
   'combo.more': '+ {n} more result… keep typing to narrow down|+ {n} more results… keep typing to narrow down',
   'log.title': 'Git log',
