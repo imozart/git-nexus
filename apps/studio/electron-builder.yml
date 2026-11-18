@@ -13,6 +13,8 @@ extraResources:
   - { from: build/icon.png, to: icon.png } # ícone da janela em tempo de execução (Linux)
   - { from: ../../CHANGELOG.md, to: CHANGELOG.md } # "Novidades" dentro do app lê este arquivo
   - { from: ../../LICENSE, to: LICENSE.txt } # GPL-3.0: a licença acompanha o programa distribuído
+  - { from: ../ui-kit/src/styles/fonts/OFL.txt, to: licenses/JetBrainsMono-OFL.txt } # SIL OFL 1.1: a licença acompanha a fonte distribuída
+  - { from: ../../THIRD_PARTY_NOTICES.md, to: THIRD_PARTY_NOTICES.md } # componentes de terceiros distribuídos com o app
 compression: normal
 publish: null # a publicação é feita pelo workflow do GitHub (gh release), não pelo electron-builder
 
