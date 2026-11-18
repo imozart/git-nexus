@@ -13,7 +13,7 @@ Tudo o que é botão, seletor, ícone, etiqueta e aba vem do **ui-kit** (`apps/u
 | `GnDialog` | Diálogo modal | overlay, caixa com elevação, foco preso, Esc, clique no fundo, foco devolvido e fundo inerte; `width`, `maxHeight`, `role`, `labelledby`/`label`, `describedby`, `dismissable`, `initialFocus`; emite `close` (`'escape'` ou `'backdrop'`) o Esc fecha antes uma lista aberta de dentro (combobox) e o pai segue dono do estado (`v-if`); `isDialogOpen()` diz se há algum aberto |
 | `GnIcon` | Ícone decorativo | `name` (ver `components/icons.ts`); herda a cor do texto; sem `v-html` |
 | `GnBadge` | Etiqueta de estado | `tone` com o mesmo vocabulário do botão |
-| `GnTabs` | Abas de documentos | usado na barra principal e em Ferramentas |
+| `GnTabs` | Abas | barra principal, Ferramentas e Configurações; teclado pronto (setas, Home, End, Enter e espaço; só a aba ativa entra no Tab) |
 
 Os ícones são traços próprios (grade 24x24), uma linha em `icons.ts` por ícone. Acrescentar um é só incluir o nome e o caminho.
 
