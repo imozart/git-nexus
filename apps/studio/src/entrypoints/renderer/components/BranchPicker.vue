@@ -485,7 +485,8 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped lang="scss">
-.bp { display: inline-flex; }
+.bp { display: inline-flex; min-width: 130px; } /* sem isto o chip da branch não encolhe e empurra os botões do cabeçalho */
+.bp__btn { min-width: 0; max-width: 100%; }
 .bp__name { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bp__layer { position: fixed; inset: 0; z-index: 1000; }
 .bp__panel,

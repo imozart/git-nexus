@@ -61,3 +61,12 @@ describe('GnSegmented', () => {
     expect(comp).not.toContain('--gn-accent-solid');
   });
 });
+
+describe('GnTabs: teclado', () => {
+  const tabs = read('components/GnTabs.vue');
+  it('só a aba ativa entra na ordem do Tab e as setas, Home, End, Enter e espaço trocam de aba', () => {
+    expect(tabs).toContain(':tabindex="t.id === modelValue ? 0 : -1"');
+    for (const k of ['ArrowRight', 'ArrowLeft', 'Home', 'End', 'Enter']) expect(tabs, k).toContain(k);
+    expect(tabs).toContain('focus-visible');
+  });
+});

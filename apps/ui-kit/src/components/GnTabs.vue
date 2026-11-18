@@ -6,22 +6,35 @@ export interface GnTab {
   closable?: boolean;
 }
 
-defineProps<{ tabs: GnTab[]; modelValue: string }>();
+const props = defineProps<{ tabs: GnTab[]; modelValue: string }>();
 const emit = defineEmits<{
   (e: 'update:modelValue', id: string): void;
   (e: 'close', id: string): void;
 }>();
+
+/** Teclado (padrão de abas): setas, Home e End trocam de aba e levam o foco; Enter e espaço ativam. Só a aba ativa entra na ordem do Tab. */
+function onKey(e: KeyboardEvent, i: number): void {
+  if (e.target !== e.currentTarget) return; // teclas do botão de fechar não trocam de aba
+  const n = props.tabs.length;
+  const to = e.key === 'ArrowRight' ? (i + 1) % n : e.key === 'ArrowLeft' ? (i - 1 + n) % n : e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : e.key === 'Enter' || e.key === ' ' ? i : -1;
+  if (to < 0) return;
+  e.preventDefault();
+  emit('update:modelValue', props.tabs[to]!.id);
+  ((e.currentTarget as HTMLElement).parentElement?.children[to] as HTMLElement | undefined)?.focus();
+}
 </script>
 
 <template>
   <div class="gn-tabs" role="tablist">
     <div
-      v-for="t in tabs"
+      v-for="(t, i) in tabs"
       :key="t.id"
       class="gn-tab"
       :class="{ 'gn-tab--active': t.id === modelValue }"
       role="tab"
       :aria-selected="t.id === modelValue"
+      :tabindex="t.id === modelValue ? 0 : -1"
+      @keydown="onKey($event, i)"
       @click="emit('update:modelValue', t.id)"
       @auxclick.middle.prevent="t.closable && emit('close', t.id)"
     >
@@ -63,6 +76,7 @@ const emit = defineEmits<{
   user-select: none;
 
   &:hover { color: var(--gn-text); }
+  &:focus-visible { outline: 2px solid var(--gn-accent); outline-offset: -2px; }
   &--active {
     background: var(--gn-surface);
     border-color: var(--gn-border);

@@ -1,0 +1,2 @@
+# Fontes são binárias: a conversão de fim de linha do Git (o projeto trabalha com CRLF no Windows) não pode tocar nelas
+*.woff2 binary

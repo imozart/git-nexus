@@ -35,6 +35,22 @@ Os dados (lista de repositórios, preferências) ficam em `GitNexusData/` ao lad
 
 **Testes de interface automatizados** (`apps/studio/scripts/ui-tests`): `pnpm --filter @git-nexus/studio build` e depois `pnpm test:ui` (ou `pnpm test:ui git-log` para um só). O runner sobe o harness e um Chrome/Edge headless (`CHROME_PATH` aponta outro navegador), roda cada `tests/*.mjs` com estado limpo, dirige a tela por CDP e guarda capturas em `GN_UI_OUT`. No CI é o `ui-tests.yml`. Para escrever um teste, copie um de `tests/` (use `mkRepo`, `openRepo`, `t.until`, `t.check`).
 
+## Imagens e GIFs da documentação
+
+As mídias de `docs/media` (e a vitrine do README) são gravadas com o **app real** pelo harness de interface, sem caminho pessoal nem dado de cliente:
+
+```bash
+cd apps/studio && npx vite build
+# grava os quadros (<cena>-<n>.png, janela 1320x760, pt-BR, tema escuro): todas as cenas, ou uma com GN_MEDIA_ONLY=paleta
+GN_MEDIA=1 GN_MEDIA_OUT=<pasta> node scripts/ui-tests/run.mjs media
+# monta os GIFs e o commit-linter.png (precisa de Pillow: pip install pillow)
+python scripts/ui-tests/montar-gifs.py <pasta> ../../docs/media
+```
+
+- `scripts/ui-tests/tests/media.mjs` tem uma **cena por GIF** (`paleta`, `commit-linter`, `desfazer`, `rebase`, `stage-por-linha`, `conflito`). Cada uma monta um repositório de demonstração em `C:\gn-demo` (ou `/tmp/gn-demo`), dirige a tela por CDP e grava um quadro por passo. Sem `GN_MEDIA=1` o arquivo sai na hora com sucesso: o `ui-test` normal não grava nada.
+- `scripts/ui-tests/montar-gifs.py` junta os quadros (apresentações de 3 a 5 quadros, de 1,5 a 3 s cada, em loop) e salva o `commit-linter.png`, que também é a imagem do manifesto do Flatpak (`scripts/lib/flatpak.mjs`) e da página do projeto: se ele mudar de nome, esses dois mudam junto.
+- Para mudar um GIF, ajuste a cena correspondente (o que cada quadro mostra) e a tabela `CENAS` do script (duração de cada quadro). Regrave quando a interface mudar de forma visível.
+
 ## Notas sobre versões
 
 Os números exatos estão no `package.json` de cada pacote e no `pnpm-lock.yaml` (esta página não repete o que muda a cada atualização). O que vale saber:
