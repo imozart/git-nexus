@@ -305,12 +305,9 @@ defineExpose({ doFetch, doUpdate, doPush, doPushLease });
   position: absolute; left: 0; right: 0; bottom: -3px; height: 3px; overflow: hidden; border-radius: 2px; background: color-mix(in srgb, var(--gn-accent) 22%, transparent);
   &--silent { opacity: 0.55; height: 2px; bottom: -2px; }
 }
-.ss__fill { display: block; height: 100%; background: var(--gn-accent); transition: width 0.15s linear; }
-.ss__bar--indeterminate .ss__fill { width: 40%; animation: ss-slide 1.1s ease-in-out infinite alternate; }
+.ss__fill { display: block; height: 100%; background: var(--gn-accent); transition: width var(--gn-motion-base) linear; }
+.ss__bar--indeterminate .ss__fill { width: var(--gn-ind-width, 40%); opacity: var(--gn-ind-opacity, 1); animation: ss-slide var(--gn-motion-loop) ease-in-out infinite alternate; }
 @keyframes ss-slide { from { transform: translateX(-10%); } to { transform: translateX(160%); } }
-@media (prefers-reduced-motion: reduce) {
-  .ss__bar--indeterminate .ss__fill { animation: none; width: 100%; opacity: 0.6; }
-}
 .ss__layer { position: fixed; inset: 0; z-index: 1000; }
 .ss__panel {
   position: fixed; width: 440px; display: flex; flex-direction: column; background: var(--gn-surface); border: 1px solid var(--gn-border);

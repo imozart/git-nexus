@@ -3,6 +3,7 @@ import { createPinia } from 'pinia';
 import { createApp } from 'vue';
 import './theme';
 import './font';
+import './motion';
 import App from './App.vue';
 
 import { useAppErrorsStore } from './stores/app-errors';

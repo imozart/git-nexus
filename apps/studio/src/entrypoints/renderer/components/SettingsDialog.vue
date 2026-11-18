@@ -8,6 +8,7 @@ import { GnButton, GnDialog, GnSegmented, GnTabs, type GnTab } from '@git-nexus/
 import { autoFetchEnabled } from '../auto-fetch';
 import { FONT_PREFS, fontCode, fontUi, ligatures, resetFonts, setFontCode, setFontUi, setLigatures } from '../font';
 import { LOCALES, locale, setLocale, t, type Locale } from '../i18n';
+import { MOTION_PREFS, motionPref, setMotionPref } from '../motion';
 import { THEME_PREFS, setThemePref, themePref, type ThemePref } from '../theme';
 import { useUpdateStore } from '../stores/update';
 import ComboBox from './ComboBox.vue';
@@ -25,6 +26,7 @@ const tabs = computed<GnTab[]>(() => [
 const localeOptions = LOCALES.map((l) => ({ value: l.id, label: l.label }));
 const flagOf = (id: string) => LOCALES.find((l) => l.id === id)?.flag;
 const themeOptions = computed(() => THEME_PREFS.map((p) => ({ value: p, label: t(`theme.${p}`) })));
+const motionOptions = computed(() => MOTION_PREFS.map((p) => ({ value: p, label: t(`motion.${p}`) })));
 const fontOptions = computed(() => FONT_PREFS.map((p) => ({ value: p, label: t(`font.${p}`) })));
 /** Texto da pré-visualização do código: as sequências que as ligaduras transformam em um símbolo. */
 const SAMPLE = 'const ok = a !== b && c >= d;  // -> => != <=';
@@ -65,6 +67,11 @@ const SAMPLE = 'const ok = a !== b && c >= d;  // -> => != <=';
           <div class="sd__field">
             <span>{{ t('settings.theme') }}</span>
             <ComboBox class="sd__combo" block :options="themeOptions" :model-value="themePref" :aria-label="t('settings.theme')" @update:model-value="setThemePref($event as ThemePref)" />
+          </div>
+          <div class="sd__field">
+            <span>{{ t('settings.motion') }}</span>
+            <GnSegmented class="sd__seg" :model-value="motionPref" :options="motionOptions" :aria-label="t('settings.motion')" @update:model-value="setMotionPref" />
+            <small class="sd__hint sd__hint--field">{{ t('settings.motionHint') }}</small>
           </div>
           <div class="sd__field">
             <span>{{ t('settings.fontUi') }}</span>
@@ -114,6 +121,7 @@ const SAMPLE = 'const ok = a !== b && c >= d;  // -> => != <=';
   &__lang { display: inline-flex; align-items: center; gap: 7px; }
   &__seg { justify-self: start; }
   &__chk { display: flex; align-items: center; gap: 8px; cursor: pointer; &--gap { margin-top: 8px; } }
+  &__hint--field { margin: 2px 0 0; }
   &__hint { margin: 4px 0 14px 24px; font-size: 12px; color: var(--gn-muted); }
   &__preview { background: var(--gn-bg); border: 1px solid var(--gn-border); border-radius: var(--gn-radius); padding: 10px 12px; }
   &__code { margin: 0 0 8px; overflow-x: auto; white-space: pre; }

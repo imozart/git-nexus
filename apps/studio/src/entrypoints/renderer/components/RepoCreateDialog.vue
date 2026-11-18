@@ -169,8 +169,8 @@ onBeforeUnmount(() => {
   &__progress { margin: 4px 0 8px; }
   &__bar {
     height: 6px; border-radius: 3px; background: var(--gn-surface-2); overflow: hidden;
-    i { display: block; height: 100%; background: var(--gn-accent); transition: width 0.15s; }
-    &--ind i { width: 35% !important; animation: rc-slide 1.1s ease-in-out infinite alternate; }
+    i { display: block; height: 100%; background: var(--gn-accent); transition: width var(--gn-motion-base); }
+    &--ind i { width: var(--gn-ind-width, 35%) !important; opacity: var(--gn-ind-opacity, 1); animation: rc-slide var(--gn-motion-loop) ease-in-out infinite alternate; }
   }
   &__ptext { display: block; margin-top: 4px; font-size: 12px; color: var(--gn-muted); }
   &__err { margin: 8px 0 0; color: var(--gn-danger); word-break: break-word; white-space: pre-wrap; }

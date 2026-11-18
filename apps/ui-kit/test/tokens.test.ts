@@ -48,7 +48,10 @@ describe('tokens de elevação e camadas', () => {
   it('keyframes de entrada e movimento reduzido (a duração cai para quase zero)', () => {
     expect(css).toMatch(/@keyframes gn-pop-in \{[^}]*translateY\(8px\)/);
     expect(css).toMatch(/@keyframes gn-fade-in \{/);
-    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{ :root \{ --gn-enter: 0\.01ms; \} \}/);
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*:root:not\(\[data-reduced-motion='false'\]\) \{ --gn-motion-fast: 0\.01ms;/);
+    expect(css).toMatch(/:root\[data-reduced-motion='true'\] \{ --gn-motion-fast: 0\.01ms;/);
+    expect(css).toContain('--gn-enter: var(--gn-motion-base);');
+    for (const n of ['--gn-motion-fast', '--gn-motion-base', '--gn-motion-slow', '--gn-motion-loop']) expect(css.match(new RegExp(n + ':', 'g'))!.length, n).toBe(3); // padrão + media + atributo
   });
 });
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { makePieces, pieceAt, pieceCount, rainFinished } from '../confetti-core';
+import { reducedMotion } from '../motion';
 
 // Chuva de confete do topo ao rodapé (como no GitHub Discussions). Puramente decorativa: fica por cima de tudo, não captura o mouse
 // e não é anunciada por leitor de tela (o aviso "atualizado para a versão X" já cumpre esse papel).
@@ -12,8 +13,8 @@ let raf = 0;
 onMounted(() => {
   const el = canvas.value;
   const ctx = el?.getContext('2d');
-  // "Reduzir movimento" no sistema: sem animação (e sem canvas disponível, idem)
-  if (!el || !ctx || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  // movimento reduzido (opção do app ou pedido do sistema): sem animação (e sem canvas disponível, idem)
+  if (!el || !ctx || reducedMotion()) {
     emit('done');
     return;
   }

@@ -350,7 +350,7 @@ watch(
   border: none;
   color: var(--gn-muted);
   cursor: pointer;
-  transition: transform 0.12s;
+  transition: transform var(--gn-motion-fast);
   &--closed { transform: rotate(-90deg); }
 }
 .cb { margin: 0; accent-color: var(--gn-accent); cursor: pointer; flex-shrink: 0; }

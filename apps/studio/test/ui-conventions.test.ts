@@ -176,3 +176,36 @@ describe('listas vêm do ComboBox', () => {
     }
   });
 });
+
+// ---------- movimento (docs/INTERFACE.md, seção "Movimento") ----------
+// Toda duração de transição/animação vem dos tokens (--gn-motion-*, --gn-enter), que valem ~0 com movimento reduzido (opção do app ou do sistema).
+describe('movimento', () => {
+  const kit = join(__dirname, '..', '..', 'ui-kit', 'src');
+  const walkCss = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.name === 'node_modules' ? [] : e.isDirectory() ? walkCss(join(dir, e.name)) : /\.(vue|scss)$/.test(e.name) ? [join(dir, e.name)] : []));
+  const all = [...walkCss(renderer), ...walkCss(kit)].map((f) => ({ rel: relative(join(__dirname, '..', '..', '..'), f).replace(/\\/g, '/'), text: readFileSync(f, 'utf8').replace(/\r\n/g, '\n') }));
+  const noComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const FIXED = /(^|[\s,:])\d*\.?\d+m?s\b/;
+
+  it('transition e animation não têm duração fixa: só var(--gn-motion-*) ou var(--gn-enter)', () => {
+    for (const f of all) {
+      for (const m of noComments(f.text).matchAll(/(?<![\w-])(transition|animation)(-duration)?\s*:\s*([^;}\n]+)/g)) {
+        const v = m[3]!;
+        expect(FIXED.test(v), `${f.rel}: ${m[1]}${m[2] ?? ''}: ${v}. Use var(--gn-motion-fast|base|slow|loop) ou var(--gn-enter) (docs/INTERFACE.md, Movimento).`).toBe(false);
+      }
+    }
+  });
+
+  it('só o tokens.scss escreve prefers-reduced-motion (os componentes só usam os tokens) e não há rolagem suave fixa', () => {
+    for (const f of all.filter((x) => !x.rel.endsWith('styles/tokens.scss'))) {
+      expect(noComments(f.text), `${f.rel}: prefers-reduced-motion fora do tokens.scss. Use os tokens de duração.`).not.toMatch(/prefers-reduced-motion/);
+      expect(noComments(f.text), `${f.rel}: rolagem suave fixa`).not.toMatch(/scroll-behavior\s*:\s*smooth|behavior:\s*'smooth'/);
+    }
+  });
+
+  it('a regra funciona: uma transição de 0.2s seria pega', () => {
+    expect(FIXED.test('transform 0.2s')).toBe(true);
+    expect(FIXED.test('transform var(--gn-motion-base) ease-out')).toBe(false);
+    expect(FIXED.test('opacity 120ms')).toBe(true);
+  });
+});
