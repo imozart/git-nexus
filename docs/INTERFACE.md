@@ -87,6 +87,22 @@ Toda duração de `transition`/`animation` vem de um token de `apps/ui-kit/src/s
 - **Em TypeScript** (o que não é CSS, como a chuva de confete): `isReducedMotion(motionPref.value, systemReduces)` de `renderer/motion-core`.
 - `apps/studio/test/ui-conventions.test.ts` (bloco `movimento`) reprova duração fixa e `prefers-reduced-motion` fora do `tokens.scss`.
 
+## Barra de título
+
+A janela não usa a barra de título do sistema: os botões de minimizar, maximizar e fechar ficam na mesma faixa das abas (`core__top`), uma só faixa no topo. O processo principal escolhe a moldura (`apps/studio/src/shared/title-bar.ts`, `titleBarMode`) e a passa ao preload; a interface a lê em `api.titleBar` e marca o `<html>` com `data-titlebar`:
+
+| Moldura | Onde | O que acontece |
+|---|---|---|
+| `overlay` | Windows e Linux | `titleBarStyle: 'hidden'` + `titleBarOverlay`: os botões nativos são desenhados sobre a faixa, à direita, com as cores do tema; a faixa deixa o espaço deles com `env(titlebar-area-*)` |
+| `inset` | macOS | `hiddenInset`: o semáforo fica à esquerda e a faixa deixa 78 px para ele |
+| `native` | outras plataformas, ou `GITNEXUS_NATIVE_FRAME=1` | moldura padrão do sistema, nada muda |
+
+- **Arrasto:** com `overlay` ou `inset`, `.core__top` é `-webkit-app-region: drag`; abas, botões, campos e seletores são `no-drag` (regra em `CoreInterface.vue`). **Controle novo na faixa** (botão, campo, aba): entra na lista `:is(...)` dessa regra, senão ele não recebe clique. Duplo clique na faixa maximiza (comportamento nativo do sistema).
+- **Altura:** a faixa tem `min-height: 43px` (`TITLE_BAR_HEIGHT`) e o overlay usa a mesma altura; com zoom da interface o processo principal ajusta a altura do overlay (`overlayHeight`). Mudou a altura da faixa? Mude a constante junto (o teste confere).
+- **Cores:** a interface informa `--gn-bg` e `--gn-text` ao processo principal (`setTitleBar`) a cada troca de tema, e o overlay acompanha na hora. As cores iniciais (`TITLE_BAR_COLORS`) são as dos tokens; o teste confere que continuam iguais.
+- **Linux sem suporte a overlay** (alguns gerenciadores de janela): se o ajuste falhar, o erro vai para o `gitnexus-app.log`; para voltar à moldura do sistema, abra o app com `GITNEXUS_NATIVE_FRAME=1`.
+- **Testes:** `apps/studio/test/title-bar.test.ts` (regras puras) e `ui-tests/tests/title-bar.mjs` (a interface com a moldura simulada por `?titlebar=overlay|inset` no harness: arrasto, margens, cores do tema). O visual dos botões nativos e o Snap Layouts do Windows 11 só se conferem num Electron real.
+
 ## Como criar um componente do kit
 
 1. Nome `Gn` + substantivo, em `apps/ui-kit/src/components/`, exportado em `src/index.ts`.

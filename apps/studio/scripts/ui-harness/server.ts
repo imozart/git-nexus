@@ -141,6 +141,8 @@ const MAIN_STUBS: Record<string, (...a: any[]) => unknown> = {
   // Notificação simulada: só diz que mostrou (o teste observa a chamada na própria página).
   notify: async () => true,
   // Zoom simulado: guarda o fator em disco (o teste lê zoom.txt) e devolve o novo, com os mesmos degraus do app.
+  // Barra de título: o harness não tem janela; só aceita (o teste lê as chamadas registradas pela página, veja api.setTitleBar abaixo).
+  setTitleBar: async () => false,
   setZoom: async (action: string) => {
     const steps = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
     const { mkdir, readFile, writeFile } = await import('node:fs/promises');
@@ -177,6 +179,11 @@ const call = (m, args) => fetch('/rpc', { method: 'POST', body: JSON.stringify({
 const api = {};
 for (const m of ${JSON.stringify(METHODS)}) api[m] = (...args) => call(m, JSON.parse(JSON.stringify(args)));
 api.onUpdateProgress = () => () => {};
+// Moldura simulada pela URL (?titlebar=overlay|inset): sem janela de verdade, o teste confere margens, arrasto e as cores enviadas ao overlay.
+const tb = new URLSearchParams(location.search).get('titlebar');
+api.titleBar = tb === 'overlay' || tb === 'inset' ? tb : 'native';
+window.__titleBarCalls = [];
+api.setTitleBar = async (colors) => { window.__titleBarCalls.push(colors); return api.titleBar === 'overlay'; };
 // -1: a primeira sondagem só marca o ponto de partida (uma página recarregada não repete etapas antigas)
 let gitInstallSeen = -1;
 api.onGitInstallProgress = (cb) => {

@@ -1068,6 +1068,10 @@ export interface GitNexusApi extends GitNexusIPC {
   notify(input: { title: string; body: string }): Promise<boolean>;
   /** Zoom da interface: aumenta, diminui ou volta a 100 %. Devolve o fator novo (1 = 100 %). Também por Ctrl/⌘ + = / - / 0. */
   setZoom(action: 'in' | 'out' | 'reset'): Promise<number>;
+  /** Cores da faixa de abas para o overlay dos botões da janela (Windows e Linux); a interface as informa a cada troca de tema. Devolve false onde não há overlay. */
+  setTitleBar(colors: { color: string; symbolColor: string }): Promise<boolean>;
+  /** Moldura da janela: `overlay` (Windows/Linux, botões nativos sobre as abas), `inset` (macOS, semáforo à esquerda) ou `native` (moldura do sistema). */
+  readonly titleBar: 'overlay' | 'inset' | 'native';
   /** Registra no log do app (`gitnexus-app.log`) um erro inesperado da interface. Devolve o caminho do arquivo. */
   logRendererError(message: string, stack?: string): Promise<{ logFile: string }>;
   showItemInFolder(repoPath: string, file: string): Promise<void>;
