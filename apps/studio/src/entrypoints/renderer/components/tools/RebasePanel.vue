@@ -256,7 +256,7 @@ onMounted(async () => {
           v-for="(r, i) in rows"
           :key="r.hash"
           class="row"
-          :class="{ 'row--drop': r.action === 'drop', 'row--sq': r.action === 'squash' || r.action === 'fixup', 'row--over': dragOver === i && dragFrom !== i }"
+          :class="{ 'row--drop': r.action === 'drop', 'row--sq': r.action === 'squash' || r.action === 'fixup', 'row--over': dragOver === i && dragFrom !== i, 'row--dragging': dragFrom === i }"
           draggable="true"
           @dragstart="onDragStart(i, $event)"
           @dragover.prevent="dragOver = i"
@@ -327,6 +327,8 @@ onMounted(async () => {
   &--drop { opacity: 0.55; .row__sub { text-decoration: line-through; } }
   &--sq { margin-left: 28px; border-left: 3px solid var(--gn-accent); }
   &--over { border-color: var(--gn-accent); box-shadow: 0 -2px 0 var(--gn-accent); }
+  // a linha que está sendo arrastada: opacidade reduzida e sombra pequena ("levantada"); sem cor nova, sem mudar posição nem tamanho
+  &--dragging { opacity: 0.55; box-shadow: var(--gn-shadow-sm); }
   &__grip { color: var(--gn-muted); user-select: none; padding-top: 3px; }
   &__mv { align-self: flex-start; }
   &__hash { color: var(--gn-muted); padding-top: 3px; }

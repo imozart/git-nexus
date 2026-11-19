@@ -84,23 +84,25 @@ const showGroup = (i: number) => !query.value.trim() && (i === 0 || results.valu
 .cp {
   position: fixed;
   inset: 0;
-  z-index: 2000;
+  z-index: var(--gn-z-palette);
   display: flex;
   justify-content: center;
   align-items: flex-start;
   padding-top: 12vh;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--gn-backdrop);
+  animation: gn-fade-in var(--gn-enter) ease-out;
   &__box {
     width: min(640px, 92vw);
     background: var(--gn-surface);
     border: 1px solid var(--gn-border);
-    border-radius: 10px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+    border-radius: var(--gn-radius-lg);
+    box-shadow: var(--gn-shadow-lg);
+    animation: gn-pop-in var(--gn-enter) ease-out;
     overflow: hidden;
     display: flex;
     flex-direction: column;
   }
-  &__input { border: none; border-bottom: 1px solid var(--gn-border); border-radius: 0; padding: 13px 16px; font-size: 15px; background: var(--gn-surface); &:focus { outline: none; } }
+  &__input { border: none; border-bottom: 1px solid var(--gn-border); border-radius: 0; padding: 13px 16px; font-size: 15px; background: var(--gn-surface); &:focus { outline: none; } &:focus-visible { box-shadow: none; } }
   &__list { max-height: min(52vh, 420px); overflow: auto; padding: 4px 0; }
   &__group { padding: 8px 16px 3px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gn-muted); }
   &__item { display: flex; align-items: center; gap: 10px; padding: 7px 16px; cursor: pointer; &--on { background: rgba(79, 134, 247, 0.22); } }

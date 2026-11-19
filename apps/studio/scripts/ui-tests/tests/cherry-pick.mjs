@@ -42,7 +42,7 @@ const selectCommit = async (subject) => {
   await t.until(`document.querySelector('[data-testid="cherry-pick"]')`, 8000);
 };
 const confirmDialog = async () => {
-  await t.until(`document.querySelector('.dlg__box')`, 5000);
+  await t.until(`document.querySelector('[role="alertdialog"]')`, 5000);
   await t.ev(`[...document.querySelectorAll('.dlg__btns button')].pop().click()`);
   await sleep(900);
 };
@@ -54,8 +54,8 @@ await openGraph();
 await selectCommit('feat: arquivo novo');
 t.check('o detalhe do commit tem Cherry-pick e Reverter', (await t.count('[data-testid="cherry-pick"], [data-testid="revert"]')) === 2);
 await t.ev(`document.querySelector('[data-testid="cherry-pick"]').click()`);
-await t.until(`document.querySelector('.dlg__box')`, 5000);
-t.check('pede confirmação, com o hash e o assunto', /feat: arquivo novo/.test((await t.text('.dlg__box')) ?? ''));
+await t.until(`document.querySelector('[role="alertdialog"]')`, 5000);
+t.check('pede confirmação, com o hash e o assunto', /feat: arquivo novo/.test((await t.text('[role="alertdialog"]')) ?? ''));
 await confirmDialog();
 await t.until(`document.querySelector('[data-testid="gv-op-notice"]')`, 8000);
 t.check('mostra o resultado', /cherry-pick/i.test((await t.text('[data-testid="gv-op-notice"]')) ?? ''), await t.text('[data-testid="gv-op-notice"]'));

@@ -1,48 +1,31 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from 'vue';
-import { GnButton } from '@git-nexus/ui-kit';
+import { useId } from 'vue';
+import { GnButton, GnDialog } from '@git-nexus/ui-kit';
 import { t } from '../i18n';
 
 defineProps<{ title: string; lines: string[]; confirmLabel: string; danger?: boolean }>();
 const emit = defineEmits<{ (e: 'confirm'): void; (e: 'cancel'): void }>();
-
-function onKey(ev: KeyboardEvent) {
-  if (ev.key === 'Escape') emit('cancel');
-}
-onMounted(() => document.addEventListener('keydown', onKey));
-onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
+const titleId = useId();
 </script>
 
 <template>
-  <Teleport to="body">
-    <div class="dlg" @mousedown.self="emit('cancel')">
-      <div class="dlg__box" role="alertdialog" aria-modal="true">
-        <h3>{{ title }}</h3>
-        <p v-for="l in lines" :key="l">{{ l }}</p>
-        <div class="dlg__btns">
-          <GnButton @click="emit('cancel')">{{ t('dlg.cancel') }}</GnButton>
-          <GnButton :variant="danger ? 'danger' : 'primary'" @click="emit('confirm')">{{ confirmLabel }}</GnButton>
-        </div>
+  <!-- foco inicial em Cancelar: Enter nunca confirma uma ação destrutiva sem querer; Esc e clique no fundo cancelam -->
+  <GnDialog role="alertdialog" width="min(520px, 92vw)" :labelledby="titleId" initial-focus="[data-cancel]" @close="emit('cancel')">
+    <div class="dlg__body">
+      <h3 :id="titleId">{{ title }}</h3>
+      <p v-for="l in lines" :key="l">{{ l }}</p>
+      <div class="dlg__btns">
+        <GnButton data-cancel @click="emit('cancel')">{{ t('dlg.cancel') }}</GnButton>
+        <GnButton :variant="danger ? 'danger' : 'primary'" @click="emit('confirm')">{{ confirmLabel }}</GnButton>
       </div>
     </div>
-  </Teleport>
+  </GnDialog>
 </template>
 
 <style scoped lang="scss">
 .dlg {
-  position: fixed;
-  inset: 0;
-  z-index: 1100;
-  display: grid;
-  place-items: center;
-  background: rgba(0, 0, 0, 0.55);
-  &__box {
-    width: min(520px, 92vw);
+  &__body {
     padding: 18px 20px;
-    background: var(--gn-surface);
-    border: 1px solid var(--gn-border);
-    border-radius: 10px;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
     h3 { margin: 0 0 10px; font-size: 15px; }
     p { margin: 0 0 8px; color: var(--gn-muted); word-break: break-word; }
   }

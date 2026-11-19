@@ -52,7 +52,7 @@ await clearFonts();
 await reload();
 
 // 1. a engrenagem está na barra, com nome acessível e o atalho no tooltip
-const gear = await t.ev(`(() => { const g = document.querySelector('[data-testid="settings-open"]'); const c = document.querySelector('.core__cmd').getBoundingClientRect(); const r = g.getBoundingClientRect(); return { label: g.getAttribute('aria-label'), title: g.title, after: r.left >= c.right - 1, inside: r.right <= window.innerWidth, h: Math.round(r.height) === Math.round(c.height), w: Math.round(r.width), top: Math.round(r.top) === Math.round(c.top), border: getComputedStyle(g).borderTopWidth, margin: window.innerWidth - r.right }; })()`);
+const gear = await t.ev(`(() => { const g = document.querySelector('[data-testid="settings-open"]'); const c = document.querySelector('.core__cmd').getBoundingClientRect(); const r = g.getBoundingClientRect(); return { label: g.getAttribute('aria-label'), title: g.dataset.tooltip, after: r.left >= c.right - 1, inside: r.right <= window.innerWidth, h: Math.round(r.height) === Math.round(c.height), w: Math.round(r.width), top: Math.round(r.top) === Math.round(c.top), border: getComputedStyle(g).borderTopWidth, margin: window.innerWidth - r.right }; })()`);
 t.check('a engrenagem tem o nome "Configurações" e o atalho no tooltip', gear.label === 'Configurações' && /Ctrl\+,/.test(gear.title), gear);
 t.check('a engrenagem fica depois do botão Comandos e dentro da janela, com respiro até a borda', gear.after && gear.inside && gear.margin >= 8, gear);
 t.check('a engrenagem tem a mesma altura e o mesmo alinhamento do botão Comandos, com borda (não fica esmagada)', gear.h && gear.top && gear.w >= 28 && gear.border === '1px', gear);

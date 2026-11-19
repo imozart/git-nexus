@@ -137,16 +137,17 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 .enc {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--gn-z-popover);
   width: 300px;
   display: flex;
   flex-direction: column;
   background: var(--gn-surface);
   border: 1px solid var(--gn-border);
-  border-radius: var(--gn-radius);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  border-radius: var(--gn-radius-lg);
+  box-shadow: var(--gn-shadow-md);
+  animation: gn-fade-in var(--gn-enter) ease-out;
   font-size: 13px;
-  &__search { margin: 8px; padding: 5px 8px; font: inherit; color: var(--gn-text); background: var(--gn-bg); border: 1px solid var(--gn-border); border-radius: var(--gn-radius); &:focus { outline: none; border-color: var(--gn-accent); } }
+  &__search { margin: 8px; padding: 5px 8px; font: inherit; color: var(--gn-text); background: var(--gn-bg); border: 1px solid var(--gn-border); border-radius: var(--gn-radius); &:focus { outline: none; border-color: var(--gn-accent); } &:focus-visible { box-shadow: var(--gn-ring); } }
   &__list { max-height: min(55vh, 420px); overflow: auto; padding-bottom: 4px; }
   &__group { padding: 8px 12px 3px; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--gn-muted); }
   &__row { display: flex; align-items: center; gap: 8px; padding: 4px 12px; cursor: pointer; &--active { background: var(--gn-surface-2); } &--on { color: var(--gn-accent); font-weight: 600; } }

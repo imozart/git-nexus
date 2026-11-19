@@ -67,13 +67,14 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 .ctx {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--gn-z-popover);
   min-width: 240px;
   padding: 4px;
   background: var(--gn-surface-2);
   border: 1px solid var(--gn-border);
-  border-radius: 8px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  border-radius: var(--gn-radius-lg);
+  box-shadow: var(--gn-shadow-md);
+  animation: gn-fade-in var(--gn-enter) ease-out;
   &__sep { height: 1px; margin: 4px 6px; background: var(--gn-border); }
   &__item {
     display: block;

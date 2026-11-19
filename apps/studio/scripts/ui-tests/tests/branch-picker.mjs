@@ -110,9 +110,9 @@ t.check('Esc fecha só o menu da branch e mantém o painel', (await t.count('.bp
 // --- nova branch a partir da versão mais recente do remoto ------------------------------------------------------------------------
 t.check('antes: a main local do clone não conhece a novidade do remoto', git(repo, 'rev-parse', 'origin/main').trim() !== remoteMain);
 await clickText('.bp__item', 'Nova branch');
-await t.until(`document.querySelector('.bd__box')`, 5000);
-t.check('o campo "Criar a partir de" é o ComboBox do app (sem select nativo) e oferece a versão mais recente de origin/main como padrão', (await t.ev(`!!document.querySelector('.bd [data-testid="bd-base"].cbx') && !document.querySelector('.bd select')`)) === true && /Mais recente de origin\/main/.test(await t.ev(`document.querySelector('.bd [data-testid="bd-base"] .cbx__value').textContent`)));
-await t.ev(`(() => { const b = document.querySelector('.bd [data-testid="bd-base"] .cbx__btn'); b.focus(); b.click(); })()`); // com foco, como o clique de verdade
+await t.until(`document.querySelector('[role="dialog"]')`, 5000);
+t.check('o campo "Criar a partir de" é o ComboBox do app (sem select nativo) e oferece a versão mais recente de origin/main como padrão', (await t.ev(`!!document.querySelector('[role="dialog"] [data-testid="bd-base"].cbx') && !document.querySelector('.bd select')`)) === true && /Mais recente de origin\/main/.test(await t.ev(`document.querySelector('[role="dialog"] [data-testid="bd-base"] .cbx__value').textContent`)));
+await t.ev(`(() => { const b = document.querySelector('[role="dialog"] [data-testid="bd-base"] .cbx__btn'); b.focus(); b.click(); })()`); // com foco, como o clique de verdade
 await t.until(`document.querySelector('.cbx__list')`, 3000);
 // a lista, na ordem em que aparece: 'G:título+' (grupo aberto) ou 'G:título-' (recolhido), 'S' (busca) e 'O:texto' (opção)
 const listRows = () => t.ev(`[...document.querySelector('.cbx__list').children].map((li) => li.classList.contains('cbx__group') ? 'G:' + li.querySelector('.cbx__group-name').textContent.trim() + (li.getAttribute('aria-expanded') === 'true' ? '+' : '-') : li.classList.contains('cbx__search') ? 'S' : li.getAttribute('role') === 'option' ? 'O:' + li.textContent.trim() : '?')`);
@@ -152,23 +152,23 @@ const filtered = await listRows();
 t.check('digitar "local-a" filtra a lista (só o grupo Local com feat/local-a) e esconde o resto', filtered.join('|').startsWith('S|G:Local+|O:feat/local-a') && !filtered.some((x) => x.startsWith('G:Remoto')), filtered);
 await t.key('Enter');
 await sleep(300);
-t.check('Enter escolhe o primeiro resultado, fecha a lista e o campo mostra a branch', (await t.count('.cbx__list')) === 0 && (await t.ev(`document.querySelector('.bd [data-testid="bd-base"] .cbx__value').textContent.trim()`)) === 'feat/local-a');
+t.check('Enter escolhe o primeiro resultado, fecha a lista e o campo mostra a branch', (await t.count('.cbx__list')) === 0 && (await t.ev(`document.querySelector('[role="dialog"] [data-testid="bd-base"] .cbx__value').textContent.trim()`)) === 'feat/local-a');
 // volta à base padrão ("Mais recente") para os testes seguintes
-await t.ev(`document.querySelector('.bd [data-testid="bd-base"] .cbx__btn').click()`);
+await t.ev(`document.querySelector('[role="dialog"] [data-testid="bd-base"] .cbx__btn').click()`);
 await t.until(`document.querySelector('.cbx__list')`, 3000);
 await t.ev(`[...document.querySelectorAll('.cbx__list [role="option"]')].find((o) => /Mais recente/.test(o.textContent))?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))`);
 await sleep(300);
-t.check('escolher "Mais recente" no clique volta ao padrão', /Mais recente de origin\/main/.test(await t.ev(`document.querySelector('.bd [data-testid="bd-base"] .cbx__value').textContent`)));
-await t.ev(`document.querySelector('.bd [data-testid="bd-base"] .cbx__btn').click()`);
+t.check('escolher "Mais recente" no clique volta ao padrão', /Mais recente de origin\/main/.test(await t.ev(`document.querySelector('[role="dialog"] [data-testid="bd-base"] .cbx__value').textContent`)));
+await t.ev(`document.querySelector('[role="dialog"] [data-testid="bd-base"] .cbx__btn').click()`);
 await t.until(`document.querySelector('.cbx__list')`, 3000);
 await t.key('Escape');
 await sleep(200);
-t.check('Esc fecha só a lista, o diálogo continua aberto e o foco volta ao botão', (await t.count('.cbx__list')) === 0 && (await t.count('.bd__box')) === 1 && (await t.ev(`document.activeElement === document.querySelector('.bd [data-testid="bd-base"] .cbx__btn')`)) === true);
-t.check('o botão Criar só habilita com um nome', (await t.ev(`document.querySelector('.bd [type=submit]').disabled`)) === true);
+t.check('Esc fecha só a lista, o diálogo continua aberto e o foco volta ao botão', (await t.count('.cbx__list')) === 0 && (await t.count('[role="dialog"]')) === 1 && (await t.ev(`document.activeElement === document.querySelector('[role="dialog"] [data-testid="bd-base"] .cbx__btn')`)) === true);
+t.check('o botão Criar só habilita com um nome', (await t.ev(`document.querySelector('[role="dialog"] [type=submit]').disabled`)) === true);
 await set('.bd__field input', 'feat/nova-teste');
-t.check('com nome, Criar habilita', (await t.ev(`document.querySelector('.bd [type=submit]').disabled`)) === false);
+t.check('com nome, Criar habilita', (await t.ev(`document.querySelector('[role="dialog"] [type=submit]').disabled`)) === false);
 await t.shot('branch-nova');
-await t.ev(`document.querySelector('.bd [type=submit]').click()`);
+await t.ev(`document.querySelector('[role="dialog"] [type=submit]').click()`);
 await t.until(`document.querySelector('.bp__btn .bp__name')?.textContent.trim() === 'feat/nova-teste'`, 15000);
 t.check('criou e trocou para a nova branch', (await branchLabel()) === 'feat/nova-teste', await branchLabel());
 t.check('a nova branch nasceu da versão MAIS RECENTE do remoto (buscou antes)', git(repo, 'rev-parse', 'HEAD').trim() === remoteMain);
@@ -181,30 +181,30 @@ const tracksSomething = (() => {
   }
 })();
 t.check('a nova branch não acompanha a main (não dá pull da main nela)', !tracksSomething);
-t.check('o diálogo fechou', (await t.count('.bd__box')) === 0);
+t.check('o diálogo fechou', (await t.count('[role="dialog"]')) === 0);
 
 // --- nome inválido ou repetido mostra o erro no diálogo, sem fechar -------------------------------------------------------------------
 await t.ev(`document.querySelector('.bp__btn').click()`);
 await t.until(`document.querySelector('.bp__panel')`, 5000);
 await clickText('.bp__item', 'Nova branch');
-await t.until(`document.querySelector('.bd__box')`, 5000);
+await t.until(`document.querySelector('[role="dialog"]')`, 5000);
 await set('.bd__field input', 'feat/local-a');
-await t.ev(`document.querySelector('.bd [type=submit]').click()`);
+await t.ev(`document.querySelector('[role="dialog"] [type=submit]').click()`);
 await t.until(`document.querySelector('.bd__err')`, 8000);
-t.check('nome repetido: o erro aparece no diálogo e ele continua aberto', /Já existe uma branch/.test((await t.text('.bd__err')) ?? '') && (await t.count('.bd__box')) === 1, await t.text('.bd__err'));
+t.check('nome repetido: o erro aparece no diálogo e ele continua aberto', /Já existe uma branch/.test((await t.text('.bd__err')) ?? '') && (await t.count('[role="dialog"]')) === 1, await t.text('.bd__err'));
 await t.key('Escape');
 await sleep(200);
-t.check('Esc cancela o diálogo', (await t.count('.bd__box')) === 0);
+t.check('Esc cancela o diálogo', (await t.count('[role="dialog"]')) === 0);
 
 // --- "Ir para tag ou commit": o campo também é o ComboBox (modo busca), não o datalist nativo ---------------------------------------
 await t.ev(`document.querySelector('.bp__btn').click()`);
 await t.until(`document.querySelector('.bp__panel')`, 5000);
 await clickText('.bp__item', 'Ir para tag ou commit');
-await t.until(`document.querySelector('.bd__box')`, 5000);
-t.check('o campo de tag ou commit é o ComboBox em modo busca (sem datalist nativo) e recebe o foco', (await t.ev(`!!document.querySelector('.bd [data-testid="bd-rev"] input.cbx__input') && !document.querySelector('.bd datalist') && document.activeElement === document.querySelector('.bd [data-testid="bd-rev"] input.cbx__input')`)) === true);
+await t.until(`document.querySelector('[role="dialog"]')`, 5000);
+t.check('o campo de tag ou commit é o ComboBox em modo busca (sem datalist nativo) e recebe o foco', (await t.ev(`!!document.querySelector('[role="dialog"] [data-testid="bd-rev"] input.cbx__input') && !document.querySelector('.bd datalist') && document.activeElement === document.querySelector('[role="dialog"] [data-testid="bd-rev"] input.cbx__input')`)) === true);
 await t.key('Escape');
 await sleep(200);
-t.check('Esc cancela também esse diálogo', (await t.count('.bd__box')) === 0);
+t.check('Esc cancela também esse diálogo', (await t.count('[role="dialog"]')) === 0);
 
 // o harness e o navegador geram ruído de rede ao encerrar (favicon, polling do log); só conta erro da própria interface
 const appErrors = t.errors().filter((e) => !/favicon|Failed to fetch|ERR_CONNECTION|Failed to load resource|chrome-extension|Could not establish connection/.test(String(e))); // extensões do navegador de teste não são erro do app

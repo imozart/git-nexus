@@ -123,7 +123,8 @@ describe('GnDialog.vue (regras que o compilador não vê)', () => {
   });
 
   it('com uma lista aberta dentro da caixa (aria-expanded), o Esc fecha a lista e não o diálogo', () => {
-    expect(script).toContain("getAttribute('aria-expanded') === 'true'");
+    // procura o controle na caixa (a lista do ComboBox vai para o <body> e o foco pode estar no campo de busca dela, fora da caixa)
+    expect(script).toContain(`box.value?.querySelector('[aria-expanded="true"]')`);
   });
 
   it('Esc na captura, foco devolvido e fundo inerte', () => {
