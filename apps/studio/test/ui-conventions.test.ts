@@ -210,3 +210,26 @@ describe('movimento', () => {
     expect(FIXED.test('opacity 120ms')).toBe(true);
   });
 });
+
+// ---------- testes de interface: valores no código da página (docs/DESENVOLVIMENTO.md) ----------
+// Os scripts de apps/studio/scripts/ui-tests montam código JavaScript como texto para a página. Valor embutido com JSON.stringify é o padrão que o CodeQL
+// reprova (js/bad-code-sanitization: U+2028/U+2029 e afins não são escapados); o helper lit() (lib.mjs) leva o valor em base64 e nunca vira código.
+describe('testes de interface: valores entram na página por lit()', () => {
+  const dir = join(__dirname, '..', 'scripts', 'ui-tests', 'tests');
+  const files = readdirSync(dir).filter((n) => n.endsWith('.mjs'));
+  const EMBED = /\$\{\s*JSON\.stringify\(/;
+
+  it('nenhum teste embute ${JSON.stringify(...)} em código montado como texto', () => {
+    expect(files.length).toBeGreaterThan(10);
+    for (const n of files) {
+      const text = readFileSync(join(dir, n), 'utf8');
+      expect(EMBED.test(text), `${n}: use ${'$'}{lit(valor)} (de ../lib.mjs) no lugar de ${'$'}{JSON.stringify(valor)}`).toBe(false);
+    }
+  });
+
+  it('a regra funciona: o padrão antigo seria pego e o novo não', () => {
+    expect(EMBED.test('t.ev(`x.value = ${JSON.stringify(v)}`)')).toBe(true);
+    expect(EMBED.test('t.ev(`x.value = ${lit(v)}`)')).toBe(false);
+    expect(EMBED.test('console.log(JSON.stringify(report, null, 2))')).toBe(false); // fora de template: é só saída
+  });
+});

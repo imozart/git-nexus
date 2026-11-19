@@ -2,7 +2,7 @@
 // sem criar outro commit, devolve o rascunho ao desligar e, se o commit já foi enviado, exige a confirmação de que o histórico será reescrito.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { connect, git, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, git, mkRepo, sleep, tmpRoot, lit } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -16,7 +16,7 @@ const repo = mkRepo(root, 'amendrepo', { files: { 'a.txt': 'a\n' } });
 // o formulário exige ticket por padrão: o commit original já traz o dele ("Refs:"), que a caixa carrega junto
 git(repo, 'commit', '--amend', '-qm', 'feat(api): primeiro commit', '-m', 'Refs: ABC-1');
 
-await t.ev(`window.gitNexus.addRepositoryPath(${JSON.stringify(repo)})`);
+await t.ev(`window.gitNexus.addRepositoryPath(${lit(repo)})`);
 await t.ev('location.reload()');
 await t.until(`document.querySelectorAll('li.repo').length >= 1`, 20000);
 await t.until(`[...document.querySelectorAll('li.repo')].every((r) => !/carregando/i.test(r.textContent))`, 30000);
@@ -30,7 +30,7 @@ await t.until(`document.querySelector('[data-focus="commit-subject"]')`, 15000);
 await sleep(800);
 
 const subject = () => t.ev(`document.querySelector('[data-focus="commit-subject"]').value`);
-const setSubject = (v) => t.ev(`(() => { const i = document.querySelector('[data-focus="commit-subject"]'); i.value = ${JSON.stringify(v)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+const setSubject = (v) => t.ev(`(() => { const i = document.querySelector('[data-focus="commit-subject"]'); i.value = ${lit(v)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
 const submit = () => t.ev(`document.querySelector('[data-testid="commit-submit"]')`).then(() => t.ev(`(() => { const b = document.querySelector('[data-testid="commit-submit"]'); return { text: b.textContent.trim(), disabled: b.disabled }; })()`));
 const toggle = async () => {
   await t.ev(`document.querySelector('[data-testid="amend-toggle"]').click()`);

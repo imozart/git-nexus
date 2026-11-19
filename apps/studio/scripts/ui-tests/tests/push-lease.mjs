@@ -2,7 +2,7 @@
 // com confirmação que explica o que será substituído; o envio normal continua recusando; na branch principal a opção nem aparece. Git de verdade.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { connect, git, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, git, mkRepo, sleep, tmpRoot, lit } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -35,7 +35,7 @@ git(prin, 'remote', 'add', 'origin', remote2);
 git(prin, 'push', '-q', '-u', 'origin', 'main');
 git(prin, 'commit', '--amend', '-qm', 'init reescrito');
 
-for (const r of [feat, prin]) await t.ev(`window.gitNexus.addRepositoryPath(${JSON.stringify(r)})`);
+for (const r of [feat, prin]) await t.ev(`window.gitNexus.addRepositoryPath(${lit(r)})`);
 await t.ev('location.reload()');
 await t.until(`document.querySelectorAll('li.repo').length >= 2`, 20000);
 await t.until(`[...document.querySelectorAll('li.repo')].every((r) => !/carregando/i.test(r.textContent))`, 30000);

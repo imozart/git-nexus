@@ -3,7 +3,7 @@
 // devolve alterações locais e, enquanto a operação roda, o botão fica ocupado com uma barra de andamento. Git de verdade, com remoto local.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { connect, git, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, git, mkRepo, sleep, tmpRoot, lit } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -50,7 +50,7 @@ const reload = async () => {
   await t.ev(`document.querySelector('.rv__btns button').click()`);
   await sleep(600);
 };
-const waitLabel = (label, ms = 10000) => t.until(`document.querySelector('[data-testid="sync-main"]')?.textContent.trim() === ${JSON.stringify(label)}`, ms);
+const waitLabel = (label, ms = 10000) => t.until(`document.querySelector('[data-testid="sync-main"]')?.textContent.trim() === ${lit(label)}`, ms);
 const click = (id) => t.ev(`document.querySelector('[data-testid="${id}"]').click()`);
 /** O app relê o repositório (status, resumo) depois de cada operação; mexer no repositório por fora nesse meio tempo esbarra no `index.lock`. */
 const settled = async () => {
@@ -102,7 +102,7 @@ await t.until(`document.querySelector('[data-testid="sync-main"]').disabled`, 50
 t.check('durante a atualização o botão fica ocupado: desabilitado e "Atualizando…"', (await main()) === 'Atualizando…' && (await disabled()) === true, await main());
 t.check('há uma barra de andamento (indeterminada enquanto o git não informa número)', (await t.count('[data-testid="sync-progress"].ss__bar--indeterminate')) === 1);
 t.check('a barra é um progressbar acessível', (await t.ev(`document.querySelector('[data-testid="sync-progress"]').getAttribute('role')`)) === 'progressbar');
-await t.ev(`window.__progressCb({ repoPath: ${JSON.stringify(repoPath)}, op: 'pull', phase: 'Receiving objects', percent: 45 })`);
+await t.ev(`window.__progressCb({ repoPath: ${lit(repoPath)}, op: 'pull', phase: 'Receiving objects', percent: 45 })`);
 await t.until(`document.querySelector('[data-testid="sync-main"]').textContent.includes('45%')`, 5000);
 t.check('com a porcentagem: "Atualizando… 45%"', (await main()) === 'Atualizando… 45%', await main());
 t.check('a barra passa a mostrar 45%', (await t.ev(`document.querySelector('[data-testid="sync-progress"]').getAttribute('aria-valuenow')`)) === '45' && (await t.count('[data-testid="sync-progress"].ss__bar--indeterminate')) === 0);

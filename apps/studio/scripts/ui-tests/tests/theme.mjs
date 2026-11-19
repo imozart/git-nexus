@@ -2,7 +2,7 @@
 // paleta e a escolha lembrada entre as aberturas. Confere as cores de verdade (estilo calculado) e tira capturas do tema claro.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { connect, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, mkRepo, sleep, tmpRoot, lit } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -78,7 +78,7 @@ const repo = mkRepo(root, 'themerepo', { files: { 'a.txt': 'um\ndois\ntres\n' } 
 writeFileSync(join(repo, 'a.txt'), 'um\nDOIS\ntres\nquatro\n');
 writeFileSync(join(repo, 'novo.txt'), 'arquivo novo\n');
 await t.ev(`localStorage.setItem('gitnexus.theme', 'light')`);
-await t.ev(`window.gitNexus.addRepositoryPath(${JSON.stringify(repo)})`);
+await t.ev(`window.gitNexus.addRepositoryPath(${lit(repo)})`);
 await reload();
 await t.until(`document.querySelectorAll('li.repo').length >= 1`, 20000);
 await t.until(`[...document.querySelectorAll('li.repo')].every((r) => !/carregando/i.test(r.textContent))`, 30000);

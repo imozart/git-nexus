@@ -2,7 +2,7 @@
 // e Abortar volta ao estado de antes. Git de verdade.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { connect, git, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, git, mkRepo, sleep, tmpRoot, lit } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -32,7 +32,7 @@ const startMerge = () => {
 };
 startMerge();
 
-await t.ev(`window.gitNexus.addRepositoryPath(${JSON.stringify(repo)})`);
+await t.ev(`window.gitNexus.addRepositoryPath(${lit(repo)})`);
 await t.ev('location.reload()');
 await t.until(`document.querySelectorAll('li.repo').length >= 1`, 20000);
 await t.until(`[...document.querySelectorAll('li.repo')].every((r) => !/carregando/i.test(r.textContent))`, 30000);

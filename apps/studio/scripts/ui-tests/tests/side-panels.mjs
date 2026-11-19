@@ -1,7 +1,7 @@
 // Faixas laterais com nome: recolher/abrir a lista de arquivos e o painel de commit.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { connect, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, mkRepo, sleep, tmpRoot, lit } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -14,7 +14,7 @@ writeFileSync(join(repo, 'a.txt'), 'um\ndois\n');
 writeFileSync(join(repo, 'b.txt'), 'novo\n');
 await t.openRepo(repo, 'striprepo');
 await t.until(`document.querySelector('.stripe')`, 15000);
-const width = (sel) => t.ev(`Math.round(document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect().width)`);
+const width = (sel) => t.ev(`Math.round(document.querySelector(${lit(sel)}).getBoundingClientRect().width)`);
 
 t.check('duas faixas (esquerda e direita)', (await t.count('.rv__main .stripe')) === 2);
 t.check('faixa esquerda chama Alterações', (await t.text('.stripe--left .stripe__label')) === 'Alterações');

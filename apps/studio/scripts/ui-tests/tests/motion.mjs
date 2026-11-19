@@ -1,6 +1,6 @@
 // Movimento reduzido: o atributo data-reduced-motion do <html> (opção do app) e o prefers-reduced-motion do sistema mexem nos tokens de duração
 // (--gn-motion-*), que os componentes usam; "Normal" vale mesmo com o sistema pedindo menos; a opção está nas Configurações, vale na hora e fica guardada.
-import { connect, sleep } from '../lib.mjs';
+import { connect, sleep, lit } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -59,7 +59,7 @@ await t.until(`document.querySelector('[role="dialog"][aria-modal="true"]')`, 50
 await sleep(300);
 await t.ev(`[...document.querySelectorAll('.sd [role="tab"]')].find((x) => x.textContent.trim() === 'Aparência').click()`);
 await sleep(300);
-const seg = (opt) => t.ev(`(() => { const f = [...document.querySelectorAll('.sd__field')].find((x) => x.querySelector(':scope > span')?.textContent.trim() === 'Movimento'); const b = [...f.querySelectorAll('.gn-seg__opt')].find((o) => o.textContent.trim() === ${JSON.stringify(opt)}); b?.click(); })()`).then(async () => { await sleep(250); return t.ev(`(() => { const f = [...document.querySelectorAll('.sd__field')].find((x) => x.querySelector(':scope > span')?.textContent.trim() === 'Movimento'); return [...f.querySelectorAll('.gn-seg__opt')].find((o) => o.getAttribute('aria-checked') === 'true')?.textContent.trim(); })()`); });
+const seg = (opt) => t.ev(`(() => { const f = [...document.querySelectorAll('.sd__field')].find((x) => x.querySelector(':scope > span')?.textContent.trim() === 'Movimento'); const b = [...f.querySelectorAll('.gn-seg__opt')].find((o) => o.textContent.trim() === ${lit(opt)}); b?.click(); })()`).then(async () => { await sleep(250); return t.ev(`(() => { const f = [...document.querySelectorAll('.sd__field')].find((x) => x.querySelector(':scope > span')?.textContent.trim() === 'Movimento'); return [...f.querySelectorAll('.gn-seg__opt')].find((o) => o.getAttribute('aria-checked') === 'true')?.textContent.trim(); })()`); });
 t.check('o campo Movimento existe nas Configurações, em Sistema por padrão', (await seg('Sistema')) === 'Sistema');
 t.check('Reduzido: o atributo muda na hora, as durações zeram e a escolha fica guardada', (await seg('Reduzido')) === 'Reduzido' && (await attr()) === 'true' && (await ms('--gn-motion-base')) === 0.01 && (await stored()) === 'reduced');
 t.check('Normal: atributo "false", durações normais e guardado', (await seg('Normal')) === 'Normal' && (await attr()) === 'false' && (await ms('--gn-motion-base')) === 140 && (await stored()) === 'normal');

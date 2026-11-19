@@ -2,7 +2,7 @@
 // (Continuar fica desligado até resolver; Abortar volta ao estado de antes). Git de verdade.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { connect, git, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, git, mkRepo, sleep, tmpRoot, lit } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -24,7 +24,7 @@ commit('a.txt', 'da feature\n', 'feat: muda o a na feature');
 git(repo, 'checkout', '-q', 'main');
 commit('a.txt', 'da main\n', 'feat: muda o a na main');
 
-await t.ev(`window.gitNexus.addRepositoryPath(${JSON.stringify(repo)})`);
+await t.ev(`window.gitNexus.addRepositoryPath(${lit(repo)})`);
 await t.ev('location.reload()');
 await t.until(`document.querySelectorAll('li.repo').length >= 1`, 20000);
 await t.until(`[...document.querySelectorAll('li.repo')].every((r) => !/carregando/i.test(r.textContent))`, 30000);
@@ -37,8 +37,8 @@ const openGraph = async () => {
   await sleep(500);
 };
 const selectCommit = async (subject) => {
-  await t.until(`[...document.querySelectorAll('.row')].some((r) => r.textContent.includes(${JSON.stringify(subject)}))`, 15000);
-  await t.ev(`[...document.querySelectorAll('.row')].find((r) => r.textContent.includes(${JSON.stringify(subject)})).click()`);
+  await t.until(`[...document.querySelectorAll('.row')].some((r) => r.textContent.includes(${lit(subject)}))`, 15000);
+  await t.ev(`[...document.querySelectorAll('.row')].find((r) => r.textContent.includes(${lit(subject)})).click()`);
   await t.until(`document.querySelector('[data-testid="cherry-pick"]')`, 8000);
 };
 const confirmDialog = async () => {

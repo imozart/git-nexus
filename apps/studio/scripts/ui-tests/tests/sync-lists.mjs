@@ -2,7 +2,7 @@
 // branch, mais o filtro "Só desatualizadas". Git de verdade, com remotos locais.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { connect, git, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, git, mkRepo, sleep, tmpRoot, lit } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -59,12 +59,12 @@ git(gone.other, 'push', '-q', 'origin', '--delete', 'feat/gone');
 pushOther(gone, 'o.txt', 'remoto na main', 'main');
 git(gone.repo, 'fetch', '-q', '--prune', 'origin');
 
-for (const s of [behind, diverged, ok, gone]) await t.ev(`window.gitNexus.addRepositoryPath(${JSON.stringify(s.repo)})`);
+for (const s of [behind, diverged, ok, gone]) await t.ev(`window.gitNexus.addRepositoryPath(${lit(s.repo)})`);
 await t.ev('location.reload()');
 await t.until(`document.querySelectorAll('li.repo').length >= 4`, 20000);
 await t.until(`[...document.querySelectorAll('li.repo')].every((r) => !/carregando/i.test(r.textContent))`, 30000);
 
-const row = (name) => `[...document.querySelectorAll('li.repo')].find((r) => r.querySelector('strong')?.textContent.trim() === ${JSON.stringify(name)})`;
+const row = (name) => `[...document.querySelectorAll('li.repo')].find((r) => r.querySelector('strong')?.textContent.trim() === ${lit(name)})`;
 const rowChips = (name) => t.ev(`[...${row(name)}.querySelectorAll('.sync .gn-badge')].map((b) => b.textContent.trim()).join(' ')`);
 const rowState = (name) => t.ev(`${row(name)}.querySelector('.sync')?.dataset.sync ?? ''`);
 const rowHasOk = (name) => t.ev(`/em dia/.test(${row(name)}.querySelector('.repo__state').textContent)`);

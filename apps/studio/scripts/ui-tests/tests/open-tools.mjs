@@ -1,6 +1,6 @@
 // Abrir o repositório no terminal e no editor: botões no cabeçalho e comandos na paleta. No navegador o processo principal é simulado (o harness
 // só responde qual programa abriria), então aqui se confere a interface; o lançamento de verdade tem testes unitários em external-tools.test.ts.
-import { connect, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, mkRepo, sleep, tmpRoot, lit } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -11,7 +11,7 @@ await t.ev(`localStorage.setItem('gitnexus.autoFetch', '0')`);
 
 const root = tmpRoot('gn-ot-');
 const repo = mkRepo(root, 'otrepo');
-await t.ev(`window.gitNexus.addRepositoryPath(${JSON.stringify(repo)})`);
+await t.ev(`window.gitNexus.addRepositoryPath(${lit(repo)})`);
 await t.ev('location.reload()');
 await t.until(`document.querySelectorAll('li.repo').length >= 1`, 20000);
 await t.until(`[...document.querySelectorAll('li.repo')].every((r) => !/carregando/i.test(r.textContent))`, 30000);

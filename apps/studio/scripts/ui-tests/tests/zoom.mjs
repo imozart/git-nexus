@@ -1,6 +1,6 @@
 // Zoom da interface pela paleta de comandos: os três comandos existem (em português e com a dica do atalho) e cada um pede a ação certa ao
 // processo principal (que guarda o fator). O teclado (Ctrl+=) é tratado no processo principal do Electron e não roda neste navegador.
-import { connect, sleep } from '../lib.mjs';
+import { connect, sleep, lit } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -17,12 +17,12 @@ await t.ev(`(() => { window.__zoom = []; const o = window.gitNexus.setZoom; wind
 const runCommand = async (query, titlePart) => {
   await t.key('k', 2);
   await t.until(`document.querySelector('.cp__input')`, 5000);
-  await t.ev(`(() => { const i = document.querySelector('.cp__input'); i.value = ${JSON.stringify(query)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+  await t.ev(`(() => { const i = document.querySelector('.cp__input'); i.value = ${lit(query)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
   await sleep(300);
   const titles = await t.ev(`[...document.querySelectorAll('.cp__list [role="option"], .cp__list .cp__item')].map((e) => e.textContent.trim())`);
   const found = titles.some((x) => x.includes(titlePart));
   // clica no comando certo (a busca por "zoom" põe os três juntos e o primeiro nem sempre é o que se quer)
-  await t.ev(`[...document.querySelectorAll('.cp__list [role="option"], .cp__list .cp__item')].find((e) => e.textContent.includes(${JSON.stringify(titlePart)}))?.click()`);
+  await t.ev(`[...document.querySelectorAll('.cp__list [role="option"], .cp__list .cp__item')].find((e) => e.textContent.includes(${lit(titlePart)}))?.click()`);
   await sleep(400);
   return { found, titles };
 };
