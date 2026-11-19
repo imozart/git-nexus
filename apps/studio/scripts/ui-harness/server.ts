@@ -10,6 +10,7 @@ import { validateCommitMessage } from '@git-nexus/governance-policy';
 import { createHandlers } from '../../src/worker/handlers';
 import { checkForUpdate } from '../../src/entrypoints/update';
 import { isAllowedUpdateUrl } from '../../src/shared/update';
+import { GIT_FREE_WORKER_METHODS } from '../../src/shared/git-install';
 import { HostingService, type TokenStore } from '../../src/worker/hosting-service';
 
 const [, , root = 'dist/renderer', dataDir = '.harness-data', portArg = '5199'] = process.argv;
@@ -38,7 +39,41 @@ class PlainTokenStore implements TokenStore {
 }
 const hosting = new HostingService(new PlainTokenStore());
 
+// Git simulado: o teste liga o estado pela página (`fetch('/fakegit?mode=missing')`). Sem isso o harness diz que o Git está ok (o git real da máquina é o dos handlers).
+// Com `missing`, as chamadas que dependem do Git são recusadas como no app (GIT_UNAVAILABLE); `install` percorre as etapas e vira `ok`; `fail=1` faz a instalação falhar.
+const fakeGit = { missing: false, fail: false, cancel: false, installs: 0, manual: 0, delay: 120 };
+const gitInstallEvents: unknown[] = [];
+const fakeAvail = () => ({ status: fakeGit.missing ? 'missing' : 'ok', ...(fakeGit.missing ? {} : { path: 'git', version: '2.56.1' }), method: 'windows-installer', canInstall: true });
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 const MAIN_STUBS: Record<string, (...a: any[]) => unknown> = {
+  getGitAvailability: () => fakeAvail(),
+  recheckGit: () => fakeAvail(),
+  cancelGitInstall: () => void (fakeGit.cancel = true),
+  openGitDownloadPage: () => void fakeGit.manual++,
+  installGit: async () => {
+    fakeGit.installs++;
+    fakeGit.cancel = false;
+    const push = (e: Record<string, unknown>) => gitInstallEvents.push({ method: 'windows-installer', ...e });
+    push({ step: 'finding' });
+    await wait(fakeGit.delay);
+    for (let done = 0; done <= 70; done += 10) {
+      if (fakeGit.cancel) throw new Error('Instalação cancelada.');
+      push({ step: 'downloading', version: '2.56.1', done: done * 1048576, total: 70 * 1048576 });
+      await wait(fakeGit.delay / 2);
+    }
+    push({ step: 'verifying', version: '2.56.1' });
+    await wait(fakeGit.delay);
+    push({ step: 'installing', version: '2.56.1' });
+    await wait(fakeGit.delay * 2);
+    if (fakeGit.fail) throw new Error('Falha simulada da instalação.');
+    push({ step: 'validating' });
+    await wait(fakeGit.delay);
+    fakeGit.missing = false;
+    push({ step: 'done', version: '2.56.1' });
+    return fakeAvail();
+  },
+
   hostingInfo: (p: string) => hosting.hostingInfo(p),
   hostingSaveToken: (p: string, t: string, k?: 'github' | 'gitlab') => hosting.saveToken(p, t, k),
   hostingRemoveToken: (p: string) => hosting.removeToken(p),
@@ -138,6 +173,20 @@ const call = (m, args) => fetch('/rpc', { method: 'POST', body: JSON.stringify({
 const api = {};
 for (const m of ${JSON.stringify(METHODS)}) api[m] = (...args) => call(m, JSON.parse(JSON.stringify(args)));
 api.onUpdateProgress = () => () => {};
+// -1: a primeira sondagem só marca o ponto de partida (uma página recarregada não repete etapas antigas)
+let gitInstallSeen = -1;
+api.onGitInstallProgress = (cb) => {
+  const iv = setInterval(async () => {
+    try {
+      const r = await (await fetch('/gitinstall?since=' + gitInstallSeen)).json();
+      gitInstallSeen = r.next;
+      for (const e of r.events) cb(e);
+    } catch {
+      /* a página está recarregando */
+    }
+  }, 50);
+  return () => clearInterval(iv);
+};
 let gitSeen = 0;
 api.onGitCommand = (cb) => {
   const iv = setInterval(async () => {
@@ -192,6 +241,7 @@ createServer(async (req, res) => {
     if (url.pathname === '/rpc') {
       const { m, args } = JSON.parse(await body());
       try {
+        if (fakeGit.missing && m in handlers && !GIT_FREE_WORKER_METHODS.has(m)) throw new Error('GIT_UNAVAILABLE: O Git não está instalado neste computador.');
         const fn = handlers[m as keyof typeof handlers] ?? MAIN_STUBS[m];
         res.end(JSON.stringify({ ok: true, result: (await fn!(...args)) ?? null }));
       } catch (e) {
@@ -215,6 +265,17 @@ createServer(async (req, res) => {
     if (url.pathname === '/askpass') {
       const since = Number(url.searchParams.get('since') ?? 0);
       return void res.end(JSON.stringify({ next: askpassEvents.length, events: since < 0 ? [] : askpassEvents.slice(since) }));
+    }
+    if (url.pathname === '/fakegit') {
+      const q = url.searchParams;
+      if (q.has('mode')) fakeGit.missing = q.get('mode') === 'missing';
+      if (q.has('fail')) fakeGit.fail = q.get('fail') === '1';
+      if (q.has('delay')) fakeGit.delay = Number(q.get('delay'));
+      return void res.end(JSON.stringify({ ...fakeGit, events: gitInstallEvents.length }));
+    }
+    if (url.pathname === '/gitinstall') {
+      const since = Number(url.searchParams.get('since') ?? 0);
+      return void res.end(JSON.stringify({ next: gitInstallEvents.length, events: since < 0 ? [] : gitInstallEvents.slice(since) }));
     }
     if (url.pathname === '/clipboard') return void res.end(clipboard);
     if (url.pathname === '/stub.js') {

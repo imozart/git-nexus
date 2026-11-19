@@ -35,6 +35,10 @@ Os dados (lista de repositórios, preferências) ficam em `GitNexusData/` ao lad
 
 **Testes de interface automatizados** (`apps/studio/scripts/ui-tests`): `pnpm --filter @git-nexus/studio build` e depois `pnpm test:ui` (ou `pnpm test:ui git-log` para um só). O runner sobe o harness e um Chrome/Edge headless (`CHROME_PATH` aponta outro navegador), roda cada `tests/*.mjs` com estado limpo, dirige a tela por CDP e guarda capturas em `GN_UI_OUT`. No CI é o `ui-tests.yml`. Para escrever um teste, copie um de `tests/` (use `mkRepo`, `openRepo`, `t.until`, `t.check`).
 
+## Git ausente (aviso, bloqueio e instalação)
+
+O harness de interface simula o Git pela própria página: `fetch('/fakegit?mode=missing')` faz o app agir como num computador sem Git (as chamadas que dependem dele recusam com `GIT_UNAVAILABLE`), `fail=1` faz a instalação falhar e `delay=<ms>` ajusta o ritmo das etapas; o teste é `scripts/ui-tests/tests/git-missing.mjs`. No app real, `GITNEXUS_FORCE_GIT_MISSING=1` força o estado "sem Git". A lógica (versões, escolha do arquivo e dos argumentos por sistema) é pura em `src/shared/git-install.ts`; detecção, instalação e estado ficam em `src/entrypoints/git-detect.ts`, `git-install.ts` e `git-manager.ts`, com testes em `test/git-install.test.ts`. A versão mínima é `MIN_GIT_VERSION` (um lugar só).
+
 ## Ciclo de atualização do ZIP portátil (Windows)
 
 A atualização do portátil só se comporta como em produção com o **app empacotado**: no processo principal do Electron o `fs` trata `app.asar` como pasta, e o antivírus costuma segurar o executável recém-colocado (`spawn EPERM`). O teste `apps/studio/scripts/update-cycle/run.mjs` faz o ciclo inteiro com o pacote de verdade: monta um ZIP de uma "versão nova", deixa `.gnupdate-stage` e `.gnupdate-old` antigos (cada um com um `resourcesapp.asar`), roda o preparo e o script de troca e confere troca concluída, restos apagados na abertura seguinte, arquivos novos no lugar, dados do usuário intactos e, no fim, o app trocado abrindo (`GITNEXUS_SMOKE`).
