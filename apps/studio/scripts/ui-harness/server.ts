@@ -44,7 +44,11 @@ const hosting = new HostingService(new PlainTokenStore());
 const fakeGit = { missing: false, fail: false, cancel: false, installs: 0, manual: 0, delay: 120 };
 const gitInstallEvents: unknown[] = [];
 const fakeAvail = () => ({ status: fakeGit.missing ? 'missing' : 'ok', ...(fakeGit.missing ? {} : { path: 'git', version: '2.56.1' }), method: 'windows-installer', canInstall: true });
-const wait = (ms: number) => new Promise((r) => setTimeout(r, Math.min(Math.max(Number.isFinite(ms) ? ms : 0, 0), 5000))); // limitado: o valor vem da URL
+// O atraso vem da URL do teste: só vale dentro de 0–5000 ms; fora disso, 0.
+const wait = (ms: number) => {
+  const safe = ms >= 0 && ms <= 5000 ? ms : 0;
+  return new Promise((r) => setTimeout(r, safe));
+};
 
 const MAIN_STUBS: Record<string, (...a: any[]) => unknown> = {
   getGitAvailability: () => fakeAvail(),
