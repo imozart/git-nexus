@@ -4,7 +4,7 @@
 //
 // Decisão: é um <div role="dialog"> projetado no <body>, NÃO o <dialog> nativo com showModal(). O modal nativo entra na top layer e fica acima de
 // qualquer z-index, escondendo os menus do app (ComboBox, ContextMenu) que também vivem no <body>. Regra de camadas: um menu aberto de dentro de
-// um diálogo precisa de z-index >= var(--gn-z-dialog). Hoje nenhum abre (o ComboBox usa 80 e fica como está).
+// um diálogo precisa de z-index >= var(--gn-z-dialog). O ComboBox já faz isso (calc(var(--gn-z-dialog) + 1)).
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { FOCUSABLE, dialogStack, newDialogId, nextFocusIndex } from '../dialog-core';
 

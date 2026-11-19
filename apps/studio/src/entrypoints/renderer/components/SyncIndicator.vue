@@ -3,7 +3,7 @@
 // não enviados, verde). Em dia não mostra nada. Divergida mostra os dois e um `!`; sem upstream, um ∅ neutro; remota apagada, um `!` vermelho.
 // Só texto (nada de ícone SVG) e sempre com o significado no tooltip e no nome acessível (role=img): a informação não depende só da cor.
 import { computed } from 'vue';
-import { GnBadge } from '@git-nexus/ui-kit';
+import { GnBadge, GnTooltip } from '@git-nexus/ui-kit';
 import { syncState, type SyncInfo } from '@git-nexus/git-core/pure';
 import { syncText } from '../sync';
 
@@ -14,12 +14,13 @@ const title = computed(() => syncText(props.sync));
 </script>
 
 <template>
-  <span v-if="sync && state && state !== 'in-sync' && state !== 'detached' && !(hideNoUpstream && state === 'no-upstream')" class="sync" :data-sync="state" :title="title" role="img" :aria-label="title">
+  <span v-if="sync && state && state !== 'in-sync' && state !== 'detached' && !(hideNoUpstream && state === 'no-upstream')" class="sync" :data-sync="state" role="img" :aria-label="title">
     <GnBadge v-if="sync.behind > 0" tone="warn" class="sync__behind">↓{{ sync.behind }}</GnBadge>
     <GnBadge v-if="sync.ahead > 0" tone="success" class="sync__ahead">↑{{ sync.ahead }}</GnBadge>
     <GnBadge v-if="state === 'diverged'" tone="warn" class="sync__alert">!</GnBadge>
     <GnBadge v-else-if="state === 'gone'" tone="danger" class="sync__alert">!</GnBadge>
     <GnBadge v-else-if="state === 'no-upstream'" class="sync__none">∅</GnBadge>
+    <GnTooltip :text="title" />
   </span>
 </template>
 

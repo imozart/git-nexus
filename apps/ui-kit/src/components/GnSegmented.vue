@@ -10,6 +10,8 @@ export interface GnSegment<V = string | number> {
   disabled?: boolean;
 }
 
+import GnTooltip from './GnTooltip.vue';
+
 const props = defineProps<{ modelValue: T; options: GnSegment<T>[]; ariaLabel?: string; title?: string }>();
 const emit = defineEmits<{ (e: 'update:modelValue', value: T): void }>();
 
@@ -30,7 +32,7 @@ function onKey(e: KeyboardEvent, i: number) {
 </script>
 
 <template>
-  <span class="gn-seg" role="radiogroup" :aria-label="ariaLabel" :title="title">
+  <span class="gn-seg" role="radiogroup" :aria-label="ariaLabel">
     <button
       v-for="(o, i) in options"
       :key="String(o.value)"
@@ -41,11 +43,11 @@ function onKey(e: KeyboardEvent, i: number) {
       :aria-checked="o.value === modelValue"
       :tabindex="o.value === modelValue ? 0 : -1"
       :disabled="o.disabled"
-      :title="o.title"
       @click="emit('update:modelValue', o.value)"
       @keydown="onKey($event, i)"
     >
       {{ o.label }}
+      <GnTooltip :text="o.title ?? title ?? ''" />
     </button>
   </span>
 </template>

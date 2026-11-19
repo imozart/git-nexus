@@ -13,7 +13,7 @@
 //
 // A lista vai para o <body> (Teleport) com posição fixa: não é cortada por painéis com rolagem e abre para cima se faltar espaço.
 import { computed, nextTick, onBeforeUnmount, ref, watch, type CSSProperties } from 'vue';
-import { GnIcon } from '@git-nexus/ui-kit';
+import { GnIcon, GnTooltip } from '@git-nexus/ui-kit';
 import { DEFAULT_MAX, filterOptions, labelOf, optionOf, sortByGroup, type ComboInput, type ComboOption } from '../combo-core';
 import { t } from '../i18n';
 
@@ -309,13 +309,13 @@ function toggle(): void {
       :aria-expanded="open"
       :aria-controls="listId"
       :aria-label="ariaLabel ?? title"
-      :title="title"
       :disabled="disabled"
       @click="toggle"
       @keydown="onKey"
     >
       <span class="cbx__value"><slot name="value" :option="current">{{ current ? labelOf(current) : (placeholder ?? model) }}</slot></span>
       <svg class="cbx__caret" viewBox="0 0 10 6" width="9" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      <GnTooltip :text="title ?? ''" />
     </button>
 
     <Teleport to="body">

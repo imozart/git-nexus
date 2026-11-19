@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { GnBadge, GnButton } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnTooltip } from '@git-nexus/ui-kit';
 import type { FileEntry, RepositoryMeta, StashEntry, StashFile } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -211,7 +211,7 @@ watch(() => ws.versions[props.repo.id], load);
       <ul class="list">
         <li v-for="s in stashes" :key="s.hash" class="item" :class="{ 'item--on': selected?.hash === s.hash }" @click="select(s)">
           <div class="item__top">
-            <strong class="item__name" :title="s.message">{{ s.message }}</strong>
+            <strong class="item__name">{{ s.message }}<GnTooltip :text="s.message" /></strong>
             <GnBadge v-if="!s.named" tone="neutral">WIP</GnBadge>
           </div>
           <div class="muted item__meta">{{ s.ref }} · ⎇ {{ s.branch }} · {{ when(s.date) }}</div>
@@ -232,13 +232,13 @@ watch(() => ws.versions[props.repo.id], load);
             <GnButton size="sm" @click="renaming = ''">{{ t('dlg.cancel') }}</GnButton>
           </template>
           <template v-else>
-            <h2 :title="selected.message">{{ selected.message }}</h2>
+            <h2>{{ selected.message }}<GnTooltip :text="selected.message" /></h2>
             <GnButton size="sm" @click="startRename">{{ t('stash.rename') }}</GnButton>
           </template>
         </header>
         <div class="st__actions">
-          <GnButton size="sm" tone="accent" @click="apply(true)" :title="t('stash.applyDropTip')">{{ t('stash.applyDrop') }}</GnButton>
-          <GnButton size="sm" @click="apply(false)" :title="t('stash.applyKeepTip')">{{ t('stash.applyKeep') }}</GnButton>
+          <GnButton size="sm" tone="accent" @click="apply(true)">{{ t('stash.applyDrop') }}<GnTooltip :text="t('stash.applyDropTip')" /></GnButton>
+          <GnButton size="sm" @click="apply(false)">{{ t('stash.applyKeep') }}<GnTooltip :text="t('stash.applyKeepTip')" /></GnButton>
           <GnButton size="sm" variant="danger" @click="askDrop">{{ t('stash.drop') }}</GnButton>
         </div>
 
@@ -251,7 +251,7 @@ watch(() => ws.versions[props.repo.id], load);
             <li v-for="f in files" :key="f.path" :class="{ 'files__on': diffFile === f.path }" @click="showDiff(f)">
               <input type="checkbox" :checked="pick.has(f.path)" @click.stop @change="togglePick(f.path)" />
               <GnBadge :tone="f.status === 'D' ? 'danger' : f.status === 'A' ? 'success' : 'accent'">{{ STATUS[f.status] ? t(STATUS[f.status]!) : f.status }}</GnBadge>
-              <span class="files__path" :title="f.path">{{ f.path }}</span>
+              <span class="files__path">{{ f.path }}<GnTooltip :text="f.path" /></span>
               <GnBadge v-if="f.untracked" tone="warn">{{ t('status.untracked') }}</GnBadge>
             </li>
           </ul>

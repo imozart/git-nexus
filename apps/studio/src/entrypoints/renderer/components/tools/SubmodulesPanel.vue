@@ -2,7 +2,7 @@
 // Submódulos do repositório: estado de cada um (inicializado, desatualizado, com alterações locais, conflito) e as ações de inicializar e atualizar.
 // "Atualizar" leva o submódulo ao commit que o repositório registra e se recusa a mexer no que tem alterações locais ou commits próprios.
 import { computed, onMounted, ref, watch } from 'vue';
-import { GnBadge, GnButton } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnTooltip } from '@git-nexus/ui-kit';
 import type { RepositoryMeta, SubmoduleInfo, SubmoduleState } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { t } from '../../i18n';
@@ -61,7 +61,7 @@ watch(() => props.repo.id, load);
       <div class="sm__btns">
         <GnButton size="sm" :disabled="loading || !!busy" @click="load">{{ t('sub.reload') }}</GnButton>
         <GnButton size="sm" tone="accent" data-testid="sub-init-all" :disabled="!canInit || !!busy" @click="act('init')">{{ busy === '*' ? t('sub.working') : t('sub.initAll') }}</GnButton>
-        <GnButton size="sm" tone="accent" data-testid="sub-update-all" :disabled="!canUpdate || !!busy" :title="t('sub.updateTip')" @click="act('update')">{{ t('sub.updateAll') }}</GnButton>
+        <GnButton size="sm" tone="accent" data-testid="sub-update-all" :disabled="!canUpdate || !!busy" @click="act('update')">{{ t('sub.updateAll') }}<GnTooltip :text="t('sub.updateTip')" /></GnButton>
       </div>
     </header>
 
@@ -74,7 +74,7 @@ watch(() => props.repo.id, load);
         <div class="sm__main">
           <strong class="sm__path">{{ s.path }}</strong>
           <GnBadge :tone="tone(s.state)" :data-testid="`sub-state-${s.state}`">{{ label(s.state) }}</GnBadge>
-          <GnBadge v-if="s.dirty" tone="warn" :title="t('sub.dirtyTip')">{{ t('sub.dirty') }}</GnBadge>
+          <GnBadge v-if="s.dirty" tone="warn">{{ t('sub.dirty') }}<GnTooltip :text="t('sub.dirtyTip')" /></GnBadge>
           <div class="sm__meta">
             <span class="sm__url">{{ s.url || t('sub.noUrl') }}</span>
             <span v-if="s.state !== 'uninitialized'" class="sm__sha">{{ s.sha.slice(0, 8) }}<template v-if="s.describe"> ({{ s.describe }})</template></span>
@@ -83,7 +83,7 @@ watch(() => props.repo.id, load);
         </div>
         <div class="sm__row-btns">
           <GnButton v-if="s.state === 'uninitialized'" size="sm" tone="accent" :disabled="!!busy" @click="act('init', [s.path])">{{ busy === s.path ? t('sub.working') : t('sub.init') }}</GnButton>
-          <GnButton v-else-if="s.state === 'outdated'" size="sm" tone="accent" :disabled="!!busy" :title="t('sub.updateTip')" @click="act('update', [s.path])">{{ busy === s.path ? t('sub.working') : t('sub.update') }}</GnButton>
+          <GnButton v-else-if="s.state === 'outdated'" size="sm" tone="accent" :disabled="!!busy" @click="act('update', [s.path])">{{ busy === s.path ? t('sub.working') : t('sub.update') }}<GnTooltip :text="t('sub.updateTip')" /></GnButton>
         </div>
       </li>
     </ul>

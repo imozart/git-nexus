@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { GnBadge, GnButton, GnIconButton } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnIconButton, GnTooltip } from '@git-nexus/ui-kit';
 import { syncState, type RepoSummary, type RepositoryMeta } from '@git-nexus/git-core/pure';
 import { dateLocale, t } from '../i18n';
 import { useRepositoriesStore } from '../stores/repositories';
@@ -75,10 +75,10 @@ const fmt = (ts: number) => (ts ? new Date(ts).toLocaleString(dateLocale.value) 
       </div>
       <div class="conn__actions">
         <GnButton variant="primary" :disabled="store.busy" @click="store.addRepository()">{{ t('home.add') }}</GnButton>
-        <GnButton :disabled="store.busy" data-testid="home-clone" :title="t('clone.tip')" @click="store.createDialog = 'clone'">{{ t('home.clone') }}</GnButton>
-        <GnButton :disabled="store.busy" data-testid="home-new" :title="t('create.tip')" @click="store.createDialog = 'init'">{{ t('home.new') }}</GnButton>
+        <GnButton :disabled="store.busy" data-testid="home-clone" @click="store.createDialog = 'clone'">{{ t('home.clone') }}<GnTooltip :text="t('clone.tip')" /></GnButton>
+        <GnButton :disabled="store.busy" data-testid="home-new" @click="store.createDialog = 'init'">{{ t('home.new') }}<GnTooltip :text="t('create.tip')" /></GnButton>
         <GnButton :disabled="store.busy" @click="store.scanRoots()">{{ t('home.scan') }}</GnButton>
-        <GnButton :title="t('home.changelogTitle')" @click="showChangelog = true">{{ t('home.changelog') }}</GnButton>
+        <GnButton @click="showChangelog = true">{{ t('home.changelog') }}<GnTooltip :text="t('home.changelogTitle')" /></GnButton>
       </div>
     </header>
 
@@ -91,9 +91,10 @@ const fmt = (ts: number) => (ts ? new Date(ts).toLocaleString(dateLocale.value) 
       <input v-model="store.query" class="conn__search" :placeholder="t('home.search')" />
       <label class="muted opt"><input v-model="store.onlyPending" type="checkbox" /> {{ t('home.onlyPending') }}</label>
       <GnButton size="sm" :disabled="!!store.progress" @click="store.refreshSummaries()">{{ t('home.refreshStatus') }}</GnButton>
-      <GnButton size="sm" tone="accent" :disabled="!!store.progress" :title="t('home.fetchAllTitle')" @click="store.fetchAll()">{{ t('home.fetchAll') }}</GnButton>
-      <GnButton size="sm" variant="primary" :disabled="!!store.progress" :title="t('home.pullSafeTitle')" @click="store.pullSafe()">
+      <GnButton size="sm" tone="accent" :disabled="!!store.progress" @click="store.fetchAll()">{{ t('home.fetchAll') }}<GnTooltip :text="t('home.fetchAllTitle')" /></GnButton>
+      <GnButton size="sm" variant="primary" :disabled="!!store.progress" @click="store.pullSafe()">
         {{ t('home.pullSafe') }}
+        <GnTooltip :text="t('home.pullSafeTitle')" />
       </GnButton>
     </div>
     <p v-if="store.progress" class="muted">{{ t('home.progress', { label: store.progress.label, done: store.progress.done, total: store.progress.total }) }}</p>
@@ -124,14 +125,14 @@ const fmt = (ts: number) => (ts ? new Date(ts).toLocaleString(dateLocale.value) 
           <GnBadge v-if="r.isWsl" tone="accent">WSL2</GnBadge>
           <div class="repo__state">
             <template v-if="sum(r)">
-              <GnBadge tone="accent" :title="sum(r)!.upstream ? t('home.upstream', { name: sum(r)!.upstream ?? '' }) : t('home.noUpstream')">⎇ {{ sum(r)!.branch }}</GnBadge>
+              <GnBadge tone="accent">⎇ {{ sum(r)!.branch }}<GnTooltip :text="sum(r)!.upstream ? t('home.upstream', { name: sum(r)!.upstream ?? '' }) : t('home.noUpstream')" /></GnBadge>
               <SyncIndicator :sync="sum(r)!" hide-no-upstream />
-              <GnBadge v-if="changes(sum(r)!)" tone="warn" :title="t('home.changesTitle')">{{ t('home.changes', { n: changes(sum(r)!) }) }}</GnBadge>
+              <GnBadge v-if="changes(sum(r)!)" tone="warn">{{ t('home.changes', { n: changes(sum(r)!) }) }}<GnTooltip :text="t('home.changesTitle')" /></GnBadge>
               <GnBadge v-if="sum(r)!.conflicted" tone="danger">{{ t('home.conflicts', { n: sum(r)!.conflicted }) }}</GnBadge>
               <GnBadge v-if="!sum(r)!.upstream && !sum(r)!.detached" tone="neutral">{{ t('home.noUpstreamBadge') }}</GnBadge>
               <GnBadge v-if="syncState(sum(r)!) === 'in-sync' && !changes(sum(r)!) && !sum(r)!.conflicted" tone="success">{{ t('home.upToDate') }}</GnBadge>
             </template>
-            <span v-else-if="sumError(r)" class="state-err" :title="sumError(r)">{{ t('home.noStatus') }}</span>
+            <span v-else-if="sumError(r)" class="state-err">{{ t('home.noStatus') }}<GnTooltip :text="sumError(r)" /></span>
             <span v-else class="muted">{{ t('home.loadingStatus') }}</span>
             <span v-if="store.working[r.id]" class="muted">{{ store.working[r.id] === 'fetch' ? t('home.fetching') : t('home.updating') }}</span>
           </div>
@@ -140,8 +141,8 @@ const fmt = (ts: number) => (ts ? new Date(ts).toLocaleString(dateLocale.value) 
         </div>
         <div class="repo__btns">
           <GnButton size="sm" tone="accent" @click="open(r)">{{ t('home.open') }}</GnButton>
-          <GnButton size="sm" :disabled="!!store.working[r.id]" :title="t('home.fetchTitle')" @click="fetchOne(r)">{{ t('home.fetch') }}</GnButton>
-          <GnButton size="sm" tone="accent" :disabled="!!store.working[r.id] || !sum(r)?.upstream" :title="t('home.pullTitle')" @click="pullOne(r)">{{ t('home.pull') }}</GnButton>
+          <GnButton size="sm" :disabled="!!store.working[r.id]" @click="fetchOne(r)">{{ t('home.fetch') }}<GnTooltip :text="t('home.fetchTitle')" /></GnButton>
+          <GnButton size="sm" tone="accent" :disabled="!!store.working[r.id] || !sum(r)?.upstream" @click="pullOne(r)">{{ t('home.pull') }}<GnTooltip :text="t('home.pullTitle')" /></GnButton>
           <GnIconButton icon="trash" tone="danger" :label="t('home.remove')" :title="t('home.removeTitle')" @click="remove(r)" />
         </div>
       </li>

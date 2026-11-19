@@ -233,3 +233,158 @@ describe('testes de interface: valores entram na página por lit()', () => {
     expect(EMBED.test('console.log(JSON.stringify(report, null, 2))')).toBe(false); // fora de template: é só saída
   });
 });
+
+// ---------- elevação, camadas e foco (docs/INTERFACE.md, seção "Elevação, camadas e foco") ----------
+// Sombra de overlay, fundo de overlay e camadas vêm dos tokens do ui-kit (tokens.scss); um valor literal copiado numa tela volta a espalhar o que o marco
+// "Refinamento visual (layout)" organizou. Exceção de verdade entra nos mapas abaixo, com o motivo: cada uma só vale enquanto existir.
+describe('elevação, camadas e foco', () => {
+  const kitComponents = join(__dirname, '..', '..', 'ui-kit', 'src', 'components');
+  const tokensFile = join(__dirname, '..', '..', 'ui-kit', 'src', 'styles', 'tokens.scss');
+  const readLf = (f: string) => readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
+  const sources = [
+    ...files.map((f) => ({ rel: `renderer/${f.rel}`, text: f.text })),
+    ...vueFiles(kitComponents).map((f) => ({ rel: `ui-kit/${relative(kitComponents, f).replace(/\\/g, '/')}`, text: readLf(f) })),
+  ];
+  const noComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/([;{}\s])\/\/[^\n]*/g, '$1');
+  const styleOf = (text: string) => (text.indexOf('<style') < 0 ? '' : noComments(text.slice(text.indexOf('<style'))));
+
+  /** Divide `a, b` só nas vírgulas de fora dos parênteses (`rgba(0, 0, 0, .5)` fica inteiro). */
+  const splitTop = (v: string): string[] => {
+    const out: string[] = [];
+    let depth = 0;
+    let cur = '';
+    for (const c of v) {
+      if (c === '(') depth++;
+      if (c === ')') depth--;
+      if (c === ',' && depth === 0) {
+        out.push(cur);
+        cur = '';
+      } else cur += c;
+    }
+    out.push(cur);
+    return out.map((x) => x.trim()).filter(Boolean);
+  };
+  /** Uma camada de sombra é "de elevação" se tem desfoque (3º comprimento > 0) e não é inset nem token. */
+  const isElevation = (layer: string): boolean => {
+    if (/^var\(--gn-(shadow-(sm|md|lg)|ring)\)$/.test(layer) || /^none$/.test(layer) || /^inset\b/.test(layer)) return false;
+    const bare = layer.replace(/(rgba?|hsla?|color-mix|var)\((?:[^()]|\([^()]*\))*\)/g, ' ').replace(/#[0-9a-f]{3,8}\b/gi, ' ');
+    const lengths = bare.match(/-?\d*\.?\d+(?:px|em|rem)?/g) ?? [];
+    const blur = lengths[2];
+    return blur !== undefined && parseFloat(blur) > 0;
+  };
+
+  /** Exceções por arquivo (caminho a partir de `apps/studio/src/entrypoints/renderer` ou `ui-kit/components`), com o motivo. Hoje não há nenhuma. */
+  const SHADOW_EXCEPTIONS: Record<string, string> = {};
+  const BACKDROP_EXCEPTIONS: Record<string, string> = {};
+
+  it('sombra de elevação só por token: box-shadow com desfoque usa var(--gn-shadow-sm|md|lg) (inset, anel e deslocamento sem desfoque são livres)', () => {
+    for (const f of sources) {
+      if (f.rel in SHADOW_EXCEPTIONS) continue;
+      for (const m of styleOf(f.text).matchAll(/box-shadow\s*:\s*([^;}\n]+)/g)) {
+        for (const layer of splitTop(m[1]!)) {
+          expect(isElevation(layer), `${f.rel}: box-shadow: ${layer}. Use var(--gn-shadow-sm|md|lg) (docs/INTERFACE.md, Elevação).`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('camadas por token: nenhum z-index de 3 dígitos ou mais literal (use var(--gn-z-*) ou calc(var(--gn-z-*) + N))', () => {
+    for (const f of sources) {
+      for (const m of styleOf(f.text).matchAll(/z-index\s*:\s*(\d{3,})/g)) {
+        expect.fail(`${f.rel}: z-index: ${m[1]}. Use var(--gn-z-popover|dialog|palette|tooltip|confetti) ou calc(var(--gn-z-*) + N) (docs/INTERFACE.md, Camadas).`);
+      }
+    }
+  });
+
+  it('fundo de overlay por token: nenhum background rgba(0, 0, 0, …) literal (use var(--gn-backdrop))', () => {
+    for (const f of sources) {
+      if (f.rel in BACKDROP_EXCEPTIONS) continue;
+      for (const m of styleOf(f.text).matchAll(/background(?:-color)?\s*:\s*(rgba?\(\s*0\s*,\s*0\s*,\s*0\b[^)]*\))/g)) {
+        expect.fail(`${f.rel}: background: ${m[1]}. Use var(--gn-backdrop) (docs/INTERFACE.md, Elevação).`);
+      }
+    }
+  });
+
+  it('só o GnDialog declara z-index: var(--gn-z-dialog): nenhuma tela refaz o overlay modal (use o GnDialog)', () => {
+    for (const f of sources.filter((x) => x.rel !== 'ui-kit/GnDialog.vue')) {
+      expect(styleOf(f.text), `${f.rel}: overlay modal copiado. Use o GnDialog (apps/ui-kit/src/components/GnDialog.vue).`).not.toMatch(/z-index\s*:\s*var\(--gn-z-dialog\)/);
+    }
+  });
+
+  it('as exceções registradas ainda existem (se a sombra ou o fundo literal sumiu, tire a linha)', () => {
+    for (const rel of [...Object.keys(SHADOW_EXCEPTIONS), ...Object.keys(BACKDROP_EXCEPTIONS)]) {
+      expect(
+        sources.some((x) => x.rel === rel),
+        `${rel} não existe mais: tire a exceção`,
+      ).toBe(true);
+    }
+  });
+
+  it('dois temas: cada --gn-shadow-* e --gn-backdrop do tema escuro também é definido no tema claro', () => {
+    const css = noComments(readLf(tokensFile));
+    const light = css.indexOf(":root[data-theme='light']");
+    expect(light, 'bloco :root[data-theme="light"] não encontrado em tokens.scss').toBeGreaterThan(0);
+    const dark = css.slice(0, light);
+    const lightBlock = css.slice(light, css.indexOf('\n}', light));
+    const names = [...dark.matchAll(/(--gn-(?:shadow-[a-z]+|backdrop))\s*:/g)].map((m) => m[1]!);
+    expect(names.length, 'nenhum token de sombra no escuro?').toBeGreaterThanOrEqual(4);
+    for (const n of names) expect(lightBlock, `${n} existe no tema escuro e falta no claro`).toContain(`${n}:`);
+  });
+
+  it('a regra funciona: o padrão antigo seria pego e os tokens e as formas livres não', () => {
+    expect(isElevation('0 16px 48px rgba(0, 0, 0, 0.6)')).toBe(true);
+    expect(isElevation('0 8px 28px rgba(0,0,0,.4)')).toBe(true);
+    expect(isElevation('var(--gn-shadow-lg)')).toBe(false);
+    expect(isElevation('var(--gn-ring)')).toBe(false);
+    expect(isElevation('inset 0 2px 0 var(--gn-accent)')).toBe(false);
+    expect(isElevation('0 0 0 2px rgba(0, 0, 0, 0.3)')).toBe(false);
+    expect(isElevation('0 -2px 0 var(--gn-accent)')).toBe(false);
+    expect(splitTop('0 0 0 1px red, 0 8px 20px rgba(0, 0, 0, 0.5)')).toHaveLength(2);
+  });
+});
+
+// ---------- dicas (tooltip): GnTooltip no lugar do title nativo (docs/INTERFACE.md, seção "Dicas") ----------
+// O `title` nativo não tem o estilo do app, demora para aparecer e não aparece no foco do teclado. A dica é o GnTooltip, filho do elemento descrito.
+describe('dicas vêm do GnTooltip', () => {
+  /** Componentes em que `title` NÃO é a dica nativa: prop com outro sentido (título do diálogo) ou que já mostra o GnTooltip por dentro. */
+  const TITLE_IS_A_PROP = new Set(['ConfirmDialog', 'GnDialog', 'GnIconButton', 'ComboBox', 'GnSegmented']);
+  /** `title` nativo permitido por arquivo (quantidade), com o motivo: a lista só encolhe. */
+  const NATIVE_TITLE: Record<string, { max: number; why: string }> = {
+    'components/ChangesTree.vue': { max: 1, why: '<input type="checkbox"> do grupo: elemento sem filhos, o GnTooltip não cabe dentro' },
+    'components/ComboBox.vue': { max: 1, why: '<input> do modo searchable: elemento sem filhos (o gatilho em botão já usa o GnTooltip)' },
+    'components/OperationBanner.vue': { max: 1, why: '"Continuar" desabilitado com a razão no title: o botão desabilitado não recebe o mouse, então o GnTooltip não abriria' },
+    'components/tools/OperationsPanel.vue': { max: 1, why: '"Desfazer" desabilitado com a razão no title: o botão desabilitado não recebe o mouse, então o GnTooltip não abriria' },
+  };
+
+  /** Quantos `title=` / `:title=` o template tem em elementos nativos e componentes em que ele é a dica nativa. */
+  const nativeTitles = (text: string): string[] => {
+    const out: string[] = [];
+    for (const m of stripHtmlComments(template(text)).matchAll(/<([A-Za-z][\w-]*)((?:"[^"]*"|'[^']*'|`[^`]*`|[^>"'`])*)>/g)) {
+      if (TITLE_IS_A_PROP.has(m[1]!)) continue;
+      if (/(^|\s):?title=/.test(m[2]!)) out.push(m[1]!);
+    }
+    return out;
+  };
+
+  it('nenhuma tela ganha um title= nativo novo (use <GnTooltip :text="…" /> dentro do elemento); a lista de exceções só encolhe', () => {
+    for (const f of files) {
+      const n = nativeTitles(f.text).length;
+      const allowed = NATIVE_TITLE[f.rel]?.max ?? 0;
+      expect(n, `${f.rel}: ${n} title= nativos, permitido ${allowed}. Use <GnTooltip :text="…" /> como filho do elemento (docs/INTERFACE.md, Dicas).`).toBeLessThanOrEqual(allowed);
+    }
+  });
+
+  it('toda exceção registrada ainda existe (se o title sumiu, tire a linha da lista)', () => {
+    for (const [rel, { max }] of Object.entries(NATIVE_TITLE)) {
+      const f = files.find((x) => x.rel === rel);
+      expect(f, `${rel} não existe mais`).toBeDefined();
+      expect(nativeTitles(f!.text).length, `${rel}: a lista diz ${max}; ajuste para o número real`).toBe(max);
+    }
+  });
+
+  it('a regra funciona: title em button, span e GnButton seria pego; prop de ConfirmDialog e GnIconButton não', () => {
+    expect(nativeTitles('<template><button :title="t(\'a\')">x</button></template>')).toEqual(['button']);
+    expect(nativeTitles('<template><span title="x">y</span><GnButton :title="a ? b : c" @click="() => 1">z</GnButton></template>')).toEqual(['span', 'GnButton']);
+    expect(nativeTitles('<template><ConfirmDialog :title="a" /><GnIconButton icon="x" :title="b" label="c" /></template>')).toEqual([]);
+  });
+});

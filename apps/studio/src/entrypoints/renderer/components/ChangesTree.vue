@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
-import { GnButton, GnIcon } from '@git-nexus/ui-kit';
+import { GnButton, GnIcon, GnTooltip } from '@git-nexus/ui-kit';
 import type { FileEntry } from '@git-nexus/git-core/pure';
 import { checkState, groupEntries, hasStaged, splitPath, statusLabel, statusLetter, type CheckState } from '../changes';
 import { t } from '../i18n';
@@ -211,9 +211,9 @@ watch(
 <template>
   <div ref="root" class="tree" tabindex="0" @mousedown="onBandStart" @keydown="onKey">
     <div class="summary">
-      <span :title="t('tree.stagedTitle')"><b>{{ included }}</b> {{ t('tree.inCommit') }}</span>
+      <span><b>{{ included }}</b> {{ t('tree.inCommit') }}<GnTooltip :text="t('tree.stagedTitle')" /></span>
       <span class="sep">·</span>
-      <span :title="t('tree.pendingTitle')"><b>{{ pending }}</b> {{ t('tree.pending', { n: pending }) }}</span>
+      <span><b>{{ pending }}</b> {{ t('tree.pending', { n: pending }) }}<GnTooltip :text="t('tree.pendingTitle')" /></span>
       <span v-if="selection.size > 1" class="sel">{{ t('tree.selected', { n: selection.size }) }}</span>
     </div>
     <input
@@ -276,7 +276,6 @@ watch(
           :class="{ 'file--sel': selection.has(r.e.path), 'file--active': activePath === r.e.path }"
           :data-path="r.e.path"
           draggable="true"
-          :title="`${statusLabel(r.letter)} · ${r.state === 'checked' ? t('tree.stateChecked') : r.state === 'partial' ? t('tree.statePartial') : t('tree.statePending')}\n${r.e.path}`"
           @click="onRowClick($event, r.e)"
           @dragstart="onDragStart($event, r.e)"
           @mousedown.middle.prevent
@@ -295,6 +294,7 @@ watch(
           <span class="file__name" :class="`name--${r.letter === '?' ? 'N' : r.letter}`">{{ r.name }}</span>
           <span class="file__dir">{{ r.dir }}</span>
           <span v-if="r.state === 'partial'" class="tag">{{ t('tree.partialTag') }}</span>
+          <GnTooltip :text="`${statusLabel(r.letter)} · ${r.state === 'checked' ? t('tree.stateChecked') : r.state === 'partial' ? t('tree.statePartial') : t('tree.statePending')}\n${r.e.path}`" />
         </div>
         <div v-if="hidden(g)" class="more">
           <GnButton size="sm" @click="showMore(g)">{{ t('tree.showMore', { n: Math.min(PAGE, hidden(g)) }) }}</GnButton>

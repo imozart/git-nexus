@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { GnBadge, GnButton, GnSegmented } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnSegmented, GnTooltip } from '@git-nexus/ui-kit';
 import type { BumpChoice, ReleaseInfo, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -123,7 +123,7 @@ onMounted(load);
           <GnSegmented v-model="bump" :options="bumpOptions" :aria-label="t('ver.increment')" />
           <span class="spacer" />
           <GnButton size="sm" :disabled="!info.commitCount" @click="copy">{{ t('ver.copyNotes') }}</GnButton>
-          <GnButton size="sm" :disabled="!info.commitCount" :title="t('ver.saveChangelogTip')" @click="saveChangelog">{{ t('ver.saveChangelog') }}</GnButton>
+          <GnButton size="sm" :disabled="!info.commitCount" @click="saveChangelog">{{ t('ver.saveChangelog') }}<GnTooltip :text="t('ver.saveChangelogTip')" /></GnButton>
           <GnButton size="sm" variant="primary" :disabled="!canAct" @click="askTag">{{ t('ver.createTag', { tag }) }}</GnButton>
         </div>
       </section>

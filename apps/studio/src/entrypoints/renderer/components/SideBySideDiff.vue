@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import { applyDiscard, applyStage, blockRows, diffLines, lineEols, splitLines, type DiffRow } from '@git-nexus/git-core/pure';
-import { GnIcon } from '@git-nexus/ui-kit';
+import { GnIcon, GnTooltip } from '@git-nexus/ui-kit';
 import { t } from '../i18n';
 
 const props = defineProps<{
@@ -181,21 +181,21 @@ const KIND_CLASS: Record<DiffRow['kind'], string> = { eq: '', change: 'row--chan
                 class="ctrl__btn ctrl__btn--block"
                 :class="stageAction === 'stage' ? 'ctrl__btn--stage' : 'ctrl__btn--unstage'"
                 type="button"
-                :title="stageAction === 'stage' ? t('sbs.stageBlock') : t('sbs.unstageBlock')"
                 :aria-label="stageAction === 'stage' ? t('sbs.stageBlock') : t('sbs.unstageBlock')"
                 @click="stageBlock(it.row.block)"
               >
                 <GnIcon :name="stageAction === 'stage' ? 'plus' : 'minus'" />
+                <GnTooltip :text="stageAction === 'stage' ? t('sbs.stageBlock') : t('sbs.unstageBlock')" />
               </button>
               <button
                 class="ctrl__btn"
                 :class="stageAction === 'stage' ? 'ctrl__btn--stage' : 'ctrl__btn--unstage'"
                 type="button"
-                :title="stageAction === 'stage' ? t('sbs.stageLine') : t('sbs.unstageLine')"
                 :aria-label="stageAction === 'stage' ? t('sbs.stageLine') : t('sbs.unstageLine')"
                 @click="stageRow(it.idx)"
               >
                 <GnIcon :name="stageAction === 'stage' ? 'plus' : 'minus'" />
+                <GnTooltip :text="stageAction === 'stage' ? t('sbs.stageLine') : t('sbs.unstageLine')" />
               </button>
             </template>
             <template v-if="canDiscard && it.row.kind !== 'eq'">
@@ -204,14 +204,15 @@ const KIND_CLASS: Record<DiffRow['kind'], string> = { eq: '', change: 'row--chan
                 v-if="isFirstOfBlock(it.idx)"
                 class="ctrl__btn ctrl__btn--block ctrl__btn--discard-block"
                 type="button"
-                :title="t('sbs.discardBlock')"
                 :aria-label="t('sbs.discardBlock')"
                 @click="discardBlock(it.row.block)"
               >
                 <GnIcon name="arrow-right" />
+                <GnTooltip :text="t('sbs.discardBlock')" />
               </button>
-              <button class="ctrl__btn" type="button" :title="t('sbs.discardLine')" :aria-label="t('sbs.discardLine')" @click="discardRow(it.idx)">
+              <button class="ctrl__btn" type="button" :aria-label="t('sbs.discardLine')" @click="discardRow(it.idx)">
                 <GnIcon name="arrow-right" />
+                <GnTooltip :text="t('sbs.discardLine')" />
               </button>
             </template>
           </span>

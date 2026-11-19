@@ -3,7 +3,7 @@
 // (como o "Git Log"/"Console" do IntelliJ) e recolhe até virar uma barra de uma linha.
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import type { GitCommandEvent } from '@git-nexus/git-core/pure';
-import { GnIcon } from '@git-nexus/ui-kit';
+import { GnIcon, GnTooltip } from '@git-nexus/ui-kit';
 import { api } from '../api';
 import { dateLocale, t } from '../i18n';
 import { useGitLogStore } from '../stores/gitlog';
@@ -90,14 +90,15 @@ onBeforeUnmount(() => clearTimeout(copiedTimer));
   <section class="log" :class="{ 'log--open': open }" :style="open ? { height: height + 'px' } : undefined" :aria-label="t('log.title')">
     <div v-if="open" class="log__grip" role="separator" aria-orientation="horizontal" @pointerdown="dragStart" @pointermove="dragMove" @pointerup="dragEnd" @pointercancel="dragEnd" />
     <header class="log__bar">
-      <button type="button" class="log__toggle" :aria-expanded="open" :title="open ? t('log.collapse') : t('log.expand')" @click="open = !open">
+      <button type="button" class="log__toggle" :aria-expanded="open" @click="open = !open">
         <GnIcon class="log__chev" :class="{ 'log__chev--open': open }" name="chevron-right" />
         <strong>{{ t('log.title') }}</strong>
         <span class="log__count">{{ t('log.count', { n: total }) }}</span>
         <code v-if="!open && last" class="log__last" :class="{ 'log__last--fail': last.code !== 0 }">{{ last.command }}</code>
+        <GnTooltip :text="open ? t('log.collapse') : t('log.expand')" />
       </button>
       <template v-if="open">
-        <label class="log__opt" :title="t('log.onlyChangesTitle')"><input v-model="onlyChanges" type="checkbox" /> {{ t('log.onlyChanges') }}</label>
+        <label class="log__opt"><input v-model="onlyChanges" type="checkbox" /> {{ t('log.onlyChanges') }}<GnTooltip :text="t('log.onlyChangesTitle')" /></label>
         <button type="button" class="log__btn" :disabled="!shown.length" @click="copy">{{ copied ? t('log.copied') : t('log.copy') }}</button>
         <button type="button" class="log__btn" :disabled="!all.length" @click="store.clear(repoPath)">{{ t('log.clear') }}</button>
       </template>
@@ -107,7 +108,7 @@ onBeforeUnmount(() => clearTimeout(copiedTimer));
       <ul v-else class="log__list">
         <li v-for="e in shown" :key="keyOf(e)" class="log__row" :class="{ 'log__row--read': e.readOnly, 'log__row--fail': e.code !== 0, 'log__row--has': e.output }" @click="toggle(e)">
           <span class="log__time">{{ time(e.startedAt) }}</span>
-          <span class="log__st" :title="e.code === 0 ? '' : t('log.failed', { code: e.code })">{{ e.code === 0 ? '✓' : '✗' }}</span>
+          <span class="log__st">{{ e.code === 0 ? '✓' : '✗' }}<GnTooltip :text="e.code === 0 ? '' : t('log.failed', { code: e.code })" /></span>
           <code class="log__cmd">{{ e.command }}</code>
           <span class="log__ms">{{ e.durationMs }} ms</span>
           <pre v-if="isOpen(e)" class="log__out">{{ e.output }}</pre>

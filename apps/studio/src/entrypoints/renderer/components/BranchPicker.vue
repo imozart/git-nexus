@@ -3,7 +3,7 @@
 // (atualizar, nova branch, ir para tag ou commit) e as listas Recentes, Locais e Remotas. Clicar numa branch abre o menu dela (checkout,
 // nova branch a partir dela, merge, rebase, pull, excluir). Todas as operações passam por git-core/branches.ts; aqui só há interface.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { GnBadge, GnButton, GnIcon, GnIconButton } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnIcon, GnIconButton, GnTooltip } from '@git-nexus/ui-kit';
 import type { BaseComparison, BranchActionResult, BranchInfo, BranchList, PullMode, RepositoryMeta, SyncInfo } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { autoFetchEnabled } from '../auto-fetch';
@@ -370,12 +370,13 @@ onBeforeUnmount(() => {
 
 <template>
   <span ref="trigger" class="bp">
-    <GnButton size="sm" tone="accent" class="bp__btn" aria-haspopup="dialog" :aria-expanded="open" :aria-label="triggerLabel" :title="triggerTitle" @click="toggle">
+    <GnButton size="sm" tone="accent" class="bp__btn" aria-haspopup="dialog" :aria-expanded="open" :aria-label="triggerLabel" @click="toggle">
       <GnIcon name="git-branch" />
       <span class="bp__name">{{ label }}</span>
       <SyncIndicator :sync="sync ?? null" />
-      <GnBadge v-if="baseChipText" class="bp__basechip" :title="baseLine" aria-hidden="true">{{ baseChipText }}</GnBadge>
+      <GnBadge v-if="baseChipText" class="bp__basechip" aria-hidden="true">{{ baseChipText }}<GnTooltip :text="baseLine" /></GnBadge>
       <GnIcon name="chevron-down" />
+      <GnTooltip :text="triggerTitle" />
     </GnButton>
   </span>
 
@@ -396,22 +397,23 @@ onBeforeUnmount(() => {
         </div>
         <p v-if="error" class="bp__err" role="alert">{{ error }}</p>
 
-        <label class="bp__opt" :title="t('bp.onlyStaleTip')"><input v-model="onlyStale" type="checkbox" data-nav data-testid="stale-filter" /> {{ t('bp.onlyStale') }}</label>
+        <label class="bp__opt"><input v-model="onlyStale" type="checkbox" data-nav data-testid="stale-filter" /> {{ t('bp.onlyStale') }}<GnTooltip :text="t('bp.onlyStaleTip')" /></label>
         <div class="bp__scroll">
           <template v-if="!needle">
-            <button type="button" class="bp__item" data-nav :disabled="busy || loading" :title="t('bp.updateTip')" @click="doUpdate()">
+            <button type="button" class="bp__item" data-nav :disabled="busy || loading" @click="doUpdate()">
               <GnIcon name="update" /> {{ t('bp.update') }}
+              <GnTooltip :text="t('bp.updateTip')" />
             </button>
             <button type="button" class="bp__item" data-nav :disabled="!data" @click="startNew()"><GnIcon name="plus" /> {{ t('bp.new') }}</button>
             <button type="button" class="bp__item" data-nav :disabled="!data" @click="startRevision()"><GnIcon name="tag" /> {{ t('bp.revision') }}</button>
             <template v-if="base">
-              <p class="bp__baseinfo" data-testid="base-info" :title="baseLine">{{ t('bp.baseInfo', { base: base.base, ahead: base.ahead, behind: base.behind }) }}</p>
+              <p class="bp__baseinfo" data-testid="base-info">{{ t('bp.baseInfo', { base: base.base, ahead: base.ahead, behind: base.behind }) }}<GnTooltip :text="baseLine" /></p>
               <template v-if="base.behind > 0">
                 <button type="button" class="bp__item" data-nav data-testid="base-merge" :disabled="busy || !cur" @click="doMerge({ name: base.base })">{{ t('bp.merge', { ref: base.base, cur: curLabel }) }}</button>
                 <button type="button" class="bp__item" data-nav data-testid="base-rebase" :disabled="busy || !cur" @click="askRebase({ name: base.base })">{{ t('bp.rebase', { ref: base.base, cur: curLabel }) }}</button>
               </template>
             </template>
-            <label class="bp__opt" :title="t('bp.autoFetchTip')"><input v-model="autoFetchEnabled" type="checkbox" data-nav data-testid="auto-fetch" /> {{ t('bp.autoFetch') }}</label>
+            <label class="bp__opt"><input v-model="autoFetchEnabled" type="checkbox" data-nav data-testid="auto-fetch" /> {{ t('bp.autoFetch') }}<GnTooltip :text="t('bp.autoFetchTip')" /></label>
             <hr />
           </template>
 
@@ -438,7 +440,6 @@ onBeforeUnmount(() => {
                   :data-branch="b.kind + ':' + b.name"
                   aria-haspopup="menu"
                   :aria-expanded="fly?.info === b"
-                  :title="`${b.subject} · ${b.hash}`"
                   @click="openFly(b, $event)"
                   @dblclick="!b.current && doCheckout(b)"
                   @keydown.enter.prevent="!b.current && doCheckout(b)"
@@ -452,6 +453,7 @@ onBeforeUnmount(() => {
                   </span>
                   <SyncIndicator v-if="b.kind === 'local'" :sync="b" hide-no-upstream />
                   <GnIcon class="bp__more" name="chevron-right" />
+                  <GnTooltip :text="`${b.subject} · ${b.hash}`" />
                 </button>
               </div>
             </template>

@@ -4,7 +4,7 @@
 // com os commits que chegam e os que saem e as opções (merge ou rebase quando divergiu). Enquanto a operação roda, o botão fica ocupado
 // ("Atualizando… 45%") e uma barra mostra o andamento (porcentagem quando o git informa; indeterminada quando não).
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
-import { GnButton, GnButtonGroup, GnIcon } from '@git-nexus/ui-kit';
+import { GnButton, GnButtonGroup, GnIcon, GnTooltip } from '@git-nexus/ui-kit';
 import { syncState, type BaseComparison, type BranchActionResult, type RepoSummary, type RepositoryMeta, type SyncCommits, type UpdateMethod } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { t } from '../i18n';
@@ -211,9 +211,10 @@ defineExpose({ doFetch, doUpdate, doPush, doPushLease });
 <template>
   <span v-if="sync" ref="root" class="ss" data-testid="sync-button" :data-busy="busy ? 'true' : 'false'">
     <GnButtonGroup :label="t('ss.group')">
-      <GnButton size="sm" :tone="tone" :disabled="busy" :title="tip" :aria-busy="busy" data-testid="sync-main" @click="onMain">{{ label }}</GnButton>
-      <GnButton size="sm" :tone="tone" :disabled="busy" :aria-label="t('ss.details')" :title="t('ss.details')" aria-haspopup="dialog" :aria-expanded="open" data-testid="sync-details" @click="togglePanel">
+      <GnButton size="sm" :tone="tone" :disabled="busy" :aria-busy="busy" data-testid="sync-main" @click="onMain">{{ label }}<GnTooltip :text="tip" /></GnButton>
+      <GnButton size="sm" :tone="tone" :disabled="busy" :aria-label="t('ss.details')" aria-haspopup="dialog" :aria-expanded="open" data-testid="sync-details" @click="togglePanel">
         <GnIcon name="chevron-down" />
+        <GnTooltip :text="t('ss.details')" />
       </GnButton>
     </GnButtonGroup>
     <span
@@ -225,10 +226,10 @@ defineExpose({ doFetch, doUpdate, doPush, doPushLease });
       :aria-valuemin="0"
       :aria-valuemax="100"
       :aria-valuenow="op.percent ?? undefined"
-      :title="barTitle"
       data-testid="sync-progress"
     >
       <span class="ss__fill" :style="op.percent === null ? undefined : { width: op.percent + '%' }" />
+      <GnTooltip :text="barTitle" />
     </span>
   </span>
 
@@ -269,7 +270,7 @@ defineExpose({ doFetch, doUpdate, doPush, doPushLease });
           <template v-if="state === 'diverged'">
             <GnButton size="sm" tone="accent" :disabled="busy" data-testid="sync-update-merge" @click="fromPanel(() => doUpdate('merge'))">{{ t('ss.updateMerge') }}</GnButton>
             <GnButton size="sm" tone="warn" :disabled="busy" data-testid="sync-update-rebase" @click="askRebase()">{{ t('ss.updateRebase') }}</GnButton>
-            <GnButton v-if="leaseAllowed" size="sm" variant="ghost" tone="danger" :disabled="busy" :title="t('ss.pushLeaseTip')" data-testid="sync-push-lease" @click="askLease()">{{ t('ss.pushLease') }}</GnButton>
+            <GnButton v-if="leaseAllowed" size="sm" variant="ghost" tone="danger" :disabled="busy" data-testid="sync-push-lease" @click="askLease()">{{ t('ss.pushLease') }}<GnTooltip :text="t('ss.pushLeaseTip')" /></GnButton>
           </template>
           <GnButton v-if="state === 'ahead'" size="sm" tone="success" :disabled="busy" data-testid="sync-push" @click="fromPanel(doPush)">{{ t('ss.pushNow') }}</GnButton>
           <GnButton v-if="unpublished" size="sm" tone="success" :disabled="busy" data-testid="sync-publish" @click="fromPanel(doPush)">{{ t('ss.publishNow') }}</GnButton>

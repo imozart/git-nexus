@@ -106,7 +106,7 @@ await t.ev(`window.__progressCb({ repoPath: ${lit(repoPath)}, op: 'pull', phase:
 await t.until(`document.querySelector('[data-testid="sync-main"]').textContent.includes('45%')`, 5000);
 t.check('com a porcentagem: "Atualizando… 45%"', (await main()) === 'Atualizando… 45%', await main());
 t.check('a barra passa a mostrar 45%', (await t.ev(`document.querySelector('[data-testid="sync-progress"]').getAttribute('aria-valuenow')`)) === '45' && (await t.count('[data-testid="sync-progress"].ss__bar--indeterminate')) === 0);
-t.check('a etapa do git aparece em português no tooltip da barra', /Recebendo objetos/.test(await t.ev(`document.querySelector('[data-testid="sync-progress"]').title`)), await t.ev(`document.querySelector('[data-testid="sync-progress"]').title`));
+t.check('a etapa do git aparece em português no tooltip da barra', /Recebendo objetos/.test(await t.ev(`document.querySelector('[data-testid="sync-progress"]').dataset.tooltip`)), await t.ev(`document.querySelector('[data-testid="sync-progress"]').dataset.tooltip`));
 await t.shot('sync-andamento');
 await click('sync-main'); // clique num botão desabilitado não faz nada
 t.check('um segundo clique é impossível (botão desabilitado)', (await disabled()) === true);

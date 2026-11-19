@@ -68,7 +68,7 @@ onBeforeUnmount(() => cancelAnimationFrame(raf));
   inset: 0;
   width: 100vw;
   height: 100vh;
-  z-index: 3000; // acima dos diálogos (1100) e da paleta de comandos
+  z-index: var(--gn-z-confetti); // acima dos diálogos e da paleta de comandos
   pointer-events: none;
 }
 </style>

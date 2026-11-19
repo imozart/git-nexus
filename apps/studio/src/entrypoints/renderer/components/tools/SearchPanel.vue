@@ -2,7 +2,7 @@
 // Busca no conteúdo dos arquivos (git grep): texto ou expressão regular, maiúsculas, palavra inteira e filtro de caminhos. Os resultados vêm
 // agrupados por arquivo; clicar numa ocorrência abre as linhas ao redor, ali mesmo, com atalhos para o histórico e o blame do arquivo.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { GnBadge, GnButton } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnTooltip } from '@git-nexus/ui-kit';
 import { matchRanges, type ContentMatch, type ContentSearchResult, type FileContext, type RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { t } from '../../i18n';
@@ -129,9 +129,9 @@ onBeforeUnmount(() => {
   <section class="sp" data-testid="search-panel">
     <form class="sp__bar" @submit.prevent="run">
       <input ref="input" v-model="query" class="sp__input" data-testid="search-input" :placeholder="t('search.placeholder')" spellcheck="false" autocomplete="off" />
-      <button type="button" class="sp__tog" data-testid="search-case" :aria-pressed="caseSensitive" :title="t('search.case')" @click="caseSensitive = !caseSensitive">Aa</button>
-      <button type="button" class="sp__tog" data-testid="search-word" :aria-pressed="wholeWord" :title="t('search.word')" @click="wholeWord = !wholeWord"><u>ab</u></button>
-      <button type="button" class="sp__tog" data-testid="search-regex" :aria-pressed="regex" :title="t('search.regex')" @click="regex = !regex">.*</button>
+      <button type="button" class="sp__tog" data-testid="search-case" :aria-pressed="caseSensitive" @click="caseSensitive = !caseSensitive">Aa<GnTooltip :text="t('search.case')" /></button>
+      <button type="button" class="sp__tog" data-testid="search-word" :aria-pressed="wholeWord" @click="wholeWord = !wholeWord"><u>ab</u><GnTooltip :text="t('search.word')" /></button>
+      <button type="button" class="sp__tog" data-testid="search-regex" :aria-pressed="regex" @click="regex = !regex">.*<GnTooltip :text="t('search.regex')" /></button>
       <GnButton type="submit" variant="primary" :disabled="loading || !query.trim()">{{ t('search.go') }}</GnButton>
     </form>
     <label class="sp__paths">

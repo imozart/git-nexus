@@ -31,10 +31,10 @@ await t.ev(`location.reload()`);
 await t.until(`document.querySelector('.conn__bar')`, 15000);
 await t.openRepo(repo, 'afrepo');
 await t.until(`document.querySelector('.bp__btn .bp__name')?.textContent.trim() === 'main'`, 15000);
-const tip = () => t.ev(`document.querySelector('.bp__btn').title`);
+const tip = () => t.ev(`document.querySelector('.bp__btn').dataset.tooltip`);
 
 // --- desligada: o app não fala com o remoto --------------------------------------------------------------------------------------------
-await t.until(`document.querySelector('.bp__btn').title.includes('Em dia')`, 10000);
+await t.until(`(document.querySelector('.bp__btn')?.dataset.tooltip ?? '').includes('Em dia')`, 10000);
 await sleep(2500); // tempo de sobra para uma busca (indevida) acontecer
 t.check('desligada: o clone não soube da novidade do remoto', git(repo, 'rev-parse', 'origin/main').trim() !== remoteMain);
 t.check('desligada: o tooltip diz que nunca buscou', /Ainda não buscou no remoto/.test(await tip()), await tip());

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { GnButton, GnSegmented } from '@git-nexus/ui-kit';
+import { GnButton, GnSegmented, GnTooltip } from '@git-nexus/ui-kit';
 import type { BlameLine, CommitInfo, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -105,7 +105,7 @@ onMounted(async () => {
         <p v-if="!history.length && !loading" class="muted empty">{{ t('fp.noCommits') }}</p>
         <div v-for="c in history" :key="c.hash" class="hrow" :class="{ on: selectedHash === c.hash }" @click="pickCommit(c.hash)">
           <span class="mono muted">{{ c.shortHash }}</span>
-          <span class="hrow__sub" :title="c.subject">{{ c.subject }}</span>
+          <span class="hrow__sub">{{ c.subject }}<GnTooltip :text="c.subject" /></span>
           <span class="muted hrow__meta">{{ c.author }} · {{ fmtDate(c.date) }}</span>
         </div>
       </div>
@@ -122,7 +122,7 @@ onMounted(async () => {
             </template>
           </span>
           <span class="brow__no">{{ r.b.line }}</span>
-          <span class="brow__text" :title="r.first ? r.b.summary : ''">{{ r.b.text }}</span>
+          <span class="brow__text">{{ r.b.text }}<GnTooltip :text="r.first ? r.b.summary : ''" /></span>
         </div>
       </div>
 
