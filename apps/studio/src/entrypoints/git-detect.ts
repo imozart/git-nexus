@@ -61,7 +61,7 @@ export async function detectGit(d: DetectDeps): Promise<Detected> {
 
 /** `git`/`brew`/`make`… está no PATH? (procura o arquivo; no Windows tenta também `.exe`). */
 export function makeHas(env: Record<string, string | undefined>, exists: (p: string) => boolean, platform: string): (bin: string) => boolean {
-  const dirs = (env.PATH ?? env.Path ?? '').split(delimiter).filter(Boolean);
+  const dirs = (env.PATH ?? env.Path ?? '').split(platform === 'win32' ? ';' : ':').filter(Boolean); // separador da plataforma pedida, não o do computador que roda
   const exts = platform === 'win32' ? ['', '.exe', '.cmd'] : [''];
   return (bin) => dirs.some((dir) => exts.some((x) => exists(join(dir, bin + x))));
 }

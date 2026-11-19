@@ -76,8 +76,8 @@ export class GitInstallError extends Error {
   }
 }
 
-const cancelled = () => new GitInstallError(tm('Instalação cancelada.', 'Installation cancelled.'));
-const tooBig = () => new GitInstallError(tm('O arquivo é grande demais.', 'The file is too large.'));
+const cancelled = () => new GitInstallError(tm('git.err.cancelled'));
+const tooBig = () => new GitInstallError(tm('git.err.tooBig'));
 
 function check(signal: AbortSignal): void {
   if (signal.aborted) throw cancelled();
@@ -87,7 +87,7 @@ function check(signal: AbortSignal): void {
 
 async function getText(f: typeof fetch, url: string, signal: AbortSignal, accept?: string): Promise<{ text: string; finalUrl: string }> {
   const res = await f(url, { headers: { 'User-Agent': 'GitNexus-git-install', ...(accept ? { Accept: accept } : {}) }, signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]) });
-  if (!res.ok) throw new GitInstallError(tm(`O servidor respondeu ${res.status} ao consultar ${new URL(url).host}.`, `The server answered ${res.status} when querying ${new URL(url).host}.`));
+  if (!res.ok) throw new GitInstallError(tm('git.err.queryStatus', { status: res.status, host: new URL(url).host }));
   const text = await res.text();
   if (text.length > 4 * 1024 * 1024) throw tooBig();
   return { text, finalUrl: res.url || url };
@@ -110,8 +110,8 @@ export async function downloadChecked(o: DownloadOptions): Promise<void> {
   const part = `${o.dest}.part`;
   try {
     const res = await o.fetchImpl(o.url, { headers: { 'User-Agent': 'GitNexus-git-install' }, signal: AbortSignal.any([o.signal, AbortSignal.timeout(30 * 60_000)]) });
-    if (!res.ok || !res.body) throw new GitInstallError(tm(`O servidor respondeu ${res.status} ao baixar o arquivo.`, `The server answered ${res.status} when downloading the file.`));
-    if (res.url && !o.allowFinal(res.url)) throw new GitInstallError(tm('O download foi redirecionado para um endereço não permitido.', 'The download was redirected to a disallowed address.'));
+    if (!res.ok || !res.body) throw new GitInstallError(tm('git.err.downloadStatus', { status: res.status }));
+    if (res.url && !o.allowFinal(res.url)) throw new GitInstallError(tm('git.err.redirected'));
     const total = Number(res.headers.get('content-length') ?? 0) || 0;
     if (total > MAX_BYTES) throw tooBig();
     const hash = createHash('sha256');
@@ -136,7 +136,7 @@ export async function downloadChecked(o: DownloadOptions): Promise<void> {
       source.pipe(out);
     });
     o.onProgress(done, total || done);
-    if (hash.digest('hex') !== o.sha256.toLowerCase()) throw new GitInstallError(tm('A conferência de integridade (SHA-256) falhou: o arquivo não foi executado.', 'The integrity check (SHA-256) failed: the file was not run.'));
+    if (hash.digest('hex') !== o.sha256.toLowerCase()) throw new GitInstallError(tm('git.err.sha256Failed'));
     await rename(part, o.dest);
   } catch (e) {
     await rm(part, { force: true }).catch(() => undefined);
@@ -159,9 +159,9 @@ export async function installWindows(d: InstallDeps, tmp: string): Promise<void>
   const { text } = await getText(d.fetchImpl, GIT_FOR_WINDOWS_LATEST, d.signal, 'application/vnd.github+json');
   const rel = JSON.parse(text) as GitHubRelease;
   const asset = pickGitWindowsAsset(rel.assets ?? [], d.arch);
-  if (!asset || !isAllowedGitWindowsUrl(asset.browser_download_url) || !isSafeAssetName(asset.name)) throw new GitInstallError(tm('Não encontrei o instalador do Git para este Windows na página oficial.', 'Could not find the Git installer for this Windows on the official page.'));
+  if (!asset || !isAllowedGitWindowsUrl(asset.browser_download_url) || !isSafeAssetName(asset.name)) throw new GitInstallError(tm('git.err.noInstaller'));
   const sha256 = windowsAssetSha256(asset, rel.body);
-  if (!sha256) throw new GitInstallError(tm('A release não informa o SHA-256 do instalador; por segurança, nada foi executado.', 'The release does not publish the installer SHA-256; for safety nothing was run.'));
+  if (!sha256) throw new GitInstallError(tm('git.err.noSha256'));
   const version = /^v?(\d+\.\d+\.\d+)/.exec(rel.tag_name ?? '')?.[1];
   d.log(`git-install: ${asset.name} (${version ?? '?'}) sha256 ${sha256}`);
 
@@ -182,14 +182,14 @@ export async function installWindows(d: InstallDeps, tmp: string): Promise<void>
   const sig = await d.exec('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', '(Get-AuthenticodeSignature -LiteralPath $env:GN_GIT_FILE).Status'], { env: { ...d.env, GN_GIT_FILE: file }, timeoutMs: 60_000 });
   const status = sig.output.trim().split(/\r?\n/).pop() ?? '';
   d.log(`git-install: assinatura ${status || '(sem resposta)'}`);
-  if (!isAcceptableSignature(status)) throw new GitInstallError(tm('A assinatura digital do instalador não é válida: nada foi executado.', 'The installer digital signature is not valid: nothing was run.'));
+  if (!isAcceptableSignature(status)) throw new GitInstallError(tm('git.err.badSignature'));
 
   check(d.signal);
   d.emit({ step: 'installing', version, method: 'windows-installer' });
   d.log(`git-install: executando ${asset.name} ${GIT_WINDOWS_ARGS.join(' ')}`);
   // depois daqui não se cancela: interromper o instalador no meio deixaria um Git pela metade
   const r = await d.exec(file, [...GIT_WINDOWS_ARGS], { timeoutMs: 15 * 60_000 });
-  if (r.code !== 0) throw new GitInstallError(tm(`O instalador do Git terminou com erro (código ${r.code}).`, `The Git installer ended with an error (code ${r.code}).`));
+  if (r.code !== 0) throw new GitInstallError(tm('git.err.installerExit', { code: r.code }));
 }
 
 // --- macOS -------------------------------------------------------------------------------------------------------------
@@ -206,11 +206,11 @@ export async function installMac(d: InstallDeps): Promise<void> {
       onLine: (line) => d.emit({ step: 'installing', method, detail: line }),
       signal: d.signal,
     });
-    if (code !== 0) throw new GitInstallError(tm(`O Homebrew não conseguiu instalar o Git (código ${code}).`, `Homebrew could not install Git (code ${code}).`));
+    if (code !== 0) throw new GitInstallError(tm('git.err.brewExit', { code }));
     return;
   }
   // Command Line Tools: o próprio macOS mostra o diálogo; aqui só se acompanha até o git responder
-  d.emit({ step: 'installing', method: 'command-line-tools', detail: tm('Confirme a instalação na janela do macOS.', 'Confirm the installation in the macOS window.') });
+  d.emit({ step: 'installing', method: 'command-line-tools', detail: tm('git.err.confirmMac') });
   d.log('git-install: xcode-select --install');
   await d.exec('xcode-select', ['--install']);
   const until = Date.now() + CLT_TIMEOUT_MS;
@@ -219,7 +219,7 @@ export async function installMac(d: InstallDeps): Promise<void> {
     await (d.sleep ?? ((ms) => new Promise<void>((r) => setTimeout(r, ms))))(CLT_POLL_MS);
     if ((await d.detect()).status !== 'missing') return;
   }
-  throw new GitInstallError(tm('As Command Line Tools não foram instaladas a tempo.', 'The Command Line Tools were not installed in time.'));
+  throw new GitInstallError(tm('git.err.cltTimeout'));
 }
 
 // --- Linux -------------------------------------------------------------------------------------------------------------
@@ -228,12 +228,12 @@ export async function installLinux(d: InstallDeps, tmp: string): Promise<void> {
   const method: GitInstallMethod = 'source-build';
   d.emit({ step: 'finding', method });
   const index = await getText(d.fetchImpl, KERNEL_GIT_INDEX, d.signal);
-  if (!isAllowedKernelUrl(index.finalUrl)) throw new GitInstallError(tm('O índice do código-fonte foi redirecionado para um endereço não permitido.', 'The source index was redirected to a disallowed address.'));
+  if (!isAllowedKernelUrl(index.finalUrl)) throw new GitInstallError(tm('git.err.indexRedirected'));
   const tar = pickLatestTarball(index.text);
-  if (!tar || !isSafeAssetName(tar.name)) throw new GitInstallError(tm('Não encontrei o código-fonte do Git no site oficial.', 'Could not find the Git source code on the official site.'));
+  if (!tar || !isSafeAssetName(tar.name)) throw new GitInstallError(tm('git.err.noSource'));
   const sums = await getText(d.fetchImpl, `${KERNEL_GIT_INDEX}${KERNEL_SUMS_FILE}`, d.signal);
   const sha256 = tarballSha256(sums.text, tar.name);
-  if (!sha256) throw new GitInstallError(tm('O site oficial não publica o SHA-256 deste arquivo; por segurança, nada foi compilado.', 'The official site does not publish this file SHA-256; for safety nothing was built.'));
+  if (!sha256) throw new GitInstallError(tm('git.err.noSourceSha'));
   d.log(`git-install: ${tar.name} sha256 ${sha256}`);
 
   const file = join(tmp, tar.name);
@@ -258,20 +258,20 @@ export async function installLinux(d: InstallDeps, tmp: string): Promise<void> {
     d.emit({ step: 'dependencies', version: tar.version, detail: missing.join(', '), method });
     const pm = detectPackageManager(has);
     if (!pm || !has('pkexec')) {
-      throw new GitInstallError(tm(`Faltam ferramentas para compilar o Git (${missing.join(', ')}) e não foi possível pedir permissão para instalá-las. Instale-as ou use "Instalar manualmente".`, `Tools to build Git are missing (${missing.join(', ')}) and permission to install them could not be requested. Install them or use "Install manually".`));
+      throw new GitInstallError(tm('git.err.missingTools', { missing: missing.join(', ') }));
     }
     const c = depsInstallCommand(pm);
     d.log(`git-install: pkexec ${c.file} ${c.args.join(' ')}`);
     const code = await d.run('pkexec', [c.file, ...c.args], { onLine: (line) => d.emit({ step: 'dependencies', version: tar.version, detail: line, method }), signal: d.signal });
-    if (code !== 0) throw new GitInstallError(tm('Não foi possível instalar as ferramentas de compilação (permissão negada ou falha do gerenciador de pacotes).', 'Could not install the build tools (permission denied or package manager failure).'));
+    if (code !== 0) throw new GitInstallError(tm('git.err.depsFailed'));
     check(d.signal);
   }
 
   // compilar
   const src = join(tmp, 'src');
   await mkdir(src, { recursive: true });
-  d.emit({ step: 'building', version: tar.version, detail: tm('Descompactando…', 'Extracting…'), method });
-  if ((await d.exec('tar', ['-xzf', file, '-C', src], { timeoutMs: 5 * 60_000 })).code !== 0) throw new GitInstallError(tm('Não foi possível descompactar o código-fonte do Git.', 'Could not extract the Git source code.'));
+  d.emit({ step: 'building', version: tar.version, detail: tm('git.err.extracting'), method });
+  if ((await d.exec('tar', ['-xzf', file, '-C', src], { timeoutMs: 5 * 60_000 })).code !== 0) throw new GitInstallError(tm('git.err.extractFailed'));
   const dir = join(src, `git-${tar.version}`);
   const prefix = join(d.dataDir, 'git');
   const jobs = Math.max(1, cpus().length);
@@ -279,7 +279,7 @@ export async function installLinux(d: InstallDeps, tmp: string): Promise<void> {
   d.log(`git-install: make ${makeArgs(prefix, 'all', jobs).join(' ')}`);
   if ((await d.run('make', makeArgs(prefix, 'all', jobs), { cwd: dir, onLine, signal: d.signal })) !== 0) {
     check(d.signal);
-    throw new GitInstallError(tm('A compilação do Git falhou. Detalhes no log do app.', 'Building Git failed. Details in the app log.'));
+    throw new GitInstallError(tm('git.err.buildFailed'));
   }
 
   // instalar (a partir daqui não se cancela)
@@ -287,7 +287,7 @@ export async function installLinux(d: InstallDeps, tmp: string): Promise<void> {
   d.emit({ step: 'installing', version: tar.version, method });
   await rm(prefix, { recursive: true, force: true });
   if ((await d.run('make', makeArgs(prefix, 'install', jobs), { cwd: dir, onLine: (line) => d.emit({ step: 'installing', version: tar.version, detail: line, method }) })) !== 0) {
-    throw new GitInstallError(tm('A instalação do Git falhou. Detalhes no log do app.', 'Installing Git failed. Details in the app log.'));
+    throw new GitInstallError(tm('git.err.installFailed'));
   }
 }
 
@@ -302,11 +302,11 @@ export async function installGit(d: InstallDeps): Promise<Detected> {
     if (d.platform === 'win32') await installWindows(d, tmp);
     else if (d.platform === 'darwin') await installMac(d);
     else if (d.platform === 'linux') await installLinux(d, tmp);
-    else throw new GitInstallError(tm('Este sistema não tem instalação automática do Git.', 'This system has no automatic Git installation.'));
+    else throw new GitInstallError(tm('git.err.noAuto'));
     d.emit({ step: 'validating' });
     const found = await d.detect();
-    if (found.status === 'missing') throw new GitInstallError(tm('A instalação terminou, mas o Git não respondeu. Tente "Verificar de novo" ou instale manualmente.', 'The installation finished, but Git did not respond. Try "Check again" or install manually.'));
-    if (found.status === 'outdated') throw new GitInstallError(tm(`O Git foi instalado, mas a versão (${found.version}) ainda é menor que a mínima do app. Use "Instalar manualmente" para obter a mais recente.`, `Git was installed, but its version (${found.version}) is still below the app minimum. Use "Install manually" to get the latest.`));
+    if (found.status === 'missing') throw new GitInstallError(tm('git.err.notResponding'));
+    if (found.status === 'outdated') throw new GitInstallError(tm('git.err.outdatedAfter', { version: found.version ?? '?' }));
     d.emit({ step: 'done', version: found.version });
     return found;
   } finally {

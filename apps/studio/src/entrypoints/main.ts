@@ -145,7 +145,7 @@ const gitManager = new GitManager({
 /** Recusa a chamada enquanto o Git faltar. O bloqueio é AQUI (e não só na sobreposição): atalho, arrastar e soltar e a linha de comando não furam. */
 async function requireGit(): Promise<void> {
   await gitManager.ready;
-  if (gitManager.isBlocked()) throw new Error(`${GIT_UNAVAILABLE}: ${tm('O Git não está instalado neste computador.', 'Git is not installed on this computer.')}`);
+  if (gitManager.isBlocked()) throw new Error(`${GIT_UNAVAILABLE}: ${tm('git.err.unavailable')}`);
 }
 const needsGit =
   <A extends unknown[], R>(fn: (...a: A) => R) =>
@@ -166,7 +166,7 @@ ipcMain.handle(channel('installGit'), async (e) => {
     });
   } catch (err) {
     appLog(`git-install: ERRO: ${describeError(err)}${err instanceof Error && err.stack ? `\n${err.stack}` : ''}`);
-    throw new Error(`${err instanceof Error ? err.message : String(err)} ${tm('Detalhes no log: ', 'Details in the log: ')}${appLog.file}`);
+    throw new Error(`${err instanceof Error ? err.message : String(err)} ${tm('git.err.logHint')}${appLog.file}`);
   }
 });
 ipcMain.handle(channel('cancelGitInstall'), () => gitManager.cancel());

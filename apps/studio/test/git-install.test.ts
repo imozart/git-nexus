@@ -256,10 +256,10 @@ describe('detecção', () => {
   });
 
   it('makeHas procura no PATH (e `.exe` no Windows)', () => {
-    const has = makeHas({ PATH: ['/a', '/b'].join(delimiter) }, (p) => fwd(p) === '/b/make', 'linux');
+    const has = makeHas({ PATH: '/a:/b' }, (p) => fwd(p) === '/b/make', 'linux');
     expect(has('make')).toBe(true);
     expect(has('gcc')).toBe(false);
-    expect(makeHas({ PATH: 'C:/a' }, (p) => fwd(p) === 'C:/a/git.exe', 'win32')('git')).toBe(true);
+    expect(makeHas({ PATH: 'C:/x;C:/a' }, (p) => fwd(p) === 'C:/a/git.exe', 'win32')('git')).toBe(true);
   });
 });
 

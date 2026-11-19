@@ -44,7 +44,7 @@ const hosting = new HostingService(new PlainTokenStore());
 const fakeGit = { missing: false, fail: false, cancel: false, installs: 0, manual: 0, delay: 120 };
 const gitInstallEvents: unknown[] = [];
 const fakeAvail = () => ({ status: fakeGit.missing ? 'missing' : 'ok', ...(fakeGit.missing ? {} : { path: 'git', version: '2.56.1' }), method: 'windows-installer', canInstall: true });
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const wait = (ms: number) => new Promise((r) => setTimeout(r, Math.min(Math.max(Number.isFinite(ms) ? ms : 0, 0), 5000))); // limitado: o valor vem da URL
 
 const MAIN_STUBS: Record<string, (...a: any[]) => unknown> = {
   getGitAvailability: () => fakeAvail(),
@@ -270,7 +270,7 @@ createServer(async (req, res) => {
       const q = url.searchParams;
       if (q.has('mode')) fakeGit.missing = q.get('mode') === 'missing';
       if (q.has('fail')) fakeGit.fail = q.get('fail') === '1';
-      if (q.has('delay')) fakeGit.delay = Number(q.get('delay'));
+      if (q.has('delay')) fakeGit.delay = Math.min(Math.max(Number(q.get('delay')) || 0, 0), 2000);
       return void res.end(JSON.stringify({ ...fakeGit, events: gitInstallEvents.length }));
     }
     if (url.pathname === '/gitinstall') {
