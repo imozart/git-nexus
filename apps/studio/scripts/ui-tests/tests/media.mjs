@@ -210,7 +210,7 @@ scenes['stage-por-linha'] = async () => {
   await clickText('.gn-seg__opt', 'Pendente');
   await sleep(600);
   await frame('stage-por-linha', 2);
-  await t.ev(`document.querySelector('[title="Incluir esta linha no commit"]')?.click()`);
+  await t.ev(`document.querySelector('[data-tooltip="Incluir esta linha no commit"]')?.click()`);
   await t.until(`document.body.textContent.includes('Linha incluída')`, 10000);
   await sleep(600);
   await frame('stage-por-linha', 3);

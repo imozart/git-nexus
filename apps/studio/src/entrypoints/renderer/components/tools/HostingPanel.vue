@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { GnBadge, GnButton, GnSegmented } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnSegmented, GnTooltip } from '@git-nexus/ui-kit';
 import type { ChangeRequest, ChangeRequestState, CiState, CiStatus, HostingInfo, ProviderKind, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -211,7 +211,7 @@ onMounted(loadInfo);
         <GnSegmented :model-value="mode" :options="modeOptions" :aria-label="t('hp.modeAria')" @update:model-value="onMode" />
         <GnSegmented v-if="mode === 'list'" v-model="state" :options="stateOptions" :aria-label="t('hp.stateAria')" />
         <span class="spacer" />
-        <GnButton size="sm" tone="danger" :title="t('hp.disconnectTip')" @click="disconnect">{{ t('hp.disconnect') }}</GnButton>
+        <GnButton size="sm" tone="danger" @click="disconnect">{{ t('hp.disconnect') }}<GnTooltip :text="t('hp.disconnectTip')" /></GnButton>
       </div>
 
       <!-- lista -->
@@ -222,7 +222,7 @@ onMounted(loadInfo);
             <div class="cr__main">
               <div class="cr__t">
                 <span class="mono muted">#{{ it.number }}</span>
-                <strong :title="it.title">{{ it.title }}</strong>
+                <strong>{{ it.title }}<GnTooltip :text="it.title" /></strong>
                 <GnBadge v-if="it.draft" tone="neutral">{{ t('hp.draft') }}</GnBadge>
                 <GnBadge :tone="it.state === 'merged' ? 'accent' : it.state === 'open' ? 'success' : 'danger'">{{ t(STATE_BADGE[it.state]) }}</GnBadge>
               </div>
@@ -230,13 +230,13 @@ onMounted(loadInfo);
             </div>
             <span class="cr__ci">
               <span v-if="ciOf(it.sha) === 'loading'" class="muted small">CI…</span>
-              <span v-else-if="ciOf(it.sha) === 'error'" class="muted small" :title="t('hp.ciError')">CI ?</span>
+              <span v-else-if="ciOf(it.sha) === 'error'" class="muted small">CI ?<GnTooltip :text="t('hp.ciError')" /></span>
               <GnBadge
                 v-else-if="ciOf(it.sha)"
                 :tone="CI_TONE[(ciOf(it.sha) as CiStatus).state]"
-                :title="(ciOf(it.sha) as CiStatus).checks.map((c) => `${c.name}: ${c.state}`).join('\n') || t('hp.noChecks')"
               >
                 {{ t(CI_LABEL[(ciOf(it.sha) as CiStatus).state]) }}
+                <GnTooltip :text="(ciOf(it.sha) as CiStatus).checks.map((c) => `${c.name}: ${c.state}`).join('\n') || t('hp.noChecks')" />
               </GnBadge>
               <GnButton v-if="firstFailing(ciOf(it.sha) as CiStatus | undefined)" size="sm" tone="danger" @click="open(firstFailing(ciOf(it.sha) as CiStatus)!)">{{ t('gv.seeFailure') }}</GnButton>
             </span>

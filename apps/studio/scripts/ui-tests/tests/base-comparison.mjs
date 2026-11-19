@@ -41,7 +41,7 @@ await t.openRepo(repo, 'baserepo');
 await t.until(`document.querySelector('.bp__btn .bp__name')?.textContent.trim() === 'feat/x'`, 15000);
 await t.until(`document.querySelector('.bp__basechip')`, 10000);
 const chip = () => t.ev(`document.querySelector('.bp__basechip')?.textContent.trim() ?? ''`);
-const tip = () => t.ev(`document.querySelector('.bp__btn').title`);
+const tip = () => t.ev(`document.querySelector('.bp__btn').dataset.tooltip`);
 const refresh = async () => {
   await t.ev(`document.querySelector('.rv__btns button').click()`);
   await sleep(600);

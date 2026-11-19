@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
-import { GnButton } from '@git-nexus/ui-kit';
+import { GnButton, GnTooltip } from '@git-nexus/ui-kit';
 import type {
   AmendInfo,
   CommitPolicy,
@@ -267,10 +267,11 @@ async function saveTeamPolicy(): Promise<void> {
       <GnButton size="sm" type="button" @click="showPolicy = !showPolicy">{{ t('commit.policy') }}</GnButton>
     </div>
 
-    <div v-if="teamLocked" class="cf__team" :title="t('commit.teamTitle')">
+    <div v-if="teamLocked" class="cf__team">
       {{ t('commit.teamActive') }}
       <small v-if="policy.types?.length">{{ t('commit.teamTypes', { list: policy.types.join(', ') }) }}</small>
       <small v-if="policy.scopes?.length">{{ t('commit.teamScopes', { list: policy.scopes.join(', ') }) }}</small>
+      <GnTooltip :text="t('commit.teamTitle')" />
     </div>
     <ul v-if="team?.errors.length" class="cf__teamerr">
       <li v-for="er in team.errors" :key="er">⚠ {{ er }}</li>
@@ -315,10 +316,10 @@ async function saveTeamPolicy(): Promise<void> {
           type="button"
           class="chip"
           :class="{ 'chip--on': form.type === ty }"
-          :title="typeHint(ty)"
           @click="form.type = ty"
         >
           {{ ty }}
+          <GnTooltip :text="typeHint(ty)" />
         </button>
       </div>
       <small class="muted">{{ typeHint(form.type) }}</small>
@@ -388,13 +389,15 @@ async function saveTeamPolicy(): Promise<void> {
       </div>
     </div>
 
-    <label v-if="signing" class="cf__amend" :title="t('commit.signHint', { format: t(`commit.signFormat.${signing.format}`) })">
+    <label v-if="signing" class="cf__amend">
       <input v-model="sign" type="checkbox" data-testid="sign-toggle" /> {{ t('commit.sign') }}
       <small class="muted" data-testid="sign-note">{{ signing.enabled ? t('commit.signOn') : signing.key ? t('commit.signKey') : t('commit.signNoKey') }}</small>
+      <GnTooltip :text="t('commit.signHint', { format: t(`commit.signFormat.${signing.format}`) })" />
     </label>
 
-    <label class="cf__amend" :title="t('commit.amendHint')">
+    <label class="cf__amend">
       <input v-model="amend" type="checkbox" data-testid="amend-toggle" /> {{ t('commit.amend') }}
+      <GnTooltip :text="t('commit.amendHint')" />
     </label>
     <div v-if="amend && amendInfo?.pushed" class="cf__warn" role="alert" data-testid="amend-pushed">
       {{ t('commit.amendPushed') }}
@@ -402,8 +405,9 @@ async function saveTeamPolicy(): Promise<void> {
     </div>
     <div v-if="amend && amendInfo?.isMerge" class="cf__warn" data-testid="amend-merge">{{ t('commit.amendMerge') }}</div>
 
-    <GnButton variant="primary" :tone="amend && amendInfo?.pushed ? 'warn' : 'success'" type="submit" :disabled="!canCommit" title="Ctrl+Enter" data-testid="commit-submit">
+    <GnButton variant="primary" :tone="amend && amendInfo?.pushed ? 'warn' : 'success'" type="submit" :disabled="!canCommit" data-testid="commit-submit">
       {{ committing ? (amend ? t('commit.amending') : t('commit.submitting')) : amend ? t('commit.amendSubmit') : t('commit.submit', { n: stagedCount }) }}
+      <GnTooltip text="Ctrl+Enter" />
     </GnButton>
     <small v-if="stagedCount === 0 && !amend" class="muted">{{ t('commit.needStage') }}</small>
     <small v-if="amend && stagedCount === 0" class="muted">{{ t('commit.amendOnlyMessage') }}</small>

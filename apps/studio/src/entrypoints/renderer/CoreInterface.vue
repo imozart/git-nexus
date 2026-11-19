@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { encodingLabel, type EncodingChoice } from '@git-nexus/git-core/pure';
-import { GnButton, GnIconButton, GnTabs, type GnTab } from '@git-nexus/ui-kit';
+import { GnButton, GnIconButton, GnTabs, GnTooltip, type GnTab } from '@git-nexus/ui-kit';
 import { t } from './i18n';
 import EncodingMenu from './components/EncodingMenu.vue';
 import LanguagePicker from './components/LanguagePicker.vue';
@@ -68,8 +68,9 @@ const tabs = computed<GnTab[]>(() =>
       <GnTabs class="core__tabs" :tabs="tabs" :model-value="ws.activeId" @update:model-value="ws.activeId = $event" @close="ws.close" />
       <ThemePicker />
       <LanguagePicker />
-      <button type="button" class="core__cmd" :title="t('core.commandsTitle')" @click="cmds.open()">
+      <button type="button" class="core__cmd" @click="cmds.open()">
         {{ t('core.commands') }} <kbd>{{ shortcutLabel('Mod+K') }}</kbd>
+        <GnTooltip :text="t('core.commandsTitle')" />
       </button>
       <GnIconButton class="core__gear" icon="settings" :label="t('core.settings')" :title="`${t('core.settings')} (${shortcutLabel('Mod+,')})`" data-testid="settings-open" @click="settings.open()" />
     </div>
@@ -79,11 +80,12 @@ const tabs = computed<GnTab[]>(() =>
       </span>
       <template v-if="upd.canInstall && upd.phase === 'idle'">
         <!-- ação principal da faixa (azul sólido); depois de uma falha vira "Tentar de novo", em âmbar (estado de atenção) -->
-        <GnButton size="sm" :variant="upd.failed ? undefined : 'primary'" :tone="upd.failed ? 'warn' : undefined" :title="t('update.installTitle')" @click="upd.downloadAndVerify()">
+        <GnButton size="sm" :variant="upd.failed ? undefined : 'primary'" :tone="upd.failed ? 'warn' : undefined" @click="upd.downloadAndVerify()">
           {{ upd.failed ? t('update.retry') : t('update.install') }}
+          <GnTooltip :text="t('update.installTitle')" />
         </GnButton>
         <!-- a página da release só aparece como saída quando a atualização dentro do app falhou -->
-        <GnButton v-if="upd.failed" size="sm" :title="upd.info.assetName ?? t('update.openPage')" @click="upd.download()">{{ t('update.manual') }}</GnButton>
+        <GnButton v-if="upd.failed" size="sm" @click="upd.download()">{{ t('update.manual') }}<GnTooltip :text="upd.info.assetName ?? t('update.openPage')" /></GnButton>
       </template>
       <span v-else-if="upd.phase === 'downloading' && upd.preparing" class="upd__prog" role="progressbar" :aria-label="t('update.preparing')">
         {{ t('update.preparing') }}
@@ -97,19 +99,21 @@ const tabs = computed<GnTab[]>(() =>
       <template v-else-if="upd.phase === 'ready' || upd.phase === 'installing'">
         <span class="upd__ok">✔ {{ t('update.ready', { version: upd.info.latest ?? '' }) }}</span>
         <!-- conclui a atualização (confirmação da pessoa): verde, como os outros "concluir" -->
-        <GnButton size="sm" variant="primary" tone="success" :disabled="upd.phase === 'installing'" :title="t('update.restartTitle')" @click="upd.installAndRestart()">
+        <GnButton size="sm" variant="primary" tone="success" :disabled="upd.phase === 'installing'" @click="upd.installAndRestart()">
           {{ upd.phase === 'installing' ? t('update.installing') : t('update.restart') }}
+          <GnTooltip :text="t('update.restartTitle')" />
         </GnButton>
-        <GnButton v-if="upd.failed" size="sm" :title="upd.info.assetName ?? t('update.openPage')" @click="upd.download()">{{ t('update.manual') }}</GnButton>
+        <GnButton v-if="upd.failed" size="sm" @click="upd.download()">{{ t('update.manual') }}<GnTooltip :text="upd.info.assetName ?? t('update.openPage')" /></GnButton>
       </template>
-      <GnButton v-else size="sm" variant="primary" :title="upd.info.assetName ?? t('update.openPage')" @click="upd.download()">
+      <GnButton v-else size="sm" variant="primary" @click="upd.download()">
         {{ upd.info.assetName ? t('update.download') : t('update.downloadPage') }}
+        <GnTooltip :text="upd.info.assetName ?? t('update.openPage')" />
       </GnButton>
       <span v-if="upd.flash" class="upd__err">{{ upd.flash }}</span>
       <GnButton size="sm" tone="accent" @click="upd.openNotes()">{{ t('update.notes') }}</GnButton>
       <span class="upd__sp" />
-      <GnButton size="sm" variant="ghost" :title="t('update.laterTitle')" @click="upd.later()">{{ t('update.later') }}</GnButton>
-      <GnButton size="sm" variant="ghost" :title="t('update.skipTitle')" @click="upd.skip()">{{ t('update.skip') }}</GnButton>
+      <GnButton size="sm" variant="ghost" @click="upd.later()">{{ t('update.later') }}<GnTooltip :text="t('update.laterTitle')" /></GnButton>
+      <GnButton size="sm" variant="ghost" @click="upd.skip()">{{ t('update.skip') }}<GnTooltip :text="t('update.skipTitle')" /></GnButton>
     </div>
     <div v-else-if="upd.flash" class="upd upd--info" role="status">{{ upd.flash }}</div>
     <div v-if="appErrors.shown && appErrors.logFile" class="upd upd--error" role="alert" data-testid="app-error">
@@ -128,9 +132,9 @@ const tabs = computed<GnTab[]>(() =>
       </section>
     </div>
     <footer v-if="openFile" class="core__foot" data-testid="statusbar">
-      <span class="core__file" :title="openFile.path">{{ openFile.path }}</span>
+      <span class="core__file">{{ openFile.path }}<GnTooltip :text="openFile.path" /></span>
       <span v-if="openFile.invalid" class="core__encwarn" role="alert" data-testid="encoding-warning">{{ t('enc.invalidShort') }}</span>
-      <GnButton size="sm" :tone="openFile.invalid ? 'warn' : 'neutral'" :title="encTip" :aria-label="encTip" aria-haspopup="dialog" :aria-expanded="encOpen !== null" data-testid="encoding-btn" @click="toggleEnc">{{ encodingLabel(openFile.encoding) }}</GnButton>
+      <GnButton size="sm" :tone="openFile.invalid ? 'warn' : 'neutral'" :aria-label="encTip" aria-haspopup="dialog" :aria-expanded="encOpen !== null" data-testid="encoding-btn" @click="toggleEnc">{{ encodingLabel(openFile.encoding) }}<GnTooltip :text="encTip" /></GnButton>
     </footer>
     <EncodingMenu v-if="encOpen && openFile" :anchor="encOpen" :current="openFile.encoding" :detected="openFile.detected" :auto="isAuto" @select="pickEnc" @close="encOpen = null" />
   </div>

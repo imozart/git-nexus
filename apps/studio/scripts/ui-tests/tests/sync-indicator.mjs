@@ -37,11 +37,11 @@ const refresh = async () => {
 };
 const chips = () => t.ev(`[...document.querySelectorAll('.bp__btn .sync .gn-badge')].map((b) => b.textContent.trim()).join(' ')`);
 const state = () => t.ev(`document.querySelector('.bp__btn .sync')?.dataset.sync ?? ''`);
-const tip = () => t.ev(`document.querySelector('.bp__btn').title`);
+const tip = () => t.ev(`document.querySelector('.bp__btn').dataset.tooltip`);
 const aria = () => t.ev(`document.querySelector('.bp__btn').getAttribute('aria-label')`);
 
 // --- em dia: nada de indicador, mas o estado está no tooltip e no nome acessível -------------------------------------------------
-await t.until(`document.querySelector('.bp__btn').title.includes('Em dia')`, 10000);
+await t.until(`(document.querySelector('.bp__btn')?.dataset.tooltip ?? '').includes('Em dia')`, 10000);
 t.check('em dia: sem indicador no botão', (await t.count('.bp__btn .sync')) === 0);
 t.check('em dia: o tooltip diz "Em dia com origin/main"', /Em dia com origin\/main/.test(await tip()), await tip());
 t.check('o nome acessível leva o nome da branch e o estado', (await aria()) === 'main. Em dia com origin/main', await aria());

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { GnBadge, GnButton, GnButtonGroup, GnIcon, GnIconButton } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnButtonGroup, GnIcon, GnIconButton, GnTooltip } from '@git-nexus/ui-kit';
 import type { RebaseAction, RebasePlan, RebaseState, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -222,7 +222,7 @@ onMounted(async () => {
         <GnButton size="sm" tone="success" :disabled="busy || state.conflicted.length > 0" @click="proceed('continue')">
           <GnIcon name="check" />{{ t('rb.continue') }}
         </GnButton>
-        <GnButton size="sm" tone="warn" :disabled="busy" :title="t('rb.skipTip')" @click="proceed('skip')">{{ t('rb.skip') }}</GnButton>
+        <GnButton size="sm" tone="warn" :disabled="busy" @click="proceed('skip')">{{ t('rb.skip') }}<GnTooltip :text="t('rb.skipTip')" /></GnButton>
         <GnButton size="sm" variant="danger" :disabled="busy" @click="askAbort"><GnIcon name="x" />{{ t('rb.abort') }}</GnButton>
       </div>
     </section>
@@ -264,7 +264,7 @@ onMounted(async () => {
           @drop.prevent="onDrop(i)"
           @dragend="dragFrom = dragOver = -1"
         >
-          <span class="row__grip" :title="t('rb.dragTip')">⠿</span>
+          <span class="row__grip">⠿<GnTooltip :text="t('rb.dragTip')" /></span>
           <GnButtonGroup class="row__mv">
             <GnIconButton icon="up" :disabled="i === 0" :label="t('rb.up')" @click="move(i, i - 1)" />
             <GnIconButton icon="down" :disabled="i === rows.length - 1" :label="t('rb.down')" @click="move(i, i + 1)" />
@@ -272,7 +272,7 @@ onMounted(async () => {
           <ComboBox :model-value="r.action" :options="actionOptions" :title="actionHint(r.action)" :aria-label="actionHint(r.action)" @update:model-value="setAction(r, $event as RebaseAction)" />
           <span class="row__hash mono">{{ r.shortHash }}</span>
           <div class="row__main">
-            <span class="row__sub" :title="r.subject">{{ r.subject }}</span>
+            <span class="row__sub">{{ r.subject }}<GnTooltip :text="r.subject" /></span>
             <textarea
               v-if="r.action === 'reword'"
               v-model="r.message"
@@ -283,7 +283,7 @@ onMounted(async () => {
               @dragstart.prevent.stop
             />
           </div>
-          <GnBadge v-if="r.published" tone="warn" :title="t('rb.publishedTip')">{{ t('rb.published') }}</GnBadge>
+          <GnBadge v-if="r.published" tone="warn">{{ t('rb.published') }}<GnTooltip :text="t('rb.publishedTip')" /></GnBadge>
         </li>
       </ol>
 

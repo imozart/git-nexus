@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { GnBadge, GnButton, GnDialog, GnIcon } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnDialog, GnIcon, GnTooltip } from '@git-nexus/ui-kit';
 import type { ChangelogData } from '@git-nexus/git-core/pure';
 import { CHANGELOG_URL, parseChangelog, releaseUrl, withCurrentVersion } from '../../../shared/changelog';
 import { isAllowedUpdateUrl } from '../../../shared/update';
@@ -43,7 +43,7 @@ onMounted(async () => {
             <p v-if="data" class="muted">{{ t('changelog.using', { version: data.version }) }}</p>
           </div>
           <div class="cl__actions">
-            <GitHubButton :title="t('changelog.githubTitle')" @click="openLink(CHANGELOG_URL)">{{ t('changelog.github') }}</GitHubButton>
+            <GitHubButton @click="openLink(CHANGELOG_URL)">{{ t('changelog.github') }}<GnTooltip :text="t('changelog.githubTitle')" /></GitHubButton>
             <GnButton @click="emit('close')">{{ t('home.close') }}</GnButton>
           </div>
         </header>
@@ -68,7 +68,7 @@ onMounted(async () => {
                     <strong v-if="p.kind === 'bold'">{{ p.text }}</strong>
                     <code v-else-if="p.kind === 'code'">{{ p.text }}</code>
                     <template v-else-if="p.kind === 'link'">
-                      <a v-if="canOpen(p.href)" :class="{ 'is-code': p.code }" href="#" :title="p.href" @click.prevent="openLink(p.href)">{{ p.text }}</a>
+                      <a v-if="canOpen(p.href)" :class="{ 'is-code': p.code }" href="#" @click.prevent="openLink(p.href)">{{ p.text }}<GnTooltip :text="p.href" /></a>
                       <span v-else>{{ p.text }}</span>
                     </template>
                     <template v-else>{{ p.text }}</template>
@@ -78,7 +78,7 @@ onMounted(async () => {
             </section>
             <div v-if="v.pending" class="ver__pending">
               <p class="muted">{{ t('changelog.pending') }}</p>
-              <a href="#" :title="releaseUrl(v.version)" @click.prevent="openLink(releaseUrl(v.version))">{{ t('changelog.pendingLink') }}</a>
+              <a href="#" @click.prevent="openLink(releaseUrl(v.version))">{{ t('changelog.pendingLink') }}<GnTooltip :text="releaseUrl(v.version)" /></a>
             </div>
             <p v-else-if="!v.sections.length" class="muted">{{ t('changelog.noChanges') }}</p>
           </details>

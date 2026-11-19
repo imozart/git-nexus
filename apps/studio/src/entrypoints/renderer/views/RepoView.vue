@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { GnBadge, GnButton, GnButtonGroup, GnIconButton, GnSegmented } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnButtonGroup, GnIconButton, GnSegmented, GnTooltip } from '@git-nexus/ui-kit';
 import type { BaseComparison, FileEntry, FileSides, InProgressKind, RebaseState, RepoSummary, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { AUTO_FETCH_TICK_MS, autoFetch } from '../auto-fetch';
@@ -649,8 +649,8 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
       </div>
       <div class="rv__btns">
         <GnButton size="sm" :disabled="loading" @click="refresh()">{{ t('rv.refresh') }}</GnButton>
-        <GnButton size="sm" variant="ghost" :title="t('rv.terminalTip')" data-testid="open-terminal" @click="openTool('terminal')">{{ t('rv.terminal') }}</GnButton>
-        <GnButton size="sm" variant="ghost" :title="t('rv.editorTip')" data-testid="open-editor" @click="openTool('editor')">{{ t('rv.editor') }}</GnButton>
+        <GnButton size="sm" variant="ghost" data-testid="open-terminal" @click="openTool('terminal')">{{ t('rv.terminal') }}<GnTooltip :text="t('rv.terminalTip')" /></GnButton>
+        <GnButton size="sm" variant="ghost" data-testid="open-editor" @click="openTool('editor')">{{ t('rv.editor') }}<GnTooltip :text="t('rv.editorTip')" /></GnButton>
         <GnButton size="sm" tone="accent" @click="ws.open('graph', repo)">{{ t('rv.graph') }}</GnButton>
         <GnButton size="sm" tone="accent" @click="ws.open('tools', repo)">{{ t('rv.tools') }}</GnButton>
         <GnButton size="sm" :tone="conflicted.length ? 'warn' : 'neutral'" :variant="conflicted.length ? 'primary' : 'ghost'" @click="ws.open('merge', repo)">

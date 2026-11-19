@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { GnBadge, GnButton } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnTooltip } from '@git-nexus/ui-kit';
 import type { InProgressKind, MergeConflictBlock, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { useWorkspaceStore } from '../stores/workspace';
@@ -91,7 +91,7 @@ watch(() => ws.versions[props.repo.id], load);
         :class="{ 'item--on': c.filePath === current }"
         @click="current = c.filePath"
       >
-        <span class="item__name" :title="c.filePath">{{ c.filePath }}</span>
+        <span class="item__name">{{ c.filePath }}<GnTooltip :text="c.filePath" /></span>
         <GnBadge :tone="c.hasUnresolvedMarkers ? 'warn' : 'success'">{{ c.hasUnresolvedMarkers ? t('tree.statePending') : t('mcr.noMarkers') }}</GnBadge>
       </div>
       <p v-if="!conflicts.length && info" class="ok">{{ info }}</p>

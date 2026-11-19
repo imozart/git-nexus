@@ -43,7 +43,7 @@ await t.until(`/segunda/.test(document.querySelector('.sbs__body')?.innerText ??
 t.check('o rodapé mostra Windows-1252 para o arquivo legado', (await btn()) === 'Windows-1252', await btn());
 t.check('o diff mostra os acentos (antes saía "�")', /ação/.test(await diffText()) && !(await diffText()).includes('�'), await diffText());
 t.check('o rodapé mostra o caminho do arquivo', /latin\.txt/.test((await t.text('[data-testid="statusbar"]')) ?? ''));
-t.check('o tooltip diz que foi detectada automaticamente', /detectada automaticamente/.test(await t.ev(`document.querySelector('[data-testid="encoding-btn"]').title`)));
+t.check('o tooltip diz que foi detectada automaticamente', /detectada automaticamente/.test(await t.ev(`document.querySelector('[data-testid="encoding-btn"]').dataset.tooltip`)));
 t.check('sem aviso quando a codificação confere', (await hasWarn()) === false);
 const withActions = await diffButtons();
 t.check('com a codificação certa as ações de linha/bloco existem', withActions > 0, withActions);
@@ -84,7 +84,7 @@ t.check('o arquivo foi relido: aparece o "�" (os bytes não existem em UTF-8)'
 t.check('o aviso aparece', (await hasWarn()) === true);
 t.check('descartar e incluir linhas ficam desligados (nada seria gravado)', (await diffButtons()) === 0, await diffButtons());
 t.check('a escolha foi lembrada', /utf-8/.test((await t.ev(`localStorage.getItem('gitnexus.fileEncodings')`)) ?? ''));
-t.check('o tooltip diz que foi escolhida e qual é a detectada', /escolhida por você/.test(await t.ev(`document.querySelector('[data-testid="encoding-btn"]').title`)) || /não existem/.test(await t.ev(`document.querySelector('[data-testid="encoding-btn"]').title`)));
+t.check('o tooltip diz que foi escolhida e qual é a detectada', /escolhida por você/.test(await t.ev(`document.querySelector('[data-testid="encoding-btn"]').dataset.tooltip`)) || /não existem/.test(await t.ev(`document.querySelector('[data-testid="encoding-btn"]').dataset.tooltip`)));
 await t.shot('codificacao-invalida');
 
 // --- a escolha vale por arquivo ---------------------------------------------------------------------------------------------------

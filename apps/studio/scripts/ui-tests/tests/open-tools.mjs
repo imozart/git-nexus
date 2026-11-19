@@ -20,7 +20,7 @@ await t.until(`document.querySelector('[data-testid="open-terminal"]')`, 20000);
 await sleep(500);
 
 t.check('o cabeçalho tem Terminal e Editor', (await t.count('[data-testid="open-terminal"], [data-testid="open-editor"]')) === 2);
-t.check('os botões têm dica', /terminal/i.test(await t.ev(`document.querySelector('[data-testid="open-terminal"]').title`)) && /VS Code/.test(await t.ev(`document.querySelector('[data-testid="open-editor"]').title`)));
+t.check('os botões têm dica', /terminal/i.test(await t.ev(`document.querySelector('[data-testid="open-terminal"]').dataset.tooltip`)) && /VS Code/.test(await t.ev(`document.querySelector('[data-testid="open-editor"]').dataset.tooltip`)));
 
 await t.ev(`document.querySelector('[data-testid="open-terminal"]').click()`);
 await t.until(`/Terminal aberto/.test(document.querySelector('.rv__notice')?.textContent ?? '')`, 8000);

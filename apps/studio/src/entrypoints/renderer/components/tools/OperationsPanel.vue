@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { GnBadge, GnButton } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnTooltip } from '@git-nexus/ui-kit';
 import type { GitOperation, OperationKind, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -90,7 +90,7 @@ watch(() => ws.versions[props.repo.id], load);
         <div class="op__main">
           <div class="op__sum">
             <GnBadge :tone="TONE[o.kind]">{{ o.kind }}</GnBadge>
-            <span class="op__text" :title="o.summary">{{ o.summary }}</span>
+            <span class="op__text">{{ o.summary }}<GnTooltip :text="o.summary" /></span>
           </div>
           <div class="muted op__meta">
             {{ when(o.date) }} · {{ o.shortHash }}<template v-if="o.prevHash"> ← {{ o.prevHash.slice(0, 7) }}</template>

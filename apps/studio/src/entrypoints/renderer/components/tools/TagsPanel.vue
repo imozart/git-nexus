@@ -2,7 +2,7 @@
 // Tags do repositório: criar (leve ou anotada), ver, ir para a tag, enviar ao remoto e apagar (local e remota). Nada é forçado: se o remoto já
 // tem uma tag com o mesmo nome em outro commit, o envio é recusado.
 import { computed, onMounted, ref, watch } from 'vue';
-import { GnBadge, GnButton } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnTooltip } from '@git-nexus/ui-kit';
 import type { RemoteTags, RepositoryMeta, TagInfo } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../../api';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -128,8 +128,8 @@ watch(() => ws.versions[props.repo.id], load);
 
     <div class="tg__bar">
       <input v-model="filter" class="tg__filter" :placeholder="t('tags.filter')" :aria-label="t('tags.filter')" />
-      <GnButton size="sm" :disabled="!pushable" :title="t('tags.pushAllTip')" data-testid="tag-push-all" @click="push()">{{ t('tags.pushAll', { n: pushable }) }}</GnButton>
-      <small v-if="remote && !remote.ok" class="muted" :title="remote.message">{{ t('tags.remoteUnknown') }}</small>
+      <GnButton size="sm" :disabled="!pushable" data-testid="tag-push-all" @click="push()">{{ t('tags.pushAll', { n: pushable }) }}<GnTooltip :text="t('tags.pushAllTip')" /></GnButton>
+      <small v-if="remote && !remote.ok" class="muted">{{ t('tags.remoteUnknown') }}<GnTooltip :text="remote.message ?? ''" /></small>
     </div>
 
     <p v-if="!tags.length && !loading && !error" class="muted empty">{{ t('tags.empty') }}</p>
@@ -141,15 +141,16 @@ watch(() => ws.versions[props.repo.id], load);
           <div class="tag__line">
             <strong class="tag__name">{{ x.name }}</strong>
             <GnBadge :tone="x.annotated ? 'accent' : 'neutral'">{{ x.annotated ? t('tags.annotated') : t('tags.light') }}</GnBadge>
-            <GnBadge v-if="remote?.ok" :tone="onRemote(x.name) ? 'success' : 'warn'" :title="onRemote(x.name) ? t('tags.onRemoteTip') : t('tags.localOnlyTip')">
+            <GnBadge v-if="remote?.ok" :tone="onRemote(x.name) ? 'success' : 'warn'">
               {{ onRemote(x.name) ? t('tags.onRemote') : t('tags.localOnly') }}
+              <GnTooltip :text="onRemote(x.name) ? t('tags.onRemoteTip') : t('tags.localOnlyTip')" />
             </GnBadge>
           </div>
           <div class="muted tag__meta">{{ x.hash.slice(0, 7) }} · {{ when(x.date) }} · {{ x.subject }}<template v-if="x.tagger"> · {{ x.tagger }}</template></div>
           <pre v-if="x.message && x.message !== x.subject" class="tag__msg">{{ x.message }}</pre>
         </div>
         <div class="tag__btns">
-          <GnButton size="sm" tone="accent" :title="t('tags.goTip')" data-testid="tag-go" @click="confirm = { kind: 'go', tag: x }">{{ t('tags.go') }}</GnButton>
+          <GnButton size="sm" tone="accent" data-testid="tag-go" @click="confirm = { kind: 'go', tag: x }">{{ t('tags.go') }}<GnTooltip :text="t('tags.goTip')" /></GnButton>
           <GnButton v-if="remote?.ok && !onRemote(x.name)" size="sm" data-testid="tag-push" @click="push(x.name)">{{ t('tags.push') }}</GnButton>
           <GnButton size="sm" variant="ghost" tone="danger" data-testid="tag-delete" @click="confirm = { kind: 'delete-local', tag: x }">{{ t('tags.delete') }}</GnButton>
           <GnButton v-if="onRemote(x.name)" size="sm" variant="ghost" tone="danger" data-testid="tag-delete-remote" @click="confirm = { kind: 'delete-remote', tag: x }">{{ t('tags.deleteRemote') }}</GnButton>

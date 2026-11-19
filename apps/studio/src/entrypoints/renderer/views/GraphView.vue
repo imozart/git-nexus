@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { GnBadge, GnButton, GnIconButton } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnIconButton, GnTooltip } from '@git-nexus/ui-kit';
 import { buildGraph, type CiStatus, type CommitDetail, type CommitInfo, type HistorySearchMode, type RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { useWorkspaceStore } from '../stores/workspace';
@@ -215,19 +215,22 @@ watch(() => ws.versions[props.repo.id], load);
           <dt>{{ t('gv.parents') }}</dt><dd class="mono">{{ selected.parents.map((p) => p.slice(0, 7)).join(', ') || '—' }}</dd>
         </dl>
         <div v-if="ci" class="gv__ci">
-          <GnBadge :tone="CI_TONE[ci.state]" :title="ci.checks.map((c) => `${c.name}: ${c.state}`).join('\n')">{{ t(CI_TEXT[ci.state]) }}</GnBadge>
+          <GnBadge :tone="CI_TONE[ci.state]">{{ t(CI_TEXT[ci.state]) }}<GnTooltip :text="ci.checks.map((c) => `${c.name}: ${c.state}`).join('\n')" /></GnBadge>
           <GnButton v-if="failUrl" size="sm" tone="danger" @click="api.hostingOpen(repo.path, failUrl!)">{{ t('gv.seeFailure') }}</GnButton>
         </div>
-        <GnButton size="sm" tone="warn" class="gv__rb" :title="t('gv.rebaseTip')" @click="ws.openTools(repo, 'rebase', selected.hash)">
+        <GnButton size="sm" tone="warn" class="gv__rb" @click="ws.openTools(repo, 'rebase', selected.hash)">
           {{ t('gv.rebaseHere') }}
+          <GnTooltip :text="t('gv.rebaseTip')" />
         </GnButton>
-        <GnButton size="sm" class="gv__rb" :title="t('gv.tagHereTip')" data-testid="tag-here" @click="ws.openTools(repo, 'tags', selected.hash)">{{ t('gv.tagHere') }}</GnButton>
+        <GnButton size="sm" class="gv__rb" data-testid="tag-here" @click="ws.openTools(repo, 'tags', selected.hash)">{{ t('gv.tagHere') }}<GnTooltip :text="t('gv.tagHereTip')" /></GnButton>
         <div class="gv__ops">
-          <GnButton size="sm" tone="accent" :disabled="opBusy" :title="t('gv.cherryPickTip')" data-testid="cherry-pick" @click="ask = { kind: 'cherry-pick', hash: selected.hash, subject: selected.subject }">
+          <GnButton size="sm" tone="accent" :disabled="opBusy" data-testid="cherry-pick" @click="ask = { kind: 'cherry-pick', hash: selected.hash, subject: selected.subject }">
             {{ t('gv.cherryPick') }}
+            <GnTooltip :text="t('gv.cherryPickTip')" />
           </GnButton>
-          <GnButton size="sm" tone="warn" :disabled="opBusy" :title="t('gv.revertTip')" data-testid="revert" @click="ask = { kind: 'revert', hash: selected.hash, subject: selected.subject }">
+          <GnButton size="sm" tone="warn" :disabled="opBusy" data-testid="revert" @click="ask = { kind: 'revert', hash: selected.hash, subject: selected.subject }">
             {{ t('gv.revert') }}
+            <GnTooltip :text="t('gv.revertTip')" />
           </GnButton>
         </div>
         <p v-if="opNotice" class="gv__opnote" :class="opNotice.ok ? 'gv__opnote--ok' : 'gv__opnote--err'" role="status" data-testid="gv-op-notice">{{ opNotice.text }}</p>
@@ -236,7 +239,7 @@ watch(() => ws.versions[props.repo.id], load);
         <ul v-if="detail" class="gv__files">
           <li v-for="f in detail.files" :key="f.path" :class="{ on: diffFile === f.path }" @click="showFile(f.path)">
             <GnBadge :tone="f.status === 'D' ? 'danger' : f.status === 'A' ? 'success' : 'accent'">{{ STATUS[f.status] ? t(STATUS[f.status]!) : f.status }}</GnBadge>
-            <span class="gv__fpath" :title="f.path">{{ f.path }}</span>
+            <span class="gv__fpath">{{ f.path }}<GnTooltip :text="f.path" /></span>
             <GnIconButton icon="history" :label="t('gv.fileHistory')" @click.stop="ws.openTools(repo, 'file', f.path, 'history')" />
             <GnIconButton icon="person" :label="t('gv.blame')" @click.stop="ws.openTools(repo, 'file', f.path, 'blame')" />
           </li>
