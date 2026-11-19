@@ -6,6 +6,7 @@
 import { computed, ref } from 'vue';
 import { GnButton, GnDialog, GnSegmented, GnTabs, type GnTab } from '@git-nexus/ui-kit';
 import { autoFetchEnabled } from '../auto-fetch';
+import { newConflictResolver } from '../conflict-resolver-pref';
 import { FONT_PREFS, fontCode, fontUi, ligatures, resetFonts, setFontCode, setFontUi, setLigatures } from '../font';
 import { LOCALES, locale, localePref, setLocalePref, t, type LocalePref } from '../i18n';
 import { MOTION_PREFS, motionPref, setMotionPref } from '../motion';
@@ -55,6 +56,11 @@ const SAMPLE = 'const ok = a !== b && c >= d;  // -> => != <=';
             {{ t('settings.autoFetch') }}
           </label>
           <p class="sd__hint">{{ t('settings.autoFetchHint') }}</p>
+          <label class="sd__chk sd__chk--gap">
+            <input v-model="newConflictResolver" type="checkbox" data-testid="settings-new-resolver" />
+            {{ t('settings.newResolver') }}
+          </label>
+          <p class="sd__hint">{{ t('settings.newResolverHint') }}</p>
         </template>
 
         <template v-else>

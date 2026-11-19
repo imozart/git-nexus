@@ -5,8 +5,10 @@ import type { InProgressKind, MergeConflictBlock, RepositoryMeta } from '@git-ne
 import { api, errMsg } from '../api';
 import { useWorkspaceStore } from '../stores/workspace';
 import MergeConflictResolver from '../components/MergeConflictResolver.vue';
+import MergeResolver from '../components/MergeResolver.vue';
 import OperationBanner from '../components/OperationBanner.vue';
 import ToolStripe, { type StripeItem } from '../components/ToolStripe.vue';
+import { newConflictResolver } from '../conflict-resolver-pref';
 import { t } from '../i18n';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
@@ -15,6 +17,8 @@ const ws = useWorkspaceStore();
 const conflicts = ref<MergeConflictBlock[]>([]);
 /** Merge, cherry-pick ou revert parado: dá para abortá-lo daqui sem ir ao terminal. */
 const inProgress = ref<InProgressKind | null>(null);
+/** Rebase parado: o Git inverte os lados (a "ours" é o branch de destino e a "theirs" é o commit do usuário). */
+const rebasing = ref(false);
 const current = ref('');
 const error = ref('');
 const info = ref('');
@@ -34,6 +38,7 @@ async function load(): Promise<void> {
   try {
     conflicts.value = await api.getMergeConflicts(props.repo.path);
     inProgress.value = await api.getInProgress(props.repo.path).catch(() => null);
+    rebasing.value = !!(await api.getRebaseState(props.repo.path).catch(() => null))?.inProgress;
     if (!conflicts.value.some((c) => c.filePath === current.value)) current.value = conflicts.value[0]?.filePath ?? '';
   } catch (e) {
     error.value = errMsg(e);
@@ -104,12 +109,10 @@ watch(() => ws.versions[props.repo.id], load);
       <p v-if="error" class="err">{{ error }}</p>
       <p v-if="info && conflicts.length" class="ok pad">{{ info }}</p>
       <template v-for="c in conflicts" :key="c.filePath">
-        <MergeConflictResolver
-          v-if="c.filePath === current"
-          :block="c"
-          :busy="saving"
-          @resolve="(m: string) => resolve(c, m)"
-        />
+        <template v-if="c.filePath === current">
+          <MergeResolver v-if="newConflictResolver" :block="c" :busy="saving" :rebase="rebasing" @resolve="(m: string) => resolve(c, m)" />
+          <MergeConflictResolver v-else :block="c" :busy="saving" @resolve="(m: string) => resolve(c, m)" />
+        </template>
       </template>
     </main>
   </div>
@@ -120,7 +123,7 @@ watch(() => ws.versions[props.repo.id], load);
   display: flex; height: 100%;
   &__side { flex: none; width: 270px; border-right: 1px solid var(--gn-border); overflow: auto; }
   &__sidehead { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--gn-border); }
-  &__main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; > :deep(.mcr) { flex: 1; } }
+  &__main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; > :deep(.mcr), > :deep(.mr) { flex: 1; } }
 }
 .item {
   display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 6px 12px; cursor: pointer;

@@ -1,18 +1,10 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import { css } from '@codemirror/lang-css';
-import { html } from '@codemirror/lang-html';
-import { java } from '@codemirror/lang-java';
-import { javascript } from '@codemirror/lang-javascript';
-import { json } from '@codemirror/lang-json';
-import { markdown } from '@codemirror/lang-markdown';
-import { python } from '@codemirror/lang-python';
-import { sql } from '@codemirror/lang-sql';
-import { xml } from '@codemirror/lang-xml';
-import { bracketMatching, syntaxHighlighting, defaultHighlightStyle, type LanguageSupport } from '@codemirror/language';
+import { bracketMatching, syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
 import { Compartment, EditorState, RangeSetBuilder, type Extension } from '@codemirror/state';
 import { oneDark } from '@codemirror/theme-one-dark';
+import { languageFor } from '../editor-language';
 import { fontRevision } from '../font';
 import { theme } from '../theme';
 import { Decoration, EditorView, ViewPlugin, keymap, lineNumbers, type DecorationSet, type ViewUpdate } from '@codemirror/view';
@@ -31,24 +23,6 @@ const emit = defineEmits<{ (e: 'update:modelValue', v: string): void }>();
 
 const host = ref<HTMLDivElement>();
 let view: EditorView | null = null;
-
-function languageFor(name: string): LanguageSupport | null {
-  const ext = name.split('.').pop()?.toLowerCase() ?? '';
-  switch (ext) {
-    case 'js': case 'mjs': case 'cjs': case 'jsx': return javascript({ jsx: true });
-    case 'ts': case 'mts': case 'cts': return javascript({ typescript: true });
-    case 'tsx': return javascript({ typescript: true, jsx: true });
-    case 'json': return json();
-    case 'html': case 'htm': case 'vue': return html();
-    case 'css': case 'scss': return css();
-    case 'java': case 'kt': return java();
-    case 'xml': case 'xsd': case 'svg': return xml();
-    case 'sql': return sql();
-    case 'md': return markdown();
-    case 'py': return python();
-    default: return null;
-  }
-}
 
 const LINE_CLASS = {
   marker: Decoration.line({ class: 'cm-cf-marker' }),
