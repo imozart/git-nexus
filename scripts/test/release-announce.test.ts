@@ -185,6 +185,12 @@ describe('texto vindo de fora', () => {
     expect(body).toContain('a \\| b @​alguem');
     expect(body).not.toContain('fix(x):');
   });
+  it('título com barra invertida: ela é escapada junto, para `\\|` não virar um pipe sem escape (alerta js/incomplete-sanitization)', () => {
+    const m = model({ prs: [{ number: 1, title: 'fix: c:\\dir\\|x', state: 'merged', commits: ['q'], issues: [] }, { number: 2, title: 'feat: pai', state: 'merged', commits: ['q', 'r'], issues: [] }] });
+    const { body } = renderPrComment(m, m.prs.find((p: { number: number }) => p.number === 2));
+    // c:\dir\|x  →  c:\\dir\\\|x   (cada \ e cada | ganham uma \ na frente)
+    expect(body).toContain('c:\\\\dir\\\\\\|x');
+  });
 });
 
 describe('release.yml: o job announce', () => {

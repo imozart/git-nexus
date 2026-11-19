@@ -79,7 +79,8 @@ export function mergeState(prev, { tag, prerelease, date }) {
 const cleanTitle = (t) =>
   safeTitle(t)
     .replace(/^[a-z]+(\([^)]*\))?!?:\s*/i, '')
-    .replace(/\|/g, '\\|')
+    // célula de tabela: a barra invertida e o pipe são escapados JUNTOS (escapar só o pipe deixaria `\|` virar pipe sem escape)
+    .replace(/[\\|]/g, (c) => `\\${c}`)
     .slice(0, 90);
 
 /**
