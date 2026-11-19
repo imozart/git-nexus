@@ -3,6 +3,7 @@ export * from './types/ipc.js';
 export * from './graph.js';
 export * from './conflict-markers.js';
 export * from './line-diff.js';
+export * from './merge3.js';
 export * from './messages.js';
 export * from './git-command.js';
 export * from './sync-state.js';

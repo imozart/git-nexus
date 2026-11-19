@@ -252,3 +252,33 @@ export function blockRows(rows: DiffRow[], block: number): number[] {
   });
   return idx;
 }
+
+/** Trecho alterado entre duas versões: as linhas `[aStart, aEnd)` da antiga viraram `[bStart, bEnd)` da nova (0-based; um lado pode ser vazio). */
+export interface DiffHunk {
+  aStart: number;
+  aEnd: number;
+  bStart: number;
+  bEnd: number;
+}
+
+/** Os trechos alterados de `a` para `b`, em ordem e sem encostar um no outro (o mesmo diff de `diffLines`, sem parear linhas). */
+export function diffHunks(a: string[], b: string[]): DiffHunk[] {
+  const hunks: DiffHunk[] = [];
+  let ai = 0;
+  let bi = 0;
+  let cur: DiffHunk | null = null;
+  for (const op of diffOps(a, b)) {
+    if (op.t === 'eq') {
+      if (cur) hunks.push(cur);
+      cur = null;
+      ai++;
+      bi++;
+      continue;
+    }
+    cur ??= { aStart: ai, aEnd: ai, bStart: bi, bEnd: bi };
+    if (op.t === 'del') cur.aEnd = ++ai;
+    else cur.bEnd = ++bi;
+  }
+  if (cur) hunks.push(cur);
+  return hunks;
+}
