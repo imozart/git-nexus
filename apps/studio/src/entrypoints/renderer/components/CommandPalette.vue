@@ -84,18 +84,20 @@ const showGroup = (i: number) => !query.value.trim() && (i === 0 || results.valu
 .cp {
   position: fixed;
   inset: 0;
-  z-index: 2000;
+  z-index: var(--gn-z-palette);
   display: flex;
   justify-content: center;
   align-items: flex-start;
   padding-top: 12vh;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--gn-backdrop);
+  animation: gn-fade-in var(--gn-enter) ease-out;
   &__box {
     width: min(640px, 92vw);
     background: var(--gn-surface);
     border: 1px solid var(--gn-border);
-    border-radius: 10px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+    border-radius: var(--gn-radius-lg);
+    box-shadow: var(--gn-shadow-lg);
+    animation: gn-pop-in var(--gn-enter) ease-out;
     overflow: hidden;
     display: flex;
     flex-direction: column;
