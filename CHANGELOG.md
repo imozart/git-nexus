@@ -4,6 +4,21 @@ Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https:/
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.19.0] - 2026-11-19
+
+### ✨ Novidades
+
+- aviso de Git ausente com bloqueio e barra de progresso da instalação ([`d95c055`](https://github.com/imozart/git-nexus/commit/d95c055733f49b4c59231e03cc6e4a613f8f3a0e))
+- detectar o Git e instalá-lo por sistema com o app bloqueado enquanto falta ([`f32a0b4`](https://github.com/imozart/git-nexus/commit/f32a0b450177a8e9a0c06acedd1b2c41f46da628))
+
+### 🐛 Correções
+
+- textos do instalador do Git por chave, makeHas por plataforma e limite do atraso no harness ([`f8213d8`](https://github.com/imozart/git-nexus/commit/f8213d8543e8ed85045240021bbfc186e83b9ba2))
+
+### 🧪 Testes
+
+- teste de interface e documentação do fluxo de Git ausente ([`02f9e58`](https://github.com/imozart/git-nexus/commit/02f9e582bdc6b3ee2c2e1313dd579cfa1ce5320f))
+
 ## [1.18.0] - 2026-11-18
 
 ### ✨ Novidades
@@ -404,6 +419,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.19.0]: https://github.com/imozart/git-nexus/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/imozart/git-nexus/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/imozart/git-nexus/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/imozart/git-nexus/compare/v1.15.0...v1.16.0
