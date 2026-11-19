@@ -2,7 +2,7 @@
 // escolhida, avisa e desliga as gravações quando os bytes não conferem, lembra a escolha e NUNCA corrompe os bytes ao gravar. Git de verdade.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { connect, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, mkRepo, sleep, tmpRoot, lit } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -62,7 +62,7 @@ t.check('os grupos aparecem com nome', (await t.ev(`[...document.querySelectorAl
 await t.shot('codificacao-lista');
 
 // pesquisa: por nome e pelo grupo
-const search = (q) => t.ev(`(() => { const i = document.querySelector('.enc__search'); i.value = ${JSON.stringify(q)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+const search = (q) => t.ev(`(() => { const i = document.querySelector('.enc__search'); i.value = ${lit(q)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
 await search('koi8');
 await sleep(200);
 t.check('pesquisar "koi8" deixa só KOI8-R e KOI8-U', (await t.ev(`[...document.querySelectorAll('[data-testid^="enc-"] .enc__name')].map((n) => n.textContent.trim()).join(',')`)) === 'KOI8-R,KOI8-U');
@@ -103,10 +103,10 @@ t.check('Automática volta para Windows-1252', (await btn()) === 'Windows-1252' 
 t.check('Automática apaga a escolha lembrada', !/latin\.txt/.test((await t.ev(`localStorage.getItem('gitnexus.fileEncodings')`)) ?? ''));
 
 // --- integridade: gravar mantém os bytes ------------------------------------------------------------------------------------------
-await t.ev(`window.gitNexus.writeWorkingFile(${JSON.stringify(repo)}, 'latin.txt', 'ação\\nsegunda\\n')`);
+await t.ev(`window.gitNexus.writeWorkingFile(${lit(repo)}, 'latin.txt', 'ação\\nsegunda\\n')`);
 const after = readFileSync(join(repo, 'latin.txt'));
 t.check('gravar o arquivo Windows-1252 mantém os bytes dos acentos (E7 E3), não vira UTF-8', after.equals(LATIN), [...after]);
-const refused = await t.ev(`window.gitNexus.writeWorkingFile(${JSON.stringify(repo)}, 'latin.txt', 'japonês 日本\\n').then(() => 'gravou', (e) => String(e.message))`);
+const refused = await t.ev(`window.gitNexus.writeWorkingFile(${lit(repo)}, 'latin.txt', 'japonês 日本\\n').then(() => 'gravou', (e) => String(e.message))`);
 t.check('caractere que a codificação não tem é recusado, sem alterar o arquivo', /não existe/.test(refused) && readFileSync(join(repo, 'latin.txt')).equals(LATIN), refused);
 
 const appErrors = t.errors().filter((e) => !/favicon|Failed to fetch|ERR_CONNECTION|Failed to load resource/.test(String(e)));

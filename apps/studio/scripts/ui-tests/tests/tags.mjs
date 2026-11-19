@@ -1,7 +1,7 @@
 // Tags: criar (leve e anotada), nome inválido, enviar ao remoto, apagar local e remota, ir para a tag e "Criar tag aqui" a partir do grafo. Git de verdade, com remoto local.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { connect, git, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, git, mkRepo, sleep, tmpRoot, lit } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -23,14 +23,14 @@ git(repo, 'commit', '-qm', 'feat: segundo commit');
 git(repo, 'push', '-q', 'origin', 'main');
 const first = git(repo, 'rev-parse', 'HEAD~1').trim();
 
-await t.ev(`window.gitNexus.addRepositoryPath(${JSON.stringify(repo)})`);
+await t.ev(`window.gitNexus.addRepositoryPath(${lit(repo)})`);
 await t.ev('location.reload()');
 await t.until(`document.querySelectorAll('li.repo').length >= 1`, 20000);
 await t.until(`[...document.querySelectorAll('li.repo')].every((r) => !/carregando/i.test(r.textContent))`, 30000);
 await t.ev(`document.querySelector('li.repo .repo__btns button').click()`);
 await t.until(`document.querySelector('.rv__btns')`, 20000);
 
-const set = (sel, v) => t.ev(`(() => { const i = document.querySelector('${sel}'); i.value = ${JSON.stringify(v)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+const set = (sel, v) => t.ev(`(() => { const i = document.querySelector('${sel}'); i.value = ${lit(v)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
 const remoteTags = () => git(repo, 'ls-remote', '--tags', '--refs', 'origin').split('\n').map((l) => /refs\/tags\/(.+)$/.exec(l)?.[1]).filter(Boolean).sort();
 const localTags = () => git(repo, 'tag').split('\n').filter(Boolean).sort();
 const row = (n) => `document.querySelector('[data-tag="${n}"]')`;

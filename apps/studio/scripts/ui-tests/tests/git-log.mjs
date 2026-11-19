@@ -1,7 +1,7 @@
 // Log do Git: barra recolhida, lista de comandos, filtro "só alterações", falha com saída, copiar e limpar.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { connect, mkRepo, sleep, tmpRoot } from '../lib.mjs';
+import { connect, mkRepo, sleep, tmpRoot, lit } from '../lib.mjs';
 
 const OUT = process.argv[2];
 const report = {};
@@ -28,8 +28,8 @@ t.check('lista tem git status', (await t.ev(`[...document.querySelectorAll('.log
 t.check('abertura lembrada', (await t.ev(`localStorage.getItem('gitnexus.showGitLog')`)) === '1');
 
 // um comando que altera (git add) e um que falha (arquivo inexistente)
-await t.ev(`window.gitNexus.stageFiles(${JSON.stringify(tabRepo)}, ['a.txt'])`);
-await t.ev(`window.gitNexus.stageFiles(${JSON.stringify(tabRepo)}, ['nao-existe.txt']).catch(() => null)`);
+await t.ev(`window.gitNexus.stageFiles(${lit(tabRepo)}, ['a.txt'])`);
+await t.ev(`window.gitNexus.stageFiles(${lit(tabRepo)}, ['nao-existe.txt']).catch(() => null)`);
 await t.until(`[...document.querySelectorAll('.log__cmd')].some(e => e.textContent.includes('nao-existe'))`, 8000);
 t.check('git add aparece', (await t.ev(`[...document.querySelectorAll('.log__cmd')].some(e => / add /.test(e.textContent))`)) === true);
 t.check('falha aparece em vermelho com a saída aberta', (await t.ev(`!!document.querySelector('.log__row--fail .log__out')`)) === true);
