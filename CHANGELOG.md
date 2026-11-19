@@ -4,6 +4,17 @@ Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https:/
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.21.0] - 2026-11-19
+
+### ✨ Novidades
+
+- **ui-kit:** componente GnTooltip (dica estilizada) nos botões de ícone e nas abas laterais ([`8e5d76a`](https://github.com/imozart/git-nexus/commit/8e5d76a61242b1fe12c5a5c1c6ea891524eb7113))
+- **ui:** feedback visual da linha arrastada no rebase interativo ([`3b1c196`](https://github.com/imozart/git-nexus/commit/3b1c19673c34e926842c402439ff7bd29b5f48c4))
+- **ui:** paleta de comandos usa os tokens de elevação, fundo de overlay, raio e camada ([`adbc00b`](https://github.com/imozart/git-nexus/commit/adbc00b2f973cd26d78fc3701e4d89fe169ea6f2))
+- **ui:** menus e popovers usam os tokens de elevação, raio e camada, com entrada em fade ([`e8cf02b`](https://github.com/imozart/git-nexus/commit/e8cf02ba9d557e523929cf941329655ccbbd588e))
+- **ui:** diálogos de confirmação, novidades, branch, credencial e clone usam o GnDialog ([`c808b95`](https://github.com/imozart/git-nexus/commit/c808b957eaab7363aa2c4218e7e83a6bc42a1639))
+- **ui:** anel de foco nos campos de texto, com o token --gn-ring ([`83de408`](https://github.com/imozart/git-nexus/commit/83de408f90490a2ed48edced885678ec1b352b9f))
+
 ## [1.20.0] - 2026-11-19
 
 ### ✨ Novidades
@@ -433,6 +444,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.21.0]: https://github.com/imozart/git-nexus/compare/v1.20.0...v1.21.0
 [1.20.0]: https://github.com/imozart/git-nexus/compare/v1.19.0...v1.20.0
 [1.19.0]: https://github.com/imozart/git-nexus/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/imozart/git-nexus/compare/v1.17.0...v1.18.0
