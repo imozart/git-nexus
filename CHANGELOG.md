@@ -4,6 +4,18 @@ Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https:/
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.23.0] - 2026-11-19
+
+### ✨ Novidades
+
+- **git-core:** motor de fusão de três vias para o resolvedor de conflitos ([`3e7e5cf`](https://github.com/imozart/git-nexus/commit/3e7e5cf361cd113bf718cf38231528da0b1a6211))
+- **ui:** migrar os title= das telas para o GnTooltip ([`6450558`](https://github.com/imozart/git-nexus/commit/6450558b74bafcefab324e749730e870b664f226))
+- **ui-kit:** dica multilinha e GnSegmented com GnTooltip, z-index do confete por token ([`a52f833`](https://github.com/imozart/git-nexus/commit/a52f833a4fc4396a11572fab31b53409181e92b4))
+
+### 🧪 Testes
+
+- **ui:** regras de convenção de elevação, camadas, foco e dicas, e docs/INTERFACE.md ([`2f0088e`](https://github.com/imozart/git-nexus/commit/2f0088e2f7b1b8f9ed277894669361dc096f94c7))
+
 ## [1.22.0] - 2026-11-19
 
 ### ✨ Novidades
@@ -454,6 +466,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.23.0]: https://github.com/imozart/git-nexus/compare/v1.22.0...v1.23.0
 [1.22.0]: https://github.com/imozart/git-nexus/compare/v1.21.0...v1.22.0
 [1.21.0]: https://github.com/imozart/git-nexus/compare/v1.20.0...v1.21.0
 [1.20.0]: https://github.com/imozart/git-nexus/compare/v1.19.0...v1.20.0
