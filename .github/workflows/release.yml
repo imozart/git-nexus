@@ -369,6 +369,35 @@ jobs:
           path: packaging-out
           retention-days: 30
 
+  # 4b) Comenta nos PRs e nas issues desta release a versão em que a mudança chegou (beta e estável). Um comentário só por alvo, atualizado a cada
+  # release (a beta vira "Em homologação" e a estável o transforma em "Publicado"); PR agregador lista os agregados. Veja docs/AUTOMATION.md.
+  # Não bloqueia nada: continue-on-error, fora do `needs` do notify-failure (uma falha aqui não marca a release como falha) e só roda com a release publicada.
+  announce:
+    name: Comentar a versão nos PRs e issues
+    needs: [version, release]
+    if: ${{ needs.release.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    permissions:
+      contents: read
+      pull-requests: write # comentar nos PRs
+      issues: write # comentar nas issues
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.version.outputs.tag }}
+      PRERELEASE: ${{ needs.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - name: Comentar nos PRs e nas issues
+        run: node scripts/release-announce.mjs --tag "$TAG" --repo "$GITHUB_REPOSITORY" --sha "$GITHUB_SHA" --prerelease "$PRERELEASE"
+
   # 5) Grava no código o que a release estável publicou: a versão nos package.json (como o commit "bump version" de projetos como o
   # Beekeeper Studio) e a entrada do CHANGELOG.md, num commit só na main. Vive em release-sync.yml (workflow reutilizável, que também
   # roda à mão). Não bloqueia nada: se falhar, a release continua publicada. Se a main passar a exigir pull request, o secret

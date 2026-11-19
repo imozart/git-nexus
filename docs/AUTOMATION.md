@@ -55,6 +55,42 @@ Outras automações que cabem aqui, se um dia fizerem falta (nenhuma está ligad
 - O beta usa o mesmo pipeline do estável (typecheck, testes, 6 builds, SHA-256, assinatura). Ainda não foi exercitado no GitHub: o primeiro
   disparo manual é o teste (se algum pacote, como o `.rpm`, recusar a versão com `-beta`, só o beta falha e nada estável é afetado).
 
+## Comentário de versão nos PRs e issues
+
+Depois de publicar uma release (**beta ou estável**), o job `announce` do `release.yml` comenta, em cada PR e em cada issue dela, em qual versão a mudança chegou. É **um comentário só por alvo**, atualizado a cada release (marcador `<!-- git-nexus:release -->` mais um estado escondido): a beta vira "🧪 Em homologação" e acumula as betas por que o item passou; quando a estável sai, o **mesmo** comentário vira "🚀 Publicado". Editar um comentário não gera notificação nova.
+
+- **Quais PRs:** os que têm o commit de merge **ou** o commit de ponta (head) entre a tag estável anterior e a release (mergeados; na beta, também os ainda abertos). Fechados sem merge ficam de fora. Teto de 60 PRs (os mais recentes) e 300 commits por execução. A API `commits/{sha}/pulls` não serve: ela devolve só o PR que *introduziu* o commit na `main`, e os PRs de origem de um PR agregador não apareceriam.
+- **PR agregador:** um PR cujos commits contêm os de outros PRs (como o PR de release que reúne uma pilha). Ele recebe a tabela dos agregados e as issues entregues; cada PR de origem recebe um comentário curto apontando para ele.
+- **Issues:** as de `Closes #N` do PR de origem e do agregador. O comentário diz qual PR implementou, por qual PR entrou na `main` e a versão.
+- **Não bloqueia nada:** o job é `continue-on-error`, só roda com a release publicada, não entra no `needs` do `notify-failure` e cada comentário que falha vira só um aviso no log. As permissões de escrita (`pull-requests` e `issues`) são só do job.
+- **Texto vindo de fora:** títulos de PR passam por `safeTitle` (sem @menção) e têm o pipe escapado; o estado lido de um comentário é validado (pode ter sido editado à mão).
+
+Exemplo (PR agregador, estável):
+
+```markdown
+### 🚀 Publicado na [v1.21.0](https://github.com/dono/repo/releases/tag/v1.21.0)
+`19/11/2026` · versão estável
+
+**📦 PRs agregados (6)**
+
+| PR | Entrega | 🎯 |
+|---|---|---|
+| #234 | anel de foco nos campos de texto | #154 |
+| #235 | diálogos usam o GnDialog | #156, #163 |
+
+- 🎯 Issues entregues (7): #154, #156, #157, #158, #159, #160, #163
+- 🔎 [O que mudou desde a v1.20.0](https://github.com/dono/repo/compare/v1.20.0...v1.21.0)
+```
+
+**Rodar à mão** (por exemplo, para uma release já publicada ou para ver o que seria escrito), com `GH_TOKEN` e as tags baixadas (`git fetch --tags`):
+
+```bash
+node scripts/release-announce.mjs --tag v1.21.0 --repo dono/repo --sha v1.21.0 --dry-run   # só mostra
+node scripts/release-announce.mjs --tag v1.21.0 --repo dono/repo --sha v1.21.0             # comenta
+```
+
+Para uma beta, acrescente `--prerelease true`. A lógica pura está em `scripts/lib/release-announce.mjs` e é coberta por `scripts/test/release-announce.test.ts`.
+
 ## A versão no `package.json`
 
 ### Como o Beekeeper Studio faz
