@@ -649,6 +649,45 @@ export interface UpdateProgress {
   stage?: 'download' | 'prepare';
 }
 
+/** Código do erro das chamadas que precisam do Git quando ele não está disponível (o app inteiro fica bloqueado até instalá-lo). */
+export const GIT_UNAVAILABLE = 'GIT_UNAVAILABLE';
+
+/** `ok`: Git encontrado e aceito · `missing`: não está instalado · `outdated`: abaixo da versão mínima suportada. */
+export type GitAvailabilityStatus = 'ok' | 'missing' | 'outdated';
+
+/** Como a instalação automática é feita neste sistema (`manual`: o app só orienta e abre a página oficial). */
+export type GitInstallMethod = 'windows-installer' | 'homebrew' | 'command-line-tools' | 'source-build' | 'manual';
+
+/** Situação do Git neste computador. */
+export interface GitAvailability {
+  status: GitAvailabilityStatus;
+  /** Executável encontrado (`git` quando vem do PATH ou o caminho absoluto). */
+  path?: string;
+  /** Versão encontrada, por exemplo `2.47.1`. */
+  version?: string;
+  /** Versão mínima exigida, quando há. */
+  minVersion?: string;
+  /** Como o app instalaria o Git aqui. */
+  method: GitInstallMethod;
+  /** Dá para instalar sem sair do app (`method` != `manual`). */
+  canInstall: boolean;
+}
+
+/** Etapas da instalação do Git (a interface mostra uma mensagem para cada uma). */
+export type GitInstallStep = 'finding' | 'downloading' | 'verifying' | 'dependencies' | 'building' | 'installing' | 'validating' | 'done';
+
+/** Andamento da instalação: `total` = 0 (ou ausente) quando não há percentual (etapa indeterminada). */
+export interface GitInstallProgress {
+  step: GitInstallStep;
+  done?: number;
+  total?: number;
+  /** Versão que está sendo instalada, quando já se sabe. */
+  version?: string;
+  /** Linha curta do que está acontecendo (por exemplo a última linha do `make`). */
+  detail?: string;
+  method?: GitInstallMethod;
+}
+
 /** CHANGELOG.md que acompanha o app (Markdown gerado pelo pipeline de release) e a versão em uso. */
 export interface ChangelogData {
   markdown: string;
@@ -985,6 +1024,20 @@ export interface GitNexusApi extends GitNexusIPC {
   createChangeRequest(repoPath: string, input: CreateChangeRequestInput): Promise<CreatedChangeRequest>;
   /** Abre no navegador uma página do mesmo host do remoto (PR, MR, pipeline). */
   hostingOpen(repoPath: string, url: string): Promise<void>;
+
+  // Git do computador: o app inteiro depende dele (veja entrypoints/git-install.ts)
+  /** Situação atual do Git (detectada na abertura). Sem Git, as demais chamadas recusam com o erro `GIT_UNAVAILABLE`. */
+  getGitAvailability(): Promise<GitAvailability>;
+  /** Procura o Git de novo (por exemplo depois de a pessoa instalá-lo por fora). */
+  recheckGit(): Promise<GitAvailability>;
+  /** Baixa a última versão do site oficial, confere a integridade e instala por usuário; acompanhe por `onGitInstallProgress`. */
+  installGit(): Promise<GitAvailability>;
+  /** Cancela a instalação, se ainda for seguro (antes de a instalação propriamente dita começar). */
+  cancelGitInstall(): Promise<void>;
+  /** Abre a página oficial de download do Git no navegador (endereço fixo, sem parâmetro). */
+  openGitDownloadPage(): Promise<void>;
+  /** Acompanha as etapas da instalação do Git; devolve a função que cancela a assinatura. */
+  onGitInstallProgress(cb: (p: GitInstallProgress) => void): () => void;
 
   // Atualização: consulta a última release e abre o download no navegador
   checkForUpdate(): Promise<UpdateInfo>;

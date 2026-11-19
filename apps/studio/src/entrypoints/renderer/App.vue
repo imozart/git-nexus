@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import AskpassDialog from './components/AskpassDialog.vue';
 import ConfettiRain from './components/ConfettiRain.vue';
+import GitGate from './components/GitGate.vue';
 import CoreInterface from './CoreInterface.vue';
 import CommandPalette from './components/CommandPalette.vue';
 import LocaleWelcome from './components/LocaleWelcome.vue';
@@ -18,6 +19,7 @@ import { useCommandsStore, type Command } from './stores/commands';
 import { useRepositoriesStore } from './stores/repositories';
 import { useSettingsStore } from './stores/settings';
 import { useGitLogStore } from './stores/gitlog';
+import { useGitInstallStore } from './stores/git-install';
 import { useUpdateStore } from './stores/update';
 import { HOME_TAB, useWorkspaceStore } from './stores/workspace';
 
@@ -28,6 +30,7 @@ const upd = useUpdateStore();
 const askpass = useAskpassStore();
 const gitLog = useGitLogStore();
 const settings = useSettingsStore();
+const gitInstall = useGitInstallStore();
 // primeira abertura: pergunta o idioma antes da primeira tela (só sem preferência guardada)
 const askLocale = ref(shouldAskLocale(localStorage.getItem('gitnexus.locale'), localStorage.getItem(LOCALE_ASKED_KEY)));
 
@@ -200,11 +203,13 @@ function onKeydown(ev: KeyboardEvent): void {
 }
 
 let off: (() => void) | undefined;
+let stopGit: (() => void) | undefined;
 let updTimers: ReturnType<typeof setTimeout>[] = [];
 onMounted(() => {
   off = cmds.register(globalCommands);
   gitLog.start();
   askpass.listen();
+  stopGit = gitInstall.start(); // Git ausente (ou antigo): aviso, bloqueio e instalação automática
   // atualização: 8 s depois de abrir (não atrasa a abertura) e a cada 12 h
   updTimers = [setTimeout(() => void upd.check(), 8000)];
   const iv = setInterval(() => void upd.check(), 12 * 3600 * 1000);
@@ -213,6 +218,7 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
   off?.();
+  stopGit?.();
   updTimers.forEach((t) => clearTimeout(t));
   window.removeEventListener('keydown', onKeydown);
 });
@@ -224,5 +230,6 @@ onBeforeUnmount(() => {
   <SettingsDialog v-if="settings.isOpen" @close="settings.close()" />
   <LocaleWelcome v-if="askLocale" @done="askLocale = false" />
   <AskpassDialog />
+  <GitGate />
   <ConfettiRain v-if="upd.celebrating" @done="upd.celebrating = false" />
 </template>

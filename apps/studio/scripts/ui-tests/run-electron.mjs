@@ -28,7 +28,8 @@ async function runOne({ file, work, exe }) {
   const data = mkdtempSync(join(work, 'data-'));
   const detached = process.platform !== 'win32';
   const extra = (process.env.GN_APP_ARGS ?? '').split(/\s+/).filter(Boolean);
-  const env = { ...process.env, GITNEXUS_DATA_DIR: data, GN_UI_REAL: '1', GN_UI_URL_MATCH: 'file:', GN_UI_CDP_PORT: String(CDP_PORT) };
+  // GITNEXUS_MIN_GIT_VERSION=0: o Git das máquinas de CI pode ser mais antigo que o mínimo do app, e o aviso de Git desatualizado bloquearia o teste
+  const env = { ...process.env, GITNEXUS_MIN_GIT_VERSION: '0', GITNEXUS_DATA_DIR: data, GN_UI_REAL: '1', GN_UI_URL_MATCH: 'file:', GN_UI_CDP_PORT: String(CDP_PORT) };
   delete env.GITNEXUS_SMOKE; // o modo de fumaça encerra o app sozinho
   const app = spawn(exe, [`--remote-debugging-port=${CDP_PORT}`, ...extra], { env, stdio: 'ignore', detached });
   // executável recém-gerado pode estar preso por um instante (antivírus no Windows: EPERM): vira falha desta tentativa, que o main repete

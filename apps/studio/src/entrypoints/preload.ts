@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { AskpassRequest, CommitPolicy, ConventionalCommitInput, GitCommandEvent, GitNexusApi, GitProgressEvent, UpdateProgress } from '@git-nexus/git-core/pure';
+import type { AskpassRequest, CommitPolicy, ConventionalCommitInput, GitCommandEvent, GitInstallProgress, GitNexusApi, GitProgressEvent, UpdateProgress } from '@git-nexus/git-core/pure';
 import { validateCommitMessage } from '@git-nexus/governance-policy';
 import { MAIN_METHODS, WORKER_METHODS, channel } from '../shared/channels';
 
@@ -14,6 +14,12 @@ const api = {
     const handler = (_e: unknown, p: UpdateProgress) => cb(p);
     ipcRenderer.on(channel('updateProgress'), handler);
     return () => ipcRenderer.removeListener(channel('updateProgress'), handler);
+  },
+  // Evento: etapas da instalação automática do Git.
+  onGitInstallProgress: (cb: (p: GitInstallProgress) => void) => {
+    const handler = (_e: unknown, p: GitInstallProgress) => cb(p);
+    ipcRenderer.on(channel('gitInstallProgress'), handler);
+    return () => ipcRenderer.removeListener(channel('gitInstallProgress'), handler);
   },
   // Evento: comandos git executados pelo app (aba "Log").
   onGitCommand: (cb: (events: GitCommandEvent[]) => void) => {

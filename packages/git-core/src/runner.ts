@@ -54,6 +54,12 @@ export interface GitRunOptions {
   onStderr?: (chunk: string) => void;
 }
 
+/**
+ * Executável do git: o caminho absoluto que o app detectou ou instalou (`GITNEXUS_GIT_PATH`, definido pelo processo principal e herdado
+ * pelo worker) ou `git` do PATH. Lido a cada chamada: depois de instalar o Git o worker é reiniciado, mas o valor nunca fica velho.
+ */
+export const gitBinary = (): string => process.env.GITNEXUS_GIT_PATH || 'git';
+
 export class GitError extends Error {
   constructor(
     message: string,
@@ -73,7 +79,7 @@ export function runGit(repoPath: string, args: string[], opts: GitRunOptions = {
   const wsl = process.platform === 'win32' ? parseWslPath(repoPath) : null;
   const [cmd, cmdArgs, cwd] = wsl
     ? ['wsl.exe', ['-d', wsl.distro, '--cd', wsl.linuxPath, '--exec', 'git', ...args], undefined]
-    : ['git', args, repoPath];
+    : [gitBinary(), args, repoPath];
 
   const startedAt = Date.now();
   return new Promise((resolve, reject) => {

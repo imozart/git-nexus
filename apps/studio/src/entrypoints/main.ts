@@ -7,6 +7,11 @@ import { BrowserWindow, Menu, Notification, app, clipboard, dialog, ipcMain, scr
 import { setMessageLocale, tm } from '@git-nexus/git-core';
 import { WORKER_METHODS, channel, type UtilityEvent, type UtilityRequest, type UtilityResponse } from '../shared/channels';
 import { isAllowedUpdateUrl } from '../shared/update';
+import { GIT_UNAVAILABLE } from '@git-nexus/git-core/pure';
+import { BREW_PATHS, GIT_DOWNLOAD_URL, GIT_FREE_WORKER_METHODS, effectiveMinGitVersion, installMethod } from '../shared/git-install';
+import { detectGit, gitEnvFor, realDetectDeps, realExec } from './git-detect';
+import { installGit, realRun } from './git-install';
+import { GitManager } from './git-manager';
 import { checkForUpdate } from './update';
 import { WINDOWS_INSTALLER_ARGS, cleanupUpdateFiles, downloadVerified, isReadyFile, prepareStage, replaceAppImage, startPortableSwap } from './installer';
 import { editorLaunches, launchFirst, terminalLaunches, type SpawnFn } from './external-tools';
@@ -107,9 +112,70 @@ function callWorker(method: UtilityRequest['method'], args: unknown[]): Promise<
   });
 }
 
+// --- Git do computador: sem ele o app inteiro fica bloqueado (a interface mostra o aviso e a instalação; veja git-manager.ts) ---
+const gitManager = new GitManager({
+  detect: () => detectGit(realDetectDeps(dataDir)),
+  method: () => installMethod(process.platform, process.arch, { brew: BREW_PATHS.find((p) => existsSync(p)) ?? null, flatpak: Boolean(process.env.FLATPAK_ID) }),
+  min: effectiveMinGitVersion(process.env),
+  log: appLog,
+  onFound: (found) => {
+    // o worker (e o que o git chama) passa a usar o Git encontrado; um worker já aberto é reiniciado na próxima chamada
+    const env = gitEnvFor(found.path, process.env);
+    const changed = Object.entries(env).some(([k, v]) => process.env[k] !== v);
+    Object.assign(process.env, env);
+    if (changed) worker?.kill();
+  },
+  install: (emit, signal) =>
+    installGit({
+      platform: process.platform,
+      arch: process.arch,
+      env: process.env,
+      dataDir,
+      fetchImpl: fetch,
+      exec: realExec,
+      run: realRun,
+      exists: existsSync,
+      detect: () => detectGit(realDetectDeps(dataDir)),
+      emit,
+      log: appLog,
+      signal,
+    }),
+});
+
+/** Recusa a chamada enquanto o Git faltar. O bloqueio é AQUI (e não só na sobreposição): atalho, arrastar e soltar e a linha de comando não furam. */
+async function requireGit(): Promise<void> {
+  await gitManager.ready;
+  if (gitManager.isBlocked()) throw new Error(`${GIT_UNAVAILABLE}: ${tm('git.err.unavailable')}`);
+}
+const needsGit =
+  <A extends unknown[], R>(fn: (...a: A) => R) =>
+  async (...a: A): Promise<Awaited<R>> => {
+    await requireGit();
+    return await fn(...a);
+  };
+
+ipcMain.handle(channel('getGitAvailability'), async () => {
+  await gitManager.ready;
+  return gitManager.availability();
+});
+ipcMain.handle(channel('recheckGit'), () => gitManager.refresh());
+ipcMain.handle(channel('installGit'), async (e) => {
+  try {
+    return await gitManager.install((p) => {
+      if (!e.sender.isDestroyed()) e.sender.send(channel('gitInstallProgress'), p);
+    });
+  } catch (err) {
+    appLog(`git-install: ERRO: ${describeError(err)}${err instanceof Error && err.stack ? `\n${err.stack}` : ''}`);
+    throw new Error(`${err instanceof Error ? err.message : String(err)} ${tm('git.err.logHint')}${appLog.file}`);
+  }
+});
+ipcMain.handle(channel('cancelGitInstall'), () => gitManager.cancel());
+ipcMain.handle(channel('openGitDownloadPage'), () => shell.openExternal(GIT_DOWNLOAD_URL)); // endereço fixo, sem parâmetro da interface
+
 for (const m of WORKER_METHODS) {
-  ipcMain.handle(channel(m), (_e, ...args: unknown[]) => {
+  ipcMain.handle(channel(m), async (_e, ...args: unknown[]) => {
     if (m === 'setLocale') setMessageLocale(String(args[0])); // o processo principal tem as próprias mensagens
+    if (!GIT_FREE_WORKER_METHODS.has(m)) await requireGit();
     return callWorker(m, args);
   });
 }
@@ -123,23 +189,29 @@ ipcMain.handle(channel('pickDirectories'), async (e) => {
 
 // --- GitHub / GitLab: tokens criptografados pelo sistema (safeStorage); as chamadas à API acontecem aqui, nunca no renderer ---
 const hosting = new HostingService(new SecureTokenStore(join(dataDir, 'hosting.json')));
-ipcMain.handle(channel('hostingInfo'), (_e, repoPath: string) => hosting.hostingInfo(String(repoPath)));
-ipcMain.handle(channel('hostingSaveToken'), (_e, repoPath: string, token: string, kind?: 'github' | 'gitlab') =>
-  hosting.saveToken(String(repoPath), String(token), kind === 'github' || kind === 'gitlab' ? kind : undefined),
+ipcMain.handle(channel('hostingInfo'), needsGit((_e: unknown, repoPath: string) => hosting.hostingInfo(String(repoPath))));
+ipcMain.handle(
+  channel('hostingSaveToken'),
+  needsGit((_e: unknown, repoPath: string, token: string, kind?: 'github' | 'gitlab') => hosting.saveToken(String(repoPath), String(token), kind === 'github' || kind === 'gitlab' ? kind : undefined)),
 );
-ipcMain.handle(channel('hostingRemoveToken'), (_e, repoPath: string) => hosting.removeToken(String(repoPath)));
-ipcMain.handle(channel('listChangeRequests'), (_e, repoPath: string, state: 'open' | 'merged' | 'closed') =>
-  hosting.listChangeRequests(String(repoPath), state === 'merged' || state === 'closed' ? state : 'open'),
+ipcMain.handle(channel('hostingRemoveToken'), needsGit((_e: unknown, repoPath: string) => hosting.removeToken(String(repoPath))));
+ipcMain.handle(
+  channel('listChangeRequests'),
+  needsGit((_e: unknown, repoPath: string, state: 'open' | 'merged' | 'closed') => hosting.listChangeRequests(String(repoPath), state === 'merged' || state === 'closed' ? state : 'open')),
 );
-ipcMain.handle(channel('getCiStatus'), (_e, repoPath: string, sha: string) => hosting.getCiStatus(String(repoPath), String(sha)));
-ipcMain.handle(channel('suggestChangeRequest'), (_e, repoPath: string, base: string) => hosting.suggestChangeRequest(String(repoPath), String(base)));
-ipcMain.handle(channel('createChangeRequest'), (_e, repoPath: string, input: Parameters<HostingService['createChangeRequest']>[1]) =>
-  hosting.createChangeRequest(String(repoPath), input),
+ipcMain.handle(channel('getCiStatus'), needsGit((_e: unknown, repoPath: string, sha: string) => hosting.getCiStatus(String(repoPath), String(sha))));
+ipcMain.handle(channel('suggestChangeRequest'), needsGit((_e: unknown, repoPath: string, base: string) => hosting.suggestChangeRequest(String(repoPath), String(base))));
+ipcMain.handle(
+  channel('createChangeRequest'),
+  needsGit((_e: unknown, repoPath: string, input: Parameters<HostingService['createChangeRequest']>[1]) => hosting.createChangeRequest(String(repoPath), input)),
 );
-ipcMain.handle(channel('hostingOpen'), async (_e, repoPath: string, url: string) => {
-  if (!(await hosting.isAllowedUrl(String(repoPath), String(url)))) throw new Error(tm('Endereço não permitido.', 'Address not allowed.'));
-  await shell.openExternal(String(url));
-});
+ipcMain.handle(
+  channel('hostingOpen'),
+  needsGit(async (_e: unknown, repoPath: string, url: string) => {
+    if (!(await hosting.isAllowedUrl(String(repoPath), String(url)))) throw new Error(tm('Endereço não permitido.', 'Address not allowed.'));
+    await shell.openExternal(String(url));
+  }),
+);
 
 /** Pasta do executável (no AppImage, a pasta do arquivo .AppImage). */
 const exeDir = process.env.APPIMAGE ? dirname(process.env.APPIMAGE) : dirname(process.execPath);
@@ -315,11 +387,13 @@ ipcMain.handle(channel('logRendererError'), (_e, message: string, stack?: string
   appLog(`interface: ${String(message).slice(0, 2000)}${stack ? `\n${String(stack).slice(0, 4000)}` : ''}`);
   return { logFile: appLog.file };
 });
-ipcMain.handle(channel('showItemInFolder'), (_e, repoPath: string, file: string) =>
-  shell.showItemInFolder(join(repoPath, file.replace(/\/$/, ''))),
+ipcMain.handle(
+  channel('showItemInFolder'),
+  needsGit((_e: unknown, repoPath: string, file: string) => shell.showItemInFolder(join(repoPath, file.replace(/\/$/, '')))),
 );
-ipcMain.handle(channel('openPath'), (_e, repoPath: string, file: string) =>
-  shell.openPath(join(repoPath, file.replace(/\/$/, ''))),
+ipcMain.handle(
+  channel('openPath'),
+  needsGit((_e: unknown, repoPath: string, file: string) => shell.openPath(join(repoPath, file.replace(/\/$/, '')))),
 );
 
 // --- Janela ---------------------------------------------------------------------------
@@ -348,18 +422,24 @@ async function repoFolder(repoPath: unknown): Promise<string> {
   if (!info?.isDirectory() || !existsSync(join(dir, '.git'))) throw new Error(tm('Pasta de repositório inválida.', 'Invalid repository folder.'));
   return dir;
 }
-ipcMain.handle(channel('openInTerminal'), async (_e, repoPath: string) => {
-  const dir = await repoFolder(repoPath);
-  const app = await launchFirst(terminalLaunches(process.platform, dir), spawn as unknown as SpawnFn);
-  if (!app) throw new Error(tm('Não encontrei um terminal para abrir.', 'Could not find a terminal to open.'));
-  return { app };
-});
-ipcMain.handle(channel('openInEditor'), async (_e, repoPath: string) => {
-  const dir = await repoFolder(repoPath);
-  const app = await launchFirst(editorLaunches(process.platform, dir, process.env, existsSync), spawn as unknown as SpawnFn);
-  if (!app) throw new Error(tm('Não encontrei o VS Code (ou o VSCodium) instalado.', 'Could not find VS Code (or VSCodium) installed.'));
-  return { app };
-});
+ipcMain.handle(
+  channel('openInTerminal'),
+  needsGit(async (_e: unknown, repoPath: string) => {
+    const dir = await repoFolder(repoPath);
+    const app = await launchFirst(terminalLaunches(process.platform, dir), spawn as unknown as SpawnFn);
+    if (!app) throw new Error(tm('Não encontrei um terminal para abrir.', 'Could not find a terminal to open.'));
+    return { app };
+  }),
+);
+ipcMain.handle(
+  channel('openInEditor'),
+  needsGit(async (_e: unknown, repoPath: string) => {
+    const dir = await repoFolder(repoPath);
+    const app = await launchFirst(editorLaunches(process.platform, dir, process.env, existsSync), spawn as unknown as SpawnFn);
+    if (!app) throw new Error(tm('Não encontrei o VS Code (ou o VSCodium) instalado.', 'Could not find VS Code (or VSCodium) installed.'));
+    return { app };
+  }),
+);
 
 // --- Notificações do sistema (a interface decide QUANDO avisar; aqui só se mostra) ---
 // Guarda as notificações abertas: sem uma referência o coletor de lixo pode apagá-las antes do clique.

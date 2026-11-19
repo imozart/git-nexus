@@ -178,6 +178,22 @@ Quando o servidor pede credenciais, o app mostra um **diálogo próprio** (no vi
 
 **Português (Brasil)** e **English**, com troca **na hora** (seletor ao lado de *Comandos* ou pela paleta). Na **primeira abertura** o app pergunta o idioma antes da primeira tela (nomes nativos, com o do sistema já marcado): escolher troca a interface na hora e guarda a escolha; dá para **pular** ("Usar o idioma do sistema" ou Esc) e o idioma do sistema continua valendo. Quem atualiza de uma versão anterior, com o idioma já guardado, não vê a pergunta. Nas **Configurações** (Ctrl+,) o idioma tem também a opção **Sistema**, que acompanha o idioma do sistema a cada abertura (qualquer português vira pt-BR; o resto, inglês). **Todas as telas** estão traduzidas, e também as mensagens de erro e aviso do núcleo, do worker e da validação de commit. Só o texto gerado a partir dos commits (notas de release e CHANGELOG) fica em português, porque usa o mesmo núcleo do pipeline de release. Como contribuir com outro idioma: [`I18N.md`](I18N.md).
 
+## Git: instalação automática
+
+O GitNexus usa o Git do computador para todas as operações e exige a versão **2.56.1 ou mais nova**. Ao abrir, ele procura o Git (no `PATH` e nos lugares de instalação conhecidos de cada sistema). Se não achar, ou se achar um mais antigo, o app **fica bloqueado** (interface e chamadas internas) e mostra um aviso com **Instalar agora**, **Já instalei, verificar de novo** e **Instalar manualmente** (abre `git-scm.com/downloads`). Só o idioma continua escolhível. **Nada é baixado nem executado antes do clique em "Instalar agora"**; depois dele tudo é automático, com uma barra de progresso e uma mensagem para cada etapa (procurando, baixando, conferindo a integridade, instalando, verificando). Ao terminar o app é liberado, sem reiniciar.
+
+| Sistema | O que o app faz | Onde fica | Administrador |
+|---|---|---|---|
+| **Windows** (x64 e ARM64) | Baixa o instalador mais recente do Git for Windows (o de `git-scm.com`) e o executa em modo silencioso. | `%LOCALAPPDATA%\Programs\Git` | não (instalação por usuário) |
+| **macOS** | Homebrew (`brew install git`), se já estiver instalado; senão as Command Line Tools (janela do próprio macOS). O app nunca instala o Homebrew. | do Homebrew / do sistema | só nas Command Line Tools |
+| **Linux** | Baixa o código-fonte oficial mais recente (`kernel.org`), confere o SHA-256, compila e instala. | `<dados do app>/git` (no modo portátil, `GitNexusData/git`) | só se faltarem compilador, `make` e cabeçalhos do curl e do zlib (o sistema pede a senha, via `pkexec`) |
+
+**Integridade:** o arquivo só é executado depois de o SHA-256 bater com o publicado pela origem oficial e, no Windows, de a assinatura digital (quando existe) ser válida; qualquer divergência apaga o arquivo e mostra o erro. Os downloads só aceitam endereços fixos (GitHub do Git for Windows e `kernel.org`) por HTTPS. O app **não altera a configuração global do Git** (nome, e-mail, credenciais).
+
+**Se falhar:** a mensagem diz o motivo e há **Tentar de novo**, **Instalar manualmente** e **Copiar detalhes**; o detalhe completo fica em `<dados>/logs/gitnexus-app.log`. Cancelar só é possível até a instalação propriamente dita começar. O Flatpak e sistemas não suportados pedem a instalação manual.
+
+**Repositórios no WSL** usam o Git de dentro da distribuição e não dependem desta verificação do Git do Windows. Para ver o aviso sem desinstalar nada (testes), defina `GITNEXUS_FORCE_GIT_MISSING=1`; `GITNEXUS_MIN_GIT_VERSION=<versão>` troca a versão mínima (`0` desliga a verificação de versão, usado nos testes de ponta a ponta, cujas máquinas de CI têm um Git mais antigo).
+
 ## Atualizações
 
 O app avisa quando existe uma versão nova: **8 segundos depois de abrir** (para não atrasar a abertura) e depois **a cada 12 horas**, ele consulta a última release pública do GitHub e, se for maior que a versão em uso, mostra uma faixa no topo: *Nova versão X disponível (você usa Y)*, com **Atualizar agora**, **Ver novidades**, **Depois** (volta a avisar na próxima abertura) e **Ignorar esta versão**.
