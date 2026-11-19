@@ -4,6 +4,7 @@
 // o padrão é leve (`ghost`), porque botão de ícone é ação de apoio.
 import GnButton, { type GnTone } from './GnButton.vue';
 import GnIcon from './GnIcon.vue';
+import GnTooltip from './GnTooltip.vue';
 import type { GnIconName } from './icons';
 
 withDefaults(
@@ -21,8 +22,9 @@ withDefaults(
 </script>
 
 <template>
-  <GnButton class="gn-icon-btn" :variant="variant" :tone="tone" :size="size" :disabled="disabled" :aria-label="label" :title="title ?? label">
+  <GnButton class="gn-icon-btn" :variant="variant" :tone="tone" :size="size" :disabled="disabled" :aria-label="label">
     <GnIcon :name="icon" />
+    <GnTooltip :text="title ?? label" />
   </GnButton>
 </template>
 

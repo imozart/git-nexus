@@ -49,7 +49,7 @@ t.check('os botões de navegação têm contorno na cor do accent, não cinza', 
 // --- navegação do diff e seletores (GnButtonGroup, GnIconButton, GnSegmented) ----------------------------------------------------
 const groups = await t.ev(`[...document.querySelectorAll('.rv__toolbar .gn-btn-group')].map((g) => g.getAttribute('aria-label'))`);
 t.check('barra do diff: grupo de arquivo antes do de diferença', JSON.stringify(groups) === JSON.stringify(['Arquivos', 'Diferenças']), groups);
-t.check('os 4 botões de navegação são só ícone, com aria-label e tooltip', (await t.ev(`[...document.querySelectorAll('.rv__toolbar .gn-btn-group button')].every((b) => b.getAttribute('aria-label') && b.title && !b.textContent.trim() && b.querySelector('svg.gn-icon'))`)) === true);
+t.check('os 4 botões de navegação são só ícone, com aria-label e tooltip', (await t.ev(`[...document.querySelectorAll('.rv__toolbar .gn-btn-group button')].every((b) => b.getAttribute('aria-label') && b.dataset.tooltip && !b.hasAttribute('title') && !b.textContent.trim() && b.querySelector('svg.gn-icon'))`)) === true);
 t.check('há 4 botões de navegação', (await t.count('.rv__toolbar .gn-btn-group button')) === 4);
 t.check('a navegação continua neutra (sem cor)', (await t.ev(`[...document.querySelectorAll('.rv__toolbar .gn-btn-group button')].every((b) => b.classList.contains('gn-btn--tone-neutral'))`)) === true);
 t.check('dois seletores segmentados na barra do diff', (await t.count('.rv__toolbar [role=radiogroup]')) === 2);
@@ -73,7 +73,7 @@ t.check('Atualizar seguros: primary, fundo no azul sólido acessível', (await b
 t.check('Abrir (linha): azul de contorno, não sólido (20 linhas não competem com o botão principal)', (await btnHas('Abrir', 'gn-btn--tone-accent')) && !(await btnHas('Abrir', 'gn-btn--solid')));
 t.check('Buscar (linha): neutro', (await t.ev(`[...document.querySelectorAll('button.gn-btn')].find((b) => b.textContent.trim() === 'Buscar').classList.contains('gn-btn--tone-neutral')`)) === true);
 t.check('Remover: só ícone, leve e vermelho (GnIconButton ghost + danger)', (await ibtnHas('Remover', 'gn-btn--tone-danger')) && (await ibtnHas('Remover', 'gn-btn--ghost-tone')));
-t.check('Remover: sem texto, com aria-label e tooltip', (await t.ev(`(() => { const b = ${ibtn('Remover')}; return !b.textContent.trim() && !!b.title && !!b.querySelector('svg'); })()`)) === true);
+t.check('Remover: sem texto, com aria-label e tooltip', (await t.ev(`(() => { const b = ${ibtn('Remover')}; return !b.textContent.trim() && !!b.dataset.tooltip && !b.hasAttribute('title') && !!b.querySelector('svg'); })()`)) === true);
 t.check('Remover: sem borda em repouso (não enche a lista de vermelho)', (await ibtnCss('Remover', 'borderTopColor')) === 'rgba(0, 0, 0, 0)');
 t.check('Remover: ícone na cor do perigo', (await ibtnCss('Remover', 'color')) !== (await token('--gn-text')));
 t.check('botão neutro continua neutro (Adicionar caminho)', await btnHas('Adicionar caminho', 'gn-btn--tone-neutral'));
