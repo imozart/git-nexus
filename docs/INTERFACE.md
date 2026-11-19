@@ -104,6 +104,24 @@ A janela não usa a barra de título do sistema: os botões de minimizar, maximi
 - **Linux sem suporte a overlay** (alguns gerenciadores de janela): se o ajuste falhar, o erro vai para o `gitnexus-app.log`; para voltar à moldura do sistema, abra o app com `GITNEXUS_NATIVE_FRAME=1`.
 - **Testes:** `apps/studio/test/title-bar.test.ts` (regras puras) e `ui-tests/tests/title-bar.mjs` (a interface com a moldura simulada por `?titlebar=overlay|inset` no harness: arrasto, margens, cores do tema). O visual dos botões nativos e o Snap Layouts do Windows 11 só se conferem num Electron real.
 
+## Elevação, camadas e foco
+
+Três níveis de sombra, uma escala de camadas e uma regra de foco, todos em tokens (`apps/ui-kit/src/styles/tokens.scss`), com valor nos dois temas. **Regra do marco:** as cores do sistema não mudam; sombra é só preto com transparência.
+
+| Nível | Token | Escuro / claro | Onde usar |
+|---|---|---|---|
+| Grande | `--gn-shadow-lg` | `0 16px 48px`, 55% / 22% | diálogos (`GnDialog`) e paleta de comandos |
+| Médio | `--gn-shadow-md` | `0 8px 28px`, 45% / 16% | menu de contexto, menu de codificação, lista do `ComboBox`, painel do `BranchPicker`, popover do `SyncButton` |
+| Pequeno | `--gn-shadow-sm` | `0 4px 12px`, 35% / 10% | tooltip e item arrastado no rebase |
+| Nenhum | | | linhas de lista, painéis fixos, campos, chips, badges, diff, barra superior e abas: planos, separados só por borda |
+
+- **Fundo de overlay:** `--gn-backdrop` (50% escuro / 32% claro) atrás de diálogos e da paleta. Raios de overlay: `--gn-radius-lg` (10 px) e `--gn-radius-sm` (4 px); `--gn-radius` continua sendo o dos controles.
+- **Camadas:** `--gn-z-popover` 1000, `--gn-z-dialog` 1100, `--gn-z-palette` 2000, `--gn-z-tooltip` 2100, `--gn-z-confetti` 3000. A lista do `ComboBox` usa `calc(var(--gn-z-dialog) + 1)` para abrir também de dentro de diálogos; um popover que precisa ficar acima do painel usa `calc(var(--gn-z-popover) + 1)`. Valor de 3 dígitos literal não entra.
+- **Foco:** campo de texto ganha borda `--gn-accent` e o anel `--gn-ring` (`box-shadow`); botões e itens usam `outline: 2px solid var(--gn-accent)` no `:focus-visible`.
+- **Entrada animada:** `gn-pop-in` para modais (diálogo e paleta) e `gn-fade-in` para o que é ancorado (menus, popovers, tooltip), sempre com a duração `--gn-enter`. Movimento reduzido já está no token (ver "Movimento").
+- **Como criar:** diálogo é o `GnDialog` (nunca overlay e caixa refeitos); menu ou popover usa `--gn-shadow-md`, `--gn-radius-lg` e `animation: gn-fade-in var(--gn-enter) ease-out`; dica é o `GnTooltip` (ver "Dicas").
+- **O que não fazer:** sombra em linha de lista, painel fixo, campo, chip ou diff; `box-shadow` com desfoque literal; `z-index` de 3 dígitos literal; `rgba(0, 0, 0, …)` como fundo de overlay; `z-index: var(--gn-z-dialog)` fora do `GnDialog`. Livres: `inset …` (indicador interno, como o da aba ativa e o da linha atual), `0 0 0 Npx …` (anel ou contorno) e deslocamento sem desfoque (`0 -2px 0 …`, destino do arraste no rebase).
+
 ## Dicas (GnTooltip)
 
 A dica de um elemento é o componente `GnTooltip`, **filho** do elemento descrito (nunca em volta dele) e **sem `title` nativo** no mesmo elemento (a dica apareceria duas vezes):
@@ -116,7 +134,10 @@ A dica de um elemento é o componente `GnTooltip`, **filho** do elemento descrit
 - **Comportamento:** abre com o mouse após 500 ms (sem atraso por 300 ms depois de fechar outra) e na hora com o teclado (`:focus-visible`); fecha ao sair, clicar, rolar, girar a roda, com Esc ou ao perder o foco; só uma por vez. Troca de lado perto das bordas da janela.
 - **Leitura nos testes:** o pai mantém `data-tooltip` com o texto (mesmo com a dica fechada). Teste de interface lê `el.dataset.tooltip`, não `el.title`.
 - **Acessibilidade:** o nome do botão continua sendo o `aria-label`; a dica só entra em `aria-describedby` quando o texto difere dele (por exemplo, quando traz o atalho). Botão só de ícone precisa de `aria-label`.
-- **Controle desabilitado:** o pai com `disabled` ou `aria-disabled="true"` não mostra dica. Onde a dica explica **por que** está desabilitado, a migração (#162) decide por caso (pode manter o `title` nativo).
+- **Controle desabilitado:** o pai com `disabled` ou `aria-disabled="true"` não mostra dica (o botão desabilitado nem recebe o mouse). Onde a dica explica **por que** está desabilitado ("Continuar" do merge, "Desfazer" do histórico de operações), o `title` nativo continua, como exceção registrada no teste de convenção.
+- **Elemento sem filhos** (`<input>`, `<select>`, `<textarea>`, `<img>`): o `GnTooltip` não cabe dentro; o `title` nativo continua, como exceção registrada. Ponha o `<input>` dentro de um `<label>` com a dica quando o rótulo existir.
+- **Texto:** quebras de linha (`\n`) são respeitadas e texto longo sem espaços (caminho, endereço) quebra em vez de estourar a largura máxima (280 px).
+- **Onde NÃO vai um `title`:** `<ConfirmDialog :title>` é o título do diálogo, não uma dica; `GnIconButton`, `GnSegmented` (`title` do grupo e de cada opção) e `ComboBox` (`title`) já mostram o `GnTooltip` por dentro.
 - **Visual:** `--gn-text` sobre `--gn-surface-2`, `--gn-shadow-sm`, `--gn-radius-sm`, `--gn-z-tooltip`, entrada em fade (`--gn-enter`).
 
 ## Como criar um componente do kit
@@ -130,5 +151,7 @@ A dica de um elemento é o componente `GnTooltip`, **filho** do elemento descrit
 ## O que impede regressão
 
 `apps/studio/test/ui-conventions.test.ts` reprova `<button>` cru novo nas telas, o CSS de seletor copiado, emoji como ícone e "Atualizar" colorido. A lista de exceções ali tem o motivo de cada uma e só deve encolher.
+
+Também trava a **elevação, as camadas e o foco** (bloco `elevação, camadas e foco`): `box-shadow` com desfoque só por `var(--gn-shadow-*)`, nenhum `z-index` literal de 3 dígitos ou mais, nenhum `background: rgba(0, 0, 0, …)` literal (use `var(--gn-backdrop)`), `z-index: var(--gn-z-dialog)` só no `GnDialog` e os tokens de sombra e de fundo definidos nos dois temas. E as **dicas** (bloco `dicas vêm do GnTooltip`): nenhum `title=` nativo em elemento ou componente das telas, fora das exceções registradas com o motivo. As mensagens apontam o arquivo e o token certo; o `apps/ui-kit/test/tokens.test.ts` segue congelando os valores de cor.
 
 O mesmo arquivo trava a **tipografia** (bloco `tipografia`): `font-family` e `font:` só com token (`var(--gn-font-ui)`, `var(--gn-font-code)`, `var(--gn-mono)` ou `inherit`), `fontFamily` em JavaScript só com `var(--gn-*)`, nenhuma fonte de fora, `@font-face` só em `fonts.scss` e ligaduras só pelo token. A mensagem de erro aponta o arquivo e o token certo. Os dois arquivos que podem nomear famílias (`tokens.scss` e `fonts.scss`) estão listados ali com o motivo. O `apps/ui-kit/test/fonts.test.ts` confere os arquivos da fonte (assinatura e SHA-256) e o `typography.test.ts`, os tokens e os atributos.
