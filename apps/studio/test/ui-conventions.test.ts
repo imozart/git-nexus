@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { stripHtmlComments } from './helpers/html';
 
 // Convenções de interface (docs/INTERFACE.md) que o compilador não vê. O objetivo é que botão, seletor e ícone venham do ui-kit (Gn*), e não de
 // HTML e CSS refeitos em cada tela. Quem precisa de uma exceção de verdade a registra aqui, com o motivo: a lista só deve encolher.
@@ -167,7 +168,7 @@ describe('tipografia', () => {
 });
 
 describe('listas vêm do ComboBox', () => {
-  const noComments = (s: string) => s.replace(/<!--[\s\S]*?-->/g, '');
+  const noComments = stripHtmlComments; // tira TODOS os comentários, inclusive os aninhados (`<!<!---->-->`); um replace de passada só deixa `<!--` para trás
   it('nenhuma tela usa <select> nem <datalist> nativos (a lista aberta é do sistema, de cantos quadrados): use o ComboBox', () => {
     for (const f of files.filter((x) => x.rel !== 'components/ComboBox.vue')) {
       // (o próprio ComboBox cita <select> e <datalist> nos comentários: é o componente que os substitui)
