@@ -4,6 +4,21 @@ Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https:/
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.18.0] - 2026-11-18
+
+### ✨ Novidades
+
+- **ci:** teste do ciclo de atualização do ZIP portátil com o app empacotado no Windows ([`06f89f9`](https://github.com/imozart/git-nexus/commit/06f89f9fe6056caacc461ac4c8ed4fdf7351941f))
+- **ci:** gerar e conferir o THIRD_PARTY_NOTICES das dependências distribuídas ([`44091d9`](https://github.com/imozart/git-nexus/commit/44091d92ef9be12d32ac45cf2c4eb77d9aa2174d))
+- **ui:** movimento reduzido em toda a interface (sistema e opção do app) ([`893752e`](https://github.com/imozart/git-nexus/commit/893752e2d6115cd0085e24daa04f79b2c7fc065b))
+- **i18n:** escolher o idioma na primeira abertura, com o do sistema já marcado ([`6d40ea4`](https://github.com/imozart/git-nexus/commit/6d40ea4cdfd462cee9863101707c216109e9910b))
+- **core:** mensagens do núcleo por chave e idioma, com migração gradual de tm(pt, en) ([`6f9f30d`](https://github.com/imozart/git-nexus/commit/6f9f30d0783ed58416fae46fa249a5953ddad49d))
+- **i18n:** catálogo único de idiomas (nome nativo e direção), sem bandeiras ([`348deb6`](https://github.com/imozart/git-nexus/commit/348deb6b11e11cd88a48e85ca7bd1e00badb4c61))
+
+### 🤖 CI/CD
+
+- abrir issues semanais dos alertas do code scanning ([`96353a3`](https://github.com/imozart/git-nexus/commit/96353a3554cf8ddd3b589ce595b496269d4a14f1))
+
 ## [1.17.0] - 2026-11-18
 
 ### ✨ Novidades
@@ -389,6 +404,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.18.0]: https://github.com/imozart/git-nexus/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/imozart/git-nexus/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/imozart/git-nexus/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/imozart/git-nexus/compare/v1.14.0...v1.15.0
