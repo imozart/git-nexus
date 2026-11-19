@@ -61,7 +61,7 @@ const ghostTone = computed(() => props.variant === 'ghost' && effectiveTone.valu
   color: var(--gn-text);
   font: inherit;
   cursor: pointer;
-  transition: background 0.12s, border-color 0.12s, opacity 0.12s;
+  transition: background var(--gn-motion-fast), border-color var(--gn-motion-fast), opacity var(--gn-motion-fast);
 
   &--md { padding: 6px 14px; }
   &--sm { padding: 2px 8px; font-size: 12px; }

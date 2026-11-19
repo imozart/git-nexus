@@ -71,6 +71,22 @@ A fonte do app é a **JetBrains Mono** (v2.304, licença OFL 1.1), embutida: fun
 - **O que não fazer:** família literal (`'Segoe UI'`, `Consolas`, `monospace`), fonte de CDN (Google Fonts etc.: o app funciona offline), `@font-face` fora de `apps/ui-kit/src/styles/fonts.scss`, `font-weight` que não exista, ligaduras ou `font-feature-settings` literais (só pelo `--gn-ligatures`).
 - **Regra do marco da fonte:** a fonte **não muda cor nem estrutura**; a revisão de layout com a fonte larga está no detector `ui-tests/tests/layout-font.mjs`.
 
+## Movimento
+
+Toda duração de `transition`/`animation` vem de um token de `apps/ui-kit/src/styles/tokens.scss`, nunca de um valor fixo (`0.2s`, `120ms`):
+
+| Token | Uso |
+|---|---|
+| `--gn-motion-fast` (120 ms) | hover, borda, seta que gira |
+| `--gn-motion-base` (140 ms) | entrada de overlays, barras de progresso (`--gn-enter` é apelido dele) |
+| `--gn-motion-slow` (200 ms) | barras largas |
+| `--gn-motion-loop` (1,1 s) | uma volta de indicador de progresso sem fim |
+
+- **Movimento reduzido** vale quando o sistema pede (`prefers-reduced-motion: reduce`) ou quando a opção *Movimento* das Configurações (Aparência) está em *Reduzido* (`data-reduced-motion="true"` no `<html>`). *Normal* mantém o movimento mesmo com o sistema pedindo menos. *Sistema* (padrão) acompanha o sistema. As durações caem para 0,01 ms (não 0: o evento de fim da animação ainda dispara) e os indicadores sem fim leem `--gn-ind-width` e `--gn-ind-opacity` para ficarem cheios e esmaecidos, ainda legíveis.
+- **Em componente:** `transition: opacity var(--gn-motion-fast) ease;`. Não escreva `@media (prefers-reduced-motion)` nem `scroll-behavior: smooth` no componente: só o `tokens.scss` fala com a media query.
+- **Em TypeScript** (o que não é CSS, como a chuva de confete): `isReducedMotion(motionPref.value, systemReduces)` de `renderer/motion-core`.
+- `apps/studio/test/ui-conventions.test.ts` (bloco `movimento`) reprova duração fixa e `prefers-reduced-motion` fora do `tokens.scss`.
+
 ## Como criar um componente do kit
 
 1. Nome `Gn` + substantivo, em `apps/ui-kit/src/components/`, exportado em `src/index.ts`.

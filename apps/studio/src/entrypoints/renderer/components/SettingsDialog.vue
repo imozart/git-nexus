@@ -7,11 +7,11 @@ import { computed, ref } from 'vue';
 import { GnButton, GnDialog, GnSegmented, GnTabs, type GnTab } from '@git-nexus/ui-kit';
 import { autoFetchEnabled } from '../auto-fetch';
 import { FONT_PREFS, fontCode, fontUi, ligatures, resetFonts, setFontCode, setFontUi, setLigatures } from '../font';
-import { LOCALES, locale, setLocale, t, type Locale } from '../i18n';
+import { LOCALES, locale, localePref, setLocalePref, t, type LocalePref } from '../i18n';
+import { MOTION_PREFS, motionPref, setMotionPref } from '../motion';
 import { THEME_PREFS, setThemePref, themePref, type ThemePref } from '../theme';
 import { useUpdateStore } from '../stores/update';
 import ComboBox from './ComboBox.vue';
-import FlagIcon from './FlagIcon.vue';
 
 defineEmits<{ (e: 'close'): void }>();
 
@@ -22,9 +22,13 @@ const tabs = computed<GnTab[]>(() => [
   { id: 'appearance', title: t('settings.appearance') },
 ]);
 
-const localeOptions = LOCALES.map((l) => ({ value: l.id, label: l.label }));
-const flagOf = (id: string) => LOCALES.find((l) => l.id === id)?.flag;
+// "Sistema" segue o idioma do sistema a cada abertura (o idioma que vale agora aparece como texto auxiliar); os outros são o catálogo, com o nome nativo
+const localeOptions = computed(() => [
+  { value: 'system', label: t('lang.system'), hint: LOCALES.find((l) => l.id === locale.value)?.label },
+  ...LOCALES.map((l) => ({ value: l.id, label: l.label })),
+]);
 const themeOptions = computed(() => THEME_PREFS.map((p) => ({ value: p, label: t(`theme.${p}`) })));
+const motionOptions = computed(() => MOTION_PREFS.map((p) => ({ value: p, label: t(`motion.${p}`) })));
 const fontOptions = computed(() => FONT_PREFS.map((p) => ({ value: p, label: t(`font.${p}`) })));
 /** Texto da pré-visualização do código: as sequências que as ligaduras transformam em um símbolo. */
 const SAMPLE = 'const ok = a !== b && c >= d;  // -> => != <=';
@@ -40,15 +44,7 @@ const SAMPLE = 'const ok = a !== b && c >= d;  // -> => != <=';
         <template v-if="tab === 'general'">
           <div class="sd__field">
             <span>{{ t('settings.language') }}</span>
-            <ComboBox class="sd__combo" block :options="localeOptions" :model-value="locale" :aria-label="t('settings.language')" @update:model-value="setLocale($event as Locale)">
-              <template #value>
-                <span class="sd__lang"><FlagIcon v-if="flagOf(locale)" :code="flagOf(locale)!" />{{ LOCALES.find((l) => l.id === locale)?.label }}</span>
-              </template>
-              <template #option="{ option }">
-                <FlagIcon v-if="flagOf(option.value)" :code="flagOf(option.value)!" />
-                <span class="sd__langname">{{ option.label }}</span>
-              </template>
-            </ComboBox>
+            <ComboBox class="sd__combo" block :options="localeOptions" :model-value="localePref" :aria-label="t('settings.language')" @update:model-value="setLocalePref($event as LocalePref)" />
           </div>
           <label class="sd__chk">
             <input type="checkbox" data-testid="settings-auto-update" :checked="upd.enabled" @change="upd.setEnabled(($event.target as HTMLInputElement).checked)" />
@@ -65,6 +61,11 @@ const SAMPLE = 'const ok = a !== b && c >= d;  // -> => != <=';
           <div class="sd__field">
             <span>{{ t('settings.theme') }}</span>
             <ComboBox class="sd__combo" block :options="themeOptions" :model-value="themePref" :aria-label="t('settings.theme')" @update:model-value="setThemePref($event as ThemePref)" />
+          </div>
+          <div class="sd__field">
+            <span>{{ t('settings.motion') }}</span>
+            <GnSegmented class="sd__seg" :model-value="motionPref" :options="motionOptions" :aria-label="t('settings.motion')" @update:model-value="setMotionPref" />
+            <small class="sd__hint sd__hint--field">{{ t('settings.motionHint') }}</small>
           </div>
           <div class="sd__field">
             <span>{{ t('settings.fontUi') }}</span>
@@ -111,9 +112,9 @@ const SAMPLE = 'const ok = a !== b && c >= d;  // -> => != <=';
   &__body { flex: 0 1 380px; min-height: 0; overflow: auto; padding: 16px 4px 0 0; }
   &__field { display: grid; gap: 4px; margin-bottom: 12px; > span { font-size: 12px; color: var(--gn-muted); } }
   &__combo { max-width: 280px; }
-  &__lang { display: inline-flex; align-items: center; gap: 7px; }
   &__seg { justify-self: start; }
   &__chk { display: flex; align-items: center; gap: 8px; cursor: pointer; &--gap { margin-top: 8px; } }
+  &__hint--field { margin: 2px 0 0; }
   &__hint { margin: 4px 0 14px 24px; font-size: 12px; color: var(--gn-muted); }
   &__preview { background: var(--gn-bg); border: 1px solid var(--gn-border); border-radius: var(--gn-radius); padding: 10px 12px; }
   &__code { margin: 0 0 8px; overflow-x: auto; white-space: pre; }

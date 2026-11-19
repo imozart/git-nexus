@@ -14,7 +14,7 @@ import type { ContentSearch, ContentSearchResult, FileContext } from './types/ip
 export async function searchContent(repoPath: string, q: ContentSearch): Promise<ContentSearchResult> {
   const pattern = q.pattern;
   if (!pattern.trim()) return { ok: true, matches: [], files: 0, truncated: false };
-  if (pattern.length > MAX_PATTERN) return { ok: false, message: tm(`O texto procurado passa de ${MAX_PATTERN} caracteres.`, `The search text is longer than ${MAX_PATTERN} characters.`), matches: [], files: 0, truncated: false };
+  if (pattern.length > MAX_PATTERN) return { ok: false, message: tm('search.tooLong', { max: MAX_PATTERN }), matches: [], files: 0, truncated: false };
   const paths = (q.paths ?? '').split(/\s+/).filter(Boolean);
   const args = [
     'grep', '-z', '-n', '-I', '--no-color', '--untracked',
@@ -28,7 +28,7 @@ export async function searchContent(repoPath: string, q: ContentSearch): Promise
   // 0 = achou, 1 = não achou; qualquer outro código é erro (expressão regular inválida, caminho fora do repositório...)
   if (r.code > 1) {
     const detail = r.stderr.trim().split('\n').find((l) => l.trim()) ?? '';
-    return { ok: false, message: q.regex ? tm(`Expressão regular inválida: ${detail}`, `Invalid regular expression: ${detail}`) : detail || tm('A busca falhou.', 'The search failed.'), matches: [], files: 0, truncated: false };
+    return { ok: false, message: q.regex ? tm('search.badRegex', { detail }) : detail || tm('search.failed'), matches: [], files: 0, truncated: false };
   }
   const { matches, truncated } = parseGrepOutput(r.stdout);
   return { ok: true, matches, files: new Set(matches.map((m) => m.file)).size, truncated };
@@ -45,10 +45,10 @@ export async function getFileContext(repoPath: string, file: string, line: numbe
   const root = resolve(repoPath);
   const full = resolve(root, file);
   const rel = relative(root, full);
-  if (!rel || rel.startsWith('..') || isAbsolute(rel) || rel.split(sep).includes('..')) throw new Error(tm('Arquivo fora do repositório.', 'File outside the repository.'));
+  if (!rel || rel.startsWith('..') || isAbsolute(rel) || rel.split(sep).includes('..')) throw new Error(tm('search.outsideRepo'));
   // um atalho (link simbólico) dentro do repositório que aponta para fora também não vale
   const realRel = relative(await realpath(root), await realpath(full));
-  if (!realRel || realRel.startsWith('..') || isAbsolute(realRel)) throw new Error(tm('Arquivo fora do repositório.', 'File outside the repository.'));
+  if (!realRel || realRel.startsWith('..') || isAbsolute(realRel)) throw new Error(tm('search.outsideRepo'));
   const bytes = await readFile(full);
   const text = decodeText(bytes, detectEncoding(bytes)).text;
   const all = text.split(/\r\n|\n|\r/);

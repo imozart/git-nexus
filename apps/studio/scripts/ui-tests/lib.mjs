@@ -60,8 +60,8 @@ export async function connect(OUT, results) {
     if (d.id && waiters.has(d.id)) {
       waiters.get(d.id)(d);
       waiters.delete(d.id);
-    } else if (d.method === 'Runtime.exceptionThrown') pageErrors.push(d.params.exceptionDetails?.exception?.description ?? d.params.exceptionDetails?.text ?? 'exceção');
-    else if (d.method === 'Runtime.consoleAPICalled' && d.params.type === 'error') pageErrors.push(d.params.args?.map((a) => a.value ?? a.description).join(' '));
+    } else if (d.method === 'Runtime.exceptionThrown') pageErrors.push(d.params.exceptionDetails?.exception?.description === 'Object' ? 'exceção: ' + JSON.stringify(d.params.exceptionDetails).slice(0, 400) : (d.params.exceptionDetails?.exception?.description ?? d.params.exceptionDetails?.text ?? 'exceção'));
+    else if (d.method === 'Runtime.consoleAPICalled' && d.params.type === 'error') pageErrors.push(d.params.args?.map((a) => a.value ?? (a.preview?.properties ? '{' + a.preview.properties.map((p) => p.name + ': ' + p.value).join(', ') + '}' : a.description)).join(' '));
     else if (d.method === 'Log.entryAdded' && d.params.entry.level === 'error') pageErrors.push(`${d.params.entry.text} ${d.params.entry.url ?? ''}`.trim());
   };
   const send = (method, params = {}) =>
@@ -115,6 +115,10 @@ export async function connect(OUT, results) {
     results[name] = ok ? 'OK' : 'FALHOU' + (extra !== undefined ? ' ' + JSON.stringify(extra) : '');
   };
   await send('Page.enable');
+  // a escolha de idioma da primeira abertura cobriria a tela de todos os testes: marca como já mostrada, a menos que o teste dela peça o contrário (gitnexus.testNoSeed)
+  const SEED = "try { if (localStorage.getItem('gitnexus.testNoSeed') === null) localStorage.setItem('gitnexus.localeAsked', '1'); } catch {}";
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: SEED });
+  await send('Runtime.evaluate', { expression: SEED + "; document.querySelector('[data-testid=\"locale-welcome-skip\"]')?.click()" });
   await send('Runtime.enable');
   await send('Log.enable');
   // no navegador headless a tela é fixa em 1500x900; na janela real do Electron vale o tamanho que o app abriu

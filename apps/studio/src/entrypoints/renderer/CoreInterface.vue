@@ -141,7 +141,8 @@ const tabs = computed<GnTab[]>(() =>
   display: flex;
   flex-direction: column;
   height: 100%;
-  &__top { display: flex; align-items: stretch; background: var(--gn-bg); }
+  // 43px: a altura que a barra sempre teve (antes vinha da bandeira do seletor de idioma, que saiu); os seletores e o botão Comandos esticam até ela
+  &__top { display: flex; align-items: stretch; min-height: 43px; background: var(--gn-bg); }
   &__tabs { flex: 1; min-width: 0; }
   // engrenagem: mesma altura, borda e fundo do botão Comandos (e dos seletores de tema e idioma), com o mesmo respiro
   &__gear.gn-btn { align-self: center; flex: none; width: 31px; height: 31px; margin: 0 10px 0 -4px; padding: 0; color: var(--gn-muted); background: var(--gn-surface); border: 1px solid var(--gn-border); border-radius: var(--gn-radius); &:hover:not(:disabled) { color: var(--gn-text); border-color: var(--gn-accent); background: var(--gn-surface); } }
@@ -170,7 +171,7 @@ const tabs = computed<GnTab[]>(() =>
   &__ok { color: var(--gn-success, #4fb477); }
   &__prog { display: inline-flex; align-items: center; gap: 8px; }
   &__bar { display: inline-block; width: 140px; height: 6px; background: var(--gn-border); border-radius: 3px; overflow: hidden; }
-  &__fill { display: block; height: 100%; background: var(--gn-accent); transition: width 0.2s; }
-  &__bar--busy &__fill { width: 35%; animation: upd-busy 1.1s ease-in-out infinite alternate; }
+  &__fill { display: block; height: 100%; background: var(--gn-accent); transition: width var(--gn-motion-slow); }
+  &__bar--busy &__fill { width: var(--gn-ind-width, 35%); opacity: var(--gn-ind-opacity, 1); animation: upd-busy var(--gn-motion-loop) ease-in-out infinite alternate; }
 }
 </style>

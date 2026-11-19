@@ -60,7 +60,11 @@
   --gn-z-tooltip: 2100;
   --gn-z-confetti: 3000;
   /* duração da entrada animada dos overlays (cai para quase zero com movimento reduzido) */
-  --gn-enter: 140ms;
+  --gn-motion-fast: 120ms; /* hover, borda, seta que gira */
+  --gn-motion-base: 140ms; /* entrada de overlays, barras de progresso */
+  --gn-motion-slow: 200ms; /* barras largas */
+  --gn-motion-loop: 1.1s; /* uma volta dos indicadores de progresso sem fim (barra que corre) */
+  --gn-enter: var(--gn-motion-base);
   color-scheme: dark;
 }
 
@@ -103,7 +107,13 @@ html[data-ligatures='on'] { --gn-ligatures: normal; }
 /* movimento: entrada de diálogos e da paleta (pop) e de menus, popovers e tooltip (fade); uso: animation: gn-pop-in var(--gn-enter) ease-out */
 @keyframes gn-pop-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes gn-fade-in { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { :root { --gn-enter: 0.01ms; } }
+/* Movimento reduzido: tudo que usa os tokens de duração deixa de animar (0,01ms e não 0: o evento de fim da animação ainda dispara). Vale quando o SISTEMA pede
+   (a menos que a opção do app esteja em "Normal") e quando a opção do app está em "Reduzido" (data-reduced-motion="true", veja renderer/motion.ts).
+   Os indicadores de progresso sem fim param de correr e ficam cheios e esmaecidos (legíveis): eles leem --gn-ind-width e --gn-ind-opacity. */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-reduced-motion='false']) { --gn-motion-fast: 0.01ms; --gn-motion-base: 0.01ms; --gn-motion-slow: 0.01ms; --gn-motion-loop: 0s; --gn-ind-width: 100%; --gn-ind-opacity: 0.6; }
+}
+:root[data-reduced-motion='true'] { --gn-motion-fast: 0.01ms; --gn-motion-base: 0.01ms; --gn-motion-slow: 0.01ms; --gn-motion-loop: 0s; --gn-ind-width: 100%; --gn-ind-opacity: 0.6; }
 
 *, *::before, *::after { box-sizing: border-box; }
 

@@ -31,7 +31,7 @@ const pickCombo = async (label, option) => {
   await t.ev(`${fieldOf(label)}.querySelector('.cbx__btn').click()`);
   await t.until(`document.querySelector('.cbx__list')`, 3000);
   const look = await t.ev(`(() => { const l = document.querySelector('.cbx__list'); const r = l.getBoundingClientRect(); const at = document.elementFromPoint(r.left + r.width / 2, r.top + 12); return { radius: parseFloat(getComputedStyle(l).borderRadius), above: !!at && l.contains(at), items: [...l.querySelectorAll('[role="option"]')].map((o) => o.textContent.trim()) }; })()`);
-  await t.ev(`[...document.querySelectorAll('.cbx__list [role="option"]')].find((o) => o.textContent.trim() === ${lit(option)})?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))`);
+  await t.ev(`[...document.querySelectorAll('.cbx__list [role="option"]')].find((o) => o.textContent.trim().startsWith(${lit(option)}))?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))`);
   await sleep(300);
   return look;
 };
@@ -177,7 +177,7 @@ const paletteRun = async (query, title) => {
 await openGear();
 t.check('aba Geral: o idioma atual (Português) vem no ComboBox', (await comboValue('Idioma')) === 'Português (Brasil)');
 const langList = await pickCombo('Idioma', 'English');
-t.check('a lista do idioma tem cantos arredondados, fica acima do diálogo e traz os dois idiomas', langList.radius >= 6 && langList.above && langList.items.length === 2 && langList.items.includes('English'), langList);
+t.check('a lista do idioma tem cantos arredondados, fica acima do diálogo e traz Sistema e os dois idiomas pelo nome nativo', langList.radius >= 6 && langList.above && langList.items.length === 3 && langList.items.some((x) => x.startsWith('Sistema')) && langList.items.includes('English'), langList);
 await sleep(300);
 t.check('Idioma "English" no diálogo troca o app e o próprio diálogo, sem recarregar', (await dlg(`document.getElementById(d.getAttribute('aria-labelledby'))?.textContent.trim()`)) === 'Settings' && (await ls('gitnexus.locale')) === 'en');
 await escape();
@@ -186,6 +186,14 @@ t.check('o seletor de idioma da barra mostra EN', (await t.ev(`document.querySel
 t.check('o comando da paleta volta ao português', await paletteRun('language', 'Language: Português (Brasil)'));
 await openGear();
 t.check('o diálogo mostra o idioma escolhido na paleta (Português) e está em português', (await comboValue('Idioma')) === 'Português (Brasil)');
+
+// "Sistema": segue o idioma do sistema e deixa de guardar o idioma (o padrão não guarda chave)
+await pickCombo('Idioma', 'Sistema');
+t.check('escolher "Sistema" apaga o idioma guardado (gitnexus.locale)', (await ls('gitnexus.locale')) === null);
+await t.ev(`localStorage.setItem('gitnexus.locale', 'pt-BR')`);
+await reload();
+await openGear();
+t.check('com o idioma guardado de novo, o combo volta a mostrar Português (Brasil)', (await comboValue('Idioma')) === 'Português (Brasil)');
 
 // atualização automática: dialogo -> paleta e paleta -> dialogo
 t.check('"Verificar atualizações automaticamente" começa marcada (padrão)', await t.ev(`${chk('settings-auto-update')}.checked`));

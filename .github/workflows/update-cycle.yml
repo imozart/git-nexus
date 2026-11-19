@@ -1,0 +1,61 @@
+name: Ciclo de atualização (Windows)
+
+# O app portátil se atualiza sozinho: extrai o ZIP novo, troca os arquivos com o executável em uso e reabre. Os testes unitários rodam em Node puro e não
+# exercitam isso com o pacote de verdade (a atualização 1.12 -> 1.13 falhou em produção com EBUSY em resources\app.asar, e depois apareceram spawn EPERM
+# e EPERM ao apagar .gnupdate-old, provavelmente o antivírus examinando o executável novo).
+# Aqui o app EMPACOTADO (win-unpacked) faz o ciclo de verdade: preparo e troca com .gnupdate-stage/.gnupdate-old reais (cada um com um app.asar), reabertura
+# e conferência de que o app trocado abre (GITNEXUS_SMOKE). O roteiro está em apps/studio/scripts/update-cycle/run.mjs e o gancho no app em src/entrypoints/cycle.ts.
+# Custa minutos de runner Windows: roda só quando o PR toca a atualização, o empacotamento ou este teste (e à mão).
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/studio/src/entrypoints/installer.ts'
+      - 'apps/studio/src/entrypoints/update-log.ts'
+      - 'apps/studio/src/entrypoints/cycle.ts'
+      - 'apps/studio/src/entrypoints/main.ts'
+      - 'apps/studio/src/entrypoints/smoke.ts'
+      - 'apps/studio/electron-builder.yml'
+      - 'apps/studio/scripts/update-cycle/**'
+      - '.github/workflows/update-cycle.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: update-cycle-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cycle:
+    name: Ciclo de atualização do ZIP portátil (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          install: 'false'
+      - name: Cache do Electron
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: electron-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: electron-${{ runner.os }}-
+
+      - run: pnpm install --frozen-lockfile
+      - name: Compilar (esbuild + vite)
+        run: pnpm --filter @git-nexus/studio build
+      - name: Empacotar (electron-builder --dir)
+        run: pnpm --filter @git-nexus/studio exec electron-builder --win --x64 --dir --publish never
+      - name: Ciclo de atualização com o app empacotado
+        run: node apps/studio/scripts/update-cycle/run.mjs apps/studio/release/win-unpacked
