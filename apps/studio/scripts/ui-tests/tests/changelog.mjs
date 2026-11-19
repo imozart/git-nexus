@@ -18,13 +18,13 @@ await t.ev(`window.__opened = []; window.gitNexus.openExternal = async (u) => { 
 
 const btn = `[...document.querySelectorAll('.conn__actions button')].find((b) => b.textContent.trim() === 'Novidades')`;
 t.check('botão "Novidades" na página principal', await t.ev(`!!(${btn})`));
-t.check('sem diálogo antes de clicar', (await t.count('.cl__box')) === 0);
+t.check('sem diálogo antes de clicar', (await t.count('[role="dialog"]')) === 0);
 await t.ev(`(${btn}).click()`);
-await t.until(`document.querySelector('.cl__box') && document.querySelectorAll('.ver').length > 0`, 10000);
+await t.until(`document.querySelector('[role="dialog"]') && document.querySelectorAll('.ver').length > 0`, 10000);
 await sleep(300);
 await t.shot('changelog-aberto');
 
-t.check('diálogo acessível', await t.ev(`(() => { const b = document.querySelector('.cl__box'); return b.getAttribute('role') === 'dialog' && b.getAttribute('aria-modal') === 'true'; })()`));
+t.check('diálogo acessível', await t.ev(`(() => { const b = document.querySelector('[role="dialog"]'); return b.getAttribute('role') === 'dialog' && b.getAttribute('aria-modal') === 'true'; })()`));
 t.check('título', (await t.text('.cl__head h3')) === 'Novidades do GitNexus');
 t.check('mostra a versão em uso', /Você usa a versão \d+\.\d+\.\d+/.test((await t.text('.cl__head p')) ?? ''));
 t.check('lista as versões do CHANGELOG.md', (await t.count('.ver')) >= 2);
@@ -62,12 +62,13 @@ t.check('a janela do app não navegou', (await t.ev('location.href')) === before
 // fechar: Esc e clique fora
 await t.key('Escape');
 await sleep(300);
-t.check('Esc fecha', (await t.count('.cl__box')) === 0);
+t.check('Esc fecha', (await t.count('[role="dialog"]')) === 0);
 await t.ev(`(${btn}).click()`);
-await t.until(`document.querySelector('.cl__box')`, 5000);
-await t.ev(`document.querySelector('.cl').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))`);
+await t.until(`document.querySelector('[role="dialog"]')`, 5000);
+// o GnDialog fecha por clique no fundo quando o mousedown E o mouseup acontecem nele
+await t.ev(`(() => { const f = document.querySelector('.gn-dlg'); for (const type of ['mousedown', 'mouseup']) f.dispatchEvent(new MouseEvent(type, { bubbles: true })); })()`);
 await sleep(300);
-t.check('clique fora fecha', (await t.count('.cl__box')) === 0);
+t.check('clique fora fecha', (await t.count('[role="dialog"]')) === 0);
 
 // o diálogo não gerou nenhum erro de página (o reload abaixo aborta chamadas em andamento e geraria falsos erros)
 t.check('sem erros novos no console', t.errors().length === baseErrors);

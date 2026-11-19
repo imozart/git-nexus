@@ -155,9 +155,9 @@ scenes.desfazer = async () => {
   await tool('histórico de operações');
   await frame('desfazer', 1);
   await clickText('.op--first button', 'Desfazer');
-  await t.until(`document.querySelector('.dlg__box')`, 5000);
+  await t.until(`document.querySelector('[role="alertdialog"]')`, 5000);
   await frame('desfazer', 2);
-  await clickText('.dlg__box button', 'Desfazer');
+  await clickText('[role="alertdialog"] button', 'Desfazer');
   await sleep(1500);
   await frame('desfazer', 3);
 };
@@ -188,9 +188,9 @@ scenes.rebase = async () => {
   await pick(2, 'Descartar');
   await frame('rebase', 2);
   await clickText('.rb button', 'Executar rebase');
-  await t.until(`document.querySelector('.dlg__box')`, 5000);
+  await t.until(`document.querySelector('[role="alertdialog"]')`, 5000);
   await frame('rebase', 3);
-  await clickText('.dlg__box button', 'Executar rebase');
+  await clickText('[role="alertdialog"] button', 'Executar rebase');
   await t.until(`document.body.textContent.includes('Rebase concluído')`, 30000);
   await sleep(800);
   await frame('rebase', 4);

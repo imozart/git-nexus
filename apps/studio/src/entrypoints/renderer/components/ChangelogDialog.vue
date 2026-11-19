@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { GnBadge, GnButton, GnIcon } from '@git-nexus/ui-kit';
+import { computed, onMounted, ref } from 'vue';
+import { GnBadge, GnButton, GnDialog, GnIcon } from '@git-nexus/ui-kit';
 import type { ChangelogData } from '@git-nexus/git-core/pure';
 import { CHANGELOG_URL, parseChangelog, releaseUrl, withCurrentVersion } from '../../../shared/changelog';
 import { isAllowedUpdateUrl } from '../../../shared/update';
@@ -13,7 +13,6 @@ const emit = defineEmits<{ (e: 'close'): void }>();
 const data = ref<ChangelogData | null>(null);
 const loading = ref(true);
 const error = ref('');
-const box = ref<HTMLElement | null>(null);
 
 const versions = computed(() => withCurrentVersion(parseChangelog(data.value?.markdown ?? ''), data.value?.version ?? ''));
 const isCurrent = (v: string) => v.replace(/^v/, '') === data.value?.version;
@@ -25,12 +24,7 @@ function openLink(href: string): void {
   if (canOpen(href)) api.openExternal(href).catch((e) => (error.value = errMsg(e)));
 }
 
-function onKey(ev: KeyboardEvent): void {
-  if (ev.key === 'Escape') emit('close');
-}
 onMounted(async () => {
-  document.addEventListener('keydown', onKey);
-  box.value?.focus();
   try {
     data.value = await api.getChangelog();
   } catch (e) {
@@ -39,13 +33,10 @@ onMounted(async () => {
     loading.value = false;
   }
 });
-onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
 </script>
 
 <template>
-  <Teleport to="body">
-    <div class="cl" @mousedown.self="emit('close')">
-      <div ref="box" class="cl__box" role="dialog" aria-modal="true" aria-labelledby="cl-title" tabindex="-1">
+  <GnDialog width="min(780px, 94vw)" max-height="84vh" labelledby="cl-title" @close="emit('close')">
         <header class="cl__head">
           <div>
             <h3 id="cl-title">{{ t('changelog.title') }}</h3>
@@ -92,30 +83,11 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
             <p v-else-if="!v.sections.length" class="muted">{{ t('changelog.noChanges') }}</p>
           </details>
         </div>
-      </div>
-    </div>
-  </Teleport>
+  </GnDialog>
 </template>
 
 <style scoped lang="scss">
 .cl {
-  position: fixed;
-  inset: 0;
-  z-index: 1100;
-  display: grid;
-  place-items: center;
-  background: rgba(0, 0, 0, 0.55);
-  &__box {
-    width: min(780px, 94vw);
-    max-height: 84vh;
-    display: flex;
-    flex-direction: column;
-    background: var(--gn-surface);
-    border: 1px solid var(--gn-border);
-    border-radius: 10px;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
-    outline: none;
-  }
   &__head {
     display: flex;
     align-items: center;
