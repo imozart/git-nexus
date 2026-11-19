@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // Faixa lateral fina com o NOME de cada painel (como as "tool windows" do IntelliJ): clicar mostra ou recolhe o painel,
-// e o painel recolhido continua achável pelo nome na faixa.
+// e o painel recolhido continua achável pelo nome na faixa. A dica é o GnTooltip, filho do botão (sem `title` nativo).
+import { GnTooltip } from '@git-nexus/ui-kit';
 export interface StripeItem {
   id: string;
   label: string;
@@ -24,12 +25,12 @@ defineEmits<{ toggle: [id: string] }>();
       class="stripe__btn"
       :class="{ 'stripe__btn--on': i.active }"
       :aria-pressed="i.active"
-      :title="i.title ?? i.label"
       :data-stripe="i.id"
       @click="$emit('toggle', i.id)"
     >
       <span class="stripe__label">{{ i.label }}</span>
       <span v-if="i.badge" class="stripe__badge">{{ i.badge }}</span>
+      <GnTooltip :text="i.title ?? i.label" />
     </button>
   </nav>
 </template>

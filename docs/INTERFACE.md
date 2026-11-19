@@ -7,10 +7,11 @@ Tudo o que é botão, seletor, ícone, etiqueta e aba vem do **ui-kit** (`apps/u
 | Componente | Para quê | Detalhes |
 |---|---|---|
 | `GnButton` | Botão com texto | `variant` (preenchimento: `primary` sólido, `ghost` leve) e `tone` (cor: `neutral`, `accent`, `success`, `warn`, `danger`), `size` `sm`/`md` |
-| `GnIconButton` | Botão só de ícone | `icon` e `label` **obrigatório** (vira `aria-label` e tooltip); leve por padrão |
+| `GnIconButton` | Botão só de ícone | `icon` e `label` **obrigatório** (vira `aria-label` e a dica do `GnTooltip`); leve por padrão |
 | `GnButtonGroup` | Par ou conjunto de botões colados | anterior/próximo; serve para `GnButton` e `GnIconButton` |
 | `GnSegmented` | Escolher **uma** opção entre poucas | `v-model`, `options`, teclado e `aria` prontos; ativo em azul tingido |
 | `GnDialog` | Diálogo modal | overlay, caixa com elevação, foco preso, Esc, clique no fundo, foco devolvido e fundo inerte; `width`, `maxHeight`, `role`, `labelledby`/`label`, `describedby`, `dismissable`, `initialFocus`; emite `close` (`'escape'` ou `'backdrop'`) o Esc fecha antes uma lista aberta de dentro (combobox) e o pai segue dono do estado (`v-if`); `isDialogOpen()` diz se há algum aberto |
+| `GnTooltip` | Dica de um elemento ao passar o mouse ou focar | `text` (obrigatório), `placement` (`top`/`bottom`), `delay` (500 ms), `disabled`; fica como **filho** do elemento descrito (não o envolve: o `GnButtonGroup` depende de `:first-child`/`:last-child`); o pai ganha `data-tooltip` e não deve ter `title` nativo |
 | `GnIcon` | Ícone decorativo | `name` (ver `components/icons.ts`); herda a cor do texto; sem `v-html` |
 | `GnBadge` | Etiqueta de estado | `tone` com o mesmo vocabulário do botão |
 | `GnTabs` | Abas | barra principal, Ferramentas e Configurações; teclado pronto (setas, Home, End, Enter e espaço; só a aba ativa entra no Tab) |
@@ -102,6 +103,21 @@ A janela não usa a barra de título do sistema: os botões de minimizar, maximi
 - **Cores:** a interface informa `--gn-bg` e `--gn-text` ao processo principal (`setTitleBar`) a cada troca de tema, e o overlay acompanha na hora. As cores iniciais (`TITLE_BAR_COLORS`) são as dos tokens; o teste confere que continuam iguais.
 - **Linux sem suporte a overlay** (alguns gerenciadores de janela): se o ajuste falhar, o erro vai para o `gitnexus-app.log`; para voltar à moldura do sistema, abra o app com `GITNEXUS_NATIVE_FRAME=1`.
 - **Testes:** `apps/studio/test/title-bar.test.ts` (regras puras) e `ui-tests/tests/title-bar.mjs` (a interface com a moldura simulada por `?titlebar=overlay|inset` no harness: arrasto, margens, cores do tema). O visual dos botões nativos e o Snap Layouts do Windows 11 só se conferem num Electron real.
+
+## Dicas (GnTooltip)
+
+A dica de um elemento é o componente `GnTooltip`, **filho** do elemento descrito (nunca em volta dele) e **sem `title` nativo** no mesmo elemento (a dica apareceria duas vezes):
+
+```vue
+<GnIconButton icon="arrow-up" label="Anterior" title="Próxima diferença (F7)" />  <!-- usa o GnTooltip por dentro -->
+<button class="tab">... <GnTooltip :text="i.title ?? i.label" /></button>            <!-- uso direto -->
+```
+
+- **Comportamento:** abre com o mouse após 500 ms (sem atraso por 300 ms depois de fechar outra) e na hora com o teclado (`:focus-visible`); fecha ao sair, clicar, rolar, girar a roda, com Esc ou ao perder o foco; só uma por vez. Troca de lado perto das bordas da janela.
+- **Leitura nos testes:** o pai mantém `data-tooltip` com o texto (mesmo com a dica fechada). Teste de interface lê `el.dataset.tooltip`, não `el.title`.
+- **Acessibilidade:** o nome do botão continua sendo o `aria-label`; a dica só entra em `aria-describedby` quando o texto difere dele (por exemplo, quando traz o atalho). Botão só de ícone precisa de `aria-label`.
+- **Controle desabilitado:** o pai com `disabled` ou `aria-disabled="true"` não mostra dica. Onde a dica explica **por que** está desabilitado, a migração (#162) decide por caso (pode manter o `title` nativo).
+- **Visual:** `--gn-text` sobre `--gn-surface-2`, `--gn-shadow-sm`, `--gn-radius-sm`, `--gn-z-tooltip`, entrada em fade (`--gn-enter`).
 
 ## Como criar um componente do kit
 
