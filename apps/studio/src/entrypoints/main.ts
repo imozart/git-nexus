@@ -488,7 +488,7 @@ ipcMain.handle(channel('setZoom'), (e, action: string) => {
 // A interface informa as cores da faixa de abas a cada troca de tema; o overlay dos botões da janela as acompanha.
 ipcMain.handle(channel('setTitleBar'), (e, input: unknown) => {
   const colors = parseTitleBarColors(input);
-  if (!colors) throw new Error(tm('Cores da barra de título inválidas.', 'Invalid title bar colors.'));
+  if (!colors) throw new Error(tm('window.err.titleBarColors'));
   overlayColors = colors;
   return syncTitleBarOverlay(BrowserWindow.fromWebContents(e.sender));
 });

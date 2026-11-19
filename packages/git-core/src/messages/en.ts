@@ -11,7 +11,9 @@ const messages: Partial<Record<MessageKey, string>> = {
   'search.tooLong': 'The search text is longer than {max} characters.',
   'search.badRegex': 'Invalid regular expression: {detail}',
   'search.failed': 'The search failed.',
-  'search.outsideRepo': 'File outside the repository.',
+  'search.outsideRepo': 'File is outside the repository.',
+  // janela (main.ts)
+  'window.err.titleBarColors': 'Invalid title bar colors.',
   // instalação do Git (git-install.ts)
   'git.err.cancelled': 'Installation cancelled.',
   'git.err.tooBig': 'The file is too large.',
