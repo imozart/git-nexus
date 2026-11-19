@@ -67,6 +67,8 @@ import {
   getGitStatus,
   getHistory,
   getMergeConflicts,
+  reopenConflict,
+  resolvedConflictFiles,
   getOperations,
   getRebasePlan,
   getRebaseState,
@@ -303,6 +305,8 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
     getMergeConflicts: (repoPath: string) => getMergeConflicts(repoPath),
     resolveConflictFile: (repoPath: string, filePath: string, merged: string) =>
       resolveConflictFile(repoPath, filePath, merged),
+    getResolvedConflictFiles: (repoPath: string) => resolvedConflictFiles(repoPath),
+    reopenConflict: (repoPath: string, filePath: string) => reopenConflict(repoPath, filePath),
     listBranches: (repoPath: string) => listBranches(repoPath),
     compareWithBase: (repoPath: string) => compareWithBase(repoPath),
     getSyncCommits: (repoPath: string) => getSyncCommits(repoPath),

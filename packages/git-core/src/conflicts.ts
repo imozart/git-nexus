@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import type { MergeConflictBlock } from './types/ipc.js';
 import { hasConflictMarkers } from './conflict-markers.js';
+import { operationInProgress } from './operations.js';
 import { runGit } from './runner.js';
 import { tm } from './messages.js';
 import { decodeText, detectEncodingOf, encodeText } from './encoding.js';
@@ -71,4 +72,25 @@ export async function resolveConflictFile(
   await writeFile(abs, encodeText(mergedContent, detectEncodingOf(current, ours, theirs)));
   await runGit(repoPath, ['add', '--', filePath]);
   return true;
+}
+
+/**
+ * Arquivos de conflito já marcados como resolvidos (`git add`) cuja informação de desfazer o Git ainda guarda no índice
+ * (`ls-files --resolve-undo`): dá para reabri-los enquanto a operação (merge, rebase, cherry-pick) não terminou.
+ */
+export async function resolvedConflictFiles(repoPath: string): Promise<string[]> {
+  // o Git guarda a informação de desfazer no índice mesmo depois do commit: fora de uma operação em andamento não há o que reabrir
+  if (!(await operationInProgress(repoPath))) return [];
+  const r = await runGit(repoPath, ['ls-files', '--resolve-undo', '-z'], { check: false });
+  if (r.code !== 0) return [];
+  // cada registro: "<modo> <sha> <estágio>\t<caminho>"
+  return [...new Set(r.stdout.split('\0').filter(Boolean).map((rec) => rec.slice(rec.indexOf('\t') + 1)))];
+}
+
+/** Recria o conflito original de um arquivo já resolvido (`git checkout -m`), com os marcadores no disco. Devolve false se não havia o que reabrir. */
+export async function reopenConflict(repoPath: string, filePath: string): Promise<boolean> {
+  resolveInsideRepo(repoPath, filePath);
+  if (!(await resolvedConflictFiles(repoPath)).includes(filePath)) return false;
+  const r = await runGit(repoPath, ['checkout', '-m', '--', filePath], { check: false });
+  return r.code === 0 && (await unmergedFiles(repoPath)).includes(filePath);
 }

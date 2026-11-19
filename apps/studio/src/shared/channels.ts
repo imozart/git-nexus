@@ -78,6 +78,8 @@ export const WORKER_METHODS = [
   'scanStagedSecrets',
   'getMergeConflicts',
   'resolveConflictFile',
+  'getResolvedConflictFiles',
+  'reopenConflict',
   'listBranches',
   'compareWithBase',
   'getSyncCommits',
