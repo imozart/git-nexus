@@ -488,7 +488,7 @@ onBeforeUnmount(() => {
 .bp { display: inline-flex; min-width: 130px; } /* sem isto o chip da branch não encolhe e empurra os botões do cabeçalho */
 .bp__btn { min-width: 0; max-width: 100%; }
 .bp__name { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bp__layer { position: fixed; inset: 0; z-index: 1000; }
+.bp__layer { position: fixed; inset: 0; z-index: var(--gn-z-popover); }
 .bp__panel,
 .bp__fly {
   position: fixed;
@@ -496,11 +496,12 @@ onBeforeUnmount(() => {
   flex-direction: column;
   background: var(--gn-surface);
   border: 1px solid var(--gn-border);
-  border-radius: 10px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+  border-radius: var(--gn-radius-lg);
+  box-shadow: var(--gn-shadow-md);
+  animation: gn-fade-in var(--gn-enter) ease-out;
 }
 .bp__panel { width: 380px; overflow: hidden; }
-.bp__fly { width: 320px; padding: 6px; z-index: 1001; hr { margin: 4px 0; } }
+.bp__fly { width: 320px; padding: 6px; z-index: calc(var(--gn-z-popover) + 1); hr { margin: 4px 0; } }
 .bp__search {
   display: flex; align-items: center; gap: 8px; margin: 10px 10px 6px; padding: 2px 6px 2px 10px;
   background: var(--gn-bg); border: 1px solid var(--gn-border); border-radius: var(--gn-radius); color: var(--gn-muted);

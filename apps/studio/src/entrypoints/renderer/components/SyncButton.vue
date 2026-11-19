@@ -308,10 +308,10 @@ defineExpose({ doFetch, doUpdate, doPush, doPushLease });
 .ss__fill { display: block; height: 100%; background: var(--gn-accent); transition: width var(--gn-motion-base) linear; }
 .ss__bar--indeterminate .ss__fill { width: var(--gn-ind-width, 40%); opacity: var(--gn-ind-opacity, 1); animation: ss-slide var(--gn-motion-loop) ease-in-out infinite alternate; }
 @keyframes ss-slide { from { transform: translateX(-10%); } to { transform: translateX(160%); } }
-.ss__layer { position: fixed; inset: 0; z-index: 1000; }
+.ss__layer { position: fixed; inset: 0; z-index: var(--gn-z-popover); }
 .ss__panel {
   position: fixed; width: 440px; display: flex; flex-direction: column; background: var(--gn-surface); border: 1px solid var(--gn-border);
-  border-radius: 10px; box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6); overflow: hidden;
+  border-radius: var(--gn-radius-lg); box-shadow: var(--gn-shadow-md); overflow: hidden; animation: gn-fade-in var(--gn-enter) ease-out;
 }
 .ss__head { padding: 10px 14px 8px; border-bottom: 1px solid var(--gn-border); p { margin: 0 0 2px; font-size: 12.5px; color: var(--gn-muted); &:first-child { color: var(--gn-text); font-weight: 600; } } }
 .ss__scroll {
