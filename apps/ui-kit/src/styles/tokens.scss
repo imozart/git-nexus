@@ -53,7 +53,7 @@
   --gn-radius-lg: 10px;
   /* anel de foco dos campos de texto: o azul de destaque a 30% */
   --gn-ring: 0 0 0 3px color-mix(in srgb, var(--gn-accent) 30%, transparent);
-  /* camadas (o ComboBox, z-index 80, fica como está) */
+  /* camadas (a lista do ComboBox usa calc(var(--gn-z-dialog) + 1): abre também de dentro de diálogos) */
   --gn-z-popover: 1000;
   --gn-z-dialog: 1100;
   --gn-z-palette: 2000;

@@ -168,6 +168,8 @@ onBeforeUnmount(() => {
   padding: 4px 8px;
   font-size: 12px;
   line-height: 1.35;
+  white-space: pre-line; // quebras de linha do texto (lista de checks, caminho)
+  overflow-wrap: anywhere; // caminhos e endereços sem espaço não estouram o max-width
   color: var(--gn-text);
   background: var(--gn-surface-2);
   border: 1px solid var(--gn-border);
