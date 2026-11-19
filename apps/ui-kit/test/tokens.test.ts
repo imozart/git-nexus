@@ -70,3 +70,15 @@ describe('cores do sistema (congeladas: o marco não as altera)', () => {
   it('tema escuro', () => { for (const [n, v] of Object.entries(DARK)) expect(value(dark, n), n).toBe(v); });
   it('tema claro', () => { for (const [n, v] of Object.entries(LIGHT)) expect(value(light, n), n).toBe(v); });
 });
+
+// Anel de foco dos campos de texto (issue #154): borda de destaque + --gn-ring em :focus-visible; nada de cor nova.
+describe('foco dos campos de texto', () => {
+  const rule = css.slice(css.indexOf('input, textarea, select {'), css.indexOf('::-webkit-scrollbar'));
+  it('a regra global tem o anel (box-shadow: var(--gn-ring)) em :focus-visible e mantém a borda de destaque em :focus', () => {
+    expect(rule).toContain('&:focus-visible { box-shadow: var(--gn-ring); }');
+    expect(rule).toContain('&:focus { outline: none; border-color: var(--gn-accent); }');
+  });
+  it('sem cor literal no anel nem no foco', () => {
+    expect(rule).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
+  });
+});

@@ -100,7 +100,7 @@ const showGroup = (i: number) => !query.value.trim() && (i === 0 || results.valu
     display: flex;
     flex-direction: column;
   }
-  &__input { border: none; border-bottom: 1px solid var(--gn-border); border-radius: 0; padding: 13px 16px; font-size: 15px; background: var(--gn-surface); &:focus { outline: none; } }
+  &__input { border: none; border-bottom: 1px solid var(--gn-border); border-radius: 0; padding: 13px 16px; font-size: 15px; background: var(--gn-surface); &:focus { outline: none; } &:focus-visible { box-shadow: none; } }
   &__list { max-height: min(52vh, 420px); overflow: auto; padding: 4px 0; }
   &__group { padding: 8px 16px 3px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gn-muted); }
   &__item { display: flex; align-items: center; gap: 10px; padding: 7px 16px; cursor: pointer; &--on { background: rgba(79, 134, 247, 0.22); } }

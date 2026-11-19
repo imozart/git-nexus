@@ -138,6 +138,8 @@ input, textarea, select {
   padding: 6px 9px;
   font: inherit;
   &:focus { outline: none; border-color: var(--gn-accent); }
+  // anel de foco dos campos de texto (também ao clicar: em campo de texto o :focus-visible sempre casa); botões e itens seguem com outline de 2px
+  &:focus-visible { box-shadow: var(--gn-ring); }
 }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }

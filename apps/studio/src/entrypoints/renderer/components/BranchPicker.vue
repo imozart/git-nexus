@@ -504,8 +504,8 @@ onBeforeUnmount(() => {
 .bp__search {
   display: flex; align-items: center; gap: 8px; margin: 10px 10px 6px; padding: 2px 6px 2px 10px;
   background: var(--gn-bg); border: 1px solid var(--gn-border); border-radius: var(--gn-radius); color: var(--gn-muted);
-  &:focus-within { border-color: var(--gn-accent); }
-  input { flex: 1; min-width: 0; padding: 4px 0; background: none; border: none; color: var(--gn-text); &:focus { outline: none; } }
+  &:focus-within { border-color: var(--gn-accent); box-shadow: var(--gn-ring); }
+  input { flex: 1; min-width: 0; padding: 4px 0; background: none; border: none; color: var(--gn-text); &:focus { outline: none; } &:focus-visible { box-shadow: none; } }
 }
 .bp__err { margin: 0 10px 6px; padding: 6px 8px; font-size: 12px; color: var(--gn-danger); background: color-mix(in srgb, var(--gn-danger) 12%, transparent); border-radius: var(--gn-radius); word-break: break-word; }
 .bp__scroll { overflow: auto; padding: 4px 6px 8px; hr { margin: 6px 0; border: none; border-top: 1px solid var(--gn-border); } }
