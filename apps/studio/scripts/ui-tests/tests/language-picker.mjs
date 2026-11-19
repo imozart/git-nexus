@@ -23,7 +23,7 @@ await sleep(400);
 t.check('lista abre com 2 opções', (await t.count('.cbx__opt')) === 2);
 t.check('opção atual marcada', (await t.ev(`document.querySelector('.cbx__opt--selected .lang__name').textContent`)) === 'Português (Brasil)');
 t.check('as opções são só o nome nativo do idioma: nenhuma bandeira (a única figura é a marca da opção atual)', (await t.count('.cbx__opt svg')) === 1 && (await t.count('.cbx__opt .lang__name')) === 2);
-t.check('cantos arredondados', (await t.ev(`getComputedStyle(document.querySelector('.cbx__list')).borderRadius`)) === '12px');
+t.check('cantos arredondados (--gn-radius-lg, 10px)', (await t.ev(`getComputedStyle(document.querySelector('.cbx__list')).borderRadius`)) === '10px');
 t.check('item ativo é o idioma atual', (await t.ev(`document.querySelector('.cbx__opt--active .lang__name')?.textContent`)) === 'Português (Brasil)');
 t.check('lista alinhada à direita do botão', await t.ev(`(() => { const b = document.querySelector('${BTN}').getBoundingClientRect(), l = document.querySelector('.cbx__list').getBoundingClientRect(); return Math.abs(l.right - b.right) <= 2; })()`));
 await t.shot('language-aberto');
