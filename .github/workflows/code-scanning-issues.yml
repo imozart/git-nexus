@@ -1,0 +1,50 @@
+name: Alertas do code scanning
+
+# O CodeQL mostra os alertas em Security > Code scanning, mas nada garante que alguém os veja. Toda segunda-feira (e à mão) este workflow lê
+# os alertas abertos, agrupa por regra e abre, num marco "Correção dos alertas do code scanning", uma issue por regra (com a lista de
+# arquivos e linhas) e uma issue de acompanhamento. Rodar de novo não duplica nada: a issue de cada regra é achada pelo marcador no corpo e só a
+# lista de alertas é atualizada; quando os alertas de uma regra somem, a issue é comentada e fechada. Quem fecha o marco é o dono do projeto.
+# O vínculo oficial do alerta com a issue (Relationship > Add security alert) não tem API e continua manual.
+# Também dá para rodar à mão: Actions > Alertas do code scanning > Run workflow (com "dry" só mostra o que faria).
+
+on:
+  schedule:
+    - cron: '0 10 * * 1' # segundas, 10:00 UTC (depois da verificação semanal da main, 09:00)
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: Só mostrar o que seria criado, sem abrir nada
+        type: boolean
+        default: false
+
+concurrency:
+  group: code-scanning-issues
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  issues:
+    name: Abrir issues dos alertas
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: read # ler os alertas do code scanning
+      issues: write # marco, issues, tipo e sub-issues
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DRY: ${{ inputs.dry && '--dry' || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .node-version
+      - name: Criar e atualizar as issues
+        # DRY vem de variável de ambiente (nunca interpolado no script) e fica sem aspas de propósito: vazio some, "--dry" vira argumento
+        run: |
+          # shellcheck disable=SC2086
+          node scripts/code-scanning-issues.mjs --repo "$GITHUB_REPOSITORY" $DRY

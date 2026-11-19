@@ -22,7 +22,7 @@ node scripts/sync-labels.mjs --dry-run --repo dono/repo
 | Estado | `conflito`, `bloqueado`, `desatualizada` | estado do PR |
 | Release | `sem-release` | você, antes do merge ([abaixo](#pular-a-release-de-um-pr)) |
 
-As labels `release-failure`, `main-health` e `parado` são criadas pelas próprias automações que as usam.
+As labels `release-failure`, `main-health`, `code-scanning` e `parado` são criadas pelas próprias automações que as usam.
 
 ## Label de tipo (título e branch)
 
