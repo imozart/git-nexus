@@ -4,6 +4,16 @@ Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https:/
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.24.0] - 2026-11-19
+
+### ✨ Novidades
+
+- **studio:** resolvedor de conflitos com o resultado em foco e decisão linha a linha ([`40800b8`](https://github.com/imozart/git-nexus/commit/40800b828625200938844adc9917464cce373a47))
+
+### 🧪 Testes
+
+- **studio:** extrair o texto da linha realçada sem regex de tag (alerta do CodeQL) ([`e266317`](https://github.com/imozart/git-nexus/commit/e2663177873bca2e1c11d9402660bf68edbf6d97))
+
 ## [1.23.0] - 2026-11-19
 
 ### ✨ Novidades
@@ -466,6 +476,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.24.0]: https://github.com/imozart/git-nexus/compare/v1.23.0...v1.24.0
 [1.23.0]: https://github.com/imozart/git-nexus/compare/v1.22.0...v1.23.0
 [1.22.0]: https://github.com/imozart/git-nexus/compare/v1.21.0...v1.22.0
 [1.21.0]: https://github.com/imozart/git-nexus/compare/v1.20.0...v1.21.0
