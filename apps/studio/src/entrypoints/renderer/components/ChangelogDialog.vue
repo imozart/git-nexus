@@ -140,7 +140,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
   &:hover, &[open] { border-color: var(--gn-accent); }
   // a faixa inteira do cabeçalho é clicável; a seta (no lugar do triângulo do navegador) gira ao abrir
   summary { display: flex; align-items: center; gap: 10px; padding: 10px 0; cursor: pointer; font-size: 14px; list-style: none; &::-webkit-details-marker { display: none; } &:focus-visible { outline: 2px solid var(--gn-accent); outline-offset: 2px; border-radius: var(--gn-radius); } }
-  &__chev { flex: none; color: var(--gn-muted); transition: transform var(--gn-enter, 140ms) ease-out; }
+  &__chev { flex: none; color: var(--gn-muted); transition: transform var(--gn-motion-base) ease-out; }
   &[open] &__chev { transform: rotate(90deg); }
   &[open] > summary { border-bottom: 1px solid var(--gn-border); }
   &[open] { padding-bottom: 10px; }

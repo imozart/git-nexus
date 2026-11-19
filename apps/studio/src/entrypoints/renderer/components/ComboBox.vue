@@ -387,7 +387,7 @@ function toggle(): void {
   &__btn {
     display: inline-flex; align-items: center; gap: 8px; min-width: 0; padding: 4px 10px; font: inherit; color: var(--gn-text);
     background: var(--gn-surface); border: 1px solid var(--gn-border); border-radius: var(--gn-radius); cursor: pointer;
-    transition: border-color 0.12s;
+    transition: border-color var(--gn-motion-fast);
     &:hover:not(:disabled), &[aria-expanded='true'] { border-color: var(--gn-accent); }
     &:focus-visible { outline: 2px solid var(--gn-accent); outline-offset: 1px; }
     &:disabled { cursor: default; }
@@ -417,7 +417,7 @@ function toggle(): void {
 .cbx__group { display: flex; align-items: center; gap: 6px; padding: 8px 10px 3px; color: var(--gn-muted); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; cursor: default; }
 // título de grupo recolhível: um cartão pequeno (contorno, cantos, seta que gira ao abrir), como as versões do diálogo Novidades
 .cbx__group--toggle { margin: 4px 0 2px; padding: 6px 10px; border: 1px solid var(--gn-border); border-radius: 8px; color: var(--gn-text); font-size: 12px; letter-spacing: 0; text-transform: none; cursor: pointer; user-select: none; &:hover, &[aria-expanded='true'] { border-color: var(--gn-accent); } }
-.cbx__chev { flex: none; color: var(--gn-muted); transition: transform 140ms ease-out; }
+.cbx__chev { flex: none; color: var(--gn-muted); transition: transform var(--gn-motion-base) ease-out; }
 .cbx__group[aria-expanded='true'] .cbx__chev { transform: rotate(90deg); }
 .cbx__group-name { flex: 1; }
 .cbx__group-count { color: var(--gn-muted); font-size: 11px; font-weight: 400; }

@@ -128,7 +128,7 @@ onBeforeUnmount(() => clearTimeout(copiedTimer));
     color: var(--gn-text); background: none; border: none; cursor: pointer; text-align: left;
     &:hover { background: var(--gn-surface-2); }
   }
-  &__chev { display: inline-block; font-size: 12px; color: var(--gn-muted); transition: transform 0.12s; &--open { transform: rotate(90deg); } }
+  &__chev { display: inline-block; font-size: 12px; color: var(--gn-muted); transition: transform var(--gn-motion-fast); &--open { transform: rotate(90deg); } }
   &__count { color: var(--gn-muted); font-size: 11px; padding: 1px 8px; background: var(--gn-surface-2); border-radius: 999px; }
   &__last { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--gn-mono); font-size: 11px; color: var(--gn-muted); &--fail { color: var(--gn-danger); } }
   &__opt { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--gn-muted); cursor: pointer; }
