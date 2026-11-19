@@ -41,7 +41,7 @@ await t.until(`document.querySelector('[data-testid="op-banner"]')`, 20000);
 
 const banner = async () => (await t.text('[data-testid="op-banner"]')) ?? '';
 const confirmDialog = async () => {
-  await t.until(`document.querySelector('.dlg__box')`, 5000);
+  await t.until(`document.querySelector('[role="alertdialog"]')`, 5000);
   await t.ev(`[...document.querySelectorAll('.dlg__btns button')].pop().click()`);
   await sleep(900);
 };
@@ -66,8 +66,8 @@ t.check('a tela de conflitos também mostra a faixa (dá para abortar de lá)', 
 
 // --- abortar -------------------------------------------------------------------------------------------------------------------------------
 await t.ev(`[...document.querySelectorAll('[data-testid="op-abort"]')].find((b) => b.offsetParent !== null).click()`);
-await t.until(`document.querySelector('.dlg__box')`, 5000);
-t.check('Abortar pede confirmação e fala em abortar o merge', /Abortar o merge/.test((await t.text('.dlg__box')) ?? ''));
+await t.until(`document.querySelector('[role="alertdialog"]')`, 5000);
+t.check('Abortar pede confirmação e fala em abortar o merge', /Abortar o merge/.test((await t.text('[role="alertdialog"]')) ?? ''));
 await confirmDialog();
 await sleep(1200);
 t.check('o merge foi abortado no git (sem MERGE_HEAD)', mergeInProgress() === false);

@@ -2,7 +2,7 @@
 // Diálogo de credencial: o git (ou o ssh) pediu usuário, senha, token ou frase-senha de uma chave; ou quer confirmar um servidor SSH novo.
 // O que é digitado vai direto ao git: não é guardado pelo GitNexus (para não digitar sempre, o Git Credential Manager ou o ssh-agent cuidam disso).
 import { computed, nextTick, ref, watch } from 'vue';
-import { GnButton } from '@git-nexus/ui-kit';
+import { GnButton, GnDialog } from '@git-nexus/ui-kit';
 import { isSecretKind } from '@git-nexus/git-core/pure';
 import { t } from '../i18n';
 import { useAskpassStore } from '../stores/askpass';
@@ -43,15 +43,12 @@ async function send(answer: string | null): Promise<void> {
   await store.answer(out);
 }
 const submit = () => send(req.value?.kind === 'confirm' ? 'yes' : value.value);
-const onKey = (e: KeyboardEvent) => {
-  if (e.key === 'Escape') void send(null);
-};
 </script>
 
 <template>
-  <Teleport to="body">
-    <div v-if="req" class="ak" data-testid="askpass" @mousedown.self="send(null)" @keydown="onKey">
-      <form class="ak__box" role="dialog" aria-modal="true" :aria-label="title" @submit.prevent="submit">
+  <!-- Esc e clique no fundo cancelam (resolvem o pedido com null), como o botão Cancelar; um pedido novo com outro diálogo aberto fica no topo da pilha -->
+  <GnDialog v-if="req" width="min(480px, 92vw)" :label="title" initial-focus="input" @close="send(null)">
+      <form class="ak__form" data-testid="askpass" @submit.prevent="submit">
         <h3>{{ title }}</h3>
         <p class="ak__prompt" data-testid="askpass-prompt">{{ req.prompt.trim() }}</p>
         <template v-if="req.kind !== 'confirm'">
@@ -74,25 +71,13 @@ const onKey = (e: KeyboardEvent) => {
           <GnButton type="submit" variant="primary" data-testid="askpass-ok">{{ req.kind === 'confirm' ? t('askpass.yes') : t('askpass.ok') }}</GnButton>
         </div>
       </form>
-    </div>
-  </Teleport>
+  </GnDialog>
 </template>
 
 <style scoped lang="scss">
 .ak {
-  position: fixed;
-  inset: 0;
-  z-index: 1300;
-  display: grid;
-  place-items: center;
-  background: rgba(0, 0, 0, 0.55);
-  &__box {
-    width: min(480px, 92vw);
+  &__form {
     padding: 18px 20px;
-    background: var(--gn-surface);
-    border: 1px solid var(--gn-border);
-    border-radius: 10px;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
     h3 { margin: 0 0 8px; font-size: 15px; }
   }
   &__prompt { margin: 0 0 10px; font: 12px/1.4 var(--gn-mono); color: var(--gn-muted); white-space: pre-wrap; word-break: break-word; }

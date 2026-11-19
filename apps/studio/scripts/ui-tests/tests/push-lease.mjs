@@ -57,8 +57,8 @@ t.check('o remoto ainda tem o commit antigo', remoteHead() !== reescrito);
 await t.shot('envio-seguro');
 
 await t.ev(`document.querySelector('[data-testid="sync-push-lease"]').click()`);
-await t.until(`document.querySelector('.dlg__box')`, 5000);
-const dlg = (await t.text('.dlg__box')) ?? '';
+await t.until(`document.querySelector('[role="alertdialog"]')`, 5000);
+const dlg = (await t.text('[role="alertdialog"]')) ?? '';
 t.check('a confirmação explica o que será substituído', /1 commit que só existe no remoto/.test(dlg) && /feat\/x/.test(dlg) && /rebase ou de um amend/.test(dlg), dlg);
 t.check('a confirmação diz que não é um envio forçado comum', /não é um envio forçado comum/.test(dlg));
 
@@ -70,7 +70,7 @@ t.check('cancelar não envia nada', remoteHead() !== reescrito);
 await t.ev(`document.querySelector('[data-testid="sync-details"]').click()`);
 await t.until(`document.querySelector('[data-testid="sync-push-lease"]')`, 8000);
 await t.ev(`document.querySelector('[data-testid="sync-push-lease"]').click()`);
-await t.until(`document.querySelector('.dlg__box')`, 5000);
+await t.until(`document.querySelector('[role="alertdialog"]')`, 5000);
 await t.ev(`[...document.querySelectorAll('.dlg__btns button')].pop().click()`);
 for (let i = 0; i < 60 && remoteHead() !== reescrito; i++) await sleep(250); // o envio roda no git: espera chegar
 await t.until(`document.querySelector('[data-testid="sync-button"]')?.dataset.busy === 'false' && !/↑1 ↓1/.test(document.querySelector('[data-testid="sync-main"]')?.textContent ?? '')`, 20000);

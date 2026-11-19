@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // "Clonar repositório" e "Novo repositório" (git clone / git init): pasta de destino (digitada ou escolhida), nome da pasta, branch e, no novo,
 // o modelo de .gitignore. Mostra onde o repositório será criado antes de confirmar e o andamento do clone (porcentagem que o git informa).
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
-import { GnButton } from '@git-nexus/ui-kit';
+import { computed, onBeforeUnmount, ref } from 'vue';
+import { GnButton, GnDialog } from '@git-nexus/ui-kit';
 import { GITIGNORE_TEMPLATES, isValidBranchName, isValidFolderName, repoNameFromUrl, type GitProgressEvent, type RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { t } from '../i18n';
@@ -21,8 +21,6 @@ const gitignoreOptions = computed(() => GITIGNORE_TEMPLATES.map((g) => ({ value:
 const busy = ref(false);
 const error = ref('');
 const progress = ref<{ phase: string; percent: number | null } | null>(null);
-const urlInput = ref<HTMLInputElement | null>(null);
-const parentInput = ref<HTMLInputElement | null>(null);
 
 /** Nome da pasta que será usada: o digitado ou, no clone, o que vem da URL. */
 const folder = computed(() => name.value.trim() || (props.mode === 'clone' ? repoNameFromUrl(url.value) : ''));
@@ -76,35 +74,24 @@ async function submit(): Promise<void> {
   }
 }
 
-function onKey(ev: KeyboardEvent): void {
-  if (ev.key === 'Escape' && !busy.value) emit('cancel');
-}
-onMounted(async () => {
-  document.addEventListener('keydown', onKey);
-  await nextTick();
-  (props.mode === 'clone' ? urlInput : parentInput).value?.focus();
-});
-onBeforeUnmount(() => {
-  document.removeEventListener('keydown', onKey);
-  off?.();
-});
+onBeforeUnmount(() => off?.());
 </script>
 
 <template>
-  <Teleport to="body">
-    <div class="rc" @mousedown.self="!busy && emit('cancel')">
-      <form class="rc__box" role="dialog" aria-modal="true" :aria-label="mode === 'clone' ? t('clone.title') : t('create.title')" :data-testid="`create-${mode}`" @submit.prevent="submit">
+  <!-- ocupado (clonando): Esc e clique no fundo não fecham; o GnDialog lê :dismissable a cada evento -->
+  <GnDialog width="min(560px, 94vw)" :label="mode === 'clone' ? t('clone.title') : t('create.title')" :dismissable="!busy" initial-focus="[data-initial]" @close="emit('cancel')">
+      <form class="rc__form" :data-testid="`create-${mode}`" @submit.prevent="submit">
         <h3>{{ mode === 'clone' ? t('clone.title') : t('create.title') }}</h3>
 
         <label v-if="mode === 'clone'" class="rc__field">
           <span>{{ t('clone.url') }}</span>
-          <input ref="urlInput" v-model="url" data-testid="create-url" :placeholder="t('clone.urlPh')" spellcheck="false" autocomplete="off" :disabled="busy" />
+          <input v-model="url" data-initial data-testid="create-url" :placeholder="t('clone.urlPh')" spellcheck="false" autocomplete="off" :disabled="busy" />
         </label>
 
         <div class="rc__field">
           <span>{{ mode === 'clone' ? t('clone.parent') : t('create.parent') }}</span>
           <div class="rc__row">
-            <input ref="parentInput" v-model="parent" data-testid="create-parent" :placeholder="t('clone.parentPh')" spellcheck="false" autocomplete="off" :disabled="busy" />
+            <input v-model="parent" :data-initial="mode === 'init' ? '' : undefined" data-testid="create-parent" :placeholder="t('clone.parentPh')" spellcheck="false" autocomplete="off" :disabled="busy" />
             <GnButton type="button" :disabled="busy" @click="pickParent">{{ t('clone.choose') }}</GnButton>
           </div>
         </div>
@@ -141,25 +128,13 @@ onBeforeUnmount(() => {
           </GnButton>
         </div>
       </form>
-    </div>
-  </Teleport>
+  </GnDialog>
 </template>
 
 <style scoped lang="scss">
 .rc {
-  position: fixed;
-  inset: 0;
-  z-index: 1100;
-  display: grid;
-  place-items: center;
-  background: rgba(0, 0, 0, 0.55);
-  &__box {
-    width: min(560px, 94vw);
+  &__form {
     padding: 18px 20px;
-    background: var(--gn-surface);
-    border: 1px solid var(--gn-border);
-    border-radius: 10px;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
     h3 { margin: 0 0 12px; font-size: 15px; }
   }
   &__field { display: grid; gap: 4px; margin-bottom: 12px; > span { font-size: 12px; color: var(--gn-muted); } select, input { width: 100%; } }

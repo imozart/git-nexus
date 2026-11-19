@@ -178,11 +178,11 @@ t.check('divergida: o clique no botão abre o painel com a explicação', (await
 t.check('o painel oferece merge e rebase, e não o fast-forward', (await t.count('[data-testid="sync-update-merge"]')) === 1 && (await t.count('[data-testid="sync-update-rebase"]')) === 1 && (await t.count('[data-testid="sync-update-ff"]')) === 0);
 await t.shot('sync-divergida-painel');
 await click('sync-update-rebase');
-await t.until(`document.querySelector('.dlg__box')`, 5000);
-t.check('o rebase pede confirmação (reescreve a história)', /Rebase/.test((await t.text('.dlg__box')) ?? ''), await t.text('.dlg__box'));
+await t.until(`document.querySelector('[role="alertdialog"]')`, 5000);
+t.check('o rebase pede confirmação (reescreve a história)', /Rebase/.test((await t.text('[role="alertdialog"]')) ?? ''), await t.text('[role="alertdialog"]'));
 await t.ev(`document.querySelector('.dlg__btns button').click()`); // Cancelar
 await sleep(300);
-t.check('cancelar não muda nada', git(repo, 'log', '--merges', '--format=%s', '-1').trim() === '' && (await t.count('.dlg__box')) === 0);
+t.check('cancelar não muda nada', git(repo, 'log', '--merges', '--format=%s', '-1').trim() === '' && (await t.count('[role="alertdialog"]')) === 0);
 await openPanel();
 await click('sync-update-merge');
 await t.until(`document.querySelector('.rv__notice')?.textContent.includes('Atualizado com merge')`, 20000);

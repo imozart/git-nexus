@@ -36,7 +36,7 @@ const localTags = () => git(repo, 'tag').split('\n').filter(Boolean).sort();
 const row = (n) => `document.querySelector('[data-tag="${n}"]')`;
 const rowText = async (n) => (await t.ev(`${row(n)}?.innerText.replace(/\\s+/g, ' ') ?? ''`)) ?? '';
 const confirmDialog = async () => {
-  await t.until(`document.querySelector('.dlg__box')`, 5000);
+  await t.until(`document.querySelector('[role="alertdialog"]')`, 5000);
   await t.ev(`[...document.querySelectorAll('.dlg__btns button')].pop().click()`);
   await sleep(1200);
 };
@@ -85,8 +85,8 @@ await t.shot('tags');
 
 // --- apagar ---------------------------------------------------------------------------------------------------------------------------------
 await t.ev(`${row('v0.1')}.querySelector('[data-testid="tag-delete"]').click()`);
-await t.until(`document.querySelector('.dlg__box')`, 5000);
-t.check('apagar pede confirmação e explica que é só a local', /Só a tag local/.test((await t.text('.dlg__box')) ?? ''));
+await t.until(`document.querySelector('[role="alertdialog"]')`, 5000);
+t.check('apagar pede confirmação e explica que é só a local', /Só a tag local/.test((await t.text('[role="alertdialog"]')) ?? ''));
 await confirmDialog();
 await t.until(`!${row('v0.1')}`, 8000);
 t.check('Apagar tira só a local: o remoto continua com a tag', localTags().join() === 'v1.0.0' && remoteTags().includes('v0.1'));
