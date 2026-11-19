@@ -175,3 +175,17 @@ const tabs = computed<GnTab[]>(() =>
   &__bar--busy &__fill { width: var(--gn-ind-width, 35%); opacity: var(--gn-ind-opacity, 1); animation: upd-busy var(--gn-motion-loop) ease-in-out infinite alternate; }
 }
 </style>
+
+<!-- Barra de título integrada (docs/INTERFACE.md, "Barra de título"). Sem scoped de propósito: o :global() do Vue descarta o .core__top quando vem depois do <html>. -->
+<style lang="scss">
+// A faixa de abas é a região de arrasto da janela; o que é clicável fica fora dela.
+// overlay (Windows/Linux): os botões nativos ficam à direita; as env(titlebar-area-*) dão o espaço que sobra (sem overlay valem 100 % e 0: sem margem).
+// inset (macOS): o semáforo fica à esquerda e a faixa deixa 78px para ele.
+// O -webkit-app-region é HERDADO: marcar o contêiner (.cbx, o seletor com o menu aberto dentro dele) como no-drag vale para tudo o que há nele.
+:root[data-titlebar='overlay'] .core__top,
+:root[data-titlebar='inset'] .core__top { -webkit-app-region: drag; user-select: none; }
+:root[data-titlebar='overlay'] .core__top { padding-right: calc(100% - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100%)); }
+:root[data-titlebar='inset'] .core__top { padding-left: 78px; }
+:root[data-titlebar='overlay'] .core__top :is(button, input, select, a, kbd, .cbx, [role='tab'], [role='radio'], [role='radiogroup'], [role='combobox'], [role='button'], [role='listbox'], [role='menu']),
+:root[data-titlebar='inset'] .core__top :is(button, input, select, a, kbd, .cbx, [role='tab'], [role='radio'], [role='radiogroup'], [role='combobox'], [role='button'], [role='listbox'], [role='menu']) { -webkit-app-region: no-drag; }
+</style>

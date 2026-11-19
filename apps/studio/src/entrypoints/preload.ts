@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { AskpassRequest, CommitPolicy, ConventionalCommitInput, GitCommandEvent, GitInstallProgress, GitNexusApi, GitProgressEvent, UpdateProgress } from '@git-nexus/git-core/pure';
 import { validateCommitMessage } from '@git-nexus/governance-policy';
 import { MAIN_METHODS, WORKER_METHODS, channel } from '../shared/channels';
+import { titleBarModeFromArgv } from '../shared/title-bar';
 
 const remote = Object.fromEntries(
   [...WORKER_METHODS, ...MAIN_METHODS].map((m) => [m, (...args: unknown[]) => ipcRenderer.invoke(channel(m), ...args)]),
@@ -9,6 +10,8 @@ const remote = Object.fromEntries(
 
 const api = {
   ...remote,
+  // Moldura da janela (o processo principal a passa como argumento do renderer): a interface ajusta margens e áreas de arrasto.
+  titleBar: titleBarModeFromArgv(process.argv),
   // Evento (não é chamada com resposta): progresso do download da atualização.
   onUpdateProgress: (cb: (p: UpdateProgress) => void) => {
     const handler = (_e: unknown, p: UpdateProgress) => cb(p);

@@ -13,6 +13,8 @@ const messages = {
   'search.badRegex': 'Expressão regular inválida: {detail}',
   'search.failed': 'A busca falhou.',
   'search.outsideRepo': 'Arquivo fora do repositório.',
+  // janela (main.ts)
+  'window.err.titleBarColors': 'Cores da barra de título inválidas.',
   // instalação do Git (git-install.ts)
   'git.err.cancelled': 'Instalação cancelada.',
   'git.err.tooBig': 'O arquivo é grande demais.',

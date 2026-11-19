@@ -17,6 +17,7 @@ import { WINDOWS_INSTALLER_ARGS, cleanupUpdateFiles, downloadVerified, isReadyFi
 import { editorLaunches, launchFirst, terminalLaunches, type SpawnFn } from './external-tools';
 import { fitWindowState, readWindowState, writeWindowState } from './window-state';
 import { clampZoom, isZoomAction, stepZoom, zoomActionForKey } from './zoom';
+import { TITLE_BAR_ARG, TITLE_BAR_COLORS, overlayHeight, parseTitleBarColors, titleBarMode, titleBarWindowOptions } from '../shared/title-bar';
 import { APP_LOG_NAME, UPDATE_LOG_NAME, createUpdateLog, describeError } from './update-log';
 import { HostingService } from '../worker/hosting-service';
 import { SecureTokenStore } from './hosting-store';
@@ -407,9 +408,26 @@ function windowIcon(): string | undefined {
 let currentZoom = 1;
 let saveWindowState: () => void = () => undefined;
 
+/** Moldura desta execução (Windows/Linux: botões nativos sobre as abas; macOS: semáforo à esquerda; GITNEXUS_NATIVE_FRAME=1: moldura do sistema). */
+const frameMode = titleBarMode(process.platform, process.env);
+
+/** Cores do overlay (as do tema da interface, que ela informa) e a altura que acompanha o zoom: os botões nativos têm de ficar na altura da faixa de abas. */
+let overlayColors: { color: string; symbolColor: string } = TITLE_BAR_COLORS.dark;
+function syncTitleBarOverlay(win: BrowserWindow | null): boolean {
+  if (frameMode !== 'overlay' || !win || win.isDestroyed()) return false;
+  try {
+    win.setTitleBarOverlay({ ...overlayColors, height: overlayHeight(currentZoom) });
+    return true;
+  } catch (e) {
+    appLog(`barra de título: o overlay não pôde ser ajustado: ${describeError(e)}`); // gerenciador de janelas sem suporte: a moldura padrão segue
+    return false;
+  }
+}
+
 function applyZoom(wc: Electron.WebContents, factor: number): number {
   currentZoom = clampZoom(factor);
   if (!wc.isDestroyed()) wc.setZoomFactor(currentZoom);
+  syncTitleBarOverlay(BrowserWindow.fromWebContents(wc));
   saveWindowState();
   return currentZoom;
 }
@@ -467,6 +485,14 @@ ipcMain.handle(channel('setZoom'), (e, action: string) => {
   return applyZoom(e.sender, stepZoom(currentZoom, action));
 });
 
+// A interface informa as cores da faixa de abas a cada troca de tema; o overlay dos botões da janela as acompanha.
+ipcMain.handle(channel('setTitleBar'), (e, input: unknown) => {
+  const colors = parseTitleBarColors(input);
+  if (!colors) throw new Error(tm('window.err.titleBarColors'));
+  overlayColors = colors;
+  return syncTitleBarOverlay(BrowserWindow.fromWebContents(e.sender));
+});
+
 function createWindow(): void {
   // Sem o menu padrão (Windows/Linux, app empacotado): ele reservaria Ctrl+W, Ctrl+R e o DevTools, que colidem com os atalhos do app.
   // No macOS o menu é mantido (precisa dele para copiar/colar e sair).
@@ -484,7 +510,9 @@ function createWindow(): void {
     backgroundColor: '#17181b',
     icon: windowIcon(),
     autoHideMenuBar: true,
+    ...titleBarWindowOptions(frameMode, saved.zoom ?? 1, overlayColors),
     webPreferences: {
+      additionalArguments: [`${TITLE_BAR_ARG}${frameMode}`],
       preload: join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,

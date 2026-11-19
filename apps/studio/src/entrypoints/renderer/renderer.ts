@@ -2,6 +2,7 @@ import '@git-nexus/ui-kit/styles/tokens.scss';
 import { createPinia } from 'pinia';
 import { createApp } from 'vue';
 import './theme';
+import './title-bar';
 import './font';
 import './motion';
 import App from './App.vue';

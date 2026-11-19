@@ -94,7 +94,7 @@ export const WORKER_METHODS = [
 export type WorkerMethod = (typeof WORKER_METHODS)[number];
 
 /** Métodos tratados pelo processo principal (APIs nativas do Electron). */
-export const MAIN_METHODS = ['pickDirectories', 'copyText', 'openInTerminal', 'openInEditor', 'notify', 'setZoom', 'logRendererError', 'showItemInFolder', 'openPath', 'checkForUpdate', 'openExternal', 'downloadUpdate', 'installUpdate', 'getChangelog', 'hostingInfo', 'hostingSaveToken', 'hostingRemoveToken', 'listChangeRequests', 'getCiStatus', 'suggestChangeRequest', 'createChangeRequest', 'hostingOpen', 'getGitAvailability', 'recheckGit', 'installGit', 'cancelGitInstall', 'openGitDownloadPage'] as const satisfies readonly (keyof GitNexusApi)[];
+export const MAIN_METHODS = ['pickDirectories', 'copyText', 'openInTerminal', 'openInEditor', 'notify', 'setZoom', 'setTitleBar', 'logRendererError', 'showItemInFolder', 'openPath', 'checkForUpdate', 'openExternal', 'downloadUpdate', 'installUpdate', 'getChangelog', 'hostingInfo', 'hostingSaveToken', 'hostingRemoveToken', 'listChangeRequests', 'getCiStatus', 'suggestChangeRequest', 'createChangeRequest', 'hostingOpen', 'getGitAvailability', 'recheckGit', 'installGit', 'cancelGitInstall', 'openGitDownloadPage'] as const satisfies readonly (keyof GitNexusApi)[];
 export type MainMethod = (typeof MAIN_METHODS)[number];
 
 export const channel = (m: string) => `gitnexus:${m}`;
