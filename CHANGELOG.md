@@ -4,6 +4,20 @@ Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https:/
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.20.0] - 2026-11-19
+
+### ✨ Novidades
+
+- **ui:** barra de título integrada às abas da janela (Windows, Linux e macOS) ([`219f151`](https://github.com/imozart/git-nexus/commit/219f1515c9971146c81f60c11107bb7f7290461e))
+
+### 🐛 Correções
+
+- **ui:** mensagem de cores da barra de título por chave em vez de tm(pt, en) ([`881c179`](https://github.com/imozart/git-nexus/commit/881c17917406540d51da2b3507dd093b741db574))
+- **ui-tests:** valores entram no código da página por lit() em vez de JSON.stringify ([`6ad475a`](https://github.com/imozart/git-nexus/commit/6ad475a52566f5af54bda85a5f22c768c5d4aabb))
+- tirar comentários HTML do teste de convenções até não restar nenhum ([`9245ffa`](https://github.com/imozart/git-nexus/commit/9245ffacc915078f55135c9a8edd7d41276507a0))
+- limite explícito do atraso do Git simulado no harness ([`acef52c`](https://github.com/imozart/git-nexus/commit/acef52c9454129a345eafec9ccf4f723da46dcae))
+- **harness:** valida o intervalo do atraso do Git simulado (alerta de resource-exhaustion) ([`44879c9`](https://github.com/imozart/git-nexus/commit/44879c9d9d4b8a7b94ef87e70f8863e111114f87))
+
 ## [1.19.0] - 2026-11-19
 
 ### ✨ Novidades
@@ -419,6 +433,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.20.0]: https://github.com/imozart/git-nexus/compare/v1.19.0...v1.20.0
 [1.19.0]: https://github.com/imozart/git-nexus/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/imozart/git-nexus/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/imozart/git-nexus/compare/v1.16.0...v1.17.0
