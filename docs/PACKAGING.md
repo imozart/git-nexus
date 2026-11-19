@@ -18,6 +18,8 @@ A fonte **JetBrains Mono** (4 arquivos `.woff2`) é empacotada **dentro do `app.
 
 **Atualizar a fonte no futuro:** baixar o release novo da JetBrains Mono, trocar os quatro arquivos e o `OFL.txt` em `apps/ui-kit/src/styles/fonts/` **sem modificar** (a licença exige outro nome para versões modificadas), recalcular os SHA-256 no `SOURCES.md` dessa pasta, atualizar o `THIRD_PARTY_NOTICES.md` e rodar `npx vitest run apps/ui-kit/test/fonts.test.ts`.
 
+**Avisos das bibliotecas JavaScript:** o `THIRD_PARTY_NOTICES.md` (na raiz, copiado para o pacote como `THIRD_PARTY_NOTICES.md` ao lado do `LICENSE.txt`) tem uma região **gerada** com nome, versão, licença e texto de cada biblioteca embutida (dependências de todos os pacotes do monorepo, menos ferramentas de build/teste, e as `dependencies` transitivas). Depois de adicionar ou atualizar uma dependência, rode `pnpm notices` e inclua o arquivo no commit; o CI roda `pnpm check:notices` e reprova se o arquivo estiver desatualizado ou se aparecer uma licença fora da lista permitida em `scripts/lib/notices.mjs` (MIT, ISC, BSD, Apache-2.0 e afins, todas compatíveis com a GPL-3.0). A parte escrita à mão (JetBrains Mono) fica fora das marcas `GERADO:INICIO`/`GERADO:FIM`. O runtime do Electron/Chromium traz as próprias licenças (`LICENSE.electron.txt`, `LICENSES.chromium.html`).
+
 ## winget (Windows)
 
 Catálogo oficial: <https://github.com/microsoft/winget-pkgs>.

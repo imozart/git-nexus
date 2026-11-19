@@ -13,6 +13,8 @@
     "dev": "pnpm --filter @git-nexus/studio dev",
     "build": "pnpm --filter @git-nexus/studio build",
     "typecheck": "pnpm -r typecheck",
+    "notices": "node scripts/third-party-notices.mjs",
+    "check:notices": "node scripts/third-party-notices.mjs --check",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:ui": "pnpm --filter @git-nexus/studio ui-test",

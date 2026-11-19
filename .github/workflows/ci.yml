@@ -26,5 +26,8 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - run: pnpm typecheck
+      - name: Avisos de terceiros em dia e só com licença permitida
+        if: matrix.os == 'ubuntu-latest'
+        run: pnpm check:notices
       - run: pnpm test
       - run: pnpm build
