@@ -3,6 +3,18 @@ import { buildMerge, emptyChoices, presetPicks, resolveMerge, type PickedLine } 
 import { hasTyped, layoutResult, lineSpan, orient, resolvedCount, selectedLines, sideLabels, theirsFirst, togglePick, typedPicks } from '../src/entrypoints/renderer/merge-resolver-core';
 import { escapeHtml, highlightLines } from '../src/entrypoints/renderer/syntax-lines';
 
+/** O texto de uma linha realçada: sem as marcas <span> (as quebras de HTML do texto já vêm como &lt;), com &lt; de volta. */
+function textOf(html: string): string {
+  let out = '';
+  let inTag = false;
+  for (const ch of html) {
+    if (ch === '<') inTag = true;
+    else if (ch === '>' && inTag) inTag = false;
+    else if (!inTag) out += ch;
+  }
+  return out.split('&lt;').join('<');
+}
+
 const L = (...l: string[]) => l.join('\n') + '\n';
 
 describe('lados do resolvedor', () => {
@@ -112,7 +124,7 @@ describe('realce de sintaxe por linha', () => {
   it('o texto das linhas é preservado (sem as marcas) e comentário de várias linhas é realçado nas duas', () => {
     const lines = ['/* um', 'dois */ let x = 1;'];
     const out = highlightLines(lines, 'a.js');
-    expect(out.map((h) => h.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<'))).toEqual(lines);
+    expect(out.map(textOf)).toEqual(lines);
     expect(out[0]).toContain('tok-comment');
     expect(out[1]).toContain('tok-comment');
   });
