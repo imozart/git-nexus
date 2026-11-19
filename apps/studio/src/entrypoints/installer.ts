@@ -328,24 +328,42 @@ try {
   for (const n of moved) { try { move(path.join(old, n), path.join(o.appDir, n)); } catch (e2) { log('não restaurou ' + n + ': ' + e2.message); } }
 }
 
-try {
-  const env = Object.assign({}, process.env);
-  delete env.ELECTRON_RUN_AS_NODE; // senão o app reaberto também subiria em modo Node, sem janela
-  const target = path.join(o.appDir, o.exe);
-  log('reabrindo ' + target + (fs.existsSync(target) ? '' : ' (ATENÇÃO: o executável não existe)'));
-  const child = spawn(target, o.relaunchArgs || [], { cwd: o.appDir, detached: true, stdio: 'ignore', env });
-  child.on('error', (e) => log('não reabriu o app: ' + why(e)));
-  child.unref();
-  log(ok ? 'app reaberto (versão nova), pid ' + child.pid : 'app reaberto (versão anterior, restaurada), pid ' + child.pid);
-} catch (e) {
-  log('não reabriu o app: ' + why(e));
+const RELAUNCH_RETRIES = 6;
+const finish = () => {
+  if (ok) {
+    // O executável antigo (este processo) ainda está em uso: o que não der para apagar agora sai na próxima abertura do app.
+    for (const p of [old].concat(o.cleanup || [])) { try { fs.rmSync(p, { recursive: true, force: true }); } catch (e) { log('não apagou ' + p + ' (fica para a próxima abertura): ' + why(e)); } }
+  }
+  log('atualizador terminou, código ' + (ok ? 0 : 1));
+  setTimeout(() => process.exit(ok ? 0 : 1), 500);
+};
+// Reabre o app. O antivírus costuma segurar por um tempo o executável recém-colocado: o spawn falha com EPERM/EBUSY/EACCES e, poucos segundos depois, funciona.
+// Por isso tenta de novo algumas vezes antes de desistir (o erro de cada tentativa vai para o log).
+function relaunch(attempt) {
+  // O spawn lança na hora com EPERM (só alguns códigos viram o evento 'error'): os dois caminhos passam por aqui.
+  const failed = (e) => {
+    log('não reabriu o app: ' + why(e));
+    if (TRANSIENT.has(e.code) && attempt < RELAUNCH_RETRIES) return void setTimeout(() => relaunch(attempt + 1), 3000);
+    finish();
+  };
+  let child;
+  try {
+    const env = Object.assign({}, process.env);
+    delete env.ELECTRON_RUN_AS_NODE; // senão o app reaberto também subiria em modo Node, sem janela
+    const target = path.join(o.appDir, o.exe);
+    log('reabrindo ' + target + (fs.existsSync(target) ? '' : ' (ATENÇÃO: o executável não existe)') + (attempt > 1 ? ' (tentativa ' + attempt + ' de ' + RELAUNCH_RETRIES + ')' : ''));
+    child = spawn(target, o.relaunchArgs || [], { cwd: o.appDir, detached: true, stdio: 'ignore', env });
+  } catch (e) {
+    return failed(e);
+  }
+  child.once('error', failed);
+  child.once('spawn', () => {
+    child.unref();
+    log(ok ? 'app reaberto (versão nova), pid ' + child.pid : 'app reaberto (versão anterior, restaurada), pid ' + child.pid);
+    finish();
+  });
 }
-if (ok) {
-  // O executável antigo (este processo) ainda está em uso: o que não der para apagar agora sai na próxima abertura do app.
-  for (const p of [old].concat(o.cleanup || [])) { try { fs.rmSync(p, { recursive: true, force: true }); } catch (e) { log('não apagou ' + p + ' (fica para a próxima abertura): ' + why(e)); } }
-}
-log('atualizador terminou, código ' + (ok ? 0 : 1));
-setTimeout(() => process.exit(ok ? 0 : 1), 500);
+relaunch(1);
 `;
 
 export interface PortableSwap {

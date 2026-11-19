@@ -35,6 +35,18 @@ Os dados (lista de repositórios, preferências) ficam em `GitNexusData/` ao lad
 
 **Testes de interface automatizados** (`apps/studio/scripts/ui-tests`): `pnpm --filter @git-nexus/studio build` e depois `pnpm test:ui` (ou `pnpm test:ui git-log` para um só). O runner sobe o harness e um Chrome/Edge headless (`CHROME_PATH` aponta outro navegador), roda cada `tests/*.mjs` com estado limpo, dirige a tela por CDP e guarda capturas em `GN_UI_OUT`. No CI é o `ui-tests.yml`. Para escrever um teste, copie um de `tests/` (use `mkRepo`, `openRepo`, `t.until`, `t.check`).
 
+## Ciclo de atualização do ZIP portátil (Windows)
+
+A atualização do portátil só se comporta como em produção com o **app empacotado**: no processo principal do Electron o `fs` trata `app.asar` como pasta, e o antivírus costuma segurar o executável recém-colocado (`spawn EPERM`). O teste `apps/studio/scripts/update-cycle/run.mjs` faz o ciclo inteiro com o pacote de verdade: monta um ZIP de uma "versão nova", deixa `.gnupdate-stage` e `.gnupdate-old` antigos (cada um com um `resourcesapp.asar`), roda o preparo e o script de troca e confere troca concluída, restos apagados na abertura seguinte, arquivos novos no lugar, dados do usuário intactos e, no fim, o app trocado abrindo (`GITNEXUS_SMOKE`).
+
+```
+pnpm --filter @git-nexus/studio build
+pnpm --filter @git-nexus/studio exec electron-builder --win --x64 --dir --publish never
+node apps/studio/scripts/update-cycle/run.mjs apps/studio/release/win-unpacked
+```
+
+O app tem um gancho só de teste, `src/entrypoints/cycle.ts` (variável `GITNEXUS_UPDATE_CYCLE`, inerte sem ela), que roda o preparo e a troca no processo principal, como o app faz ao instalar. No CI o workflow `update-cycle.yml` (windows-latest) roda só quando o PR toca a atualização, o empacotamento ou este teste, e à mão (`workflow_dispatch`). Numa máquina em que o Electron não abre janela, `GN_CYCLE_SKIP_SMOKE=1` pula só a última verificação. O teste espera o antivírus liberar os executáveis copiados e repete o disparo em `EPERM`; o atualizador também repete a reabertura do app (6 tentativas, 3 s entre elas) antes de desistir.
+
 ## Imagens e GIFs da documentação
 
 As mídias de `docs/media` (e a vitrine do README) são gravadas com o **app real** pelo harness de interface, sem caminho pessoal nem dado de cliente:

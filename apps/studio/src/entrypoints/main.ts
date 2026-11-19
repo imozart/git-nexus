@@ -16,6 +16,7 @@ import { APP_LOG_NAME, UPDATE_LOG_NAME, createUpdateLog, describeError } from '.
 import { HostingService } from '../worker/hosting-service';
 import { SecureTokenStore } from './hosting-store';
 import { attachSmoke, smokeEnabled } from './smoke';
+import { cycleArgs, runUpdateCycle } from './cycle';
 
 // --- Portabilidade: dados ao lado do executável, nada no registro/AppData ---------------
 // Modo portátil: AppImage e ZIP/tar.gz (descompactados em pasta gravável).
@@ -187,7 +188,8 @@ function failWithLog(step: string, e: unknown): Error {
 
 // Restos de uma atualização anterior (pacote baixado, pasta de preparo, backup da troca) saem a cada abertura do app.
 // O registro desta abertura mostra, depois de uma troca, em que versão o app subiu (compare com o fim do atualizador).
-if (app.isPackaged) {
+// (No ciclo de teste do CI, GITNEXUS_UPDATE_CYCLE, os restos ficam para o próprio teste: veja cycle.ts.)
+if (app.isPackaged && !cycleArgs()) {
   updateLog(`app iniciado: ${describeContext()}`);
   void Promise.all([cleanupUpdateFiles(exeDir, updateLog), cleanupUpdateFiles(join(dataDir, 'updates'), updateLog)]).then(([a, b]) => {
     const removed = [...a, ...b];
@@ -454,7 +456,11 @@ function createWindow(): void {
   else void win.loadFile(join(__dirname, 'renderer', 'index.html'));
 }
 
-if (!app.requestSingleInstanceLock()) {
+const cycle = cycleArgs();
+if (cycle) {
+  // Só no CI (GITNEXUS_UPDATE_CYCLE): não abre janela; roda o ciclo de atualização do portátil e sai (veja cycle.ts).
+  void app.whenReady().then(() => runUpdateCycle(cycle, process.execPath, process.pid, (code) => app.exit(code)));
+} else if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => {
