@@ -211,13 +211,14 @@ const IMAGE_MIME: Record<string, string> = {
   gif: 'image/gif',
   webp: 'image/webp',
   bmp: 'image/bmp',
-  svg: 'image/svg+xml',
-  ico: 'image/x-icon',
 };
 const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
-/** Imagem de um lado do conflito como `data:` URL (só pela extensão conhecida e até 5 MB); `null` se não for imagem ou o lado não existir. */
-export async function getConflictImage(repoPath: string, filePath: string, side: 'base' | 'ours' | 'theirs'): Promise<string | null> {
+/**
+ * Imagem raster de um lado do conflito (só pela extensão conhecida e até 5 MB), em base64 para a tela decodificar e desenhar;
+ * `null` se não for imagem ou o lado não existir. (SVG é texto: fica no resolvedor de linhas.)
+ */
+export async function getConflictImage(repoPath: string, filePath: string, side: 'base' | 'ours' | 'theirs'): Promise<{ mime: string; base64: string } | null> {
   resolveInsideRepo(repoPath, filePath);
   const mime = IMAGE_MIME[filePath.slice(filePath.lastIndexOf('.') + 1).toLowerCase()];
   if (!mime) return null;
@@ -225,7 +226,7 @@ export async function getConflictImage(repoPath: string, filePath: string, side:
   const size = await runGit(repoPath, ['cat-file', '-s', spec], { check: false });
   if (size.code !== 0 || Number(size.stdout.trim()) > IMAGE_MAX_BYTES) return null;
   const blob = await runGit(repoPath, ['cat-file', 'blob', spec], { check: false });
-  return blob.code === 0 && blob.bytes.length ? `data:${mime};base64,${blob.bytes.toString('base64')}` : null;
+  return blob.code === 0 && blob.bytes.length ? { mime, base64: blob.bytes.toString('base64') } : null;
 }
 
 /**

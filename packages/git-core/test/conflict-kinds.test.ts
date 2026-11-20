@@ -176,12 +176,12 @@ describe('conflitos que não são "linha contra linha" (repositório real)', () 
     expect(readFileSync(join(r, 'b.bin')).equals(theirs)).toBe(true);
   });
 
-  it('imagem: devolve a prévia de cada lado como data URL (e só de imagem, só do que existe)', async () => {
+  it('imagem: devolve a prévia de cada lado em base64 com o tipo (e só de imagem, só do que existe)', async () => {
     const r = await diverge((r) => put(r, 'i.png', Buffer.concat([PNG, Buffer.from([0])])), (r) => put(r, 'i.png', PNG), (r) => put(r, 'i.png', Buffer.concat([PNG, Buffer.from([0, 0])])));
     expect((await block(r, 'i.png')).kind).toBe('binary');
-    const url = await getConflictImage(r, 'i.png', 'ours');
-    expect(url?.startsWith('data:image/png;base64,')).toBe(true);
-    expect(Buffer.from(url!.split(',')[1]!, 'base64').equals(PNG)).toBe(true);
+    const img = await getConflictImage(r, 'i.png', 'ours');
+    expect(img?.mime).toBe('image/png');
+    expect(Buffer.from(img!.base64, 'base64').equals(PNG)).toBe(true);
     expect(await getConflictImage(r, 'i.png', 'base')).not.toBeNull();
     expect(await getConflictImage(r, 'nao-existe.png', 'ours')).toBeNull();
     await expect(getConflictImage(r, '../fora.png', 'ours')).rejects.toThrow();
@@ -201,27 +201,25 @@ describe('conflitos que não são "linha contra linha" (repositório real)', () 
     expect(await unmergedFiles(r)).toEqual([]);
   });
 
-  it('tipo/modo diferente nos dois lados: um é executável e o outro virou link simbólico', async () => {
+  it('tipo/modo diferente nos dois lados (executável × link simbólico): escolhe-se um lado, com o modo dele', async () => {
     const r = await repo();
     put(r, 'r.sh', body('a'));
     await commit(r, 'base');
-    await g(r, 'checkout', '-b', 'outro');
-    await g(r, 'update-index', '--chmod=+x', 'r.sh');
-    await g(r, 'commit', '-m', 'exec');
-    await g(r, 'checkout', 'main');
-    const h = (await runGit(r, ['hash-object', '-w', '--stdin'], { stdin: 'alvo' })).stdout.trim();
-    await g(r, 'update-index', '--cacheinfo', `120000,${h},r.sh`);
-    await g(r, 'commit', '-m', 'link');
-    await g(r, 'merge', 'outro');
-    const blocks = await getMergeConflicts(r);
-    expect(blocks.length).toBeGreaterThan(0);
-    // o Git separa o link simbólico do executável em caminhos diferentes (um deles com sufixo): nada vira "texto"
-    expect(blocks.every((b) => b.kind !== 'text' && b.kind !== 'both-added')).toBe(true);
-    for (const b of blocks) {
-      const side = b.sides?.ours ? 'ours' : 'theirs';
-      expect(await resolveConflictSide(r, b.filePath, side)).toBe(true);
-    }
+    const blob = async (c: string) => (await runGit(r, ['hash-object', '-w', '--stdin'], { stdin: c })).stdout.trim();
+    const [base, exec, link] = [await blob(body('a')), await blob(body('b')), await blob('alvo')];
+    // os três estágios do mesmo caminho, montados direto no índice (o que o Git deixa num conflito de tipo; o merge de verdade varia com o sistema)
+    const info = `0 ${'0'.repeat(40)}\tr.sh\n100644 ${base} 1\tr.sh\n100755 ${exec} 2\tr.sh\n120000 ${link} 3\tr.sh\n`;
+    await runGit(r, ['update-index', '--index-info'], { stdin: info });
+    const b = await block(r, 'r.sh');
+    expect(b.kind).toBe('mode');
+    expect([b.sides?.ours?.mode, b.sides?.theirs?.mode]).toEqual(['100755', '120000']);
+    expect(await resolveConflictSide(r, 'r.sh', 'ours')).toBe(true);
     expect(await unmergedFiles(r)).toEqual([]);
+    expect((await g(r, 'ls-files', '-s', '--', 'r.sh')).stdout.trim()).toBe(`100755 ${exec} 0\tr.sh`);
+
+    await runGit(r, ['update-index', '--index-info'], { stdin: info });
+    expect(await resolveConflictSide(r, 'r.sh', 'theirs')).toBe(true);
+    expect((await g(r, 'ls-files', '-s', '--', 'r.sh')).stdout.trim()).toBe(`120000 ${link} 0\tr.sh`);
   });
 
   it('conflito de texto em que um lado só tornou o arquivo executável: o resultado mantém o modo executável', async () => {
@@ -233,8 +231,9 @@ describe('conflitos que não são "linha contra linha" (repositório real)', () 
     await commit(r, 'outro');
     await g(r, 'checkout', 'main');
     put(r, 'r.sh', body('a').replace('linha 1 ', 'ours 1 '));
-    await g(r, 'update-index', '--chmod=+x', 'r.sh');
-    await commit(r, 'main');
+    await g(r, 'add', '-A');
+    await g(r, 'update-index', '--chmod=+x', 'r.sh'); // depois do add: no Linux o add leria o modo do disco
+    await g(r, 'commit', '-m', 'main');
     await g(r, 'merge', 'outro');
     expect((await block(r, 'r.sh')).kind).toBe('text');
     expect(await resolveConflictFile(r, 'r.sh', body('a'))).toBe(true);

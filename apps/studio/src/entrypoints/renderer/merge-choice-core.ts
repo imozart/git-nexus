@@ -96,7 +96,7 @@ export function previewLines(text: string, max = 40): { lines: string[]; more: n
 }
 
 /** Arquivo de imagem pela extensão (as mesmas que o núcleo sabe entregar como prévia). */
-export const isImagePath = (path: string): boolean => /\.(png|jpe?g|gif|webp|bmp|svg|ico)$/i.test(path);
+export const isImagePath = (path: string): boolean => /\.(png|jpe?g|gif|webp|bmp)$/i.test(path);
 
 /** Chave do texto curto que a lista de arquivos mostra para o tipo do conflito. */
 export function kindShortKey(block: MergeConflictBlock): 'mc.short.deleted' | 'mc.short.oneSide' | 'mc.short.bothDeleted' | 'mc.short.binary' | 'mc.short.lfs' | 'mc.short.mode' | 'mc.short.submodule' {

@@ -61,7 +61,7 @@ describe('escolha para conflitos que não são "linha contra linha"', () => {
     expect(['binary', 'lfs', 'mode', 'submodule', 'both-deleted'].map((k) => kindShortKey(block(k as never, {})))).toEqual(['mc.short.binary', 'mc.short.lfs', 'mc.short.mode', 'mc.short.submodule', 'mc.short.bothDeleted']);
     expect(['100644', '100755', '120000', '160000', '040000'].map(modeKind)).toEqual(['file', 'exec', 'link', 'submodule', 'other']);
     expect([undefined, 0, 1023, 1536, 5 * 1024 * 1024].map((n) => formatSize(n, 'en-US'))).toEqual(['', '0 B', '1023 B', '1.5 KB', '5 MB']);
-    expect(['a/logo.PNG', 'x.svg', 'dados.bin', 'png'].map(isImagePath)).toEqual([true, true, false, false]);
+    expect(['a/logo.PNG', 'foto.jpeg', 'x.svg', 'dados.bin', 'png'].map(isImagePath)).toEqual([true, true, false, false, false]);
   });
 
   it('a prévia do texto mantido tem um limite de linhas e conta as que ficaram de fora', () => {

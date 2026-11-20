@@ -108,7 +108,7 @@ const choice = () =>
      return { kind: m.dataset.kind, title: m.querySelector('[data-testid="mc-title"]').textContent.trim(), explain: m.querySelector('[data-testid="mc-explain"]').textContent.trim(),
        related: m.querySelector('[data-testid="mc-related"]')?.textContent.trim() ?? null,
        sides: [...m.querySelectorAll('[data-testid="mc-side"]')].map((s) => ({ side: s.dataset.side, text: s.innerText.replace(/\\s+/g, ' ').trim(), gone: !!s.querySelector('[data-testid="mc-gone"]'),
-         buttons: [...s.querySelectorAll('button')].map((b) => b.textContent.trim()), images: [...s.querySelectorAll('img')].map((i) => ({ ok: i.complete && i.naturalWidth > 0, w: i.naturalWidth })) })),
+         buttons: [...s.querySelectorAll('button')].map((b) => b.textContent.trim()), images: [...s.querySelectorAll('canvas')].map((i) => ({ ok: i.width > 0 && i.getContext('2d').getImageData(i.width - 1, 0, 1, 1).data[3] === 255, w: i.width })) })),
        single: [...m.querySelectorAll('.mc__single button')].map((b) => b.textContent.trim()) }`);
 const press = (testid) => t.ev(`document.querySelector('[data-testid="${testid}"]').click()`);
 /** Escolhe e espera o arquivo sair da lista de pendentes (a tela recarrega depois de gravar). */
@@ -149,12 +149,12 @@ t.check(
 
 // --- binário com imagem -----------------------------------------------------------------------------------------------------------------------
 await openFile('assets/logo.png');
-await t.until(`document.querySelectorAll('[data-testid="mc-image"]').length === 2`, 10000); // a prévia chega depois (o núcleo lê os blobs)
+await t.until(`document.querySelectorAll('canvas[data-testid="mc-image"]').length === 2`, 10000); // a prévia chega depois (o núcleo lê os blobs)
 await sleep(300);
 let c = await choice();
 t.check('binário: a tela explica que não dá para combinar linha a linha', c?.kind === 'binary' && /não dá para combinar/.test(c.explain), c?.explain);
 t.check('mostra o tamanho e a data de cada versão', c.sides.every((s) => /Tamanho/.test(s.text) && /Data/.test(s.text) && /\d{4}/.test(s.text)), c.sides.map((s) => s.text));
-t.check('e a prévia da imagem de cada lado (a CSP deixa passar o data: URL)', c.sides.every((s) => s.images.length === 1 && s.images[0].ok && s.images[0].w === 160), c.sides.map((s) => s.images));
+t.check('e a prévia da imagem de cada lado (decodificada e desenhada num canvas, sem mexer na CSP)', c.sides.every((s) => s.images.length === 1 && s.images[0].ok && s.images[0].w === 160), c.sides.map((s) => s.images));
 t.check('as escolhas são "Usar a minha versão" e "Usar a que chega"', c.sides[0].buttons[0] === 'Usar a minha versão' && c.sides[1].buttons[0] === 'Usar a que chega', c.sides.map((s) => s.buttons));
 await snap('escolha-binario-imagem');
 await decide('mc-use-mine', 'assets/logo.png');

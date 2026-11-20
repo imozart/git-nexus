@@ -158,8 +158,8 @@ export interface GitNexusIPC {
    * ou, se aquele lado apagou o arquivo, a remoção. Serve a apagado, binário, modo, submódulo e ponteiro do LFS.
    */
   resolveConflictSide(repoPath: string, filePath: string, side: 'ours' | 'theirs'): Promise<boolean>;
-  /** Imagem de um lado do conflito como `data:` URL (só imagens até 5 MB); `null` se não for imagem ou o lado não existir. */
-  getConflictImage(repoPath: string, filePath: string, side: 'base' | 'ours' | 'theirs'): Promise<string | null>;
+  /** Imagem raster de um lado do conflito (só até 5 MB), em base64 para a tela decodificar; `null` se não for imagem ou o lado não existir. */
+  getConflictImage(repoPath: string, filePath: string, side: 'base' | 'ours' | 'theirs'): Promise<{ mime: string; base64: string } | null>;
 }
 
 // ---------------------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Conflitos sem "linha contra linha" (issue #231, fase 4): apagado × alterado, apagado nos dois lados, binário, ponteiro do LFS,
 // modo/tipo diferente e submódulo. A tela mostra o que cada lado guarda e pede uma escolha simples: ficar com um dos lados.
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { GnButton } from '@git-nexus/ui-kit';
 import type { ConflictKind, MergeConflictBlock } from '@git-nexus/git-core/pure';
 import { api } from '../api';
@@ -60,19 +60,51 @@ const single = computed(() => (view.value.kind === 'both-deleted' ? view.value.o
 
 const related = computed(() => (props.block.relatedPaths ?? []).join(', '));
 
-// prévia de imagem (só binário com extensão de imagem; até 5 MB, pelo núcleo)
-const images = ref<Partial<Record<'base' | Stage, string>>>({});
+// Prévia de imagem (só binário com extensão de imagem; até 5 MB, pelo núcleo). A imagem é decodificada aqui (createImageBitmap) e desenhada num
+// canvas: assim a CSP do app (que não aceita `data:` nem `blob:`) continua como está.
+const bitmaps = new Map<Stage, ImageBitmap>();
+const loaded = ref<Partial<Record<Stage, boolean>>>({});
+const freeBitmaps = (): void => {
+  for (const b of bitmaps.values()) b.close();
+  bitmaps.clear();
+  loaded.value = {};
+};
+async function decode(img: { mime: string; base64: string } | null): Promise<ImageBitmap | null> {
+  if (!img) return null;
+  try {
+    const bytes = Uint8Array.from(atob(img.base64), (c) => c.charCodeAt(0));
+    return await createImageBitmap(new Blob([bytes], { type: img.mime }));
+  } catch {
+    return null; // arquivo que não decodifica (corrompido): fica sem prévia
+  }
+}
+/** Desenha a imagem do lado no canvas (chamado como `ref` da função: roda a cada atualização do elemento). */
+function paint(stage: Stage, el: unknown): void {
+  const bmp = bitmaps.get(stage);
+  if (!bmp || !(el instanceof HTMLCanvasElement)) return;
+  if (el.width !== bmp.width || el.height !== bmp.height) {
+    el.width = bmp.width;
+    el.height = bmp.height;
+  }
+  el.getContext('2d')?.drawImage(bmp, 0, 0);
+}
 watch(
   () => [props.repoPath, props.block.filePath, props.block.kind] as const,
   async ([repoPath, file, kind]) => {
-    images.value = {};
+    freeBitmaps();
     if (kind !== 'binary' || !isImagePath(file)) return;
-    const [ours, theirs, base] = await Promise.all((['ours', 'theirs', 'base'] as const).map((s) => api.getConflictImage(repoPath, file, s).catch(() => null)));
-    if (props.block.filePath !== file) return; // a tela já mudou de arquivo
-    images.value = { ...(ours ? { ours } : {}), ...(theirs ? { theirs } : {}), ...(base ? { base } : {}) };
+    const stages = ['ours', 'theirs'] as const;
+    const got = await Promise.all(stages.map(async (s) => decode(await api.getConflictImage(repoPath, file, s).catch(() => null))));
+    if (props.block.filePath !== file) {
+      got.forEach((b) => b?.close()); // a tela já mudou de arquivo
+      return;
+    }
+    stages.forEach((s, i) => got[i] && bitmaps.set(s, got[i]!));
+    loaded.value = { ours: bitmaps.has('ours'), theirs: bitmaps.has('theirs') };
   },
   { immediate: true },
 );
+onBeforeUnmount(freeBitmaps);
 
 const PREVIEW_LINES = 40;
 const preview = (s: ChoiceSide) => previewLines(s.text, PREVIEW_LINES);
@@ -123,7 +155,7 @@ const preview = (s: ChoiceSide) => previewLines(s.text, PREVIEW_LINES);
           <p v-if="view.kind === 'deleted' && view.base" class="mc__tag" :class="{ 'mc__tag--same': view.keptUnchanged }" data-testid="mc-changed">
             {{ view.keptUnchanged ? t('mc.sameAsBase') : t('mc.changedSinceBase') }}
           </p>
-          <img v-if="images[s.stage]" class="mc__img" :src="images[s.stage]" :alt="t('mc.imageAlt', { side: sideName(s) })" data-testid="mc-image" />
+          <canvas v-if="loaded[s.stage]" :ref="(el) => paint(s.stage, el)" class="mc__img" role="img" :aria-label="t('mc.imageAlt', { side: sideName(s) })" data-testid="mc-image" />
           <div v-if="view.kind === 'deleted' && s.text" class="mc__text" data-testid="mc-text" tabindex="0" :aria-label="t('mc.textLabel', { side: sideName(s) })">
             <pre>{{ preview(s).lines.join('\n') }}</pre>
             <p v-if="preview(s).more" class="mc__more">{{ t('mc.moreLines', { n: preview(s).more }) }}</p>
