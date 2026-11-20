@@ -70,6 +70,33 @@ export interface ConventionalCommitInput {
   breakingChanges?: string;
 }
 
+/**
+ * Natureza do conflito, pelos estágios do índice (1 = base, 2 = ours, 3 = theirs):
+ * - `text`: os dois lados têm o arquivo e é texto (o resolvedor linha a linha);
+ * - `both-added`: adicionado nos dois lados com conteúdos diferentes (texto, com a base vazia);
+ * - `deleted`: um lado apagou (ou moveu) o arquivo e o outro não: manter ou apagar;
+ * - `both-deleted`: apagado nos dois lados (sobra só a base; costuma ser o rastro de uma renomeação nos dois lados);
+ * - `binary`: binário nos dois lados (escolhe-se um deles);
+ * - `lfs`: ponteiro do Git LFS (escolhe-se um deles, sem editar);
+ * - `mode`: tipo ou modo do arquivo diferente nos dois lados (comum, executável, link simbólico): escolhe-se um deles;
+ * - `submodule`: submódulo apontando para commits diferentes.
+ */
+export type ConflictKind = 'text' | 'both-added' | 'deleted' | 'both-deleted' | 'binary' | 'lfs' | 'mode' | 'submodule';
+
+/** O que um lado do conflito guarda (um estágio do índice). Só entra nos tipos que não são texto. */
+export interface ConflictSide {
+  /** Modo do Git: `100644`, `100755`, `120000` (link simbólico) ou `160000` (submódulo). */
+  mode: string;
+  /** Identidade do conteúdo: o blob, ou o commit do submódulo. */
+  sha: string;
+  /** Tamanho em bytes (não existe para submódulo). */
+  size?: number;
+  /** Data do último commit daquele lado que tocou o arquivo (ISO 8601), quando se sabe. */
+  date?: string;
+  /** Assunto do commit (submódulo) ou `oid`/tamanho do ponteiro (LFS), para o usuário reconhecer a versão. */
+  detail?: string;
+}
+
 export interface MergeConflictBlock {
   filePath: string;
   ours: string;
@@ -78,6 +105,12 @@ export interface MergeConflictBlock {
   hasUnresolvedMarkers: boolean;
   /** Conteúdo atual do arquivo no working tree (com marcadores de conflito), quando legível. */
   workingContent?: string;
+  /** Natureza do conflito; ausente = `text`. Nos tipos que não são texto, `ours`/`base`/`theirs` vêm vazios. */
+  kind?: ConflictKind;
+  /** As três versões como o índice as guarda (só nos tipos que não são texto). Lado ausente = apagado/inexistente ali. */
+  sides?: { base?: ConflictSide; ours?: ConflictSide; theirs?: ConflictSide };
+  /** Renomeação/movimento: outros caminhos ainda em conflito com o mesmo conteúdo de origem (ex.: renomeado para dois nomes). */
+  relatedPaths?: string[];
 }
 
 export interface GitNexusIPC {
@@ -120,6 +153,13 @@ export interface GitNexusIPC {
   getResolvedConflictFiles(repoPath: string): Promise<string[]>;
   /** Recria o conflito original de um arquivo resolvido (`git checkout -m`). */
   reopenConflict(repoPath: string, filePath: string): Promise<boolean>;
+  /**
+   * Resolve o arquivo ficando com um dos lados como o índice o guarda (estágio 2 = `ours`, 3 = `theirs`): o conteúdo e o modo daquele lado,
+   * ou, se aquele lado apagou o arquivo, a remoção. Serve a apagado, binário, modo, submódulo e ponteiro do LFS.
+   */
+  resolveConflictSide(repoPath: string, filePath: string, side: 'ours' | 'theirs'): Promise<boolean>;
+  /** Imagem de um lado do conflito como `data:` URL (só imagens até 5 MB); `null` se não for imagem ou o lado não existir. */
+  getConflictImage(repoPath: string, filePath: string, side: 'base' | 'ours' | 'theirs'): Promise<string | null>;
 }
 
 // ---------------------------------------------------------------------------------------

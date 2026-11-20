@@ -427,6 +427,7 @@ const explain = computed(() => {
         <span class="mr__explain">{{ explain }}</span>
       </div>
       <p v-if="notice" class="mr__notice" :class="`mr__notice--${notice}`" role="status" data-testid="mr-notice">{{ notice === 'restored' ? t('mr.noteRestored') : t('mr.noteStale') }}</p>
+      <p v-if="block.kind === 'both-added'" class="mr__notice" role="status" data-testid="mr-both-added">{{ t('mr.bothAdded') }}</p>
       <div class="mr__bar">
         <GnIconButton icon="up" :label="t('mr.prev')" :title="`${t('mr.prev')} (${sc('prev')})`" :disabled="!model.conflicts.length" data-testid="mr-prev" @click="step(-1)" />
         <GnIconButton icon="down" :label="t('mr.next')" :title="`${t('mr.next')} (${sc('next')})`" :disabled="!model.conflicts.length" data-testid="mr-next" @click="step(1)" />

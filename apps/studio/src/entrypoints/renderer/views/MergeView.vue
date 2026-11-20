@@ -5,11 +5,13 @@ import { buildMerge, type InProgressKind, type MergeConflictBlock, type Reposito
 import { api, errMsg } from '../api';
 import { useWorkspaceStore } from '../stores/workspace';
 import MergeConflictResolver from '../components/MergeConflictResolver.vue';
+import MergeChoice from '../components/MergeChoice.vue';
 import MergeResolver from '../components/MergeResolver.vue';
 import OperationBanner from '../components/OperationBanner.vue';
 import ToolStripe, { type StripeItem } from '../components/ToolStripe.vue';
 import { newConflictResolver } from '../conflict-resolver-pref';
 import { clearDraft, draftKey, loadDraft } from '../merge-draft';
+import { isChoiceKind, kindShortKey, type Stage } from '../merge-choice-core';
 import { draftSignature, fileSummary, orient } from '../merge-resolver-core';
 import { t } from '../i18n';
 
@@ -45,6 +47,7 @@ const summaries = ref<Record<string, { conflicts: number | null; resolved: numbe
 function refreshSummaries(): void {
   const out: typeof summaries.value = {};
   for (const c of conflicts.value) {
+    if (isChoiceKind(c.kind)) continue; // sem linhas para contar: a lista mostra o tipo do conflito
     if (c.base.length + c.ours.length + c.theirs.length > SUMMARY_MAX_CHARS) {
       out[c.filePath] = fileSummary(null, null);
       continue;
@@ -98,6 +101,28 @@ async function resolve(block: MergeConflictBlock, merged: string): Promise<void>
   }
 }
 
+/** Apagado, binário, modo, submódulo ou ponteiro do LFS: fica com um dos lados (estágio do índice). */
+async function resolveSide(block: MergeConflictBlock, stage: Stage): Promise<void> {
+  saving.value = true;
+  error.value = '';
+  info.value = '';
+  try {
+    if (!(await api.resolveConflictSide(props.repo.path, block.filePath, stage))) {
+      await load(); // a lista estava velha: o arquivo já não está em conflito
+      error.value = t('mv.sideFailed', { file: block.filePath });
+      return;
+    }
+    info.value = t('mv.resolved', { file: block.filePath });
+    advanceTo = Math.max(0, conflicts.value.findIndex((c) => c.filePath === block.filePath));
+    ws.bump(props.repo.id);
+    await load();
+  } catch (e) {
+    error.value = errMsg(e);
+  } finally {
+    saving.value = false;
+  }
+}
+
 /** Recria o conflito original de um arquivo já resolvido (`git checkout -m`), enquanto a operação continua. */
 async function reopen(file: string): Promise<void> {
   error.value = '';
@@ -139,7 +164,7 @@ function nextFile(): void {
   current.value = list[(i + 1) % list.length]!.filePath;
 }
 
-const summaryText = (file: string): string => {
+const summaryText =(file: string): string => {
   const s = summaries.value[file];
   return s && s.conflicts !== null ? t('mv.fileSummary', { n: s.conflicts, done: s.resolved }) : '';
 };
@@ -175,7 +200,8 @@ watch(() => ws.versions[props.repo.id], load);
       >
         <span class="item__main">
           <span class="item__name">{{ c.filePath }}<GnTooltip :text="c.filePath" /></span>
-          <small v-if="newConflictResolver && summaryText(c.filePath)" class="item__sum" data-testid="mv-file-summary">{{ summaryText(c.filePath) }}</small>
+          <small v-if="newConflictResolver && isChoiceKind(c.kind)" class="item__sum" data-testid="mv-file-kind">{{ t(kindShortKey(c)) }}</small>
+          <small v-else-if="newConflictResolver && summaryText(c.filePath)" class="item__sum" data-testid="mv-file-summary">{{ summaryText(c.filePath) }}</small>
         </span>
         <GnBadge :tone="c.hasUnresolvedMarkers ? 'warn' : 'success'">{{ c.hasUnresolvedMarkers ? t('tree.statePending') : t('mcr.noMarkers') }}</GnBadge>
       </div>
@@ -199,8 +225,16 @@ watch(() => ws.versions[props.repo.id], load);
       <p v-if="info && conflicts.length" class="ok pad">{{ info }}</p>
       <template v-for="c in conflicts" :key="c.filePath">
         <template v-if="c.filePath === current">
+          <MergeChoice
+            v-if="newConflictResolver && isChoiceKind(c.kind)"
+            :block="c"
+            :busy="saving"
+            :rebase="rebasing"
+            :repo-path="repo.path"
+            @resolve="(stage: Stage) => resolveSide(c, stage)"
+          />
           <MergeResolver
-            v-if="newConflictResolver"
+            v-else-if="newConflictResolver"
             :block="c"
             :busy="saving"
             :rebase="rebasing"
@@ -230,7 +264,7 @@ watch(() => ws.versions[props.repo.id], load);
   &__headbtns { display: flex; gap: 6px; }
   &__filter { width: calc(100% - 24px); margin: 8px 12px; }
   &__group { padding: 8px 12px 4px; color: var(--gn-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
-  &__main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; > :deep(.mcr), > :deep(.mr) { flex: 1; } }
+  &__main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; > :deep(.mcr), > :deep(.mr), > :deep(.mc) { flex: 1; } }
 }
 .item {
   display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 6px 12px; cursor: pointer;
