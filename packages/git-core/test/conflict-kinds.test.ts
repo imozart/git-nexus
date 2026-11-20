@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -231,8 +231,9 @@ describe('conflitos que não são "linha contra linha" (repositório real)', () 
     await commit(r, 'outro');
     await g(r, 'checkout', 'main');
     put(r, 'r.sh', body('a').replace('linha 1 ', 'ours 1 '));
+    chmodSync(join(r, 'r.sh'), 0o755); // no Linux o disco também precisa ser executável, senão o merge vê o arquivo como alterado
     await g(r, 'add', '-A');
-    await g(r, 'update-index', '--chmod=+x', 'r.sh'); // depois do add: no Linux o add leria o modo do disco
+    await g(r, 'update-index', '--chmod=+x', 'r.sh'); // no Windows (sem bit no disco) é o que marca o modo
     await g(r, 'commit', '-m', 'main');
     await g(r, 'merge', 'outro');
     expect((await block(r, 'r.sh')).kind).toBe('text');
