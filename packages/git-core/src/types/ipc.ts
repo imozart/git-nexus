@@ -116,6 +116,10 @@ export interface GitNexusIPC {
   // Resolução 3-Way
   getMergeConflicts(repoPath: string): Promise<MergeConflictBlock[]>;
   resolveConflictFile(repoPath: string, filePath: string, mergedContent: string): Promise<boolean>;
+  /** Arquivos já resolvidos que o Git ainda deixa reabrir (a operação não terminou). */
+  getResolvedConflictFiles(repoPath: string): Promise<string[]>;
+  /** Recria o conflito original de um arquivo resolvido (`git checkout -m`). */
+  reopenConflict(repoPath: string, filePath: string): Promise<boolean>;
 }
 
 // ---------------------------------------------------------------------------------------
