@@ -4,6 +4,18 @@ import { applyBulk, pendingSpaceOnly } from '../src/entrypoints/renderer/merge-r
 import { eolInfo, eolName, historyLine, markHtml, showInvisibles } from '../src/entrypoints/renderer/merge-compare-core';
 import { escapeHtml, highlightLines } from '../src/entrypoints/renderer/syntax-lines';
 
+/** O texto de uma linha realçada, sem as marcas (percorre o HTML em vez de apagar tags com regex). */
+function plain(html: string): string {
+  let out = '';
+  let inTag = false;
+  for (const ch of html) {
+    if (ch === '<') inTag = true;
+    else if (ch === '>' && inTag) inTag = false;
+    else if (!inTag) out += ch;
+  }
+  return out;
+}
+
 const L = (...l: string[]) => l.join('\n') + '\n';
 
 describe('destaque por palavra sobre o HTML realçado', () => {
@@ -20,7 +32,7 @@ describe('destaque por palavra sobre o HTML realçado', () => {
     const out = markHtml(html, [{ start: 3, end: 11 }]);
     expect(out).toBe('<span class="tok-keyword">con<mark class="wd">st</mark></span><mark class="wd"> x = </mark><span class="tok-number"><mark class="wd">1</mark></span>;');
     // e o texto, sem as marcas, continua o mesmo
-    expect(out.replace(/<[^>]+>/g, '')).toBe('const x = 1;');
+    expect(plain(out)).toBe('const x = 1;');
   });
 
   it('casa com a diferença calculada e com o realce de uma linha de verdade', () => {
@@ -29,7 +41,7 @@ describe('destaque por palavra sobre o HTML realçado', () => {
     const d = wordDiff(a, b);
     const html = highlightLines([a], 'x.ts')[0]!;
     const marked = markHtml(html, d.a);
-    expect(marked.replace(/<[^>]+>/g, '')).toBe(a);
+    expect(plain(marked)).toBe(a);
     expect(marked).toContain('<mark class="wd">preco</mark>');
   });
 });
