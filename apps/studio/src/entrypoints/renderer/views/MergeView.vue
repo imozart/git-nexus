@@ -239,6 +239,7 @@ watch(() => ws.versions[props.repo.id], load);
             :busy="saving"
             :rebase="rebasing"
             :repo-id="repo.id"
+            :repo-path="repo.path"
             :draft-key="draftKey(repo.id, c.filePath)"
             @resolve="(m: string) => resolve(c, m)"
           />

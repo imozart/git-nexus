@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
-import type { ConflictSide, MergeConflictBlock } from './types/ipc.js';
+import type { ConflictHistoryEntry, ConflictSide, MergeConflictBlock } from './types/ipc.js';
 import { hasConflictMarkers } from './conflict-markers.js';
 import { classifyConflict, looksBinary, MODE_EXEC, MODE_FILE, MODE_SUBMODULE, mergedMode, parseUnmerged, type IndexEntry, type KindInput } from './conflict-kinds.js';
 import { parseLfsPointer } from './lfs.js';
@@ -227,6 +227,22 @@ export async function getConflictImage(repoPath: string, filePath: string, side:
   if (size.code !== 0 || Number(size.stdout.trim()) > IMAGE_MAX_BYTES) return null;
   const blob = await runGit(repoPath, ['cat-file', 'blob', spec], { check: false });
   return blob.code === 0 && blob.bytes.length ? { mime, base64: blob.bytes.toString('base64') } : null;
+}
+
+/**
+ * O último commit que mexeu nas linhas `from`..`to` (1-based) do arquivo, na versão de um lado (`ours` = HEAD; `theirs` = o commit que
+ * chega: MERGE_HEAD, CHERRY_PICK_HEAD...). `git log -L` segue o trecho mesmo que ele tenha mudado de lugar.
+ */
+export async function getConflictHistory(repoPath: string, filePath: string, side: 'ours' | 'theirs', from: number, to: number): Promise<ConflictHistoryEntry | null> {
+  resolveInsideRepo(repoPath, filePath);
+  if (!Number.isInteger(from) || !Number.isInteger(to) || from < 1 || to < from) return null;
+  const refs = await sideRefs(repoPath);
+  const ref = side === 'ours' ? refs.ours : refs.theirs;
+  if (!ref) return null;
+  const r = await runGit(repoPath, ['log', '-1', '--no-patch', `-L${from},${to}:${filePath}`, '--format=%H%x09%an%x09%cI%x09%s', ref], { check: false });
+  if (r.code !== 0) return null;
+  const [hash, author, date, ...subject] = r.stdout.trim().split('\n')[0]!.split('\t');
+  return hash && date ? { hash, author: author ?? '', date, subject: subject.join('\t') } : null;
 }
 
 /**
