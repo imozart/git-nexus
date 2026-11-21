@@ -2,14 +2,21 @@
 // Novo resolvedor de conflitos (issue #231): o ARQUIVO COMO VAI FICAR em foco, com cada conflito dentro dele como um cartão.
 // O texto vem sempre do modelo de escolhas (resolveMerge, do núcleo), nunca é editado "no escuro" e nunca tem marcador.
 // Fase 3: navegação entre conflitos, régua lateral, ações em massa, desfazer/refazer, rascunho automático e atalhos na paleta (Ctrl+K).
+// Fase 5: visão lado a lado (minha | resultado | a que chega) sobre o MESMO modelo de escolhas, destaque por palavra, ignorar espaços,
+// caracteres invisíveis, fim de linha das versões (e do resultado) e histórico do trecho.
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { GnButton, GnIconButton, GnTooltip } from '@git-nexus/ui-kit';
+import { GnButton, GnIconButton, GnSegmented, GnTooltip } from '@git-nexus/ui-kit';
 import {
   buildMerge,
   emptyChoices,
+  hasMixedEol,
+  pairMarks,
   presetPicks,
   resolveMerge,
+  spaceOnlyConflicts,
   summarizePicks,
+  type ConflictHistoryEntry,
+  type ConflictMarks,
   type ConflictPreset,
   type MergeChoices,
   type MergeConflictBlock,
@@ -19,6 +26,9 @@ import MergeLines from './MergeLines.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
 import ContextMenu, { type MenuItem } from './ContextMenu.vue';
 import { highlightLines } from '../syntax-lines';
+import { api, errMsg } from '../api';
+import { eolInfo, eolName, historyLine, LINE_PX, markHtml, MIN_SIDE_BY_SIDE, showInvisibles } from '../merge-compare-core';
+import { mergeIgnoreSpace, mergeShowInvisibles, mergeSideBySide } from '../merge-view-prefs';
 import { clearDraft, loadDraft, saveDraft } from '../merge-draft';
 import {
   applyBulk,
@@ -30,6 +40,7 @@ import {
   lineSpan,
   orient,
   pendingOf,
+  pendingSpaceOnly,
   picksText,
   recordChange,
   redoChoice,
@@ -46,7 +57,7 @@ import {
 } from '../merge-resolver-core';
 import { useCommandsStore, shortcutLabel, type Command } from '../stores/commands';
 import { useWorkspaceStore } from '../stores/workspace';
-import { t, type MessageKey } from '../i18n';
+import { t, dateLocale, type MessageKey } from '../i18n';
 
 const props = defineProps<{
   block: MergeConflictBlock;
@@ -56,6 +67,8 @@ const props = defineProps<{
   /** Id do repositório (aba ativa dos atalhos) e chave do rascunho. */
   repoId: string;
   draftKey?: string;
+  /** Caminho do repositório (histórico do trecho). */
+  repoPath?: string;
 }>();
 const emit = defineEmits<{ (e: 'resolve', merged: string): void }>();
 
@@ -78,6 +91,107 @@ const hlResult = computed(() => highlightLines(result.value.lines.map((l) => l.t
 const hlMine = computed(() => highlightLines(model.value.mine.lines, file.value));
 const hlTheirs = computed(() => highlightLines(model.value.theirs.lines, file.value));
 const hlBase = computed(() => highlightLines(model.value.base.lines, file.value));
+
+// ---------------------------------------------------------------- comparação: palavra, espaço, invisíveis, fim de linha
+
+/** Conflitos cujas duas versões só diferem em espaço: só são reclassificados com "ignorar espaços" ligado. */
+const spaceOnly = computed(() => (mergeIgnoreSpace.value ? new Set(spaceOnlyConflicts(model.value)) : new Set<number>()));
+const spaceOnlyPending = computed(() => (mergeIgnoreSpace.value ? pendingSpaceOnly(model.value, choices.value).length : 0));
+/** Destaque por palavra do trecho de cada conflito, calculado só quando o cartão aparece (e guardado enquanto o modelo e a opção não mudam). */
+const wordMarks = computed(() => {
+  const cache = new Map<number, ConflictMarks>();
+  const m3 = model.value; // lidos aqui para o cache valer só enquanto o modelo e a opção forem os mesmos
+  const ignoreSpace = mergeIgnoreSpace.value;
+  return (idx: number): ConflictMarks => {
+    let m = cache.get(idx);
+    if (!m) {
+      const seg = m3.segments[idx]!;
+      m = pairMarks(m3.mine.lines.slice(seg.mine.start, seg.mine.end), m3.theirs.lines.slice(seg.theirs.start, seg.theirs.end), { ignoreSpace });
+      cache.set(idx, m);
+    }
+    return m;
+  };
+});
+/** O HTML de uma linha de uma das versões: realce de sintaxe + o que mudou dentro da linha + invisíveis (se ligado). `n` é o índice absoluto da linha. */
+function lineHtml(side: 'mine' | 'theirs', idx: number, n: number): string {
+  const base = (side === 'mine' ? hlMine : hlTheirs).value[n] ?? '';
+  const html = markHtml(base, wordMarks.value(idx)[side].get(n - model.value.segments[idx]![side].start));
+  return (mergeShowInvisibles.value ? showInvisibles(html, model.value[side].eols[n] ?? '') : html) || '&nbsp;';
+}
+const toggleSplit = () => (mergeSideBySide.value = !mergeSideBySide.value);
+const toggleIgnoreSpace = () => (mergeIgnoreSpace.value = !mergeIgnoreSpace.value);
+const toggleInvisibles = () => (mergeShowInvisibles.value = !mergeShowInvisibles.value);
+/** Linha de uma versão fora de um conflito (sem destaque por palavra): realce de sintaxe e, se ligado, invisíveis. */
+function plainHtml(side: 'mine' | 'theirs', n: number): string {
+  const base = (side === 'mine' ? hlMine : hlTheirs).value[n] ?? '';
+  return (mergeShowInvisibles.value ? showInvisibles(base, model.value[side].eols[n] ?? '') : base) || '&nbsp;';
+}
+const COLS = ['mine', 'result', 'theirs'] as const;
+const connH = (idx: number) => {
+  const seg = model.value.segments[idx]!;
+  return Math.max(seg.mine.end - seg.mine.start, seg.theirs.end - seg.theirs.start, layout.value[idx]!.lines.length, 1) * LINE_PX;
+};
+const eol = computed(() => eolInfo(model.value));
+const mixedEol = computed(() => hasMixedEol(result.value.lines));
+const eolOptions = computed(() => [
+  { value: 'mine', label: t('mr.eol.mine', { eol: eol.value.mine || 'LF' }) },
+  { value: 'theirs', label: t('mr.eol.theirs', { eol: eol.value.theirs || 'LF' }) },
+  { value: 'lf', label: t('mr.eol.lf') },
+  { value: 'crlf', label: t('mr.eol.crlf') },
+]);
+function setEol(v: string): void {
+  if (v === choices.value.eol || !['mine', 'theirs', 'lf', 'crlf'].includes(v)) return;
+  commit({ ...choices.value, eol: v as MergeChoices['eol'] });
+}
+
+// ---------------------------------------------------------------- lado a lado
+
+const root = ref<HTMLElement>();
+const width = ref(Infinity);
+/** Em pouca largura a visão lado a lado se desliga e a padrão assume (nada de rolagem horizontal escondendo a decisão). */
+const split = computed(() => mergeSideBySide.value && width.value >= MIN_SIDE_BY_SIDE);
+const splitNarrow = computed(() => mergeSideBySide.value && !split.value);
+/** Trechos iguais e longos ficam dobrados no lado a lado (o arquivo inteiro em três colunas seria pesado e cansativo). */
+const FOLD_OVER = 12;
+const unfolded = reactive(new Set<number>());
+const isFolded = (idx: number) => {
+  const seg = model.value.segments[idx]!;
+  return seg.kind === 'stable' && seg.mine.end - seg.mine.start > FOLD_OVER && !unfolded.has(idx);
+};
+/** Polígono do conector entre uma coluna lateral e a do resultado, desenhado com a altura real das linhas (a esquerda liga a minha ao resultado; a direita, o resultado à que chega). */
+function connPath(side: 'left' | 'right', idx: number): string {
+  const seg = model.value.segments[idx]!;
+  const r = side === 'left' ? seg.mine : seg.theirs;
+  const a = (r.end - r.start) * LINE_PX;
+  const b = layout.value[idx]!.lines.length * LINE_PX;
+  const [l, rt] = side === 'left' ? [a, b] : [b, a];
+  return `M0 0 L26 0 L26 ${rt} L0 ${l} Z`;
+}
+/** Tom do conector: o estado do conflito, ou de quem veio a mudança. */
+const connTone = (idx: number): string => {
+  const seg = model.value.segments[idx]!;
+  return seg.kind === 'conflict' ? (stateOf(idx) === 'pending' ? 'pending' : 'resolved') : seg.kind;
+};
+
+// ---------------------------------------------------------------- histórico do trecho (sob demanda)
+
+const lineHistory = reactive<Record<string, { state: 'loading' | 'ok' | 'none'; text: string }>>({});
+const historyKey = (idx: number, side: 'mine' | 'theirs') => `${idx}:${side}`;
+async function showHistory(idx: number, side: 'mine' | 'theirs'): Promise<void> {
+  const seg = model.value.segments[idx]!;
+  const r = seg[side];
+  if (!props.repoPath || r.end <= r.start) return;
+  const k = historyKey(idx, side);
+  lineHistory[k] = { state: 'loading', text: '' };
+  // na orientação da tela "minha" é o estágio 2 (ours); no rebase o Git inverte e "minha" é o estágio 3
+  const stage = (side === 'mine') !== oriented.value.swapped ? 'ours' : 'theirs';
+  try {
+    const h: ConflictHistoryEntry | null = await api.getConflictHistory(props.repoPath, props.block.filePath, stage, r.start + 1, r.end);
+    lineHistory[k] = h ? { state: 'ok', text: historyLine(h, dateLocale.value) } : { state: 'none', text: '' };
+  } catch (e) {
+    lineHistory[k] = { state: 'none', text: errMsg(e) };
+  }
+}
 
 // estado só da tela: cartões abertos, base aberta, ordem (a origin primeiro), edição à mão, conflito ativo
 const expanded = reactive(new Set<number>());
@@ -217,6 +331,8 @@ function init(): void {
   expanded.clear();
   baseOpen.clear();
   swapped.clear();
+  unfolded.clear();
+  for (const k of Object.keys(lineHistory)) delete lineHistory[k];
   editing.value = null;
   activeIdx.value = null;
   live.value = '';
@@ -283,7 +399,8 @@ function measure(): void {
   marks.value = out;
 }
 let ro: ResizeObserver | null = null;
-watch([choices, model], () => void nextTick(measure));
+let roWidth: ResizeObserver | null = null;
+watch([choices, model, split, mergeIgnoreSpace, mergeShowInvisibles], () => void nextTick(measure));
 function markClick(m: Mark): void {
   if (m.kind === 'change') cardEl(m.idx)?.scrollIntoView({ block: 'center' });
   else goTo(m.idx);
@@ -299,6 +416,7 @@ const bulkItems = computed<MenuItem[]>(() => {
   return [
     { id: 'pendingMine', label: t('mr.bulkPendingMine', { n }), disabled: n === 0 },
     { id: 'pendingTheirs', label: t('mr.bulkPendingTheirs', { n }), disabled: n === 0 },
+    ...(mergeIgnoreSpace.value ? [{ id: 'spaceOnly', label: t('mr.bulkSpaceOnly', { n: spaceOnlyPending.value }), disabled: spaceOnlyPending.value === 0 }] : []),
     { id: 'sep', separator: true },
     { id: 'changesAll', label: t('mr.bulkChangesAll'), disabled: !model.value.changes.length },
     { id: 'changesMine', label: t('mr.bulkChangesMine'), disabled: !model.value.changes.length },
@@ -316,9 +434,23 @@ function onBulk(id: string): void {
 }
 function runBulk(action: BulkAction): void {
   const before = pendingCount.value;
+  const spaceBefore = spaceOnlyPending.value;
   commit(applyBulk(model.value, choices.value, action));
   if (action === 'pendingMine' || action === 'pendingTheirs') live.value = t('mr.announceBulk', { n: before });
+  if (action === 'spaceOnly') live.value = t('mr.announceSpaceOnly', { n: spaceBefore });
   asking.value = null;
+}
+
+const askingMixed = ref(false);
+/** "Marcar como resolvido": com fim de linha misto no resultado, pergunta antes (o aviso diz como uniformizar). */
+function onResolve(): void {
+  if (result.value.text === null) return;
+  if (mixedEol.value) askingMixed.value = true;
+  else emit('resolve', result.value.text);
+}
+function confirmMixed(): void {
+  askingMixed.value = false;
+  if (result.value.text !== null) emit('resolve', result.value.text);
 }
 const confirmLines = computed(() => [
   t(asking.value === 'pendingMine' ? 'mr.bulkConfirmMine' : 'mr.bulkConfirmTheirs', { n: pendingCount.value }),
@@ -370,6 +502,7 @@ function mrCommands(): Command[] {
     { id: 'mr.redo', title: t('mr.cmd.redo'), group, shortcut: SHORTCUTS.redo, keywords: k, when: () => isActiveTab() && !typing() && history.value.future.length > 0, run: redo },
     { id: 'mr.bulkMine', title: t('mr.cmd.bulkMine'), group, keywords: k, when: () => when() && pendingCount.value > 0, run: () => (asking.value = 'pendingMine') },
     { id: 'mr.bulkTheirs', title: t('mr.cmd.bulkTheirs'), group, keywords: k, when: () => when() && pendingCount.value > 0, run: () => (asking.value = 'pendingTheirs') },
+    { id: 'mr.bulkSpaceOnly', title: t('mr.cmd.bulkSpaceOnly'), group, keywords: k, when: () => when() && spaceOnlyPending.value > 0, run: () => runBulk('spaceOnly') },
     { id: 'mr.changesAll', title: t('mr.cmd.changesAll'), group, keywords: k, when: () => when() && model.value.changes.length > 0, run: () => runBulk('changesAll') },
   ];
 }
@@ -395,11 +528,19 @@ onMounted(() => {
     ro = new ResizeObserver(() => measure());
     ro.observe(inner.value);
   }
+  if (root.value) {
+    width.value = root.value.clientWidth || Infinity;
+    if (typeof ResizeObserver !== 'undefined') {
+      roWidth = new ResizeObserver(() => (width.value = root.value?.clientWidth || Infinity));
+      roWidth.observe(root.value);
+    }
+  }
   void nextTick(measure);
 });
 onBeforeUnmount(() => {
   offCommands?.();
   ro?.disconnect();
+  roWidth?.disconnect();
 });
 
 const changeKey = (idx: number) => {
@@ -419,7 +560,7 @@ const explain = computed(() => {
 </script>
 
 <template>
-  <div class="mr" data-testid="merge-resolver">
+  <div ref="root" class="mr" data-testid="merge-resolver" :data-view="split ? 'split' : 'stacked'">
     <div class="mr__top">
       <div class="mr__sides" data-testid="mr-explain">
         <span class="mr__chip mr__chip--mine"><b>M</b>{{ t('mr.mine') }}<template v-if="labels.mine"> · {{ labels.mine }}</template></span>
@@ -440,9 +581,20 @@ const explain = computed(() => {
         <GnButton size="sm" variant="ghost" :disabled="!history.future.length" data-testid="mr-redo" @click="redo">{{ t('mr.redo') }}<GnTooltip :text="`${t('mr.redo')} (${sc('redo')})`" /></GnButton>
         <GnButton size="sm" :disabled="!model.conflicts.length && !model.changes.length" aria-haspopup="menu" data-testid="mr-bulk" @click="openBulk">{{ t('mr.bulk') }}</GnButton>
         <GnButton size="sm" variant="ghost" tone="warn" data-testid="mr-reset" @click="resetFile">{{ t('mr.reset') }}</GnButton>
-        <GnButton variant="primary" tone="success" data-testid="mr-resolve" :disabled="pendingCount > 0 || busy" @click="result.text !== null && emit('resolve', result.text)">
+        <GnButton variant="primary" tone="success" data-testid="mr-resolve" :disabled="pendingCount > 0 || busy" @click="onResolve">
           {{ pendingCount ? t('mr.missing', { n: pendingCount }) : t('mr.markResolved') }}
         </GnButton>
+      </div>
+      <div class="mr__view" data-testid="mr-view">
+        <GnButton size="sm" :variant="mergeSideBySide ? 'primary' : 'ghost'" :aria-pressed="mergeSideBySide" data-testid="mr-view-split" @click="toggleSplit">{{ t('mr.viewSplit') }}<GnTooltip :text="t('mr.viewSplitTip')" /></GnButton>
+        <GnButton size="sm" :variant="mergeIgnoreSpace ? 'primary' : 'ghost'" :aria-pressed="mergeIgnoreSpace" data-testid="mr-ignore-space" @click="toggleIgnoreSpace">{{ t('mr.ignoreSpace') }}<GnTooltip :text="t('mr.ignoreSpaceTip')" /></GnButton>
+        <GnButton size="sm" :variant="mergeShowInvisibles ? 'primary' : 'ghost'" :aria-pressed="mergeShowInvisibles" data-testid="mr-invisibles" @click="toggleInvisibles">{{ t('mr.invisibles') }}<GnTooltip :text="t('mr.invisiblesTip')" /></GnButton>
+      </div>
+      <p v-if="splitNarrow" class="mr__notice" role="status" data-testid="mr-split-narrow">{{ t('mr.viewSplitNarrow') }}</p>
+      <div v-if="eol.differs || mixedEol" class="mr__eol" data-testid="mr-eol">
+        <span v-if="eol.differs">{{ t('mr.eolDiffers', { mine: eol.mine || 'LF', theirs: eol.theirs || 'LF' }) }}</span>
+        <GnSegmented :model-value="choices.eol" :options="eolOptions" :aria-label="t('mr.eolLabel')" data-testid="mr-eol-choice" @update:model-value="setEol($event)" />
+        <strong v-if="mixedEol" class="mr__eol-warn" role="status" data-testid="mr-eol-mixed">{{ t('mr.eolMixed') }}</strong>
       </div>
     </div>
 
@@ -451,9 +603,122 @@ const explain = computed(() => {
         <div ref="inner" class="mr__inner">
           <p v-if="!model.conflicts.length" class="mr__none">{{ t('mr.noConflicts') }}</p>
           <template v-for="(seg, idx) in model.segments" :key="idx">
+            <!-- lado a lado: minha | resultado | a que chega, com conectores (as escolhas são as mesmas da visão padrão) -->
+            <template v-if="split">
+              <GnButton v-if="isFolded(idx)" size="sm" variant="ghost" class="sp__fold" :data-seg="idx" data-testid="mr-fold" @click="unfolded.add(idx)">
+                {{ t('mr.foldedLines', { n: seg.mine.end - seg.mine.start }) }}
+              </GnButton>
+              <div
+                v-else
+                class="sp"
+                :class="[`sp--${seg.kind}`, { 'sp--active': activeIdx === idx, 'sp--done': seg.kind === 'conflict' && stateOf(idx) !== 'pending' }]"
+                :role="seg.kind === 'conflict' ? 'region' : undefined"
+                :tabindex="seg.kind === 'conflict' ? -1 : undefined"
+                :aria-label="seg.kind === 'conflict' ? regionName(idx) : undefined"
+                :data-testid="seg.kind === 'conflict' ? 'mr-card' : 'mr-sp-row'"
+                :data-seg="idx"
+                :data-kind="seg.kind"
+                :data-state="seg.kind === 'conflict' ? stateOf(idx) : undefined"
+                :data-pending="seg.kind === 'conflict' ? stateOf(idx) === 'pending' : undefined"
+                @focusin="seg.kind === 'conflict' && (activeIdx = idx)"
+                @click="seg.kind === 'conflict' && (activeIdx = idx)"
+              >
+                <header v-if="seg.kind === 'conflict'" class="sp__head">
+                  <span class="card__state" :class="`card__state--${stateOf(idx)}`" data-testid="mr-state">{{ t(STATE_KEY[stateOf(idx)]) }}</span>
+                  <strong>{{ t('mr.conflict', { i: conflictNo(idx), n: model.conflicts.length }) }}</strong>
+                  <span class="card__muted">{{ spanText(idx) }}</span>
+                  <span v-if="stateOf(idx) !== 'pending'" class="card__muted" data-testid="mr-summary">· {{ summary(idx) }}</span>
+                  <span v-if="spaceOnly.has(idx)" class="card__tag" data-testid="mr-space-only">{{ t('mr.spaceOnly') }}<GnTooltip :text="t('mr.spaceOnlyTip')" /></span>
+                  <span class="mr__spacer" />
+                  <GnButton size="sm" data-testid="mr-use-mine" @click="preset(idx, 'mine')">{{ t('mr.useMine') }}</GnButton>
+                  <GnButton size="sm" data-testid="mr-use-theirs" @click="preset(idx, 'theirs')">{{ t('mr.useTheirs') }}</GnButton>
+                  <GnButton size="sm" data-testid="mr-use-both" @click="preset(idx, 'both', swapped.has(idx))">{{ t('mr.useBoth') }}</GnButton>
+                  <GnButton size="sm" data-testid="mr-swap" @click="swapOrder(idx)">{{ t('mr.swapOrder') }}</GnButton>
+                  <GnButton size="sm" data-testid="mr-use-none" @click="preset(idx, 'none')">{{ t('mr.useNone') }}</GnButton>
+                  <GnButton size="sm" data-testid="mr-edit" @click="startEdit(idx)">{{ t('mr.edit') }}</GnButton>
+                  <GnButton v-if="stateOf(idx) !== 'pending'" size="sm" variant="ghost" tone="warn" data-testid="mr-reopen" @click="setPicks(idx, undefined)">{{ t('mr.reopen') }}</GnButton>
+                </header>
+                <div v-if="seg.kind === 'conflict' && (lineHistory[historyKey(idx, 'mine')] || lineHistory[historyKey(idx, 'theirs')])" class="sp__hist">
+                  <p v-for="side in (['mine', 'theirs'] as const)" v-show="lineHistory[historyKey(idx, side)]" :key="side" class="card__muted" data-testid="mr-history-result" :data-side="side" :data-state="lineHistory[historyKey(idx, side)]?.state">
+                    <b>{{ side === 'mine' ? 'M' : 'O' }}</b>
+                    {{ lineHistory[historyKey(idx, side)]?.state === 'loading' ? t('mr.historyLoading') : lineHistory[historyKey(idx, side)]?.state === 'ok' ? lineHistory[historyKey(idx, side)]!.text : t('mr.historyNone') }}
+                  </p>
+                </div>
+
+                <template v-for="col in COLS" :key="col">
+                  <svg
+                    v-if="col !== 'mine'"
+                    class="sp__conn"
+                    :class="[`sp__conn--${connTone(idx)}`, { 'sp__conn--label': seg.kind === 'conflict' }]"
+                    :viewBox="`0 0 26 ${connH(idx)}`"
+                    width="26"
+                    :height="connH(idx)"
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                    data-testid="mr-conn"
+                  >
+                    <path :d="connPath(col === 'result' ? 'left' : 'right', idx)" />
+                  </svg>
+
+                  <!-- as versões dos lados -->
+                  <div v-if="col !== 'result'" class="sp__col" :class="[`sp__col--${col}`, { 'sp__col--changed': seg.kind !== 'stable' && (seg.kind === 'conflict' || seg.kind === 'same' || seg.kind === col) }]" :data-col="col">
+                    <div v-if="seg.kind === 'conflict'" class="sp__label">
+                      <b class="side__sym" :class="`side__sym--${col}`">{{ col === 'mine' ? 'M' : 'O' }}</b>
+                      <strong>{{ col === 'mine' ? t('mr.mine') : t('mr.theirs') }}</strong>
+                      <span v-if="labels[col]" class="card__muted">{{ labels[col] }}</span>
+                      <span class="mr__spacer" />
+                      <GnButton v-if="repoPath && seg[col].end > seg[col].start" size="sm" variant="ghost" data-testid="mr-history" :data-side="col" @click="showHistory(idx, col)">{{ t('mr.history') }}<GnTooltip :text="t('mr.historyTip')" /></GnButton>
+                    </div>
+                    <p v-if="seg.kind === 'conflict' && seg[col].end === seg[col].start" class="side__empty">{{ t('mr.noLines') }}</p>
+                    <template v-for="n in seg[col].end - seg[col].start" :key="n">
+                      <label v-if="seg.kind === 'conflict'" class="pl" :class="{ 'pl--on': selectedLines(picksOf(idx), col).has(seg[col].start + n - 1) }" data-testid="mr-pick" :data-side="col">
+                        <input
+                          type="checkbox"
+                          :checked="selectedLines(picksOf(idx), col).has(seg[col].start + n - 1)"
+                          :aria-label="t('mr.pickLine', { n: seg[col].start + n, side: col === 'mine' ? t('mr.mine') : t('mr.theirs') })"
+                          @change="toggle(idx, col, seg[col].start + n - 1)"
+                        />
+                        <span class="pl__no">{{ seg[col].start + n }}</span>
+                        <!-- eslint-disable-next-line vue/no-v-html: highlightLines escapa o texto; markHtml e showInvisibles só acrescentam marcas -->
+                        <span class="pl__code" v-html="lineHtml(col, idx, seg[col].start + n - 1)"></span>
+                      </label>
+                      <div v-else class="spl" data-testid="mr-sp-line">
+                        <span class="pl__no">{{ seg[col].start + n }}</span>
+                        <!-- eslint-disable-next-line vue/no-v-html: highlightLines escapa o texto -->
+                        <span class="pl__code" v-html="plainHtml(col, seg[col].start + n - 1)"></span>
+                      </div>
+                    </template>
+                  </div>
+
+                  <!-- o resultado -->
+                  <div v-else class="sp__col sp__col--result" data-col="result">
+                    <div v-if="seg.kind === 'conflict'" class="sp__label">
+                      <strong>{{ t('mr.colResult') }}</strong>
+                      <span v-if="stateOf(idx) === 'pending'" class="card__muted">{{ t('mr.splitPending') }}</span>
+                    </div>
+                    <div v-if="editing === idx" class="card__edit">
+                      <p class="card__muted">{{ t('mr.editHint') }}</p>
+                      <textarea v-model="editText" class="card__ta" rows="6" spellcheck="false" :aria-label="t('mr.editLabel', { i: conflictNo(idx) })" :data-edit="idx" />
+                      <div class="card__actions">
+                        <GnButton size="sm" data-testid="mr-edit-apply" @click="applyEdit(idx)">{{ t('mr.editApply') }}</GnButton>
+                        <GnButton size="sm" variant="ghost" @click="editing = null">{{ t('mr.editCancel') }}</GnButton>
+                      </div>
+                    </div>
+                    <p v-else-if="seg.kind === 'conflict' && stateOf(idx) !== 'pending' && !layout[idx]!.lines.length" class="side__empty" data-testid="mr-preview-none">{{ t('mr.noLines') }}</p>
+                    <MergeLines v-else :lines="layout[idx]!.lines" :first="layout[idx]!.first" :html="hlResult" :offset="layout[idx]!.offset" :invisibles="mergeShowInvisibles" />
+                    <div v-if="isChange(seg)" class="note" data-testid="mr-change" :data-reverted="changeReverted(idx)">
+                      <span class="note__sym">{{ changeSym(idx) }}</span>
+                      <strong>{{ changeReverted(idx) ? t('mr.notApplied') : t('mr.applied') }}</strong>
+                      <GnButton size="sm" variant="ghost" data-testid="mr-toggle-change" @click="toggleChange(idx)">{{ changeReverted(idx) ? t('mr.applyChange') : t('mr.undoChange') }}</GnButton>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </template>
+
             <!-- conflito: cartão -->
             <section
-              v-if="seg.kind === 'conflict'"
+              v-else-if="seg.kind === 'conflict'"
               class="card"
               :class="{ 'card--done': stateOf(idx) !== 'pending', 'card--active': activeIdx === idx }"
               role="region"
@@ -471,6 +736,7 @@ const explain = computed(() => {
                 <strong>{{ t('mr.conflict', { i: conflictNo(idx), n: model.conflicts.length }) }}</strong>
                 <span class="card__muted">{{ spanText(idx) }}</span>
                 <span v-if="stateOf(idx) !== 'pending'" class="card__muted" data-testid="mr-summary">· {{ summary(idx) }}</span>
+                <span v-if="spaceOnly.has(idx)" class="card__tag" data-testid="mr-space-only">{{ t('mr.spaceOnly') }}<GnTooltip :text="t('mr.spaceOnlyTip')" /></span>
                 <span class="mr__spacer" />
                 <GnButton v-if="stateOf(idx) !== 'pending' && editing !== idx" size="sm" variant="ghost" @click="expanded.has(idx) ? expanded.delete(idx) : expanded.add(idx)">
                   {{ expanded.has(idx) ? t('mr.collapse') : t('mr.change') }}
@@ -478,7 +744,7 @@ const explain = computed(() => {
               </header>
 
               <!-- resolvido e recolhido: só o resultado -->
-              <MergeLines v-if="stateOf(idx) !== 'pending' && !expanded.has(idx) && editing !== idx" :lines="layout[idx]!.lines" :first="layout[idx]!.first" :html="hlResult" :offset="layout[idx]!.offset" />
+              <MergeLines v-if="stateOf(idx) !== 'pending' && !expanded.has(idx) && editing !== idx" :lines="layout[idx]!.lines" :first="layout[idx]!.first" :html="hlResult" :offset="layout[idx]!.offset" :invisibles="mergeShowInvisibles" />
 
               <template v-else>
                 <!-- editar à mão -->
@@ -500,7 +766,11 @@ const explain = computed(() => {
                       <span v-if="labels[side]" class="card__muted">{{ labels[side] }}</span>
                       <span class="mr__spacer" />
                       <span class="card__muted">{{ t('mr.nLines', { n: seg[side].end - seg[side].start }) }}</span>
+                      <GnButton v-if="repoPath && seg[side].end > seg[side].start" size="sm" variant="ghost" data-testid="mr-history" :data-side="side" @click="showHistory(idx, side)">{{ t('mr.history') }}<GnTooltip :text="t('mr.historyTip')" /></GnButton>
                     </div>
+                    <p v-if="lineHistory[historyKey(idx, side)]" class="side__hist card__muted" data-testid="mr-history-result" :data-side="side" :data-state="lineHistory[historyKey(idx, side)]!.state">
+                      {{ lineHistory[historyKey(idx, side)]!.state === 'loading' ? t('mr.historyLoading') : lineHistory[historyKey(idx, side)]!.state === 'ok' ? lineHistory[historyKey(idx, side)]!.text : t('mr.historyNone') }}
+                    </p>
                     <p v-if="seg[side].end === seg[side].start" class="side__empty">{{ t('mr.noLines') }}</p>
                     <label
                       v-for="n in seg[side].end - seg[side].start"
@@ -517,7 +787,7 @@ const explain = computed(() => {
                       />
                       <span class="pl__no">{{ seg[side].start + n }}</span>
                       <!-- eslint-disable-next-line vue/no-v-html: highlightLines escapa o texto -->
-                      <span class="pl__code" v-html="(side === 'mine' ? hlMine : hlTheirs)[seg[side].start + n - 1] || '&nbsp;'"></span>
+                      <span class="pl__code" v-html="lineHtml(side, idx, seg[side].start + n - 1)"></span>
                     </label>
                   </div>
 
@@ -551,7 +821,7 @@ const explain = computed(() => {
                     <div class="preview__head"><strong>{{ t('mr.preview') }}</strong><span class="card__muted">{{ t('mr.previewHint') }}</span></div>
                     <p v-if="stateOf(idx) === 'pending'" class="side__empty" data-testid="mr-preview-empty">{{ t('mr.previewEmpty') }}</p>
                     <p v-else-if="!layout[idx]!.lines.length" class="side__empty" data-testid="mr-preview-none">{{ t('mr.noLines') }}</p>
-                    <MergeLines v-else :lines="layout[idx]!.lines" :first="layout[idx]!.first" :html="hlResult" :offset="layout[idx]!.offset" />
+                    <MergeLines v-else :lines="layout[idx]!.lines" :first="layout[idx]!.first" :html="hlResult" :offset="layout[idx]!.offset" :invisibles="mergeShowInvisibles" />
                   </div>
                 </template>
               </template>
@@ -559,7 +829,7 @@ const explain = computed(() => {
 
             <!-- o resto do arquivo: no fluxo normal, com a origem na margem -->
             <div v-else :data-seg="idx" :data-kind="seg.kind">
-              <MergeLines :lines="layout[idx]!.lines" :first="layout[idx]!.first" :html="hlResult" :offset="layout[idx]!.offset" />
+              <MergeLines :lines="layout[idx]!.lines" :first="layout[idx]!.first" :html="hlResult" :offset="layout[idx]!.offset" :invisibles="mergeShowInvisibles" />
               <div v-if="isChange(seg)" class="note" data-testid="mr-change" :data-reverted="changeReverted(idx)">
                 <span class="note__sym">{{ changeSym(idx) }}</span>
                 <strong>{{ changeReverted(idx) ? t('mr.notApplied') : t('mr.applied') }}</strong>
@@ -594,6 +864,7 @@ const explain = computed(() => {
       <span class="lg lg--both"><b>M+O</b>{{ t('mr.legendBoth') }}</span>
       <span class="lg lg--typed"><b>✎</b>{{ t('mr.legendTyped') }}</span>
       <span class="lg lg--base"><b>B</b>{{ t('mr.legendBase') }}</span>
+      <span class="lg lg--word"><mark class="wd">ab</mark>{{ t('mr.legendWord') }}</span>
       <span class="mr__spacer" />
       <GnButton size="sm" variant="ghost" :aria-expanded="showHelp" data-testid="mr-help-toggle" @click="showHelp = !showHelp">{{ t('mr.shortcuts') }}</GnButton>
     </div>
@@ -603,6 +874,14 @@ const explain = computed(() => {
     <div class="mr__sr" aria-live="polite" data-testid="mr-live">{{ live }}</div>
 
     <ContextMenu v-if="menu" :x="menu.x" :y="menu.y" :items="bulkItems" @select="onBulk" @close="menu = null" />
+    <ConfirmDialog
+      v-if="askingMixed"
+      :title="t('mr.mixedTitle')"
+      :lines="[t('mr.mixedBody'), t('mr.mixedHint')]"
+      :confirm-label="t('mr.mixedConfirm')"
+      @confirm="confirmMixed"
+      @cancel="askingMixed = false"
+    />
     <ConfirmDialog
       v-if="asking"
       :title="t('mr.bulkConfirmTitle')"
@@ -626,6 +905,9 @@ const explain = computed(() => {
   &__notice { margin: 6px 12px 0; padding: 4px 10px; border-radius: var(--gn-radius); font-size: 12px; background: color-mix(in srgb, var(--gn-accent) 12%, transparent); color: var(--gn-text); }
   &__notice--stale { background: color-mix(in srgb, var(--gn-warn) 16%, transparent); }
   &__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 12px; }
+  &__view { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 0 12px 8px; }
+  &__eol { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 0 12px 8px; font-size: 12px; color: var(--gn-muted); }
+  &__eol-warn { color: var(--gn-warn); font-weight: 600; }
   &__progress { font-weight: 600; margin: 0 4px; }
   &__spacer { flex: 1; }
   &__body { flex: 1; min-height: 0; display: flex; }
@@ -650,6 +932,7 @@ const explain = computed(() => {
 .lg--theirs b { color: var(--gn-renamed); background: color-mix(in srgb, var(--gn-renamed) 18%, transparent); }
 .lg--both b { color: var(--gn-success); background: color-mix(in srgb, var(--gn-success) 18%, transparent); }
 .lg--typed b { color: var(--gn-warn); background: color-mix(in srgb, var(--gn-warn) 18%, transparent); }
+.lg--word .wd { margin-right: 4px; }
 .lg--base b { color: var(--gn-muted); background: color-mix(in srgb, var(--gn-muted) 18%, transparent); }
 
 .note { display: flex; align-items: center; gap: 8px; margin: 2px 12px 2px 56px; min-height: 26px; font-size: 11px; color: var(--gn-muted); strong { color: var(--gn-text); font-weight: 500; } }
@@ -702,4 +985,49 @@ const explain = computed(() => {
 .pl__code :deep(.tok-comment) { color: var(--gn-muted); }
 .pl__code :deep(.tok-typeName), .pl__code :deep(.tok-className) { color: var(--gn-renamed); }
 .base__row :deep(.tok-comment) { color: var(--gn-muted); }
+
+// diferença dentro da linha (cartões e colunas laterais): cor mais forte sobre o trecho; também sublinhada, para não depender só da cor
+.wd, :deep(.wd) { background: color-mix(in srgb, var(--gn-warn) 38%, transparent); border-radius: 2px; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; color: inherit; }
+// caracteres invisíveis: o texto continua o mesmo (a largura não muda), a marca é desenhada por cima
+:deep(.inv) { position: relative; font-style: normal; }
+:deep(.inv--sp::before), :deep(.inv--tab::before), :deep(.inv--eol::after) { position: absolute; left: 0; color: var(--gn-muted); opacity: 0.75; pointer-events: none; }
+:deep(.inv--sp::before) { content: '·'; }
+:deep(.inv--tab::before) { content: '→'; }
+:deep(.inv--eol) { display: inline-block; width: 1.4em; }
+:deep(.inv--lf::after) { content: '↵'; }
+:deep(.inv--crlf::after) { content: '␍↵'; }
+.card__tag { padding: 0 8px; border-radius: 9px; font-size: 10px; font-weight: 600; color: var(--gn-muted); border: 1px solid var(--gn-border); }
+.side__hist { margin: 0; padding: 0 12px 4px; }
+
+// lado a lado: uma linha de grade por trecho (as três colunas rolam juntas, e cada coluna tem a altura do maior lado)
+.sp {
+  display: grid; grid-template-columns: minmax(0, 1fr) 26px minmax(0, 1fr) 26px minmax(0, 1fr); margin: 0 8px; align-items: start;
+  &--conflict { margin-top: 6px; margin-bottom: 6px; border: 1px solid color-mix(in srgb, var(--gn-danger) 55%, var(--gn-border)); border-radius: var(--gn-radius-lg); background: var(--gn-surface); overflow: hidden; }
+  &--done { border-color: var(--gn-border); }
+  &--active { border-color: var(--gn-accent); box-shadow: var(--gn-ring); }
+  &:focus { outline: none; }
+  &:focus-visible { border-color: var(--gn-accent); box-shadow: var(--gn-ring); }
+  &__head { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 12px; background: color-mix(in srgb, var(--gn-danger) 9%, var(--gn-surface)); border-bottom: 1px solid var(--gn-border); }
+  &--done &__head { background: color-mix(in srgb, var(--gn-success) 9%, var(--gn-surface)); }
+  &__hist { grid-column: 1 / -1; padding: 4px 12px; border-bottom: 1px solid var(--gn-border); p { margin: 0; } }
+  &__col { min-width: 0; font-family: var(--gn-mono); font-size: 12.5px; }
+  &__label { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 8px; font-family: var(--gn-font-ui); font-size: 11px; border-bottom: 1px solid var(--gn-border); }
+  &__col--mine.sp__col--changed { background: color-mix(in srgb, var(--gn-accent) 6%, transparent); }
+  &__col--theirs.sp__col--changed { background: color-mix(in srgb, var(--gn-renamed) 6%, transparent); }
+  &__conn { align-self: start; display: block; path { fill: var(--gn-muted); opacity: 0.12; } }
+  &__conn--label { margin-top: 26px; }
+  &__conn--pending path { fill: var(--gn-danger); opacity: 0.2; }
+  &__conn--resolved path, &__conn--same path { fill: var(--gn-success); opacity: 0.2; }
+  &__conn--mine path { fill: var(--gn-accent); opacity: 0.22; }
+  &__conn--theirs path { fill: var(--gn-renamed); opacity: 0.22; }
+  &__conn--stable { visibility: hidden; }
+  &__fold { display: block; width: calc(100% - 16px); margin: 2px 8px; border: 1px dashed var(--gn-border); color: var(--gn-muted); }
+}
+.sp__col .pl { grid-template-columns: 26px 38px minmax(0, 1fr); }
+.sp__col--theirs .pl--on { background: color-mix(in srgb, var(--gn-renamed) 9%, transparent); }
+.sp__col--mine .pl--on { background: color-mix(in srgb, var(--gn-accent) 9%, transparent); }
+.sp__col--theirs .pl input { accent-color: var(--gn-renamed); }
+.spl { display: grid; grid-template-columns: 38px minmax(0, 1fr); line-height: 19px; min-height: 19px; white-space: pre; }
+.sp .card__edit { padding: 6px 8px; border-bottom: 0; }
+.sp .note { margin: 2px 8px; }
 </style>

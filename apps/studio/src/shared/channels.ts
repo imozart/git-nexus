@@ -82,6 +82,7 @@ export const WORKER_METHODS = [
   'reopenConflict',
   'resolveConflictSide',
   'getConflictImage',
+  'getConflictHistory',
   'listBranches',
   'compareWithBase',
   'getSyncCommits',

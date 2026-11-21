@@ -160,6 +160,20 @@ export interface GitNexusIPC {
   resolveConflictSide(repoPath: string, filePath: string, side: 'ours' | 'theirs'): Promise<boolean>;
   /** Imagem raster de um lado do conflito (só até 5 MB), em base64 para a tela decodificar; `null` se não for imagem ou o lado não existir. */
   getConflictImage(repoPath: string, filePath: string, side: 'base' | 'ours' | 'theirs'): Promise<{ mime: string; base64: string } | null>;
+  /**
+   * O último commit que mexeu nas linhas `from`..`to` (1-based, na versão daquele lado: `ours` = HEAD, `theirs` = o commit que chega), para
+   * decidir sabendo quem mexeu e por quê. `null` se o lado não existe, o trecho está fora do arquivo ou o Git não achou.
+   */
+  getConflictHistory(repoPath: string, filePath: string, side: 'ours' | 'theirs', from: number, to: number): Promise<ConflictHistoryEntry | null>;
+}
+
+/** O último commit que mexeu num trecho do arquivo (histórico do trecho, sob demanda). */
+export interface ConflictHistoryEntry {
+  hash: string;
+  author: string;
+  /** ISO 8601. */
+  date: string;
+  subject: string;
 }
 
 // ---------------------------------------------------------------------------------------
