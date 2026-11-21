@@ -158,7 +158,8 @@ export async function connect(OUT, results) {
     check,
     openRepo,
     /** Erros da página até agora (vazio = nenhum). */
-    errors: () => [...pageErrors],
+    // erro de script de extensão do navegador (bloqueador de anúncios etc., que o Edge instala em perfil novo) não é erro do app
+    errors: () => pageErrors.filter((e) => !/chrome-extension:\/\/|Could not establish connection\. Receiving end does not exist/.test(String(e))),
     /** Encerra com código 1 se alguma verificação falhou. O resultado também sai em JSON no stdout para o run.mjs. */
     close: () => {
       ws.close();

@@ -6,6 +6,7 @@ export * from './conflict-kinds.js';
 export * from './line-diff.js';
 export * from './merge3.js';
 export * from './word-diff.js';
+export * from './conflict-class.js';
 export * from './messages.js';
 export * from './git-command.js';
 export * from './sync-state.js';

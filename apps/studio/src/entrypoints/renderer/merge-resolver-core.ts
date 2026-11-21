@@ -2,9 +2,16 @@
 // O motor da fusão está em @git-nexus/git-core (merge3.ts); aqui só o que a tela decide em cima dele.
 import {
   bulkChoices,
+  diffHunks,
+  diffLines,
+  emptyChoices,
   findConflictRegions,
   presetPicks,
+  resolveMerge,
   spaceOnlyConflicts,
+  splitLines,
+  suggestions,
+  type DiffRow,
   type MergeChoices,
   type MergeModel,
   type MergeSegment,
@@ -12,6 +19,8 @@ import {
   type PickedLine,
   type ResultLine,
   type MergeResult,
+  type SimpleKind,
+  type Suggestion,
 } from '@git-nexus/git-core/pure';
 
 /** As três versões como a tela as chama: "minha" (a do usuário) e "que chega". */
@@ -151,7 +160,7 @@ export function redoChoice(h: ChoiceHistory, current: MergeChoices): { history: 
 
 // ---------------------------------------------------------------- ações em massa e navegação
 
-export type BulkAction = 'pendingMine' | 'pendingTheirs' | 'spaceOnly' | 'changesAll' | 'changesMine' | 'changesTheirs';
+export type BulkAction = 'pendingMine' | 'pendingTheirs' | 'spaceOnly' | 'simple' | 'changesAll' | 'changesMine' | 'changesTheirs';
 
 /** Conflitos ainda sem decisão (índices em `model.segments`). */
 export const pendingOf = (model: MergeModel, choices: MergeChoices): number[] => model.conflicts.filter((i) => choices.picks[i] === undefined);
@@ -160,6 +169,41 @@ export const pendingOf = (model: MergeModel, choices: MergeChoices): number[] =>
 export const pendingSpaceOnly = (model: MergeModel, choices: MergeChoices): number[] => {
   const only = new Set(spaceOnlyConflicts(model));
   return pendingOf(model, choices).filter((i) => only.has(i));
+};
+
+/** Um conflito pendente que cabe numa classe simples: o que seria aplicado e por quê (a tela mostra a lista e só aplica depois de confirmar). */
+export interface SimpleItem {
+  idx: number;
+  suggestion: Suggestion;
+}
+
+/** Os conflitos pendentes que têm uma sugestão determinística (os já decididos pelo usuário nunca entram). */
+export function pendingSimple(model: MergeModel, choices: MergeChoices): SimpleItem[] {
+  const all = suggestions(model);
+  return pendingOf(model, choices).flatMap((idx) => {
+    const suggestion = all.get(idx);
+    return suggestion ? [{ idx, suggestion }] : [];
+  });
+}
+
+/** Chave da mensagem que explica a classe (o motivo mostrado na lista e no cartão). */
+export const SIMPLE_REASON: Record<SimpleKind, string> = {
+  space: 'mr.simple.space',
+  reformat: 'mr.simple.reformat',
+  removed: 'mr.simple.removed',
+  neighbors: 'mr.simple.neighbors',
+  insertions: 'mr.simple.insertions',
+  words: 'mr.simple.words',
+};
+
+/** O que será aplicado em cada classe (chaves literais: o teste de chaves mortas do catálogo as enxerga). */
+export const SIMPLE_WHAT: Record<SimpleKind, string> = {
+  space: 'mr.simpleWhat.space',
+  reformat: 'mr.simpleWhat.reformat',
+  removed: 'mr.simpleWhat.removed',
+  neighbors: 'mr.simpleWhat.neighbors',
+  insertions: 'mr.simpleWhat.insertions',
+  words: 'mr.simpleWhat.words',
 };
 
 /**
@@ -172,6 +216,11 @@ export function applyBulk(model: MergeModel, choices: MergeChoices, action: Bulk
     const side = action === 'pendingMine' ? 'mine' : 'theirs';
     const picks = { ...choices.picks };
     for (const idx of pendingOf(model, choices)) picks[idx] = presetPicks(model, idx, side);
+    return { ...choices, picks };
+  }
+  if (action === 'simple') {
+    const picks = { ...choices.picks };
+    for (const { idx, suggestion } of pendingSimple(model, choices)) picks[idx] = suggestion.picks;
     return { ...choices, picks };
   }
   if (action === 'spaceOnly') {
@@ -190,6 +239,80 @@ export function stepConflict(model: MergeModel, choices: MergeChoices, from: num
   if (from === null) return dir === 1 ? list[0]! : list[list.length - 1]!;
   const after = dir === 1 ? list.find((i) => i > from) : [...list].reverse().find((i) => i < from);
   return after ?? (dir === 1 ? list[0]! : list[list.length - 1]!);
+}
+
+// ---------------------------------------------------------------- resolução gravada pelo Git (rerere)
+
+/** Linhas de um texto sem o terminador (CRLF e LF são a mesma linha: o rerere pode ter gravado com um e o arquivo estar com o outro). */
+const bare = (text: string): string[] => splitLines(text).lines;
+
+/**
+ * As escolhas que reproduzem um arquivo que o Git já preencheu (a resolução gravada do `rerere`): cada conflito fica com as linhas
+ * que o arquivo tem no lugar dele, ligadas às linhas da minha versão, da que chega ou da base quando o texto é igual (as outras
+ * viram linhas digitadas). Só devolve algo se o resultado do modelo for IDÊNTICO ao arquivo: senão `null` (a tela não inventa).
+ */
+export function deriveChoices(model: MergeModel, working: string): MergeChoices | null {
+  const none: Record<number, PickedLine[]> = Object.fromEntries(model.conflicts.map((i) => [i, [] as PickedLine[]]));
+  const skeleton = resolveMerge(model, { ...emptyChoices(), picks: none });
+  const lay = layoutResult(model, skeleton);
+  const base = skeleton.lines.map((l) => l.text);
+  const work = bare(working);
+  const picks: Record<number, PickedLine[]> = { ...none };
+  const atOffset = (p: number) => model.conflicts.filter((i) => lay[i]!.offset === p);
+
+  for (const h of diffHunks(base, work)) {
+    if (h.aEnd > h.aStart) return null; // o arquivo perdeu linhas que não são de conflito: não dá para explicar por escolhas
+    const inserted = work.slice(h.bStart, h.bEnd);
+    // a mesma inserção pode ser descrita em posições vizinhas quando as linhas se repetem: tenta deslizar para os dois lados
+    let found: { idx: number; lines: string[] } | null = null;
+    const slide = (dir: -1 | 1) => {
+      let pos = h.aStart;
+      let lines = inserted;
+      for (let guard = 0; guard <= inserted.length && !found; guard++) {
+        const hit = atOffset(pos)[0];
+        if (hit !== undefined) found = { idx: hit, lines };
+        if (dir === -1) {
+          if (pos === 0 || base[pos - 1] !== lines[lines.length - 1]) break;
+          lines = [base[pos - 1]!, ...lines.slice(0, -1)];
+          pos--;
+        } else {
+          if (pos >= base.length || base[pos] !== lines[0]) break;
+          lines = [...lines.slice(1), base[pos]!];
+          pos++;
+        }
+      }
+    };
+    slide(-1);
+    if (!found) slide(1);
+    if (!found) return null;
+    const hit = found as { idx: number; lines: string[] };
+    if (picks[hit.idx]!.length) return null; // dois trechos para o mesmo conflito: ambíguo
+    const seg = model.segments[hit.idx]!;
+    const used = new Set<string>();
+    picks[hit.idx] = hit.lines.map((text): PickedLine => {
+      for (const side of ['mine', 'theirs', 'base'] as const) {
+        for (let k = seg[side].start; k < seg[side].end; k++) {
+          if (model[side].lines[k] === text && !used.has(`${side}:${k}`)) {
+            used.add(`${side}:${k}`);
+            return { from: side, line: k };
+          }
+        }
+      }
+      return { from: 'typed', text };
+    });
+  }
+
+  for (const eol of ['mine', 'theirs', 'lf', 'crlf'] as const) {
+    const choices: MergeChoices = { picks, reverted: [], eol };
+    if (resolveMerge(model, choices).text === working) return choices;
+  }
+  return null;
+}
+
+/** O que a resolução gravada mudou em relação a ficar com a minha versão em cada conflito (só as linhas que diferem). */
+export function recordedDiff(model: MergeModel, working: string): DiffRow[] {
+  const mine = resolveMerge(model, bulkChoices(model, { conflicts: 'mine', changes: 'all' })).preview;
+  return diffLines(bare(mine), bare(working)).filter((r) => r.kind !== 'eq');
 }
 
 // ---------------------------------------------------------------- rascunho

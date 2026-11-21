@@ -111,6 +111,14 @@ export interface MergeConflictBlock {
   sides?: { base?: ConflictSide; ours?: ConflictSide; theirs?: ConflictSide };
   /** Renomeação/movimento: outros caminhos ainda em conflito com o mesmo conteúdo de origem (ex.: renomeado para dois nomes). */
   relatedPaths?: string[];
+  /** O arquivo foi preenchido pelo Git com uma resolução gravada (`rerere`), mas segue em conflito no índice; `recordedAt` = quando foi gravada (ISO). */
+  rerere?: { recordedAt: string };
+}
+
+/** O `rerere` neste repositório: ligado (por qualquer configuração) e se a chave está no `.git/config` do próprio repositório. */
+export interface RerereState {
+  enabled: boolean;
+  local: boolean;
 }
 
 export interface GitNexusIPC {
@@ -165,6 +173,14 @@ export interface GitNexusIPC {
    * decidir sabendo quem mexeu e por quê. `null` se o lado não existe, o trecho está fora do arquivo ou o Git não achou.
    */
   getConflictHistory(repoPath: string, filePath: string, side: 'ours' | 'theirs', from: number, to: number): Promise<ConflictHistoryEntry | null>;
+  /** Se o `rerere` (resolução gravada pelo Git) está ligado neste repositório. */
+  getRerereState(repoPath: string): Promise<RerereState>;
+  /** Liga/desliga o `rerere` só neste repositório (`git config --local rerere.enabled`). */
+  setRerereEnabled(repoPath: string, enabled: boolean): Promise<RerereState>;
+  /** Esquece a resolução gravada de um arquivo e devolve o conflito original (com os marcadores). `false` se não havia o que esquecer. */
+  forgetRerere(repoPath: string, filePath: string): Promise<boolean>;
+  /** Grava no `rerere` as resoluções já marcadas como resolvidas; devolve os caminhos gravados (vazio com o `rerere` desligado). */
+  recordRerere(repoPath: string): Promise<string[]>;
 }
 
 /** O último commit que mexeu num trecho do arquivo (histórico do trecho, sob demanda). */

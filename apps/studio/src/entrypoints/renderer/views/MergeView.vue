@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { GnBadge, GnButton, GnTooltip } from '@git-nexus/ui-kit';
-import { buildMerge, type InProgressKind, type MergeConflictBlock, type RepositoryMeta } from '@git-nexus/git-core/pure';
+import { buildMerge, type InProgressKind, type MergeConflictBlock, type RepositoryMeta, type RerereState } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { useWorkspaceStore } from '../stores/workspace';
 import MergeConflictResolver from '../components/MergeConflictResolver.vue';
@@ -31,6 +31,20 @@ const error = ref('');
 const info = ref('');
 const loading = ref(false);
 const saving = ref(false);
+/** `rerere` (o Git lembra as resoluções e as aplica quando o mesmo conflito volta): ligado neste repositório? */
+const rerere = ref<RerereState>({ enabled: false, local: false });
+async function loadRerere(): Promise<void> {
+  rerere.value = await api.getRerereState(props.repo.path).catch(() => rerere.value);
+}
+async function toggleRerere(on: boolean): Promise<void> {
+  error.value = '';
+  try {
+    rerere.value = await api.setRerereEnabled(props.repo.path, on);
+  } catch (e) {
+    error.value = errMsg(e);
+    await loadRerere();
+  }
+}
 /** Posição do arquivo recém-resolvido na lista: a tela segue para o arquivo que ocupa o lugar dele. */
 let advanceTo: number | null = null;
 
@@ -60,22 +74,30 @@ function refreshSummaries(): void {
   summaries.value = out;
 }
 
+/** Leituras em andamento: só a mais recente vale (uma leitura velha, mais lenta, não pode desfazer o que a nova já mostrou). */
+let loadSeq = 0;
 async function load(): Promise<void> {
+  const seq = ++loadSeq;
   loading.value = true;
   error.value = '';
   try {
-    conflicts.value = await api.getMergeConflicts(props.repo.path);
-    inProgress.value = await api.getInProgress(props.repo.path).catch(() => null);
-    rebasing.value = !!(await api.getRebaseState(props.repo.path).catch(() => null))?.inProgress;
-    const left = new Set(conflicts.value.map((c) => c.filePath));
-    resolvedFiles.value = (await api.getResolvedConflictFiles(props.repo.path).catch(() => [] as string[])).filter((f) => !left.has(f));
-    if (!left.has(current.value)) current.value = conflicts.value[Math.min(advanceTo ?? 0, conflicts.value.length - 1)]?.filePath ?? '';
+    const list = await api.getMergeConflicts(props.repo.path);
+    const op = await api.getInProgress(props.repo.path).catch(() => null);
+    const rebase = !!(await api.getRebaseState(props.repo.path).catch(() => null))?.inProgress;
+    const left = new Set(list.map((c) => c.filePath));
+    const resolvedList = (await api.getResolvedConflictFiles(props.repo.path).catch(() => [] as string[])).filter((f) => !left.has(f));
+    if (seq !== loadSeq) return;
+    conflicts.value = list;
+    inProgress.value = op;
+    rebasing.value = rebase;
+    resolvedFiles.value = resolvedList;
+    if (!left.has(current.value)) current.value = list[Math.min(advanceTo ?? 0, list.length - 1)]?.filePath ?? '';
     advanceTo = null;
     refreshSummaries();
   } catch (e) {
-    error.value = errMsg(e);
+    if (seq === loadSeq) error.value = errMsg(e);
   } finally {
-    loading.value = false;
+    if (seq === loadSeq) loading.value = false;
   }
 }
 
@@ -90,8 +112,28 @@ async function resolve(block: MergeConflictBlock, merged: string): Promise<void>
       return;
     }
     clearDraft(draftKey(props.repo.id, block.filePath));
-    info.value = t('mv.resolved', { file: block.filePath });
+    // com o rerere ligado, a decisão é gravada agora (o Git só o faria no commit seguinte) e a tela avisa
+    const recorded = rerere.value.enabled && (await api.recordRerere(props.repo.path).catch(() => [] as string[])).includes(block.filePath);
+    info.value = t('mv.resolved', { file: block.filePath }) + (recorded ? ` ${t('mv.rerereRecorded')}` : '');
     advanceTo = Math.max(0, conflicts.value.findIndex((c) => c.filePath === block.filePath));
+    ws.bump(props.repo.id);
+    await load();
+  } catch (e) {
+    error.value = errMsg(e);
+  } finally {
+    saving.value = false;
+  }
+}
+
+/** Esquece a resolução gravada que o Git aplicou ao arquivo e devolve o conflito original. */
+async function forgetRecorded(block: MergeConflictBlock): Promise<void> {
+  saving.value = true;
+  error.value = '';
+  info.value = '';
+  try {
+    const ok = await api.forgetRerere(props.repo.path, block.filePath);
+    if (ok) info.value = t('mv.rerereForgotten', { file: block.filePath });
+    else error.value = t('mv.rerereForgetFailed', { file: block.filePath });
     ws.bump(props.repo.id);
     await load();
   } catch (e) {
@@ -170,7 +212,10 @@ const summaryText =(file: string): string => {
 };
 
 watch(current, refreshSummaries);
-onMounted(load);
+onMounted(() => {
+  void load();
+  void loadRerere();
+});
 watch(() => ws.versions[props.repo.id], load);
 </script>
 
@@ -186,6 +231,12 @@ watch(() => ws.versions[props.repo.id], load);
         </span>
       </div>
       <OperationBanner v-if="inProgress && conflicts.length" :repo-path="repo.path" :kind="inProgress" :conflicts="conflicts.length" @done="onOpDone" @failed="error = $event" />
+      <label v-if="newConflictResolver" class="mv__rerere" data-testid="mv-rerere-label">
+        <input type="checkbox" :checked="rerere.enabled" data-testid="mv-rerere" @change="toggleRerere(($event.target as HTMLInputElement).checked)" />
+        <span>{{ t('mv.rerere') }}</span>
+        <GnTooltip :text="t('mv.rerereTip')" />
+      </label>
+      <p v-if="newConflictResolver && rerere.enabled && !rerere.local" class="mv__rerere-note" data-testid="mv-rerere-outside">{{ t('mv.rerereOutside') }}</p>
       <input v-if="conflicts.length + resolvedFiles.length > 3" v-model="filter" class="mv__filter" type="text" :placeholder="t('mv.filter')" :aria-label="t('mv.filter')" data-testid="mv-filter" />
       <p v-if="!conflicts.length && !resolvedFiles.length && !loading" class="muted empty">
         {{ t('mv.none') }}<br />{{ t('mv.noneHint') }}
@@ -242,6 +293,7 @@ watch(() => ws.versions[props.repo.id], load);
             :repo-path="repo.path"
             :draft-key="draftKey(repo.id, c.filePath)"
             @resolve="(m: string) => resolve(c, m)"
+            @forget="forgetRecorded(c)"
           />
           <MergeConflictResolver v-else :block="c" :busy="saving" @resolve="(m: string) => resolve(c, m)" />
         </template>
@@ -264,6 +316,8 @@ watch(() => ws.versions[props.repo.id], load);
   &__sidehead { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--gn-border); }
   &__headbtns { display: flex; gap: 6px; }
   &__filter { width: calc(100% - 24px); margin: 8px 12px; }
+  &__rerere { display: flex; align-items: center; gap: 6px; padding: 6px 12px 0; font-size: 12px; cursor: pointer; }
+  &__rerere-note { margin: 0; padding: 2px 12px 0 30px; font-size: 11px; color: var(--gn-muted); }
   &__group { padding: 8px 12px 4px; color: var(--gn-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
   &__main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; > :deep(.mcr), > :deep(.mr), > :deep(.mc) { flex: 1; } }
 }

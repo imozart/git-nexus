@@ -1,13 +1,14 @@
 import { existsSync } from 'node:fs';
 import { readFile, rm, writeFile } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve } from 'node:path';
+import { join } from 'node:path';
 import type { ConflictHistoryEntry, ConflictSide, MergeConflictBlock } from './types/ipc.js';
 import { hasConflictMarkers } from './conflict-markers.js';
 import { classifyConflict, looksBinary, MODE_EXEC, MODE_FILE, MODE_SUBMODULE, mergedMode, parseUnmerged, type IndexEntry, type KindInput } from './conflict-kinds.js';
 import { parseLfsPointer } from './lfs.js';
 import { operationInProgress } from './operations.js';
 import { runGit } from './runner.js';
-import { tm } from './messages.js';
+import { resolveInsideRepo } from './paths.js';
+import { recordedResolutionDate } from './rerere.js';
 import { decodeText, detectEncodingOf, encodeText } from './encoding.js';
 
 async function stage(repoPath: string, n: 1 | 2 | 3, file: string): Promise<Buffer | null> {
@@ -97,6 +98,9 @@ export async function getMergeConflicts(repoPath: string): Promise<MergeConflict
         const enc = detectEncodingOf(workingB, oursB, theirsB, baseB);
         const text = (b: Buffer | null | undefined) => (b ? decodeText(b, enc).text : '');
         const working = workingB ? decodeText(workingB, enc).text : undefined;
+        const hasUnresolvedMarkers = working === undefined ? true : hasConflictMarkers(working);
+        // arquivo sem marcador e ainda em conflito no índice: pode ser o Git (rerere) que o preencheu com uma resolução gravada
+        const recordedAt = !hasUnresolvedMarkers && workingB ? await recordedResolutionDate(repoPath, filePath, workingB, { base: baseB, ours: oursB, theirs: theirsB }) : null;
         return {
           filePath,
           kind,
@@ -104,7 +108,8 @@ export async function getMergeConflicts(repoPath: string): Promise<MergeConflict
           base: text(baseB),
           theirs: text(theirsB),
           workingContent: working,
-          hasUnresolvedMarkers: working === undefined ? true : hasConflictMarkers(working),
+          hasUnresolvedMarkers,
+          ...(recordedAt ? { rerere: { recordedAt } } : {}),
         };
       }
       // os demais tipos não têm "linha contra linha": a tela mostra o que cada lado guarda (modo, tamanho, data) e pede uma escolha
@@ -143,13 +148,7 @@ export async function getMergeConflicts(repoPath: string): Promise<MergeConflict
   return blocks;
 }
 
-/** Impede escrita fora do repositório (ex.: `../../x`). */
-export function resolveInsideRepo(repoPath: string, filePath: string): string {
-  const abs = isAbsolute(filePath) ? resolve(filePath) : resolve(repoPath, filePath);
-  const rel = relative(resolve(repoPath), abs);
-  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) throw new Error(tm('Caminho fora do repositório.', 'Path outside the repository.'));
-  return abs;
-}
+export { resolveInsideRepo };
 
 /** Grava o conteúdo resolvido e faz `git add`. Recusa se ainda houver marcadores. */
 export async function resolveConflictFile(
