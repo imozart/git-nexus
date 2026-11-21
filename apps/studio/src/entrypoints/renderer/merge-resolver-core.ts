@@ -4,6 +4,7 @@ import {
   bulkChoices,
   findConflictRegions,
   presetPicks,
+  spaceOnlyConflicts,
   type MergeChoices,
   type MergeModel,
   type MergeSegment,
@@ -150,13 +151,20 @@ export function redoChoice(h: ChoiceHistory, current: MergeChoices): { history: 
 
 // ---------------------------------------------------------------- ações em massa e navegação
 
-export type BulkAction = 'pendingMine' | 'pendingTheirs' | 'changesAll' | 'changesMine' | 'changesTheirs';
+export type BulkAction = 'pendingMine' | 'pendingTheirs' | 'spaceOnly' | 'changesAll' | 'changesMine' | 'changesTheirs';
 
 /** Conflitos ainda sem decisão (índices em `model.segments`). */
 export const pendingOf = (model: MergeModel, choices: MergeChoices): number[] => model.conflicts.filter((i) => choices.picks[i] === undefined);
 
+/** Conflitos pendentes cujas duas versões só diferem em espaço em branco. */
+export const pendingSpaceOnly = (model: MergeModel, choices: MergeChoices): number[] => {
+  const only = new Set(spaceOnlyConflicts(model));
+  return pendingOf(model, choices).filter((i) => only.has(i));
+};
+
 /**
  * Ação em massa sobre o arquivo. `pendingMine`/`pendingTheirs` decidem SÓ os conflitos pendentes (o que o usuário já decidiu não muda);
+ * `spaceOnly` decide, ficando com a versão do usuário, os pendentes que só diferem em espaço (a mesma coisa nas duas versões, reindentada).
  * `changesAll`/`changesMine`/`changesTheirs` escolhem quais mudanças sem conflito entram (os conflitos não são tocados).
  */
 export function applyBulk(model: MergeModel, choices: MergeChoices, action: BulkAction): MergeChoices {
@@ -164,6 +172,11 @@ export function applyBulk(model: MergeModel, choices: MergeChoices, action: Bulk
     const side = action === 'pendingMine' ? 'mine' : 'theirs';
     const picks = { ...choices.picks };
     for (const idx of pendingOf(model, choices)) picks[idx] = presetPicks(model, idx, side);
+    return { ...choices, picks };
+  }
+  if (action === 'spaceOnly') {
+    const picks = { ...choices.picks };
+    for (const idx of pendingSpaceOnly(model, choices)) picks[idx] = presetPicks(model, idx, 'mine');
     return { ...choices, picks };
   }
   const which = action === 'changesAll' ? 'all' : action === 'changesMine' ? 'mine' : 'theirs';

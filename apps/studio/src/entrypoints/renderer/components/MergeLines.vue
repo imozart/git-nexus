@@ -2,6 +2,7 @@
 // Linhas do arquivo resultante do resolvedor de conflitos: número, faixa de ORIGEM (cor + símbolo M / O / M+O / B / ✎) e o código realçado.
 import type { ResultLine } from '@git-nexus/git-core/pure';
 import { ORIGIN_SYMBOL } from '../merge-resolver-core';
+import { showInvisibles } from '../merge-compare-core';
 import { t, type MessageKey } from '../i18n';
 
 defineProps<{
@@ -11,6 +12,8 @@ defineProps<{
   /** HTML realçado de TODAS as linhas do resultado e o índice, nele, da primeira linha deste trecho. */
   html: readonly string[];
   offset: number;
+  /** Desenha espaço, tab e fim de linha. */
+  invisibles?: boolean;
 }>();
 
 const LABEL: Record<string, MessageKey> = {
@@ -30,7 +33,7 @@ const LABEL: Record<string, MessageKey> = {
       <span class="ml__no">{{ first + i }}</span>
       <span class="ml__sym" role="img" :aria-label="t(LABEL[l.origin]!)">{{ ORIGIN_SYMBOL[l.origin] }}</span>
       <!-- eslint-disable-next-line vue/no-v-html: o HTML vem de highlightLines, que escapa todo o texto -->
-      <span class="ml__code" v-html="html[offset + i] || '&nbsp;'"></span>
+      <span class="ml__code" v-html="(invisibles ? showInvisibles(html[offset + i] ?? '', l.eol) : html[offset + i]) || '&nbsp;'"></span>
     </div>
   </div>
 </template>
