@@ -51,12 +51,22 @@ const doc = () => t.ev(`document.querySelector(${lit(EDITOR)})?.innerText ?? nul
 const dirty = () => t.count('[data-testid="sw-dirty"]');
 const hitOf = (file) => t.ev(`(() => { const rows = [...document.querySelectorAll('[data-testid="sw-file-row"], [data-testid="sw-row"]')]; let on = false; for (const r of rows) { if (r.dataset.testid === 'sw-file-row') on = r.textContent.includes(${lit(file)}); else if (on) return r.id; } return null; })()`);
 const openFile = async (file) => {
-  const id = await hitOf(file);
+  let id = null;
+  for (let i = 0; i < 40 && !id; i++) {
+    id = await hitOf(file);
+    if (!id) await sleep(250);
+  }
   await t.ev(`document.getElementById(${lit(id)}).click()`);
   await t.until(`document.querySelector('[data-testid="sw-path"]')?.textContent.trim() === ${lit(file)} && document.querySelector(${lit(EDITOR)})`, 10000);
   await sleep(250);
 };
 const focusEditor = () => t.ev(`document.querySelector(${lit(EDITOR)}).focus()`);
+// Enter no campo leva o foco ao editor COM a ocorrência selecionada (como a pessoa faz). `.focus()` direto no conteúdo, no Chrome do Linux, volta o cursor ao começo e perde a seleção.
+const focusEditorOnMatch = async () => {
+  await t.ev(`document.querySelector(${lit(F)}).focus()`);
+  await t.key('Enter');
+  await sleep(350);
+};
 const notice = () => t.text('[data-testid="sw-notice"]');
 
 // ---- abrir a janela e pesquisar "foo" ------------------------------------------------------------------------------------------------------------
@@ -69,7 +79,7 @@ t.check('"foo" aparece em 5 arquivos', /^6 ocorrências em 5 arquivos/.test(awai
 // ---- editar e salvar um arquivo UTF-8/LF -------------------------------------------------------------------------------------------------------------
 await openFile('app.ts');
 t.check('abre editável, sem "alterado", com Salvar desligado', (await dirty()) === 0 && (await t.ev(`document.querySelector('[data-testid="sw-save"]').disabled`)) === true);
-await focusEditor();
+await focusEditorOnMatch();
 await t.send('Input.insertText', { text: 'baz' }); // troca o "foo" selecionado
 await sleep(250);
 t.check('editar marca "alterado" e liga Salvar', (await dirty()) === 1 && (await t.ev(`document.querySelector('[data-testid="sw-save"]').disabled`)) === false);
@@ -86,7 +96,7 @@ await t.shot('janela-editar-salvo');
 // ---- CRLF preservado -------------------------------------------------------------------------------------------------------------------------------------
 await openFile('win.txt');
 t.check('mostra CRLF e UTF-8', (await t.text('[data-testid="sw-eol"]')) === 'CRLF' && /UTF-8/.test((await t.text('[data-testid="sw-encoding"]')) ?? ''));
-await focusEditor();
+await focusEditorOnMatch();
 await t.send('Input.insertText', { text: 'TROCADO' });
 await sleep(200);
 await t.key('s', 2);
@@ -219,7 +229,7 @@ t.check('Descartar fecha a janela e não grava', (await t.count(W)) === 0 && !/S
 await t.key('f', 2);
 await t.until(`document.querySelector(${lit(W)})`, 5000);
 await typeInto(F, 'foo');
-await waitCount('^\\d+ ocorrências? em 5 arquivos');
+await waitCount('^\\d+ ocorrências? em 4 arquivos');
 await openFile('mixed.txt');
 t.check('fim de linha misto abre SÓ LEITURA, com o motivo', /Fim de linha misto/.test((await t.text('[data-testid="sw-readonly"]')) ?? '') && (await t.ev(`document.querySelector(${lit(EDITOR)}).getAttribute('contenteditable')`)) === 'false' && (await t.ev(`document.querySelector('[data-testid="sw-save"]').disabled`)) === true);
 await openFile('grande.txt');
@@ -258,7 +268,7 @@ await t.until(`document.querySelector('.rv__btns')`, 20000);
 await sleep(800);
 await t.key('f', 2);
 await t.until(`document.querySelector(${lit(W)})`, 5000);
-await waitCount('^\\d+ occurrences? in 5 files');
+await waitCount('^\\d+ occurrences? in 4 files');
 await openFile('mixed.txt');
 const en = await t.ev(`(() => ({
   theme: document.documentElement.dataset.theme,
