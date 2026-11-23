@@ -2,13 +2,24 @@
 // Quem sobe o harness e o navegador é o run.mjs; quem abre o app empacotado é o run-electron.mjs; cada teste só usa `connect`.
 // Janela real (run-electron.mjs): GN_UI_REAL=1 não força o tamanho da janela e GN_UI_URL_MATCH escolhe a página (o app carrega file://).
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const git = (cwd, ...a) => execFileSync('git', a, { cwd, encoding: 'utf8' });
-export const tmpRoot = (p) => mkdtempSync(join(tmpdir(), p));
+export const tmpRoot = (p) => {
+  const dir = mkdtempSync(join(tmpdir(), p));
+  // sai junto com o teste (passando, falhando ou sozinho fora do run.mjs): pasta temporária nunca fica para trás
+  process.on('exit', () => {
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    } catch {
+      /* ainda aberta por um processo filho: o run.mjs apaga o TEMP inteiro da execução */
+    }
+  });
+  return dir;
+};
 
 /** Valor como expressão JS da página, em base64: entra no código sem nunca poder virar código (nada de JSON.stringify montando script). */
 export const lit = (s) => `new TextDecoder().decode(Uint8Array.from(atob('${Buffer.from(String(s), 'utf8').toString('base64')}'), (c) => c.charCodeAt(0)))`;

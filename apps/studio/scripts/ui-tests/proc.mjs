@@ -1,9 +1,43 @@
 // Utilitários de processo dos runners de teste de interface (run.mjs: navegador headless; run-electron.mjs: janela real do Electron).
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const rmDir = (dir) => {
+  try {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 250 });
+  } catch {
+    /* o Windows às vezes ainda segura um arquivo (perfil do navegador); a próxima execução varre o que sobrar */
+  }
+};
+
+/**
+ * Pasta de trabalho de uma execução dos testes, que NÃO deixa lixo: o TEMP de tudo o que a execução cria (testes, harness, navegador, git) aponta para
+ * dentro dela, e ela é apagada ao terminar, ao dar erro e em Ctrl+C/SIGTERM. Se a execução for morta à força (SIGKILL, queda de energia), a próxima
+ * varre as pastas de mesmo prefixo com mais de 1 hora. Nada é criado fora do TEMP do sistema.
+ */
+export function createWorkDir(prefix) {
+  const base = tmpdir();
+  for (const name of readdirSync(base)) {
+    if (!name.startsWith(prefix)) continue;
+    const dir = join(base, name);
+    try {
+      if (Date.now() - statSync(dir).mtimeMs > 3_600_000) rmDir(dir);
+    } catch {
+      /* sumiu no meio da varredura */
+    }
+  }
+  const work = mkdtempSync(join(base, prefix));
+  const scratch = join(work, 'tmp');
+  mkdirSync(scratch);
+  Object.assign(process.env, { TEMP: scratch, TMP: scratch, TMPDIR: scratch });
+  process.on('exit', () => rmDir(work));
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => process.exit(130));
+  return work;
+}
 
 /** Encerra o processo e os filhos (o Chrome, o Edge e o Electron criam vários processos). */
 export function killTree(child) {
@@ -16,6 +50,16 @@ export function killTree(child) {
       child.kill('SIGKILL');
     }
   }
+}
+
+/**
+ * Encerra o navegador que usa este perfil (`--user-data-dir`). No Windows o `spawn` devolve o PID de um lançador que sai logo: o navegador de verdade
+ * sobrevive ao `killTree` desse PID, fica preso ao perfil e à porta de depuração e vira lixo. Achar pelo perfil pega todos, e só os desta execução.
+ */
+export function killByProfile(profileDir) {
+  if (process.platform !== 'win32') return;
+  const script = "Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'msedge.exe' -or $_.Name -eq 'chrome.exe') -and $_.CommandLine -like ('*' + $env:GN_KILL_DIR + '*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }";
+  spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], { stdio: 'ignore', env: { ...process.env, GN_KILL_DIR: profileDir } });
 }
 
 /** Espera uma URL responder 2xx (até `ms`). */
