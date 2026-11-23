@@ -218,19 +218,36 @@ api.onGitProgress = (cb) => {
   }, 100);
   return () => clearInterval(iv);
 };
-// -1: a primeira sondagem só marca o ponto de partida (uma página recarregada não repete pedidos antigos, como no Electron)
-let searchSeen = 0;
+// Lotes e fim da busca: UMA sondagem para todos os ouvintes, em ordem (como o IPC do Electron: nenhum lote chega duas vezes nem depois do fim).
+// Sondagens separadas com um ponteiro compartilhado entregavam o mesmo lote em duplicidade quando a máquina estava carregada.
+// -1: a primeira sondagem só marca o ponto de partida (uma página recarregada não repete buscas antigas).
+const searchListeners = { searchBatch: new Set(), searchDone: new Set() };
+let searchSeen = -1;
+let searchBusy = false;
+let searchTimer = null;
+const searchPoll = async () => {
+  if (searchBusy) return;
+  searchBusy = true;
+  try {
+    const r = await (await fetch('/searchevents?since=' + searchSeen)).json();
+    searchSeen = r.next;
+    for (const e of r.events) for (const cb of searchListeners[e.event] ?? []) cb(e.data);
+  } catch {
+    /* a página está recarregando */
+  } finally {
+    searchBusy = false;
+  }
+};
 const onSearchEvent = (name, cb) => {
-  const iv = setInterval(async () => {
-    try {
-      const r = await (await fetch('/searchevents?since=' + searchSeen)).json();
-      searchSeen = r.next;
-      for (const e of r.events) if (e.event === name) cb(e.data);
-    } catch {
-      /* a página está recarregando */
+  searchListeners[name].add(cb);
+  if (!searchTimer) searchTimer = setInterval(searchPoll, 40);
+  return () => {
+    searchListeners[name].delete(cb);
+    if (!searchListeners.searchBatch.size && !searchListeners.searchDone.size) {
+      clearInterval(searchTimer);
+      searchTimer = null;
     }
-  }, 60);
-  return () => clearInterval(iv);
+  };
 };
 api.onSearchBatch = (cb) => onSearchEvent('searchBatch', cb);
 api.onSearchDone = (cb) => onSearchEvent('searchDone', cb);
@@ -293,7 +310,7 @@ createServer(async (req, res) => {
     }
     if (url.pathname === '/searchevents') {
       const since = Number(url.searchParams.get('since') ?? 0);
-      return void res.end(JSON.stringify({ next: searchEvents.length, events: searchEvents.slice(since) }));
+      return void res.end(JSON.stringify({ next: searchEvents.length, events: since < 0 ? [] : searchEvents.slice(since) }));
     }
     if (url.pathname === '/askpass') {
       const since = Number(url.searchParams.get('since') ?? 0);

@@ -79,7 +79,7 @@ A barra de qualidade do resolvedor (issue #231) é medida, não suposta:
 
 ## Busca no repositório (núcleo v2)
 
-`packages/git-core/src/search-run.ts` (`searchRepository`) e `search-pure.ts` são o motor da pesquisa (#233); a interface nova chega nas fases seguintes e o `searchContent` antigo segue até a janela substituir a aba de Ferramentas.
+`packages/git-core/src/search-run.ts` (`searchRepository`) e `search-pure.ts` são o motor da pesquisa (#233); a janela "Pesquisar no repositório" (`components/SearchWindow.vue`) é a interface dele; o `searchContent` antigo saiu na fase 4, junto com a aba de Ferramentas.
 
 - **Motor:** `git grep -z -n --column` (sem `-I`, para listar o binário que casa), no dialeto **PCRE2** (`-P`) quando o Git suporta (descoberto uma vez) e na estendida quando não. O destaque tem as colunas do Git: o resto da linha usa a mesma expressão em JavaScript, **conferida com a coluna do Git**; se ela não reproduz (grupo atômico, quantificador possessivo...), o `git grep -o` diz onde cada trecho começa e termina.
 - **Pedido (`SearchQuery`):** `scope` (`worktree`, `tracked`, `changed`, `staged`, `revision`), máscaras (`*.ts, !dist/`), ignorados, não versionados, submódulos, contexto (0 a 5), `limit`/`offset`, `timeoutMs`. Nada do que o usuário digita vira opção do Git: máscaras e revisões são validadas e os arquivos vão como `:(literal)`.
@@ -87,6 +87,15 @@ A barra de qualidade do resolvedor (issue #231) é medida, não suposta:
 - **Lotes e cancelamento:** `onBatch` recebe lotes enquanto o `git grep` ainda lê; o `AbortSignal` (e o tempo máximo e o limite da página) encerra o processo de verdade (`runGit` aceita `signal`, `onStdout` e `discardStdout`). Pelo IPC: `startSearch(repo, query, id)` volta na hora, `onSearchBatch`/`onSearchDone` trazem o resto (o `id` é do chamador, então nenhum lote se perde) e `cancelSearch(id)` cancela.
 - **Sem cache de resultado ainda:** o índice e o `HEAD` não mudam quando alguém edita um arquivo no disco, então um cache por (consulta, índice, `HEAD`) devolveria resultado velho. Ele entra junto com o índice persistente (fase 10), que sabe quais arquivos estão sujos.
 - **Medir:** `pnpm test packages/git-core/test/search-run.test.ts` roda com 2 mil arquivos (folga larga); `GN_SEARCH_FILES=20000 pnpm test packages/git-core/test/search-run.test.ts -t "arquivos numerosos"` mede as metas de verdade (primeiro lote em 300 ms, busca completa em 2 s, cancelar em poucos milissegundos) e imprime os tempos.
+
+### A janela de pesquisa (fase 4)
+
+- **Arquivos:** `SearchWindow.vue` (a janela, dentro de um `GnDialog`), `search-window-core.ts` (puro: modelo de resultados, janela da lista virtualizada, teclado, marcas, divisória, "mudou por fora?", só leitura), `stores/search.ts` (quem abre: `Ctrl+F` e `Ctrl+Shift+F`, o comando `search.window` com `alias`) e, no núcleo, `work-file.ts` (`readWorkingFile`, `stampWorkingFile`, `saveWorkingFile`).
+- **Lista virtualizada:** linhas de **24 px** fixas (cabeçalho de arquivo e ocorrência), só as visíveis mais 8 de folga no DOM (`windowRange`). Os lotes do `startSearch` entram por um temporizador de 16 ms (**não** `requestAnimationFrame`: em segundo plano os quadros param e o fim da busca nunca seria aplicado), no máximo 1200 por quadro, então a interface não trava com 5 mil ocorrências de uma vez.
+- **Gravar:** `saveWorkingFile` codifica **antes** de tocar no disco (caractere fora da codificação = `unencodable`, nada gravado), confere o **hash** do que foi lido (`changed`, a menos que `force`) e grava num temporário na mesma pasta + `rename` (atômico), mantendo o modo. O mesmo `writeFileAtomic` agora serve ao descarte por linha (`writeWorkingFile`). A codificação vem dos bytes do disco (BOM, UTF-8 válido, senão Windows-1252); arquivo só ASCII abre como UTF-8 sem consultar o Git (dois `git show` custavam ~150 ms por abertura).
+- **Realce no editor:** as colunas do núcleo da busca (`marksOf`), não uma busca nova no editor; `CodeEditor` aceita `marks` e expõe `reveal(linha, de, até)`. Linha cortada (`clippedStart`) acha o início do trecho na linha inteira e, se não achar, não marca (nunca no lugar errado).
+- **Esc dentro da janela:** o `GnDialog` deixa o Esc para quem está dentro de um `[data-dialog-esc="own"]` (o `CodeEditor` com a barra de busca aberta). Linhas da lista **não** usam `aria-expanded` (o diálogo trataria como lista aberta e não fecharia com Esc): o estado recolhido vai no nome.
+- **Testes:** `search-window-core.test.ts` e `work-file.test.ts` (unidade); `content-search.mjs` (a pesquisa), `search-window.mjs` (editar com segurança) e `search-window-perf.mjs` (5 mil resultados, rolagem, tarefas longas e 30 mil linhas; as medidas saem em `search-window-perf-metrics.json`).
 
 ## Notas sobre versões
 
