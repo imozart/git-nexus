@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
-import { createWorkDir, killByProfile, killTree, sleep, waitFor } from './proc.mjs';
+import { createWorkDir, killByProfile, killTree, rmDir, sleep, waitFor } from './proc.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const studio = resolve(here, '..', '..');
@@ -110,6 +110,7 @@ async function runOne({ file, work, harness, dist, browser }) {
     killByProfile(profile); // o navegador de verdade não é o PID do lançador (ver proc.mjs)
     killTree(server);
     await sleep(800);
+    rmDir(profile); // já agora, sem esperar o fim da execução inteira
   }
 }
 
