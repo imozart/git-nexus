@@ -220,7 +220,7 @@ api.onGitProgress = (cb) => {
 };
 // -1: a primeira sondagem só marca o ponto de partida (uma página recarregada não repete pedidos antigos, como no Electron)
 let searchSeen = 0;
-const onSearchEvent = (name: string, cb: (e: unknown) => void) => {
+const onSearchEvent = (name, cb) => {
   const iv = setInterval(async () => {
     try {
       const r = await (await fetch('/searchevents?since=' + searchSeen)).json();
@@ -232,8 +232,9 @@ const onSearchEvent = (name: string, cb: (e: unknown) => void) => {
   }, 60);
   return () => clearInterval(iv);
 };
-api.onSearchBatch = (cb) => onSearchEvent('searchBatch', cb as (e: unknown) => void);
-api.onSearchDone = (cb) => onSearchEvent('searchDone', cb as (e: unknown) => void);
+api.onSearchBatch = (cb) => onSearchEvent('searchBatch', cb);
+api.onSearchDone = (cb) => onSearchEvent('searchDone', cb);
+// -1: a primeira sondagem só marca o ponto de partida (uma página recarregada não repete pedidos antigos, como no Electron)
 let askSeen = -1;
 api.onAskpassRequest = (cb) => {
   const iv = setInterval(async () => {
