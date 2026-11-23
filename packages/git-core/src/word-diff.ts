@@ -72,6 +72,42 @@ export function wordDiff(a: string, b: string, opts: { ignoreSpace?: boolean } =
   return { a: merge(ra, a), b: merge(rb, b) };
 }
 
+/**
+ * Junta, por palavra, duas edições da MESMA linha (`base` → `mine` e `base` → `theirs`): só quando os trechos que mudaram não se
+ * tocam (há pelo menos uma peça intacta entre eles: um mudou o começo da linha e o outro o fim). Se os dois mexeram no mesmo lugar,
+ * ou em peças coladas, devolve `null`: quem decide é o usuário. Mudança idêntica dos dois lados vale uma vez.
+ */
+export function mergeWords(base: string, mine: string, theirs: string): string | null {
+  if (mine === theirs) return mine;
+  if (mine === base) return theirs;
+  if (theirs === base) return mine;
+  if (base.length > MAX_WORD_DIFF_CHARS || mine.length > MAX_WORD_DIFF_CHARS || theirs.length > MAX_WORD_DIFF_CHARS) return null;
+  const tb = tokenize(base).map((t) => t.text);
+  const tm = tokenize(mine).map((t) => t.text);
+  const tt = tokenize(theirs).map((t) => t.text);
+  interface Edit {
+    aStart: number;
+    aEnd: number;
+    text: string;
+  }
+  const edits = (tokens: string[]): Edit[] => diffHunks(tb, tokens).map((h) => ({ aStart: h.aStart, aEnd: h.aEnd, text: tokens.slice(h.bStart, h.bEnd).join('') }));
+  const all = [...edits(tm), ...edits(tt)].sort((x, y) => x.aStart - y.aStart || x.aEnd - y.aEnd);
+  const out: Edit[] = [];
+  for (const e of all) {
+    const last = out[out.length - 1];
+    if (last && last.aStart === e.aStart && last.aEnd === e.aEnd && last.text === e.text) continue; // a mesma mudança dos dois lados
+    if (last && e.aStart <= last.aEnd) return null; // se tocam ou se sobrepõem
+    out.push(e);
+  }
+  let text = '';
+  let pos = 0;
+  for (const e of out) {
+    text += tb.slice(pos, e.aStart).join('') + e.text;
+    pos = e.aEnd;
+  }
+  return text + tb.slice(pos).join('');
+}
+
 export interface ConflictMarks {
   /** Por linha (0-based, dentro do trecho do conflito): o que mudou naquela linha. */
   mine: Map<number, CharRange[]>;

@@ -2,6 +2,8 @@
 // Novo resolvedor de conflitos (issue #231): o ARQUIVO COMO VAI FICAR em foco, com cada conflito dentro dele como um cartão.
 // O texto vem sempre do modelo de escolhas (resolveMerge, do núcleo), nunca é editado "no escuro" e nunca tem marcador.
 // Fase 3: navegação entre conflitos, régua lateral, ações em massa, desfazer/refazer, rascunho automático e atalhos na paleta (Ctrl+K).
+// Fase 6: conflitos simples (sugestão determinística por cartão e "resolver os simples" com a lista e o motivo, só depois de confirmar) e o
+// arquivo que o Git já preencheu com uma resolução gravada (rerere): aceitar, revisar/editar ou esquecer.
 // Fase 5: visão lado a lado (minha | resultado | a que chega) sobre o MESMO modelo de escolhas, destaque por palavra, ignorar espaços,
 // caracteres invisíveis, fim de linha das versões (e do resultado) e histórico do trecho.
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
@@ -14,6 +16,7 @@ import {
   presetPicks,
   resolveMerge,
   spaceOnlyConflicts,
+  suggestions,
   summarizePicks,
   type ConflictHistoryEntry,
   type ConflictMarks,
@@ -21,6 +24,7 @@ import {
   type MergeChoices,
   type MergeConflictBlock,
   type PickedLine,
+  type Suggestion,
 } from '@git-nexus/git-core/pure';
 import MergeLines from './MergeLines.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
@@ -32,6 +36,7 @@ import { mergeIgnoreSpace, mergeShowInvisibles, mergeSideBySide } from '../merge
 import { clearDraft, loadDraft, saveDraft } from '../merge-draft';
 import {
   applyBulk,
+  deriveChoices,
   draftSignature,
   emptyHistory,
   hasTyped,
@@ -40,13 +45,17 @@ import {
   lineSpan,
   orient,
   pendingOf,
+  pendingSimple,
   pendingSpaceOnly,
   picksText,
   recordChange,
+  recordedDiff,
   redoChoice,
   resolvedCount,
   selectedLines,
   sideLabels,
+  SIMPLE_REASON,
+  SIMPLE_WHAT,
   stepConflict,
   theirsFirst,
   togglePick,
@@ -70,7 +79,7 @@ const props = defineProps<{
   /** Caminho do repositório (histórico do trecho). */
   repoPath?: string;
 }>();
-const emit = defineEmits<{ (e: 'resolve', merged: string): void }>();
+const emit = defineEmits<{ (e: 'resolve', merged: string): void; (e: 'forget'): void }>();
 
 const cmds = useCommandsStore();
 const ws = useWorkspaceStore();
@@ -142,6 +151,85 @@ const eolOptions = computed(() => [
 function setEol(v: string): void {
   if (v === choices.value.eol || !['mine', 'theirs', 'lf', 'crlf'].includes(v)) return;
   commit({ ...choices.value, eol: v as MergeChoices['eol'] });
+}
+
+// ---------------------------------------------------------------- conflitos simples (sugestões determinísticas, sem IA)
+
+const simpleMap = computed(() => suggestions(model.value));
+/** A sugestão de um conflito ainda pendente (o decidido pelo usuário nunca é sugerido de novo). */
+const suggestionOf = (idx: number): Suggestion | undefined => (stateOf(idx) === 'pending' ? simpleMap.value.get(idx) : undefined);
+const simpleItems = computed(() => pendingSimple(model.value, choices.value));
+const reasonText = (s: Suggestion): string => t(SIMPLE_REASON[s.kind] as MessageKey);
+const whatText = (s: Suggestion): string => t((s.kind === 'insertions' && s.order === 'theirs-first' ? 'mr.simpleWhat.insertionsTheirs' : SIMPLE_WHAT[s.kind]) as MessageKey);
+const suggestionTip = (s: Suggestion): string => t('mr.suggestTip', { reason: reasonText(s), what: whatText(s) });
+function applySuggestion(idx: number): void {
+  const s = simpleMap.value.get(idx);
+  if (!s) return;
+  activeIdx.value = idx;
+  setPicks(idx, s.picks);
+  expanded.delete(idx);
+}
+const askingSimple = ref(false);
+const SIMPLE_LIST_MAX = 10;
+/** A lista do diálogo: cada conflito com o motivo e o que será aplicado (nada é aplicado sem esta confirmação). */
+const simpleLines = computed(() => {
+  const items = simpleItems.value;
+  const rows = items.slice(0, SIMPLE_LIST_MAX).map(({ idx, suggestion }) =>
+    t('mr.simpleItem', { i: conflictNo(idx), span: spanText(idx), reason: reasonText(suggestion), what: whatText(suggestion) }),
+  );
+  if (items.length > SIMPLE_LIST_MAX) rows.push(t('mr.simpleMore', { n: items.length - SIMPLE_LIST_MAX }));
+  return [t('mr.simpleBody', { n: items.length }), ...rows, t('mr.simpleKeep')];
+});
+
+// ---------------------------------------------------------------- resolução gravada pelo Git (rerere)
+
+/** `banner`: o Git preencheu o arquivo e a tela pergunta o que fazer; `reviewing`: aberto para revisão; `inexact`: não deu para separar por conflito. */
+const rr = ref<'banner' | 'reviewing' | 'inexact' | null>(props.block.rerere ? 'banner' : null);
+watch(() => props.block.rerere?.recordedAt, (v) => (rr.value = v ? 'banner' : null));
+const rrDate = computed(() => {
+  const d = new Date(props.block.rerere?.recordedAt ?? '');
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(dateLocale.value, { day: '2-digit', month: '2-digit' });
+});
+const RR_DIFF_MAX = 30;
+/** O que a resolução gravada mudou em relação a ficar com a minha versão, linha a linha (a mais e a menos). */
+const rrDiff = computed(() => {
+  if (!props.block.rerere) return [] as Array<{ sign: '+' | '−'; text: string }>;
+  const out: Array<{ sign: '+' | '−'; text: string }> = [];
+  for (const r of recordedDiff(model.value, props.block.workingContent ?? '')) {
+    if (r.oldText !== undefined) out.push({ sign: '−', text: r.oldText });
+    if (r.newText !== undefined) out.push({ sign: '+', text: r.newText });
+  }
+  return out;
+});
+const pendingAccept = ref(false);
+/** Aceitar: o arquivo como o Git o deixou (com o aviso de fim de linha misto, se for o caso). */
+function acceptRecorded(): void {
+  const w = props.block.workingContent;
+  if (w === undefined) return;
+  if (/\r\n/.test(w) && /(^|[^\r])\n/.test(w)) {
+    pendingAccept.value = true;
+    askingMixed.value = true;
+  } else emit('resolve', w);
+}
+/** Esquecer: o conflito volta ao original (com os marcadores), então as escolhas abertas na revisão deixam de valer. */
+function forgetRecorded(): void {
+  if (rr.value === 'reviewing') {
+    choices.value = emptyChoices();
+    history.value = emptyHistory();
+  }
+  emit('forget');
+}
+/** Revisar/editar: cada conflito já vem decidido como a resolução gravada (se o arquivo não se explicar por escolhas, avisa e não inventa). */
+function reviewRecorded(): void {
+  const c = deriveChoices(model.value, props.block.workingContent ?? '');
+  if (!c) {
+    rr.value = 'inexact';
+    return;
+  }
+  commit(c);
+  rr.value = 'reviewing';
+  expanded.clear();
+  void nextTick(() => goTo(model.value.conflicts[0] ?? null));
 }
 
 // ---------------------------------------------------------------- lado a lado
@@ -337,6 +425,7 @@ function init(): void {
   activeIdx.value = null;
   live.value = '';
   notice.value = null;
+  rr.value = props.block.rerere ? 'banner' : null;
   if (props.draftKey) {
     const d = loadDraft(props.draftKey, sig.value, model.value);
     if (d.status === 'ok') {
@@ -416,6 +505,7 @@ const bulkItems = computed<MenuItem[]>(() => {
   return [
     { id: 'pendingMine', label: t('mr.bulkPendingMine', { n }), disabled: n === 0 },
     { id: 'pendingTheirs', label: t('mr.bulkPendingTheirs', { n }), disabled: n === 0 },
+    { id: 'simple', label: t('mr.bulkSimple', { n: simpleItems.value.length }), disabled: simpleItems.value.length === 0 },
     ...(mergeIgnoreSpace.value ? [{ id: 'spaceOnly', label: t('mr.bulkSpaceOnly', { n: spaceOnlyPending.value }), disabled: spaceOnlyPending.value === 0 }] : []),
     { id: 'sep', separator: true },
     { id: 'changesAll', label: t('mr.bulkChangesAll'), disabled: !model.value.changes.length },
@@ -430,12 +520,18 @@ function openBulk(ev: MouseEvent): void {
 function onBulk(id: string): void {
   menu.value = null;
   if (id === 'pendingMine' || id === 'pendingTheirs') asking.value = id;
+  else if (id === 'simple') askingSimple.value = true;
   else runBulk(id as BulkAction);
 }
 function runBulk(action: BulkAction): void {
   const before = pendingCount.value;
   const spaceBefore = spaceOnlyPending.value;
+  const simpleBefore = simpleItems.value.length;
   commit(applyBulk(model.value, choices.value, action));
+  if (action === 'simple') {
+    live.value = t('mr.announceSimple', { n: simpleBefore });
+    askingSimple.value = false;
+  }
   if (action === 'pendingMine' || action === 'pendingTheirs') live.value = t('mr.announceBulk', { n: before });
   if (action === 'spaceOnly') live.value = t('mr.announceSpaceOnly', { n: spaceBefore });
   asking.value = null;
@@ -450,7 +546,14 @@ function onResolve(): void {
 }
 function confirmMixed(): void {
   askingMixed.value = false;
-  if (result.value.text !== null) emit('resolve', result.value.text);
+  const accepting = pendingAccept.value;
+  pendingAccept.value = false;
+  if (accepting) emit('resolve', props.block.workingContent ?? '');
+  else if (result.value.text !== null) emit('resolve', result.value.text);
+}
+function cancelMixed(): void {
+  askingMixed.value = false;
+  pendingAccept.value = false;
 }
 const confirmLines = computed(() => [
   t(asking.value === 'pendingMine' ? 'mr.bulkConfirmMine' : 'mr.bulkConfirmTheirs', { n: pendingCount.value }),
@@ -502,6 +605,7 @@ function mrCommands(): Command[] {
     { id: 'mr.redo', title: t('mr.cmd.redo'), group, shortcut: SHORTCUTS.redo, keywords: k, when: () => isActiveTab() && !typing() && history.value.future.length > 0, run: redo },
     { id: 'mr.bulkMine', title: t('mr.cmd.bulkMine'), group, keywords: k, when: () => when() && pendingCount.value > 0, run: () => (asking.value = 'pendingMine') },
     { id: 'mr.bulkTheirs', title: t('mr.cmd.bulkTheirs'), group, keywords: k, when: () => when() && pendingCount.value > 0, run: () => (asking.value = 'pendingTheirs') },
+    { id: 'mr.bulkSimple', title: t('mr.cmd.bulkSimple'), group, keywords: k, when: () => when() && simpleItems.value.length > 0, run: () => (askingSimple.value = true) },
     { id: 'mr.bulkSpaceOnly', title: t('mr.cmd.bulkSpaceOnly'), group, keywords: k, when: () => when() && spaceOnlyPending.value > 0, run: () => runBulk('spaceOnly') },
     { id: 'mr.changesAll', title: t('mr.cmd.changesAll'), group, keywords: k, when: () => when() && model.value.changes.length > 0, run: () => runBulk('changesAll') },
   ];
@@ -569,6 +673,29 @@ const explain = computed(() => {
       </div>
       <p v-if="notice" class="mr__notice" :class="`mr__notice--${notice}`" role="status" data-testid="mr-notice">{{ notice === 'restored' ? t('mr.noteRestored') : t('mr.noteStale') }}</p>
       <p v-if="block.kind === 'both-added'" class="mr__notice" role="status" data-testid="mr-both-added">{{ t('mr.bothAdded') }}</p>
+      <!-- o Git preencheu este arquivo com uma resolução gravada (rerere), mas ele segue em conflito no índice -->
+      <section v-if="rr" class="rr" role="region" :aria-label="t('mr.rr.title', { date: rrDate })" data-testid="mr-rerere" :data-state="rr">
+        <div class="rr__head">
+          <span class="card__tag">rerere</span>
+          <strong>{{ t('mr.rr.title', { date: rrDate }) }}</strong>
+          <span class="mr__spacer" />
+          <GnButton v-if="rr !== 'reviewing'" size="sm" variant="primary" tone="success" :disabled="busy" data-testid="mr-rr-accept" @click="acceptRecorded">{{ t('mr.rr.accept') }}<GnTooltip :text="t('mr.rr.acceptTip')" /></GnButton>
+          <GnButton v-if="rr === 'banner'" size="sm" data-testid="mr-rr-review" @click="reviewRecorded">{{ t('mr.rr.review') }}<GnTooltip :text="t('mr.rr.reviewTip')" /></GnButton>
+          <GnButton size="sm" variant="ghost" tone="warn" :disabled="busy" data-testid="mr-rr-forget" @click="forgetRecorded">{{ t('mr.rr.forget') }}<GnTooltip :text="t('mr.rr.forgetTip')" /></GnButton>
+        </div>
+        <p v-if="rr === 'banner'" class="card__muted">{{ t('mr.rr.body') }}</p>
+        <p v-else-if="rr === 'reviewing'" class="card__muted" role="status" data-testid="mr-rr-reviewing">{{ t('mr.rr.reviewing') }}</p>
+        <p v-else class="card__muted" role="status" data-testid="mr-rr-inexact">{{ t('mr.rr.notExact') }}</p>
+        <template v-if="rr === 'banner'">
+          <p class="card__muted">{{ rrDiff.length ? t('mr.rr.diff') : t('mr.rr.diffNone') }}</p>
+          <ul v-if="rrDiff.length" class="rr__diff" data-testid="mr-rr-diff">
+            <li v-for="(r, i) in rrDiff.slice(0, RR_DIFF_MAX)" :key="i" class="rr__row" :class="r.sign === '+' ? 'rr__row--add' : 'rr__row--del'">
+              <b aria-hidden="true">{{ r.sign }}</b><span class="mr__sr">{{ r.sign === '+' ? t('mr.rr.added') : t('mr.rr.removed') }}: </span><code>{{ r.text || ' ' }}</code>
+            </li>
+            <li v-if="rrDiff.length > RR_DIFF_MAX" class="card__muted">{{ t('mr.simpleMore', { n: rrDiff.length - RR_DIFF_MAX }) }}</li>
+          </ul>
+        </template>
+      </section>
       <div class="mr__bar">
         <GnIconButton icon="up" :label="t('mr.prev')" :title="`${t('mr.prev')} (${sc('prev')})`" :disabled="!model.conflicts.length" data-testid="mr-prev" @click="step(-1)" />
         <GnIconButton icon="down" :label="t('mr.next')" :title="`${t('mr.next')} (${sc('next')})`" :disabled="!model.conflicts.length" data-testid="mr-next" @click="step(1)" />
@@ -629,7 +756,9 @@ const explain = computed(() => {
                   <span class="card__muted">{{ spanText(idx) }}</span>
                   <span v-if="stateOf(idx) !== 'pending'" class="card__muted" data-testid="mr-summary">· {{ summary(idx) }}</span>
                   <span v-if="spaceOnly.has(idx)" class="card__tag" data-testid="mr-space-only">{{ t('mr.spaceOnly') }}<GnTooltip :text="t('mr.spaceOnlyTip')" /></span>
+                <span v-if="suggestionOf(idx)" class="card__tag card__tag--simple" data-testid="mr-simple" :data-kind="suggestionOf(idx)!.kind">{{ t('mr.suggestTag') }}: {{ reasonText(suggestionOf(idx)!) }}</span>
                   <span class="mr__spacer" />
+                  <GnButton v-if="suggestionOf(idx)" size="sm" variant="primary" data-testid="mr-suggest" @click="applySuggestion(idx)">{{ t('mr.suggest') }}<GnTooltip :text="suggestionTip(suggestionOf(idx)!)" /></GnButton>
                   <GnButton size="sm" data-testid="mr-use-mine" @click="preset(idx, 'mine')">{{ t('mr.useMine') }}</GnButton>
                   <GnButton size="sm" data-testid="mr-use-theirs" @click="preset(idx, 'theirs')">{{ t('mr.useTheirs') }}</GnButton>
                   <GnButton size="sm" data-testid="mr-use-both" @click="preset(idx, 'both', swapped.has(idx))">{{ t('mr.useBoth') }}</GnButton>
@@ -737,7 +866,9 @@ const explain = computed(() => {
                 <span class="card__muted">{{ spanText(idx) }}</span>
                 <span v-if="stateOf(idx) !== 'pending'" class="card__muted" data-testid="mr-summary">· {{ summary(idx) }}</span>
                 <span v-if="spaceOnly.has(idx)" class="card__tag" data-testid="mr-space-only">{{ t('mr.spaceOnly') }}<GnTooltip :text="t('mr.spaceOnlyTip')" /></span>
+                <span v-if="suggestionOf(idx)" class="card__tag card__tag--simple" data-testid="mr-simple" :data-kind="suggestionOf(idx)!.kind">{{ t('mr.suggestTag') }}: {{ reasonText(suggestionOf(idx)!) }}</span>
                 <span class="mr__spacer" />
+                <GnButton v-if="suggestionOf(idx)" size="sm" variant="primary" data-testid="mr-suggest" @click="applySuggestion(idx)">{{ t('mr.suggest') }}<GnTooltip :text="suggestionTip(suggestionOf(idx)!)" /></GnButton>
                 <GnButton v-if="stateOf(idx) !== 'pending' && editing !== idx" size="sm" variant="ghost" @click="expanded.has(idx) ? expanded.delete(idx) : expanded.add(idx)">
                   {{ expanded.has(idx) ? t('mr.collapse') : t('mr.change') }}
                 </GnButton>
@@ -875,12 +1006,20 @@ const explain = computed(() => {
 
     <ContextMenu v-if="menu" :x="menu.x" :y="menu.y" :items="bulkItems" @select="onBulk" @close="menu = null" />
     <ConfirmDialog
+      v-if="askingSimple"
+      :title="t('mr.simpleTitle')"
+      :lines="simpleLines"
+      :confirm-label="t('mr.simpleConfirm', { n: simpleItems.length })"
+      @confirm="runBulk('simple')"
+      @cancel="askingSimple = false"
+    />
+    <ConfirmDialog
       v-if="askingMixed"
       :title="t('mr.mixedTitle')"
       :lines="[t('mr.mixedBody'), t('mr.mixedHint')]"
       :confirm-label="t('mr.mixedConfirm')"
       @confirm="confirmMixed"
-      @cancel="askingMixed = false"
+      @cancel="cancelMixed"
     />
     <ConfirmDialog
       v-if="asking"
@@ -997,6 +1136,18 @@ const explain = computed(() => {
 :deep(.inv--lf::after) { content: '↵'; }
 :deep(.inv--crlf::after) { content: '␍↵'; }
 .card__tag { padding: 0 8px; border-radius: 9px; font-size: 10px; font-weight: 600; color: var(--gn-muted); border: 1px solid var(--gn-border); }
+.card__tag--simple { color: var(--gn-success); border-color: color-mix(in srgb, var(--gn-success) 50%, var(--gn-border)); }
+
+.rr {
+  margin: 6px 12px 0; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--gn-accent) 45%, var(--gn-border)); border-radius: var(--gn-radius);
+  background: color-mix(in srgb, var(--gn-accent) 8%, transparent);
+  p { margin: 4px 0 0; font-size: 12px; }
+  &__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+  &__diff { list-style: none; margin: 4px 0 0; padding: 0; max-height: 160px; overflow: auto; border: 1px solid var(--gn-border); border-radius: var(--gn-radius-sm); background: var(--gn-surface); }
+  &__row { display: flex; gap: 8px; padding: 0 8px; font-family: var(--gn-mono); font-size: 12px; white-space: pre; b { flex: none; width: 10px; } code { font-family: inherit; } }
+  &__row--add { background: color-mix(in srgb, var(--gn-success) 16%, transparent); b { color: var(--gn-success); } }
+  &__row--del { background: color-mix(in srgb, var(--gn-danger) 14%, transparent); b { color: var(--gn-danger); } }
+}
 .side__hist { margin: 0; padding: 0 12px 4px; }
 
 // lado a lado: uma linha de grade por trecho (as três colunas rolam juntas, e cada coluna tem a altura do maior lado)
