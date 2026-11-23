@@ -6,7 +6,7 @@
 // arquivo que o Git já preencheu com uma resolução gravada (rerere): aceitar, revisar/editar ou esquecer.
 // Fase 5: visão lado a lado (minha | resultado | a que chega) sobre o MESMO modelo de escolhas, destaque por palavra, ignorar espaços,
 // caracteres invisíveis, fim de linha das versões (e do resultado) e histórico do trecho.
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, onUpdated, reactive, ref, watch } from 'vue';
 import { GnButton, GnIconButton, GnSegmented, GnTooltip } from '@git-nexus/ui-kit';
 import {
   buildMerge,
@@ -24,6 +24,7 @@ import {
   type MergeChoices,
   type MergeConflictBlock,
   type PickedLine,
+  type ResultLine,
   type Suggestion,
 } from '@git-nexus/git-core/pure';
 import MergeLines from './MergeLines.vue';
@@ -66,7 +67,7 @@ import {
 } from '../merge-resolver-core';
 import { useCommandsStore, shortcutLabel, type Command } from '../stores/commands';
 import { useWorkspaceStore } from '../stores/workspace';
-import { t, dateLocale, type MessageKey } from '../i18n';
+import { t, dateLocale, locale, type MessageKey } from '../i18n';
 
 const props = defineProps<{
   block: MergeConflictBlock;
@@ -246,6 +247,25 @@ const isFolded = (idx: number) => {
   const seg = model.value.segments[idx]!;
   return seg.kind === 'stable' && seg.mine.end - seg.mine.start > FOLD_OVER && !unfolded.has(idx);
 };
+/** Na visão padrão o trecho igual e longo mostra só estas linhas de contexto em cada ponta; o meio dobra ("N linhas iguais") e abre sob demanda. É o que mantém um arquivo de dezenas de milhares de linhas rápido: o DOM só tem o que o usuário vai olhar. */
+const CONTEXT_LINES = 3;
+interface FoldView {
+  head: { lines: ResultLine[]; first: number; offset: number };
+  tail: { lines: ResultLine[]; first: number; offset: number };
+  hidden: number;
+}
+/** As pontas visíveis de um trecho igual dobrado na visão padrão, ou `null` quando ele aparece inteiro (curto, ou o usuário abriu). */
+function foldView(idx: number): FoldView | null {
+  const seg = model.value.segments[idx]!;
+  const l = layout.value[idx]!;
+  if (seg.kind !== 'stable' || unfolded.has(idx) || l.lines.length <= FOLD_OVER) return null;
+  const cut = l.lines.length - CONTEXT_LINES;
+  return {
+    head: { lines: l.lines.slice(0, CONTEXT_LINES), first: l.first, offset: l.offset },
+    tail: { lines: l.lines.slice(cut), first: l.first + cut, offset: l.offset + cut },
+    hidden: cut - CONTEXT_LINES,
+  };
+}
 /** Polígono do conector entre uma coluna lateral e a do resultado, desenhado com a altura real das linhas (a esquerda liga a minha ao resultado; a direita, o resultado à que chega). */
 function connPath(side: 'left' | 'right', idx: number): string {
   const seg = model.value.segments[idx]!;
@@ -338,7 +358,20 @@ function spanText(idx: number): string {
   if (!layout.value[idx]!.lines.length) return t('mr.noLines');
   return from === to ? t('mr.line1', { a: from }) : t('mr.lines', { a: from, b: to });
 }
-const regionName = (idx: number) => t('mr.region', { i: conflictNo(idx), n: model.value.conflicts.length, span: spanText(idx) });
+/** "Conflito 3 de 7, linhas 42 a 58": guardado por conteúdo, porque em arquivo grande são centenas de nomes recalculados a cada escolha. */
+const regionNames = new Map<string, string>();
+function regionName(idx: number): string {
+  const l = layout.value[idx]!;
+  const { from, to } = lineSpan(l);
+  const key = `${locale.value}|${conflictNo(idx)}|${model.value.conflicts.length}|${l.lines.length}|${from}|${to}`;
+  let name = regionNames.get(key);
+  if (name === undefined) {
+    name = t('mr.region', { i: conflictNo(idx), n: model.value.conflicts.length, span: spanText(idx) });
+    if (regionNames.size > 2000) regionNames.clear();
+    regionNames.set(key, name);
+  }
+  return name;
+}
 
 function announce(idx: number): void {
   live.value = picksOf(idx) === undefined ? t('mr.announcePending', { i: conflictNo(idx) }) : t('mr.announceResolved', { i: conflictNo(idx), summary: summary(idx) });
@@ -420,6 +453,7 @@ function init(): void {
   baseOpen.clear();
   swapped.clear();
   unfolded.clear();
+  heights.clear();
   for (const k of Object.keys(lineHistory)) delete lineHistory[k];
   editing.value = null;
   activeIdx.value = null;
@@ -446,6 +480,39 @@ watch(choices, (c) => props.draftKey && saveDraft(props.draftKey, sig.value, c))
 // ---------------------------------------------------------------- navegação
 
 const cardEl = (idx: number) => scroller.value?.querySelector<HTMLElement>(`[data-seg="${idx}"]`) ?? null;
+
+// ---------------------------------------------------------------- arquivos grandes: só o que está perto da tela é desenhado
+/** Acima deste número de trechos o resolvedor desenha só os que estão perto da área visível; os demais viram um espaço reservado, com a altura que tinham, e a tela segue rápida com dezenas de milhares de linhas. */
+const WINDOW_OVER = 60;
+const windowed = computed(() => model.value.segments.length > WINDOW_OVER);
+/** Trechos perto da área visível (o observador de interseção os mantém), mais o conflito ativo e o que está em edição. */
+const near = reactive(new Set<number>());
+const heights = new Map<number, number>();
+const shown = (idx: number) => !windowed.value || near.has(idx) || idx === activeIdx.value || idx === editing.value;
+/** A altura do espaço reservado: a última medida do trecho ou, na primeira vez, uma estimativa pelas linhas. */
+const estimates = computed(() =>
+  model.value.segments.map((seg) => {
+    const rows = Math.max(seg.mine.end - seg.mine.start, seg.theirs.end - seg.theirs.start);
+    if (seg.kind === 'conflict') return 190 + 38 * rows;
+    if (seg.kind === 'stable') return 19 * Math.min(rows, 2 * CONTEXT_LINES) + (rows > FOLD_OVER ? 34 : 0);
+    return 19 * rows + 44;
+  }),
+);
+const placeholderHeight = (idx: number): number => heights.get(idx) || estimates.value[idx]!;
+let io: IntersectionObserver | null = null;
+function watchSegments(): void {
+  if (!io || !windowed.value) return;
+  for (const el of scroller.value?.querySelectorAll<HTMLElement>('[data-seg]') ?? []) io.observe(el);
+}
+function onSegmentsSeen(entries: IntersectionObserverEntry[]): void {
+  for (const e of entries) {
+    const el = e.target as HTMLElement;
+    const idx = Number(el.dataset.seg);
+    if (!el.classList.contains('mr__ph')) heights.set(idx, e.boundingClientRect.height);
+    if (e.isIntersecting) near.add(idx);
+    else near.delete(idx);
+  }
+}
 
 function goTo(idx: number | null): void {
   if (idx === null) return;
@@ -474,13 +541,27 @@ interface Mark {
   top: number;
 }
 const marks = ref<Mark[]>([]);
+let measureQueued = false;
+/** Pede a medição da régua; várias seguidas (cada escolha, cada trecho que entra na janela) viram uma por quadro. */
 function measure(): void {
+  if (measureQueued) return;
+  measureQueued = true;
+  const run = () => {
+    measureQueued = false;
+    doMeasure();
+  };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run);
+  else run();
+}
+function doMeasure(): void {
   const box = inner.value;
   if (!box) return;
   const total = Math.max(box.scrollHeight, 1);
   const out: Mark[] = [];
+  const els = new Map<number, HTMLElement>();
+  for (const el of scroller.value?.querySelectorAll<HTMLElement>('[data-seg]') ?? []) if (!els.has(Number(el.dataset.seg))) els.set(Number(el.dataset.seg), el);
   for (const idx of [...model.value.conflicts, ...model.value.changes]) {
-    const el = cardEl(idx);
+    const el = els.get(idx);
     if (!el) continue;
     const isConflict = model.value.segments[idx]!.kind === 'conflict';
     out.push({ idx, kind: isConflict ? (stateOf(idx) === 'pending' ? 'pending' : 'resolved') : 'change', top: Math.min(el.offsetTop / total, 0.985) });
@@ -639,9 +720,19 @@ onMounted(() => {
       roWidth.observe(root.value);
     }
   }
-  void nextTick(measure);
+  if (typeof IntersectionObserver !== 'undefined' && scroller.value) io = new IntersectionObserver(onSegmentsSeen, { root: scroller.value, rootMargin: '1500px 0px' });
+  void nextTick(() => {
+    watchSegments();
+    measure();
+  });
 });
+onUpdated(watchSegments);
+watch(
+  () => near.size,
+  () => void nextTick(measure),
+);
 onBeforeUnmount(() => {
+  io?.disconnect();
   offCommands?.();
   ro?.disconnect();
   roWidth?.disconnect();
@@ -730,6 +821,18 @@ const explain = computed(() => {
         <div ref="inner" class="mr__inner">
           <p v-if="!model.conflicts.length" class="mr__none">{{ t('mr.noConflicts') }}</p>
           <template v-for="(seg, idx) in model.segments" :key="idx">
+            <!-- arquivo grande: o trecho longe da tela é só um espaço reservado (a região do conflito continua nomeada para o leitor de tela) -->
+            <div
+              v-if="!shown(idx)"
+              class="mr__ph"
+              :role="seg.kind === 'conflict' ? 'region' : undefined"
+              :aria-label="seg.kind === 'conflict' ? regionName(idx) : undefined"
+              :style="{ height: `${placeholderHeight(idx)}px` }"
+              :data-seg="idx"
+              :data-kind="seg.kind"
+              data-testid="mr-ph"
+            ></div>
+            <template v-else>
             <!-- lado a lado: minha | resultado | a que chega, com conectores (as escolhas são as mesmas da visão padrão) -->
             <template v-if="split">
               <GnButton v-if="isFolded(idx)" size="sm" variant="ghost" class="sp__fold" :data-seg="idx" data-testid="mr-fold" @click="unfolded.add(idx)">
@@ -960,7 +1063,12 @@ const explain = computed(() => {
 
             <!-- o resto do arquivo: no fluxo normal, com a origem na margem -->
             <div v-else :data-seg="idx" :data-kind="seg.kind">
-              <MergeLines :lines="layout[idx]!.lines" :first="layout[idx]!.first" :html="hlResult" :offset="layout[idx]!.offset" :invisibles="mergeShowInvisibles" />
+              <template v-if="foldView(idx)">
+                <MergeLines :lines="foldView(idx)!.head.lines" :first="foldView(idx)!.head.first" :html="hlResult" :offset="foldView(idx)!.head.offset" :invisibles="mergeShowInvisibles" />
+                <GnButton size="sm" variant="ghost" class="sp__fold" data-testid="mr-fold" @click="unfolded.add(idx)">{{ t('mr.foldedLines', { n: foldView(idx)!.hidden }) }}</GnButton>
+                <MergeLines :lines="foldView(idx)!.tail.lines" :first="foldView(idx)!.tail.first" :html="hlResult" :offset="foldView(idx)!.tail.offset" :invisibles="mergeShowInvisibles" />
+              </template>
+              <MergeLines v-else :lines="layout[idx]!.lines" :first="layout[idx]!.first" :html="hlResult" :offset="layout[idx]!.offset" :invisibles="mergeShowInvisibles" />
               <div v-if="isChange(seg)" class="note" data-testid="mr-change" :data-reverted="changeReverted(idx)">
                 <span class="note__sym">{{ changeSym(idx) }}</span>
                 <strong>{{ changeReverted(idx) ? t('mr.notApplied') : t('mr.applied') }}</strong>
@@ -968,6 +1076,7 @@ const explain = computed(() => {
                 <GnButton size="sm" variant="ghost" data-testid="mr-toggle-change" @click="toggleChange(idx)">{{ changeReverted(idx) ? t('mr.applyChange') : t('mr.undoChange') }}</GnButton>
               </div>
             </div>
+            </template>
           </template>
         </div>
       </div>
