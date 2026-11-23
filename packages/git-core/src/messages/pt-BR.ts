@@ -13,6 +13,10 @@ const messages = {
   'search.badRegex': 'Expressão regular inválida: {detail}',
   'search.failed': 'A busca falhou.',
   'search.outsideRepo': 'Arquivo fora do repositório.',
+  'search.badMask': 'Máscara de arquivo inválida: {mask}',
+  'search.badRevision': 'Revisão inválida: {rev}',
+  'search.noRevision': 'A revisão "{rev}" não existe neste repositório.',
+  'search.timeout': 'A busca passou de {s} s e foi interrompida: refine o texto ou os filtros.',
   // janela (main.ts)
   'window.err.titleBarColors': 'Cores da barra de título inválidas.',
   // instalação do Git (git-install.ts)

@@ -12,6 +12,10 @@ const messages: Partial<Record<MessageKey, string>> = {
   'search.badRegex': 'Invalid regular expression: {detail}',
   'search.failed': 'The search failed.',
   'search.outsideRepo': 'File is outside the repository.',
+  'search.badMask': 'Invalid file mask: {mask}',
+  'search.badRevision': 'Invalid revision: {rev}',
+  'search.noRevision': 'The revision "{rev}" does not exist in this repository.',
+  'search.timeout': 'The search ran past {s} s and was stopped: narrow the text or the filters.',
   // janela (main.ts)
   'window.err.titleBarColors': 'Invalid title bar colors.',
   // instalação do Git (git-install.ts)
