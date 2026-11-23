@@ -10,12 +10,12 @@
 // Um arquivo que falha é repetido UMA vez (partida a frio de navegador em máquina lenta dá falso negativo); falhou duas vezes, falhou.
 
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
-import { killTree, sleep, waitFor } from './proc.mjs';
+import { createWorkDir, killByProfile, killTree, sleep, waitFor } from './proc.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const studio = resolve(here, '..', '..');
@@ -107,6 +107,7 @@ async function runOne({ file, work, harness, dist, browser }) {
     return { ok: false, checks: 0, lines: [`    ${e instanceof Error ? e.message : e}`] };
   } finally {
     killTree(chrome);
+    killByProfile(profile); // o navegador de verdade não é o PID do lançador (ver proc.mjs)
     killTree(server);
     await sleep(800);
   }
@@ -119,7 +120,7 @@ async function main() {
   const tests = readdirSync(join(here, 'tests')).filter((f) => f.endsWith('.mjs') && (!filter || f.includes(filter))).sort();
   if (!tests.length) throw new Error(`Nenhum teste combina com "${filter}".`);
 
-  const work = mkdtempSync(join(tmpdir(), 'gn-ui-'));
+  const work = createWorkDir('gn-ui-'); // o TEMP desta execução fica dentro dela e some no fim (ver proc.mjs)
   const harness = join(work, 'harness.mjs');
   await build({
     entryPoints: [join(studio, 'scripts', 'ui-harness', 'server.ts')],
@@ -147,11 +148,6 @@ async function main() {
     console.log(`${r.ok ? '✔' : '✘'} ${file} (${r.checks} verificações)`);
     for (const l of r.lines) console.log(l);
     if (!r.ok) failed++;
-  }
-  try {
-    rmSync(work, { recursive: true, force: true });
-  } catch {
-    /* o Windows às vezes ainda segura o perfil do navegador; é pasta temporária */
   }
   console.log(failed ? `\n${failed} de ${tests.length} arquivo(s) de teste falharam.` : `\nTodos os ${tests.length} arquivos de teste passaram.`);
   process.exit(failed ? 1 : 0);

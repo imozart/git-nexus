@@ -153,6 +153,15 @@ Quando um merge, rebase, pull, cherry-pick ou revert para por conflitos, a aba *
 - **Teclado e leitor de tela:** o fluxo inteiro se faz sem o mouse. **F7** / **Shift+F7** vão ao próximo / anterior, **Alt+↓** ao próximo pendente, **Alt+1** usa a minha, **Alt+2** a que chega, **Alt+3** as duas e **Alt+0** nenhuma, **Ctrl+Z / Ctrl+Y** desfazem e refazem; os atalhos estão na **ajuda da tela** e na **paleta** (Ctrl+K). Cada conflito é uma **região nomeada** ("Conflito 3 de 7, linhas 42 a 58"), a escolha é **anunciada** por uma região viva ("Conflito 3 resolvido: 2 de mim + 1 da origin"), o foco é sempre visível e a ordem de Tab segue a da tela até **Marcar como resolvido**.
 - **Arquivos grandes:** a tela só **desenha o que está perto da área visível** (os trechos iguais e longos ficam dobrados em "N linhas iguais", com 3 linhas de contexto, e os conflitos distantes viram um espaço reservado que continua nomeado para o leitor de tela). Medido num arquivo de **20 mil linhas com 200 conflitos**: a tela abre em cerca de 2 a 3 s (por volta de 1 s é a leitura do Git) e cada escolha atualiza em 50 a 100 ms. O motor de fusão calcula 100 mil linhas em menos de 200 ms, por isso roda na própria tela, sem processo à parte.
 
+## Pesquisar dentro de um arquivo
+
+`Ctrl+F` (⌘F no macOS) com o foco num editor do app (o resultado do merge, por exemplo, e também os painéis somente leitura) abre a barra de pesquisa **daquele** arquivo:
+
+- digite e **todas** as ocorrências ficam destacadas; a atual tem contorno mais grosso e o editor rola até ela. O contador diz "3 de 12" (`10000+` em arquivo enorme) e marcas na lateral mostram onde estão as outras;
+- `Enter` vai para a próxima, `Shift+Enter` para a anterior (também `F3` e `Ctrl+G`); ao passar do fim a pesquisa **dá a volta** e avisa;
+- dentro do campo: `Aa` diferencia maiúsculas, `ab` casa palavra inteira, `.*` usa expressão regular (`Alt+C`, `Alt+O`, `Alt+X`; `⌘+Alt` no macOS; o AltGr dos teclados ABNT2 continua digitando). Uma expressão inválida mostra o motivo em vermelho. O ✕ limpa o campo (e `Ctrl+Z` desfaz);
+- `↑` e `↓` repetem pesquisas anteriores; **Na seleção** restringe a pesquisa ao trecho que estava selecionado quando a barra abriu; `Esc` fecha e devolve o foco ao editor.
+
 ## Repositórios grandes
 
 Medido em um repositório sintético de **20.000 arquivos e 5.000 commits** (`GN_PERF=1 pnpm exec vitest run packages/git-core/test/perf.test.ts`; a ferramenta gera o repositório com `git fast-import` e imprime os tempos):

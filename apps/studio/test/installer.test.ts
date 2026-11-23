@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { cleanupUpdateFiles, downloadVerified, replaceAppImage, updateFileName } from '../src/entrypoints/installer';
 
 const NAME = 'GitNexus-1.3.0-win-x64-setup.exe';
@@ -20,7 +20,15 @@ function fakeFetch(opts: { sums?: string; body?: Buffer; status?: number } = {})
   }) as unknown as typeof fetch;
   return { f, calls };
 }
-const tmp = () => mkdtempSync(join(tmpdir(), 'gn-upd-'));
+const made: string[] = [];
+const tmp = () => {
+  const d = mkdtempSync(join(tmpdir(), 'gn-upd-'));
+  made.push(d);
+  return d;
+};
+afterAll(() => {
+  for (const d of made) rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+});
 const base = (dir: string, f: typeof fetch) => ({ url: `${BASE}/${NAME}`, name: NAME, sumsUrl: `${BASE}/SHA256SUMS.txt`, destDir: dir, fetchImpl: f });
 
 describe('downloadVerified', () => {

@@ -1257,6 +1257,28 @@ const en: Partial<Record<MessageKey, string>> = {
   'git.step.done': 'All set! Git{version} was installed.',
   'git.error': 'Git could not be installed.',
   'git.done': 'Git {version} installed. GitNexus is ready to use.',
+  // --- search inside a file (editor bar) --------------------------------------------------------
+  'find.region': 'Search in this file',
+  'find.field': 'Search in the file',
+  'find.placeholder': 'Search',
+  'find.clear': 'Clear',
+  'find.case': 'Match case',
+  'find.word': 'Whole word',
+  'find.regex': 'Regular expression',
+  'find.prev': 'Previous result (Shift+Enter)',
+  'find.next': 'Next result (Enter)',
+  'find.close': 'Close search (Esc)',
+  'find.inSelection': 'In selection',
+  'find.inSelectionTip': 'Search only in the selected text',
+  'find.prevName': 'Previous result',
+  'find.nextName': 'Next result',
+  'find.none': 'No results',
+  'find.of': '{i} of {total}',
+  'find.count': '{n} result|{n} results',
+  'find.capped': 'more than {n} results',
+  'find.wrapEnd': 'Wrapped to the start of the file',
+  'find.wrapStart': 'Wrapped to the end of the file',
+  'find.regexError': 'Invalid regular expression: {msg}',
 };
 
 export default en;

@@ -12,6 +12,7 @@ Tudo o que é botão, seletor, ícone, etiqueta e aba vem do **ui-kit** (`apps/u
 | `GnSegmented` | Escolher **uma** opção entre poucas | `v-model`, `options`, teclado e `aria` prontos; ativo em azul tingido |
 | `GnDialog` | Diálogo modal | overlay, caixa com elevação, foco preso, Esc, clique no fundo, foco devolvido e fundo inerte; `width`, `maxHeight`, `role`, `labelledby`/`label`, `describedby`, `dismissable`, `initialFocus`; emite `close` (`'escape'` ou `'backdrop'`) o Esc fecha antes uma lista aberta de dentro (combobox) e o pai segue dono do estado (`v-if`); `isDialogOpen()` diz se há algum aberto |
 | `GnTooltip` | Dica de um elemento ao passar o mouse ou focar | `text` (obrigatório), `placement` (`top`/`bottom`), `delay` (500 ms), `disabled`; fica como **filho** do elemento descrito (não o envolve: o `GnButtonGroup` depende de `:first-child`/`:last-child`); o pai ganha `data-tooltip` e não deve ter `title` nativo |
+| `GnSearchField` | Campo de pesquisa de texto | **um** campo com `✕ Aa ab .*` **dentro** dele (ver "Campo de pesquisa" abaixo); `v-model` do texto e de `case-sensitive`, `whole-word` e `regex`; `label` **obrigatório**, `labels`, `error`, `history`, `variant="replace"` |
 | `GnIcon` | Ícone decorativo | `name` (ver `components/icons.ts`); herda a cor do texto; sem `v-html` |
 | `GnBadge` | Etiqueta de estado | `tone` com o mesmo vocabulário do botão |
 | `GnTabs` | Abas | barra principal, Ferramentas e Configurações; teclado pronto (setas, Home, End, Enter e espaço; só a aba ativa entra no Tab) |
@@ -140,6 +141,26 @@ A dica de um elemento é o componente `GnTooltip`, **filho** do elemento descrit
 - **Onde NÃO vai um `title`:** `<ConfirmDialog :title>` é o título do diálogo, não uma dica; `GnIconButton`, `GnSegmented` (`title` do grupo e de cada opção) e `ComboBox` (`title`) já mostram o `GnTooltip` por dentro.
 - **Visual:** `--gn-text` sobre `--gn-surface-2`, `--gn-shadow-sm`, `--gn-radius-sm`, `--gn-z-tooltip`, entrada em fade (`--gn-enter`).
 
+## Campo de pesquisa (GnSearchField) e busca no arquivo
+
+Campo de pesquisa de **texto** (procurar em arquivo, em repositório, na história) é o `GnSearchField`, não um `<input>` solto com três botões ao lado. Filtro de lista curta (branches, codificações) continua sendo um campo simples.
+
+```vue
+<GnSearchField v-model="texto" v-model:case-sensitive="aa" v-model:whole-word="ab" v-model:regex="re"
+               label="Pesquisar no arquivo" :labels="{ clear, caseSensitive, wholeWord, regex }"
+               :error="erroDaRegex" :history="historico" @enter="(voltar) => ir(voltar)" @escape="fechar" />
+```
+
+- **Controles dentro do campo:** ✕ (só com texto), `Aa` (diferenciar maiúsculas), `ab` (palavra inteira) e `.*` (expressão regular), botões de 24 px sem borda em repouso. O texto ocupa o que sobra ao lado deles: texto longo **não** passa por baixo dos botões.
+- **Ligado não é só cor:** fundo translúcido, borda e **sublinhado**. Cada opção é `aria-pressed`, com `aria-keyshortcuts` e dica (`GnTooltip`) com o **nome e o atalho** ("Palavra inteira (Alt+O)").
+- **✕** apaga o texto como uma **edição** do campo (`Ctrl+Z` traz de volta), devolve o foco ao campo e **não** mexe nas opções.
+- **Atalhos das opções:** `Alt+C` (caixa), `Alt+O` (palavra inteira), `Alt+X` (regex); no macOS, `⌘+Alt`. Valem pela **tecla física**, e o **AltGr** dos teclados ABNT2/ISO (Ctrl+Alt no Windows, `AltGraph` no Linux) **nunca** é atalho, porque digita caracteres (AltGr+C é "¢" no ABNT2). Regra e testes em `search-field-core.ts`.
+- **Erro de regex:** borda de erro, mensagem em `role="alert"` ligada ao campo por `aria-describedby` e `aria-invalid`; a tela passa o texto em `error` (o kit não traduz).
+- **Várias linhas:** o campo é um `textarea` de uma linha que **cresce até 4** quando o texto tem quebra de linha (colar um trecho); `Enter` busca, `Shift+Enter` volta, `Esc` fecha, `↑`/`↓` percorrem o histórico (`history`, a mais nova por último).
+- **`variant="replace"`:** o campo "Substituir por": só o ✕ (a substituição sempre mantém a caixa do que foi escrito).
+
+A **barra de busca no arquivo** (`FindBar.vue`, dentro do `CodeEditor`) usa o `GnSearchField`: `Ctrl+F` com o foco no editor abre a barra **daquele** arquivo (só leitura também), preenchida pela seleção de uma linha ou pela palavra sob o cursor. Destaca **todas** as ocorrências da parte visível (a atual com contorno mais grosso), mostra "3 de 12" (`10000+` acima do limite), `Enter`/`Shift+Enter` e `F3`/`Ctrl+G` navegam dando a volta (com aviso), "Na seleção" restringe ao trecho selecionado ao abrir, e marcas na lateral mostram onde há ocorrências. O motor é o `@codemirror/search` (`SearchQuery`, em `find-core.ts`); a interface, os textos e a acessibilidade são nossos.
+
 ## Como criar um componente do kit
 
 1. Nome `Gn` + substantivo, em `apps/ui-kit/src/components/`, exportado em `src/index.ts`.
@@ -150,7 +171,7 @@ A dica de um elemento é o componente `GnTooltip`, **filho** do elemento descrit
 
 ## O que impede regressão
 
-`apps/studio/test/ui-conventions.test.ts` reprova `<button>` cru novo nas telas, o CSS de seletor copiado, emoji como ícone e "Atualizar" colorido. A lista de exceções ali tem o motivo de cada uma e só deve encolher.
+`apps/studio/test/ui-conventions.test.ts` reprova `<button>` cru novo nas telas, `<input type="search">`/`role="searchbox"` cru novo (campo de busca é o `GnSearchField`), o CSS de seletor copiado, emoji como ícone e "Atualizar" colorido. A lista de exceções ali tem o motivo de cada uma e só deve encolher.
 
 Também trava a **elevação, as camadas e o foco** (bloco `elevação, camadas e foco`): `box-shadow` com desfoque só por `var(--gn-shadow-*)`, nenhum `z-index` literal de 3 dígitos ou mais, nenhum `background: rgba(0, 0, 0, …)` literal (use `var(--gn-backdrop)`), `z-index: var(--gn-z-dialog)` só no `GnDialog` e os tokens de sombra e de fundo definidos nos dois temas. E as **dicas** (bloco `dicas vêm do GnTooltip`): nenhum `title=` nativo em elemento ou componente das telas, fora das exceções registradas com o motivo. As mensagens apontam o arquivo e o token certo; o `apps/ui-kit/test/tokens.test.ts` segue congelando os valores de cor.
 

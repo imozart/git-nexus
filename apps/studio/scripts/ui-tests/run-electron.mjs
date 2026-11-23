@@ -12,11 +12,11 @@
 // Cada teste (tests-electron/*.mjs) abre o app do zero, com uma pasta de dados nova.
 
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defaultExe, killTree, sleep, waitFor } from './proc.mjs';
+import { createWorkDir, defaultExe, killTree, sleep, waitFor } from './proc.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const studio = resolve(here, '..', '..');
@@ -89,7 +89,7 @@ async function main() {
   const tests = readdirSync(join(here, 'tests-electron')).filter((f) => f.endsWith('.mjs') && (!filter || f.includes(filter))).sort();
   if (!tests.length) throw new Error(`Nenhum teste combina com "${filter}".`);
 
-  const work = mkdtempSync(join(tmpdir(), 'gn-e2e-'));
+  const work = createWorkDir('gn-e2e-'); // o TEMP desta execução fica dentro dela e some no fim (ver proc.mjs)
   mkdirSync(OUT, { recursive: true });
   console.log(`App: ${exe}\nCapturas em: ${OUT}\n`);
 
@@ -104,11 +104,6 @@ async function main() {
     console.log(`${r.ok ? '✔' : '✘'} ${file} (${r.checks} verificações)`);
     for (const l of r.lines) console.log(l);
     if (!r.ok) failed++;
-  }
-  try {
-    rmSync(work, { recursive: true, force: true });
-  } catch {
-    /* o Windows às vezes ainda segura a pasta de dados; é temporária */
   }
   console.log(failed ? `\n${failed} de ${tests.length} arquivo(s) de teste falharam.` : `\nTodos os ${tests.length} arquivos de teste passaram.`);
   process.exit(failed ? 1 : 0);

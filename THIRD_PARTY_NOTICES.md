@@ -20,7 +20,7 @@ Um item por componente, com nome, versão, licença, copyright e endereço do pr
 
 ## Bibliotecas JavaScript embutidas nos pacotes
 
-O aplicativo empacota 59 bibliotecas (as dependências de execução do que entra nos bundles do Electron, direta e transitivamente). Cada uma segue a licença abaixo; os textos vêm do próprio pacote.
+O aplicativo empacota 60 bibliotecas (as dependências de execução do que entra nos bundles do Electron, direta e transitivamente). Cada uma segue a licença abaixo; os textos vêm do próprio pacote.
 
 | Biblioteca | Versão | Licença |
 |---|---|---|
@@ -41,6 +41,7 @@ O aplicativo empacota 59 bibliotecas (as dependências de execução do que entr
 | @codemirror/lang-xml | 6.1.0 | MIT |
 | @codemirror/language | 6.13.1 | MIT |
 | @codemirror/lint | 6.9.7 | MIT |
+| @codemirror/search | 6.7.2 | MIT |
 | @codemirror/state | 6.7.6 | MIT |
 | @codemirror/streamparser | 6.0.0 | MIT |
 | @codemirror/theme-one-dark | 6.1.3 | MIT |
@@ -534,6 +535,34 @@ THE SOFTWARE.
 ```
 
 ### @codemirror/lint 6.9.7
+
+Licença: MIT
+
+```text
+MIT License
+
+Copyright (C) 2018-2021 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+### @codemirror/search 6.7.2
 
 Licença: MIT
 

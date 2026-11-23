@@ -1,16 +1,24 @@
 // Atualização do ZIP portátil (Windows): extração do pacote e troca dos arquivos com rollback. Usa o tar.exe do
 // sistema e executáveis de verdade (cópias do node.exe), por isso só roda no Windows.
 import { spawn } from 'node:child_process';
-import { copyFileSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { crc32 } from 'node:zlib';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { SWAP_SCRIPT, cleanupUpdateFiles, prepareStage, startPortableSwap } from '../src/entrypoints/installer';
 import { UPDATE_LOG_NAME, createUpdateLog } from '../src/entrypoints/update-log';
 
 const win = process.platform === 'win32';
-const tmp = () => mkdtempSync(join(tmpdir(), 'gn-ptl-'));
+const made: string[] = [];
+const tmp = () => {
+  const d = mkdtempSync(join(tmpdir(), 'gn-ptl-'));
+  made.push(d);
+  return d;
+};
+afterAll(() => {
+  for (const d of made) rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+});
 
 /** ZIP mínimo (entradas sem compressão), suficiente para o tar.exe extrair. */
 function makeZip(files: Record<string, string>): Buffer {
