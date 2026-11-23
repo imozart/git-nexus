@@ -59,7 +59,7 @@ const openFile = async (file) => {
   if (!id) {
     // diagnóstico: o que a lista mostrava quando a linha não apareceu
     const seen = await t.ev(`(() => { const l = document.querySelector('[data-testid="sw-list"]'); return { count: document.querySelector('[data-testid="sw-count"]')?.textContent.trim(), list: l ? { top: l.scrollTop, h: l.clientHeight, sh: l.scrollHeight } : null, rows: [...document.querySelectorAll('[data-testid="sw-file-row"], [data-testid="sw-row"]')].map((r) => r.dataset.testid + '#' + r.id + ' ' + r.textContent.trim().slice(0, 60)) }; })()`);
-    throw new Error(`sem linha para ${file}: ${JSON.stringify(seen)}`);
+    throw new Error('sem linha para ' + file + ': ' + JSON.stringify(seen));
   }
   await t.ev(`document.getElementById(${lit(id)}).click()`);
   await t.until(`document.querySelector('[data-testid="sw-path"]')?.textContent.trim() === ${lit(file)} && document.querySelector(${lit(EDITOR)})`, 10000);
