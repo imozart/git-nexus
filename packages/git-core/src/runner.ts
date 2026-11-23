@@ -42,6 +42,8 @@ export interface GitResult {
   bytes: Buffer;
   stderr: string;
   code: number;
+  /** O processo foi encerrado por `GitRunOptions.signal`. */
+  aborted?: boolean;
 }
 
 export interface GitRunOptions {
@@ -52,6 +54,12 @@ export interface GitRunOptions {
   check?: boolean;
   /** Recebe o stderr à medida que chega (para ler o progresso do git). Não substitui `GitResult.stderr`. */
   onStderr?: (chunk: string) => void;
+  /** Recebe o stdout à medida que chega (a busca lê os resultados em lotes). */
+  onStdout?: (chunk: Buffer) => void;
+  /** Não guarda o stdout em memória (quem usa `onStdout` já o consumiu): `GitResult.stdout` e `bytes` ficam vazios. */
+  discardStdout?: boolean;
+  /** Encerra o processo do git quando o sinal dispara (a busca nova cancela a anterior): o resultado volta com `aborted` e `code` -1, sem erro. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -90,7 +98,28 @@ export function runGit(repoPath: string, args: string[], opts: GitRunOptions = {
     });
     const out: Buffer[] = [];
     const err: Buffer[] = [];
-    child.stdout.on('data', (d: Buffer) => out.push(d));
+    child.stdout.on('data', (d: Buffer) => {
+      if (!opts.discardStdout) out.push(d);
+      if (opts.onStdout) {
+        try {
+          opts.onStdout(d);
+        } catch {
+          /* quem observa não pode derrubar o git */
+        }
+      }
+    });
+    let aborted = false;
+    const onAbort = () => {
+      aborted = true;
+      child.kill();
+      // um filho do git (hook, alias, ssh) pode manter os canais abertos depois que o git morre: sem isso o "close" só vem quando ele terminar
+      setTimeout(() => {
+        child.stdout.destroy();
+        child.stderr.destroy();
+      }, 300).unref();
+    };
+    if (opts.signal?.aborted) onAbort();
+    else opts.signal?.addEventListener('abort', onAbort, { once: true });
     child.stderr.on('data', (d: Buffer) => {
       err.push(d);
       if (opts.onStderr) {
@@ -106,15 +135,17 @@ export function runGit(repoPath: string, args: string[], opts: GitRunOptions = {
       reject(err);
     });
     child.on('close', (code) => {
+      opts.signal?.removeEventListener('abort', onAbort);
       const bytes = Buffer.concat(out);
       const result: GitResult = {
         stdout: bytes.toString('utf8'),
         bytes,
         stderr: Buffer.concat(err).toString('utf8'),
-        code: code ?? -1,
+        code: aborted ? -1 : (code ?? -1),
+        ...(aborted ? { aborted: true } : {}),
       };
       emit(repoPath, args, startedAt, result.code, result.stdout, result.stderr);
-      if ((opts.check ?? true) && result.code !== 0) {
+      if ((opts.check ?? true) && result.code !== 0 && !aborted) {
         reject(new GitError(`git ${args.join(' ')} falhou (${result.code}): ${result.stderr.trim()}`, result, args));
       } else {
         resolve(result);

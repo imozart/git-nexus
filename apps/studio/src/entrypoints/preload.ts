@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { AskpassRequest, CommitPolicy, ConventionalCommitInput, GitCommandEvent, GitInstallProgress, GitNexusApi, GitProgressEvent, UpdateProgress } from '@git-nexus/git-core/pure';
+import type { AskpassRequest, CommitPolicy, ConventionalCommitInput, GitCommandEvent, GitInstallProgress, GitNexusApi, GitProgressEvent, SearchBatchEvent, SearchDone, UpdateProgress } from '@git-nexus/git-core/pure';
 import { validateCommitMessage } from '@git-nexus/governance-policy';
 import { MAIN_METHODS, WORKER_METHODS, channel } from '../shared/channels';
 import { titleBarModeFromArgv } from '../shared/title-bar';
@@ -35,6 +35,17 @@ const api = {
     const handler = (_e: unknown, p: GitProgressEvent) => cb(p);
     ipcRenderer.on(channel('gitProgress'), handler);
     return () => ipcRenderer.removeListener(channel('gitProgress'), handler);
+  },
+  // Eventos: lotes de ocorrências e fim de uma busca (`startSearch`).
+  onSearchBatch: (cb: (e: SearchBatchEvent) => void) => {
+    const handler = (_e: unknown, p: SearchBatchEvent) => cb(p);
+    ipcRenderer.on(channel('searchBatch'), handler);
+    return () => ipcRenderer.removeListener(channel('searchBatch'), handler);
+  },
+  onSearchDone: (cb: (e: SearchDone) => void) => {
+    const handler = (_e: unknown, p: SearchDone) => cb(p);
+    ipcRenderer.on(channel('searchDone'), handler);
+    return () => ipcRenderer.removeListener(channel('searchDone'), handler);
   },
   // Evento: o git/ssh precisa de uma credencial (usuário, senha, token, frase-senha): a interface mostra o diálogo.
   onAskpassRequest: (cb: (r: AskpassRequest) => void) => {

@@ -144,6 +144,13 @@ export interface GitNexusIPC {
   searchContent(repoPath: string, query: ContentSearch): Promise<ContentSearchResult>;
   /** As linhas ao redor de uma ocorrência, para a pré-visualização dos resultados. */
   getFileContext(repoPath: string, file: string, line: number, radius?: number): Promise<FileContext>;
+  /**
+   * Começa uma busca v2 (escopos, máscaras, colunas, contexto, várias linhas) e volta na hora: os resultados chegam em lotes por `onSearchBatch` e o fim por
+   * `onSearchDone`. O `id` é escolhido por quem chama (assim nenhum lote se perde antes de a resposta chegar) e só uma busca por id corre: reusar o id cancela a anterior.
+   */
+  startSearch(repoPath: string, query: SearchQuery, id: string): Promise<void>;
+  /** Encerra de verdade a busca `id` (o `git grep` termina). Sem efeito se ela já acabou. */
+  cancelSearch(id: string): Promise<void>;
   /** `git clone` para `<pasta>/<nome>` (nome padrão: o da URL) e já cataloga o repositório. O andamento chega por `onGitProgress` (`op: 'clone'`). */
   cloneRepository(input: CloneInput): Promise<RepositoryMeta>;
   /** `git init` em `<pasta>/<nome>` com branch inicial e `.gitignore` opcionais, e já cataloga o repositório. */
@@ -671,6 +678,108 @@ export interface ContentSearchResult {
   truncated: boolean;
 }
 
+/** Onde a busca v2 procura. */
+export type SearchScope =
+  /** Arquivos rastreados e os novos ainda não ignorados (o padrão). */
+  | 'worktree'
+  /** Só os versionados. */
+  | 'tracked'
+  /** Só os arquivos alterados (modificados, no stage ou novos). */
+  | 'changed'
+  /** O conteúdo do que está no stage (índice). */
+  | 'staged'
+  /** O conteúdo de um branch, tag ou commit (`SearchQuery.revision`). */
+  | 'revision';
+
+/** Pedido da busca v2 (núcleo `searchRepository`). */
+export interface SearchQuery {
+  pattern: string;
+  /** O texto é uma expressão regular (PCRE2 quando o Git suporta, senão a estendida); senão, é procurado como está. */
+  regex?: boolean;
+  caseSensitive?: boolean;
+  wholeWord?: boolean;
+  /** A expressão pode atravessar linhas (`
+`): os arquivos candidatos saem do `git grep` e o núcleo varre o conteúdo. Liga sozinho no texto com quebra de linha. */
+  multiline?: boolean;
+  scope?: SearchScope;
+  /** Branch, tag ou commit, quando `scope` é `revision`. */
+  revision?: string;
+  /** Máscaras de arquivo separadas por vírgula ou espaço; `!` exclui: `*.ts, *.vue, !*.test.ts, !dist/`. Sem barra, vale em qualquer pasta. */
+  include?: string;
+  /** Inclui os arquivos ignorados pelo `.gitignore` (padrão: não). */
+  includeIgnored?: boolean;
+  /** Inclui os arquivos novos ainda não versionados (padrão: sim, no escopo `worktree`). */
+  includeUntracked?: boolean;
+  /** Entra nos submódulos (`--recurse-submodules`, padrão: não). */
+  includeSubmodules?: boolean;
+  /** Linhas de contexto antes e depois de cada ocorrência (0 a 5). */
+  contextBefore?: number;
+  contextAfter?: number;
+  /** Ocorrências por página (padrão 1000, no máximo 5000) e quantas pular. */
+  limit?: number;
+  offset?: number;
+  /** Tempo máximo da busca em milissegundos (padrão 60 000). */
+  timeoutMs?: number;
+}
+
+export interface SearchContextLine {
+  line: number;
+  text: string;
+}
+
+/** Uma linha com ocorrências (várias na mesma linha viram uma só entrada). */
+export interface SearchHit {
+  /** Caminho relativo à raiz do repositório, com `/`. */
+  file: string;
+  /** 1 = primeira linha (a primeira linha da ocorrência, na busca de várias linhas). */
+  line: number;
+  /** Última linha da ocorrência, quando ela atravessa linhas. */
+  endLine?: number;
+  /** A linha, cortada em torno da ocorrência quando é longa. */
+  text: string;
+  /** Há mais texto antes / depois do trecho mostrado (aparece como reticências). */
+  clippedStart?: boolean;
+  clippedEnd?: boolean;
+  /** Trechos `[início, fim)` achados, em colunas do `text` mostrado (UTF-16), de cada ocorrência da linha. */
+  ranges: Array<[number, number]>;
+  before: SearchContextLine[];
+  after: SearchContextLine[];
+}
+
+export interface SearchBatchEvent {
+  id: string;
+  hits: SearchHit[];
+}
+
+export interface SearchSkipped {
+  file: string;
+  /** `binary`: casa, mas é binário; `large`: acima do limite de tamanho (só na busca de várias linhas). */
+  reason: 'binary' | 'large';
+}
+
+/** O resumo de uma busca: o que foi olhado, o que foi deixado de fora e se foi cortada (nunca em silêncio). */
+export interface SearchDone {
+  id: string;
+  ok: boolean;
+  /** Quando `ok` é false: por que a busca não rodou (expressão inválida, revisão que não existe...). */
+  message?: string;
+  /** Dialeto da expressão usado de fato (o destaque e a substituição usam o mesmo). */
+  dialect: 'fixed' | 'pcre' | 'extended' | 'javascript';
+  /** Ocorrências (linhas) devolvidas nesta página e em quantos arquivos. */
+  hits: number;
+  files: number;
+  /** Arquivos olhados (estimativa pelo índice do Git; vazio quando não dá para saber). */
+  filesLooked?: number;
+  skipped: SearchSkipped[];
+  cancelled: boolean;
+  /** Havia mais ocorrências do que as devolvidas. */
+  truncated: boolean;
+  truncatedReason?: 'limit' | 'time';
+  /** `offset` para pedir a próxima página, quando `truncated` por limite. */
+  nextOffset?: number;
+  ms: number;
+}
+
 /** Linhas ao redor de uma ocorrência. */
 export interface FileContext {
   file: string;
@@ -1129,6 +1238,10 @@ export interface GitNexusApi extends GitNexusIPC {
   onGitCommand(cb: (events: GitCommandEvent[]) => void): () => void;
   /** Recebe o andamento (porcentagem) das buscas, atualizações e envios; devolve a função que cancela a assinatura. */
   onGitProgress(cb: (e: GitProgressEvent) => void): () => void;
+  /** Lote de ocorrências de uma busca em andamento (`startSearch`). */
+  onSearchBatch(cb: (e: SearchBatchEvent) => void): () => void;
+  /** Fim de uma busca (concluída, cortada, cancelada ou com erro). */
+  onSearchDone(cb: (e: SearchDone) => void): () => void;
   /** O git/ssh precisa de usuário, senha, token ou frase-senha: a interface mostra o diálogo e responde com `askpassAnswer`. */
   onAskpassRequest(cb: (r: AskpassRequest) => void): () => void;
 

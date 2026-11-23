@@ -6,7 +6,8 @@ import type { UtilityEvent, UtilityRequest, UtilityResponse } from '../shared/ch
 import { createHandlers } from '../worker/handlers';
 
 const dataDir = process.env.GITNEXUS_DATA_DIR ?? join(process.cwd(), '.dev-data');
-const handlers = createHandlers(dataDir);
+// lotes e fim das buscas (`startSearch`) sobem como eventos: a interface os filtra pelo id que ela mesma escolheu
+const handlers = createHandlers(dataDir, (e) => process.parentPort.postMessage(e satisfies UtilityEvent));
 
 // Exceções não tratadas do worker: avisa o processo principal, que registra no log do app (o worker não tem janela nem onde mostrar).
 function reportCrash(source: string, e: unknown): void {

@@ -14,7 +14,9 @@ import { GIT_FREE_WORKER_METHODS } from '../../src/shared/git-install';
 import { HostingService, type TokenStore } from '../../src/worker/hosting-service';
 
 const [, , root = 'dist/renderer', dataDir = '.harness-data', portArg = '5199'] = process.argv;
-const handlers = createHandlers(dataDir);
+// eventos da busca v2 (lotes e fim): a página pergunta por eles, como nos outros eventos do harness
+const searchEvents: Array<{ event: string; data: unknown }> = [];
+const handlers = createHandlers(dataDir, (e) => searchEvents.push(e));
 let clipboard = '';
 
 // Comandos git do harness: o navegador pergunta por eles (no app real o processo principal os envia).
@@ -217,6 +219,22 @@ api.onGitProgress = (cb) => {
   return () => clearInterval(iv);
 };
 // -1: a primeira sondagem só marca o ponto de partida (uma página recarregada não repete pedidos antigos, como no Electron)
+let searchSeen = 0;
+const onSearchEvent = (name, cb) => {
+  const iv = setInterval(async () => {
+    try {
+      const r = await (await fetch('/searchevents?since=' + searchSeen)).json();
+      searchSeen = r.next;
+      for (const e of r.events) if (e.event === name) cb(e.data);
+    } catch {
+      /* a página está recarregando */
+    }
+  }, 60);
+  return () => clearInterval(iv);
+};
+api.onSearchBatch = (cb) => onSearchEvent('searchBatch', cb);
+api.onSearchDone = (cb) => onSearchEvent('searchDone', cb);
+// -1: a primeira sondagem só marca o ponto de partida (uma página recarregada não repete pedidos antigos, como no Electron)
 let askSeen = -1;
 api.onAskpassRequest = (cb) => {
   const iv = setInterval(async () => {
@@ -272,6 +290,10 @@ createServer(async (req, res) => {
     if (url.pathname === '/gitprogress') {
       const since = Number(url.searchParams.get('since') ?? 0);
       return void res.end(JSON.stringify({ next: progressEvents.length, events: progressEvents.slice(since) }));
+    }
+    if (url.pathname === '/searchevents') {
+      const since = Number(url.searchParams.get('since') ?? 0);
+      return void res.end(JSON.stringify({ next: searchEvents.length, events: searchEvents.slice(since) }));
     }
     if (url.pathname === '/askpass') {
       const since = Number(url.searchParams.get('since') ?? 0);
