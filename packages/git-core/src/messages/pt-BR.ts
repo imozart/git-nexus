@@ -12,7 +12,6 @@ const messages = {
   'search.tooLong': 'O texto procurado passa de {max} caracteres.',
   'search.badRegex': 'Expressão regular inválida: {detail}',
   'search.failed': 'A busca falhou.',
-  'search.outsideRepo': 'Arquivo fora do repositório.',
   'search.badMask': 'Máscara de arquivo inválida: {mask}',
   'search.badRevision': 'Revisão inválida: {rev}',
   'search.noRevision': 'A revisão "{rev}" não existe neste repositório.',

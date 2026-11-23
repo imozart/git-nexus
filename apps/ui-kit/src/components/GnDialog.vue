@@ -44,6 +44,8 @@ function onKey(e: KeyboardEvent) {
     // um controle de dentro da caixa com a lista aberta (aria-expanded="true": combobox, menu) trata o Esc primeiro: fecha a lista, não o diálogo.
     // Procura o controle na caixa (e não pelo foco): a lista do ComboBox é projetada no <body> e o foco pode estar no campo de busca dela, fora da caixa.
     if (box.value?.querySelector('[aria-expanded="true"]')) return;
+    // e quem está dentro de um trecho que cuida do próprio Esc (`data-dialog-esc="own"`: a barra de busca do editor) também o trata primeiro
+    if ((e.target as Element | null)?.closest?.('[data-dialog-esc="own"]')) return;
     e.stopPropagation();
     e.preventDefault();
     if (props.dismissable) emit('close', 'escape');

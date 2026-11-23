@@ -13,8 +13,6 @@ import {
   initSubmodules,
   updateSubmodules,
   initRepository,
-  searchContent,
-  getFileContext,
   createTag,
   deleteTag,
   listRemoteTags,
@@ -63,6 +61,9 @@ import {
   restoreBackup,
   writeIndexContent,
   writeWorkingFile,
+  readWorkingFile,
+  stampWorkingFile,
+  saveWorkingFile,
   getFileDiff,
   getGitStatus,
   getHistory,
@@ -96,7 +97,6 @@ import {
   type BumpChoice,
   type CommitPolicy,
   type CloneInput,
-  type ContentSearch,
   type InitInput,
   type CreateBranchInput,
   type CreateStashInput,
@@ -105,6 +105,7 @@ import {
   type HistorySearch,
   type CreateTagInput,
   type DiffMode,
+  type SaveOptions,
   type DiscardScope,
   type EncodingChoice,
   type ConventionalCommitInput,
@@ -210,8 +211,6 @@ export function createHandlers(dataDir: string, emit: (e: HandlerEvent) => void 
     updateSubmodules: (repoPath: string, paths?: string[]) => updateSubmodules(repoPath, paths),
     // a resposta de um diálogo de credencial segue direto para a ponte (nunca é registrada em log)
     askpassAnswer: async (id: string, answer: string | null) => getActiveAskpass()?.answer(String(id), answer === null ? null : String(answer)),
-    searchContent: (repoPath: string, q: ContentSearch) => searchContent(repoPath, q),
-    getFileContext: (repoPath: string, file: string, line: number, radius?: number) => getFileContext(repoPath, file, line, radius),
     startSearch: async (repoPath: string, query: SearchQuery, id: string) => {
       const key = String(id);
       searches.get(key)?.abort();
@@ -246,6 +245,9 @@ export function createHandlers(dataDir: string, emit: (e: HandlerEvent) => void 
     getFileSides: (repoPath: string, file: string, mode: DiffMode | boolean, encoding?: EncodingChoice) => getFileSides(repoPath, file, mode, encoding),
     getFileEncoding: (repoPath: string, file: string, mode: DiffMode | boolean, encoding?: EncodingChoice) => getFileEncoding(repoPath, file, mode, encoding),
     writeWorkingFile: (repoPath: string, file: string, content: string, encoding?: EncodingChoice) => writeWorkingFile(repoPath, file, content, encoding),
+    readWorkingFile: (repoPath: string, file: string, encoding?: EncodingChoice) => readWorkingFile(repoPath, file, encoding),
+    stampWorkingFile: (repoPath: string, file: string) => stampWorkingFile(repoPath, file),
+    saveWorkingFile: (repoPath: string, file: string, content: string, opts: SaveOptions) => saveWorkingFile(repoPath, file, content, opts),
     writeIndexContent: (repoPath: string, file: string, content: string, encoding?: EncodingChoice) => writeIndexContent(repoPath, file, content, encoding),
     discardFile: (repoPath: string, file: string, scope: DiscardScope) =>
       discardFile(repoPath, file, scope, join(dataDir, 'discarded', new Date().toISOString().replace(/[:.]/g, '-'))),

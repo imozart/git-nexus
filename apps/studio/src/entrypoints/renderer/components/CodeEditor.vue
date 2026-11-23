@@ -6,7 +6,7 @@ import { Compartment, EditorState, RangeSetBuilder, type Extension } from '@code
 import { oneDark } from '@codemirror/theme-one-dark';
 import { languageFor } from '../editor-language';
 import { fontRevision } from '../font';
-import { findExtension } from '../find-ext';
+import { findExtension, setMarks } from '../find-ext';
 import { seedText } from '../find-core';
 import { crlfOnly } from '../replace-core';
 import FindBar from './FindBar.vue';
@@ -21,8 +21,10 @@ const props = withDefaults(
     filename?: string;
     /** Destaca visualmente as regiões ours/base/theirs entre marcadores de conflito. */
     highlightConflicts?: boolean;
+    /** Trechos a destacar, vindos de fora (a pesquisa do repositório): linha (de 1) e colunas na linha. */
+    marks?: Array<{ line: number; from: number; to: number }>;
   }>(),
-  { readOnly: false, filename: '', highlightConflicts: false },
+  { readOnly: false, filename: '', highlightConflicts: false, marks: undefined },
 );
 const emit = defineEmits<{ (e: 'update:modelValue', v: string): void }>();
 
@@ -172,11 +174,26 @@ onMounted(() => {
     state: EditorState.create({ doc: props.modelValue, extensions: extensions() }),
   });
   viewRef.value = view;
+  applyMarks();
   document.fonts?.ready.then(remeasure);
   document.fonts?.addEventListener('loadingdone', remeasure);
 });
 
 watch(theme, (v) => view?.dispatch({ effects: themeSlot.reconfigure(v === 'dark' ? oneDark : []) }));
+
+/** As marcas de fora, em posições do texto (linhas fora do arquivo são ignoradas). */
+function applyMarks(): void {
+  if (!view) return;
+  const doc = view.state.doc;
+  const spans = (props.marks ?? [])
+    .filter((m) => m.line >= 1 && m.line <= doc.lines)
+    .map((m) => {
+      const l = doc.line(m.line);
+      return { from: Math.min(l.to, l.from + m.from), to: Math.min(l.to, l.from + m.to) };
+    })
+    .filter((s) => s.to > s.from);
+  view.dispatch({ effects: setMarks.of(spans) });
+}
 
 watch(
   () => props.modelValue,
@@ -186,6 +203,9 @@ watch(
     }
   },
 );
+
+// depois do watch do texto (a ordem importa: o texto novo entra primeiro, depois as marcas dele)
+watch(() => props.marks, applyMarks);
 
 onBeforeUnmount(() => {
   viewRef.value = null;
@@ -197,11 +217,23 @@ onBeforeUnmount(() => {
 function scrollTo(pos: number): void {
   view?.dispatch({ selection: { anchor: pos }, effects: EditorView.scrollIntoView(pos, { y: 'center' }) });
 }
-defineExpose({ scrollTo, openFind });
+/** Leva o cursor ao trecho (linha de 1, colunas na linha), rola até ele e, com `focus`, entrega o foco ao editor. */
+function reveal(line: number, from: number, to: number, focus = false): void {
+  if (!view || line < 1 || line > view.state.doc.lines) return;
+  const l = view.state.doc.line(line);
+  const a = Math.min(l.to, l.from + from);
+  const b = Math.min(l.to, l.from + Math.max(from, to));
+  view.dispatch({ selection: { anchor: a, head: b }, effects: EditorView.scrollIntoView(a, { y: 'center' }) });
+  if (focus) view.focus();
+}
+const focusEditor = (): void => view?.focus();
+
+defineExpose({ scrollTo, openFind, reveal, focus: focusEditor });
 </script>
 
 <template>
-  <div class="code-editor-wrap">
+  <!-- com a barra de busca aberta o Esc é dela (fecha a barra): um diálogo em volta não deve fechar junto -->
+  <div class="code-editor-wrap" :data-dialog-esc="findOpen ? 'own' : undefined">
     <div ref="host" class="code-editor"></div>
     <FindBar v-if="findOpen && viewRef" ref="bar" :view="viewRef" :seed="findSeed" :replace="findReplace" :revision="revision" @close="closeFind" />
   </div>

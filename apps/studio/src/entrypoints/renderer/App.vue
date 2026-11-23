@@ -6,6 +6,7 @@ import GitGate from './components/GitGate.vue';
 import CoreInterface from './CoreInterface.vue';
 import CommandPalette from './components/CommandPalette.vue';
 import LocaleWelcome from './components/LocaleWelcome.vue';
+import SearchWindow from './components/SearchWindow.vue';
 import SettingsDialog from './components/SettingsDialog.vue';
 import { LOCALE_ASKED_KEY, shouldAskLocale } from './i18n/core';
 import { isDialogOpen } from '@git-nexus/ui-kit';
@@ -17,7 +18,9 @@ import { THEME_PREFS, setThemePref, themePref } from './theme';
 import { useAskpassStore } from './stores/askpass';
 import { useCommandsStore, type Command } from './stores/commands';
 import { useRepositoriesStore } from './stores/repositories';
+import { useSearchStore } from './stores/search';
 import { useSettingsStore } from './stores/settings';
+import { seedFromSelection } from './search-window-core';
 import { useGitLogStore } from './stores/gitlog';
 import { useGitInstallStore } from './stores/git-install';
 import { useUpdateStore } from './stores/update';
@@ -30,6 +33,7 @@ const upd = useUpdateStore();
 const askpass = useAskpassStore();
 const gitLog = useGitLogStore();
 const settings = useSettingsStore();
+const search = useSearchStore();
 const gitInstall = useGitInstallStore();
 // primeira abertura: pergunta o idioma antes da primeira tela (só sem preferência guardada)
 const askLocale = ref(shouldAskLocale(localStorage.getItem('gitnexus.locale'), localStorage.getItem(LOCALE_ASKED_KEY)));
@@ -164,6 +168,17 @@ function globalCommands(): Command[] {
   const repo = ws.active?.repo;
   if (repo) {
     list.push(
+      // Ctrl+F e Ctrl+Shift+F abrem a mesma janela; com o foco num editor, o Ctrl+F é da barra daquele arquivo (o editor trata antes e este atalho nem dispara)
+      {
+        id: 'search.window',
+        title: t('cmd.search'),
+        group: nav,
+        shortcut: 'Mod+F',
+        alias: 'Mod+Shift+F',
+        keywords: 'buscar procurar pesquisar grep conteudo código texto substituir search find replace',
+        when: inRepo,
+        run: () => search.open(repo, selectedText()),
+      },
       { id: 'view.staging', title: t('cmd.staging'), group: nav, keywords: 'commit alterações changes', when: inRepo, run: () => ws.open('repo', repo) },
       { id: 'view.graph', title: t('cmd.graph'), group: nav, keywords: 'log commits busca history search', when: inRepo, run: () => ws.open('graph', repo) },
       { id: 'view.merge', title: t('cmd.merge'), group: nav, keywords: 'merge resolver conflicts resolve', when: inRepo, run: () => ws.open('merge', repo) },
@@ -178,6 +193,13 @@ function globalCommands(): Command[] {
   return list;
 }
 
+/** A seleção do momento (campo de texto ou página) que vira a pesquisa: uma linha, curta; senão vazio. */
+function selectedText(): string {
+  const el = document.activeElement;
+  if ((el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) && el.selectionStart !== null && el.selectionEnd !== null) return seedFromSelection(el.value.slice(el.selectionStart, el.selectionEnd));
+  return seedFromSelection(window.getSelection()?.toString() ?? '');
+}
+
 function step(delta: number): void {
   const i = ws.tabs.findIndex((t) => t.id === ws.activeId);
   const next = ws.tabs[(i + delta + ws.tabs.length) % ws.tabs.length];
@@ -186,6 +208,7 @@ function step(delta: number): void {
 
 function onKeydown(ev: KeyboardEvent): void {
   if (isDialogOpen()) return; // com um diálogo aberto, os atalhos globais (Ctrl+K inclusive) ficam quietos
+  if (ev.defaultPrevented) return; // quem tem o foco já tratou a tecla (o editor com Ctrl+F, por exemplo)
   const mod = ev.ctrlKey || ev.metaKey;
   const k = ev.key.toLowerCase();
   // paleta: Ctrl/⌘+K (e Ctrl/⌘+Shift+P, como em outros editores)
@@ -228,6 +251,7 @@ onBeforeUnmount(() => {
   <CoreInterface />
   <CommandPalette />
   <SettingsDialog v-if="settings.isOpen" @close="settings.close()" />
+  <SearchWindow v-if="search.isOpen && search.repo" :repo="search.repo" :seed="search.seed" :open-n="search.n" @close="search.close()" />
   <LocaleWelcome v-if="askLocale" @done="askLocale = false" />
   <AskpassDialog />
   <GitGate />

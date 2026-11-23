@@ -2,7 +2,7 @@
 // Só desenha o que está na tela: um arquivo de 30 mil linhas abre sem varrer o texto todo para pintar.
 import type { SearchQuery } from '@codemirror/search';
 import { RangeSetBuilder, StateEffect, StateField, type Extension } from '@codemirror/state';
-import { Decoration, ViewPlugin, type DecorationSet, type EditorView, type ViewUpdate } from '@codemirror/view';
+import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { MAX_DRAWN, matchesIn, type Span } from './find-core';
 
 export interface FindSpec {
@@ -62,5 +62,23 @@ const highlighter = ViewPlugin.fromClass(
   { decorations: (p) => p.decorations },
 );
 
-/** O que o editor precisa para a busca: o estado da consulta e o destaque. */
-export const findExtension: Extension = [findField, highlighter];
+/**
+ * Trechos destacados que vêm de FORA (a janela de pesquisa do repositório): as colunas que o núcleo da busca já calculou, em vez de buscar de novo no editor.
+ * Acompanham as edições (quem digita perto de um trecho não o desloca para o lugar errado).
+ */
+export const setMarks = StateEffect.define<Span[]>();
+const EXTERNAL = Decoration.mark({ class: 'cm-gn-find' });
+export const marksField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(set, tr) {
+    let next = set.map(tr.changes);
+    for (const e of tr.effects) {
+      if (e.is(setMarks)) next = Decoration.set([...e.value].sort((a, b) => a.from - b.from).map((m) => EXTERNAL.range(m.from, m.to)), true);
+    }
+    return next;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+/** O que o editor precisa para a busca: o estado da consulta, o destaque da barra e os trechos vindos de fora. */
+export const findExtension: Extension = [findField, highlighter, marksField];

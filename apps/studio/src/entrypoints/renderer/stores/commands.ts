@@ -8,6 +8,8 @@ export interface Command {
   group: string;
   /** Ex.: "Mod+Shift+A" (Mod = Ctrl no Windows/Linux e ⌘ no macOS). Só vale com Mod ou Alt, para não atrapalhar a digitação. */
   shortcut?: string;
+  /** Um segundo atalho que dispara o mesmo comando (a paleta mostra só o `shortcut`). */
+  alias?: string;
   /** Palavras extras para a busca. */
   keywords?: string;
   /** Quando devolve false o comando some da paleta e o atalho não dispara (ex.: só na aba ativa). */
@@ -128,7 +130,7 @@ export const useCommandsStore = defineStore('commands', () => {
   function byShortcut(ev: KeyboardEvent): Command | undefined {
     const safe = ev.ctrlKey || ev.metaKey || ev.altKey || /^f\d{1,2}$/i.test(ev.key);
     if (!safe) return undefined;
-    return available().find((c) => c.shortcut && matches(ev, parseShortcut(c.shortcut)));
+    return available().find((c) => (c.shortcut && matches(ev, parseShortcut(c.shortcut))) || (c.alias && matches(ev, parseShortcut(c.alias))));
   }
 
   const open = () => (isOpen.value = true);

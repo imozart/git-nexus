@@ -17,19 +17,18 @@ export const rmDir = (dir) => {
 
 /**
  * Pasta de trabalho de uma execução dos testes, que NÃO deixa lixo: o TEMP de tudo o que a execução cria (testes, harness, navegador, git) aponta para
- * dentro dela, e ela é apagada ao terminar, ao dar erro e em Ctrl+C/SIGTERM. Se a execução for morta à força (SIGKILL, queda de energia), a próxima
- * varre as pastas de mesmo prefixo com mais de 1 hora. Nada é criado fora do TEMP do sistema.
+ * dentro dela, e ela é apagada ao terminar, ao dar erro e em Ctrl+C/SIGTERM. Se a execução for morta à força (SIGKILL, `timeout`, queda de energia), a próxima
+ * mata o navegador que sobrou e apaga a pasta. Nada é criado fora do TEMP do sistema.
  */
 export function createWorkDir(prefix) {
   const base = tmpdir();
+  // Só existe UMA execução por vez (as portas do harness e do navegador são fixas): qualquer pasta do mesmo prefixo que já exista é de uma execução que
+  // morreu sem limpar (um `timeout` externo, uma queda). Mata o navegador que ainda segura o perfil dela e apaga, sem esperar envelhecer.
   for (const name of readdirSync(base)) {
     if (!name.startsWith(prefix)) continue;
     const dir = join(base, name);
-    try {
-      if (Date.now() - statSync(dir).mtimeMs > 3_600_000) rmDir(dir);
-    } catch {
-      /* sumiu no meio da varredura */
-    }
+    killByProfile(dir);
+    rmDir(dir);
   }
   const work = mkdtempSync(join(base, prefix));
   const scratch = join(work, 'tmp');

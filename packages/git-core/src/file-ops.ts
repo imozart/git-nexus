@@ -5,6 +5,7 @@ import type { EncodingChoice, FileEncoding, FileEncodingInfo } from './file-enco
 import { decodeText, detectEncodingOf, encodeText, resolveEncoding } from './encoding.js';
 import { resolveInsideRepo } from './conflicts.js';
 import { runGit } from './runner.js';
+import { writeFileAtomic } from './work-file.js';
 
 const MAX_TEXT_BYTES = 2_000_000;
 
@@ -128,8 +129,7 @@ export async function writeWorkingFile(repoPath: string, file: string, content: 
   const abs = resolveInsideRepo(repoPath, file);
   // codifica ANTES de tocar no disco: se um caractere não existir na codificação do arquivo, o arquivo fica como estava
   const bytes = encodeText(content, resolveEncoding(encoding, await detectForFile(repoPath, file)));
-  await mkdir(dirname(abs), { recursive: true });
-  await writeFile(abs, bytes);
+  await writeFileAtomic(abs, bytes); // atômico: uma queda no meio nunca deixa o arquivo pela metade
 }
 
 async function exists(repoPath: string, args: string[]): Promise<boolean> {

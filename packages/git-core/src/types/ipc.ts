@@ -140,10 +140,6 @@ export interface GitNexusIPC {
   updateSubmodules(repoPath: string, paths?: string[]): Promise<BranchActionResult>;
   /** Responde a um pedido de credencial do git/ssh (`null` = cancelou). A resposta nunca é registrada em log. */
   askpassAnswer(id: string, answer: string | null): Promise<void>;
-  /** Procura um texto (ou expressão regular) no conteúdo dos arquivos do repositório (`git grep`), inclusive os novos não ignorados. */
-  searchContent(repoPath: string, query: ContentSearch): Promise<ContentSearchResult>;
-  /** As linhas ao redor de uma ocorrência, para a pré-visualização dos resultados. */
-  getFileContext(repoPath: string, file: string, line: number, radius?: number): Promise<FileContext>;
   /**
    * Começa uma busca v2 (escopos, máscaras, colunas, contexto, várias linhas) e volta na hora: os resultados chegam em lotes por `onSearchBatch` e o fim por
    * `onSearchDone`. O `id` é escolhido por quem chama (assim nenhum lote se perde antes de a resposta chegar) e só uma busca por id corre: reusar o id cancela a anterior.
@@ -647,37 +643,6 @@ export interface SigningInfo {
   key: string | null;
 }
 
-/** Busca no conteúdo dos arquivos (`git grep`). */
-export interface ContentSearch {
-  pattern: string;
-  /** O texto é uma expressão regular (extendida); senão, é procurado como está. */
-  regex?: boolean;
-  /** Diferenciar maiúsculas de minúsculas (padrão: não diferencia). */
-  caseSensitive?: boolean;
-  /** Só palavras inteiras. */
-  wholeWord?: boolean;
-  /** Filtro de caminhos separados por espaço, ex.: `*.ts src/`. Vazio = tudo. */
-  paths?: string;
-}
-
-export interface ContentMatch {
-  file: string;
-  /** 1 = primeira linha. */
-  line: number;
-  text: string;
-}
-
-export interface ContentSearchResult {
-  ok: boolean;
-  /** Quando `ok` é false: por que a busca não rodou (expressão inválida...). */
-  message?: string;
-  matches: ContentMatch[];
-  /** Em quantos arquivos há ocorrências (das devolvidas). */
-  files: number;
-  /** Havia mais ocorrências do que as devolvidas. */
-  truncated: boolean;
-}
-
 /** Onde a busca v2 procura. */
 export type SearchScope =
   /** Arquivos rastreados e os novos ainda não ignorados (o padrão). */
@@ -780,16 +745,48 @@ export interface SearchDone {
   ms: number;
 }
 
-/** Linhas ao redor de uma ocorrência. */
-export interface FileContext {
-  file: string;
-  /** A linha pedida (já ajustada ao tamanho do arquivo). */
-  line: number;
-  /** Número da primeira linha de `lines`. */
-  start: number;
-  lines: string[];
-  total: number;
+/** Fim de linha de um texto: só LF, só CRLF, misto (inclui CR solto) ou nenhum. */
+export type Eol = 'lf' | 'crlf' | 'mixed' | 'none';
+
+/** Um arquivo do working tree lido para a janela de pesquisa (que o edita no mesmo lugar). */
+export interface WorkingFileInfo {
+  exists: boolean;
+  /** Tem byte 0 (e não é UTF-16): não é texto. */
+  binary: boolean;
+  /** Acima do limite de edição (2 MB): só leitura, e o texto não vem. */
+  tooLarge: boolean;
+  /** O texto como está no disco (com os fins de linha originais). Vazio se `binary`, `tooLarge` ou `!exists`. */
+  text: string;
+  encoding: FileEncoding;
+  detectedEncoding: FileEncoding;
+  /** O arquivo não sobrevive a uma ida e volta nesta codificação: editar e gravar o corromperia. */
+  invalid: boolean;
+  eol: Eol;
+  size: number;
+  mtimeMs: number;
+  /** SHA-1 dos bytes do disco: a impressão que a gravação confere antes de sobrescrever. */
+  hash: string;
 }
+
+/** A impressão do arquivo no disco: o que a janela compara para saber se ele mudou por fora. */
+export interface WorkingFileStamp {
+  size: number;
+  mtimeMs: number;
+  hash: string;
+}
+
+export interface SaveOptions {
+  encoding?: EncodingChoice;
+  /** O hash lido com o arquivo; `null` = o arquivo não existia (criar). Se o disco não bate com ele, nada é gravado (`changed`). */
+  expectHash: string | null;
+  /** Grava mesmo que o arquivo tenha mudado por fora (a pessoa escolheu sobrescrever). */
+  force?: boolean;
+}
+
+export type SaveResult =
+  | { ok: true; stamp: WorkingFileStamp }
+  /** `changed`: mudou por fora desde a leitura; `unencodable`: um caractere não existe na codificação; `failed`: erro do sistema de arquivos. */
+  | { ok: false; reason: 'changed' | 'unencodable' | 'failed'; message: string; char?: string; stamp?: WorkingFileStamp };
 
 /** Quantos commits de cada lado o painel de sincronização lista. O resto vira "e mais N" (o total vem do adiante/atrás). */
 export const SYNC_COMMITS_LIMIT = 20;
@@ -1114,6 +1111,15 @@ export interface GitNexusApi extends GitNexusIPC {
    * (`encoding` ou a detectada, com o BOM); se um caractere não existir nela, recusa sem alterar o arquivo.
    */
   writeWorkingFile(repoPath: string, file: string, content: string, encoding?: EncodingChoice): Promise<void>;
+  /** Lê o arquivo do working tree para edição: texto na codificação detectada, fim de linha e a impressão do disco (tamanho, data, hash). */
+  readWorkingFile(repoPath: string, file: string, encoding?: EncodingChoice): Promise<WorkingFileInfo>;
+  /** A impressão do arquivo no disco agora (`null` se não existe): a janela pergunta "mudou por fora?" sem reler o texto. */
+  stampWorkingFile(repoPath: string, file: string): Promise<WorkingFileStamp | null>;
+  /**
+   * Grava o arquivo de forma atômica (temporário + rename), na codificação dele, mantendo o modo; recusa (e não grava) se um caractere não existe
+   * na codificação ou se o arquivo mudou por fora desde a leitura (`expectHash`), a menos que `force`.
+   */
+  saveWorkingFile(repoPath: string, file: string, content: string, opts: SaveOptions): Promise<SaveResult>;
   /** Grava o conteúdo como versão do arquivo no ÍNDICE (stage por linha/trecho), sem alterar o disco. Mesma regra de codificação. */
   writeIndexContent(repoPath: string, file: string, content: string, encoding?: EncodingChoice): Promise<void>;
   /**

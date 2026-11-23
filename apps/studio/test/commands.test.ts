@@ -77,3 +77,20 @@ describe('atalhos', () => {
     expect(shortcutLabel('Mod+PageDown')).toContain('PgDn');
   });
 });
+
+describe('atalho alternativo (alias)', () => {
+  it('Ctrl+F e Ctrl+Shift+F disparam o mesmo comando, e o rótulo mostra só o principal', async () => {
+    const store = new Map<string, string>();
+    (globalThis as { localStorage?: unknown }).localStorage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useCommandsStore } = await import('../src/entrypoints/renderer/stores/commands');
+    setActivePinia(createPinia());
+    const cmds = useCommandsStore();
+    cmds.register(() => [{ id: 'search.window', title: 'Pesquisar', group: 'g', shortcut: 'Mod+F', alias: 'Mod+Shift+F', run: () => undefined }]);
+    const key = (o: Partial<KeyboardEvent>) => ({ key: 'f', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false, ...o }) as KeyboardEvent;
+    expect(cmds.byShortcut(key({}))?.id).toBe('search.window');
+    expect(cmds.byShortcut(key({ shiftKey: true }))?.id).toBe('search.window');
+    expect(cmds.byShortcut(key({ altKey: true }))).toBeUndefined();
+    expect(cmds.byShortcut(key({ ctrlKey: false }))).toBeUndefined();
+  });
+});
