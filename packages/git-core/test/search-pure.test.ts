@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { GrepParser, byteColToIndex, type RawHit } from '../src/index.js';
 import {
-  GrepParser,
   buildGrepArgs,
-  byteColToIndex,
   candidateLiteral,
   clipAround,
   compileJsRegex,
@@ -12,7 +11,6 @@ import {
   parseMasks,
   regexRanges,
   type NormalizedQuery,
-  type RawHit,
 } from '../src/pure.js';
 
 const norm = (q: Parameters<typeof normalizeQuery>[0]): NormalizedQuery => {

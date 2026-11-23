@@ -7,11 +7,10 @@ import { decodeText, detectEncoding } from './encoding.js';
 import { tm } from './messages.js';
 import { resolveInsideRepo } from './paths.js';
 import { runGit } from './runner.js';
+import { GrepParser, byteColToIndex, type RawHit } from './search-parse.js';
 import {
-  GrepParser,
   SEARCH_MAX_FILE_BYTES,
   buildGrepArgs,
-  byteColToIndex,
   candidateLiteral,
   clipAround,
   compileJsRegex,
@@ -24,7 +23,6 @@ import {
   regexRanges,
   type Dialect,
   type NormalizedQuery,
-  type RawHit,
 } from './search-pure.js';
 import type { SearchDone, SearchHit, SearchQuery, SearchSkipped } from './types/ipc.js';
 

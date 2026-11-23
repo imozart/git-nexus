@@ -21,6 +21,7 @@ export * from './commit-ops.js';
 export * from './tags.js';
 export * from './clone.js';
 export * from './content-search.js';
+export * from './search-parse.js';
 export * from './search-run.js';
 export * from './askpass.js';
 export * from './submodules.js';
