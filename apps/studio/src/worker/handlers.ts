@@ -112,7 +112,11 @@ import {
   type RepoConfig,
   type RepoPolicyInfo,
   type RepositoryMeta,
+  type SearchBatchEvent,
+  type SearchDone,
+  type SearchQuery,
   type SecretScanResult,
+  searchRepository,
   setMessageLocale,
 } from '@git-nexus/git-core';
 import {
@@ -139,7 +143,12 @@ export async function readRepoPolicy(repoPath: string): Promise<RepoPolicyInfo> 
   return { found: true, commit: p.commit, secrets: p.secrets, errors: p.errors };
 }
 
-export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: any[]) => Promise<unknown>> {
+/** Evento espontâneo do worker que não é resposta a um pedido (lotes e fim de uma busca). */
+export type HandlerEvent = { event: 'searchBatch'; data: SearchBatchEvent } | { event: 'searchDone'; data: SearchDone };
+
+export function createHandlers(dataDir: string, emit: (e: HandlerEvent) => void = () => undefined): Record<WorkerMethod, (...args: any[]) => Promise<unknown>> {
+  /** Buscas em andamento: `cancelSearch` e uma busca nova com o mesmo id encerram o processo do git de verdade. */
+  const searches = new Map<string, AbortController>();
   const storeFile = join(dataDir, 'repositories.json');
 
   // Serializa gravações para não corromper o JSON com chamadas concorrentes.
@@ -203,6 +212,21 @@ export function createHandlers(dataDir: string): Record<WorkerMethod, (...args: 
     askpassAnswer: async (id: string, answer: string | null) => getActiveAskpass()?.answer(String(id), answer === null ? null : String(answer)),
     searchContent: (repoPath: string, q: ContentSearch) => searchContent(repoPath, q),
     getFileContext: (repoPath: string, file: string, line: number, radius?: number) => getFileContext(repoPath, file, line, radius),
+    startSearch: async (repoPath: string, query: SearchQuery, id: string) => {
+      const key = String(id);
+      searches.get(key)?.abort();
+      const ctl = new AbortController();
+      searches.set(key, ctl);
+      void searchRepository(repoPath, query, { id: key, signal: ctl.signal, onBatch: (hits) => emit({ event: 'searchBatch', data: { id: key, hits } }) })
+        .then(({ done }) => emit({ event: 'searchDone', data: done }))
+        .catch((e: unknown) => emit({ event: 'searchDone', data: { id: key, ok: false, message: e instanceof Error ? e.message : String(e), dialect: 'fixed', hits: 0, files: 0, skipped: [], cancelled: false, truncated: false, ms: 0 } }))
+        .finally(() => {
+          if (searches.get(key) === ctl) searches.delete(key);
+        });
+    },
+    cancelSearch: async (id: string) => {
+      searches.get(String(id))?.abort();
+    },
     cloneRepository: async (input: CloneInput) => register((await cloneRepository(input)).path),
     initRepository: async (input: InitInput) => {
       const r = await initRepository(input);

@@ -85,7 +85,7 @@ function startWorker(): UtilityProcess {
     if ('event' in msg) {
       if (msg.event === 'appError') return void appLog(`${msg.data.source}: ${msg.data.message}${msg.data.stack ? `\n${msg.data.stack}` : ''}`);
       // eventos espontâneos do worker, repassados a todas as janelas: comandos git (aba "Log") e andamento de fetch/pull/push
-      const ch = msg.event === 'gitProgress' ? 'gitProgress' : msg.event === 'askpass' ? 'askpass' : 'gitCommands';
+      const ch = msg.event === 'gitProgress' ? 'gitProgress' : msg.event === 'askpass' ? 'askpass' : msg.event === 'searchBatch' ? 'searchBatch' : msg.event === 'searchDone' ? 'searchDone' : 'gitCommands';
       for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.send(channel(ch), msg.data);
       return;
     }
