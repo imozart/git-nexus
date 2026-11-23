@@ -220,15 +220,18 @@ api.onGitProgress = (cb) => {
 };
 // Lotes e fim da busca: UMA sondagem para todos os ouvintes, em ordem (como o IPC do Electron: nenhum lote chega duas vezes nem depois do fim).
 // Sondagens separadas com um ponteiro compartilhado entregavam o mesmo lote em duplicidade quando a máquina estava carregada.
-// -1: a primeira sondagem só marca o ponto de partida (uma página recarregada não repete buscas antigas).
+// O ponto de partida é marcado quando a página carrega (uma página recarregada não repete buscas antigas), e NÃO na primeira sondagem: uma busca que a janela
+// dispara logo ao abrir (texto lembrado) podia começar antes dessa primeira sondagem, e os lotes dela eram descartados como "antigos".
 const searchListeners = { searchBatch: new Set(), searchDone: new Set() };
 let searchSeen = -1;
 let searchBusy = false;
+const searchStart = fetch('/searchevents?since=-1').then((r) => r.json()).then((r) => { searchSeen = r.next; }).catch(() => undefined);
 let searchTimer = null;
 const searchPoll = async () => {
   if (searchBusy) return;
   searchBusy = true;
   try {
+    await searchStart;
     const r = await (await fetch('/searchevents?since=' + searchSeen)).json();
     searchSeen = r.next;
     for (const e of r.events) for (const cb of searchListeners[e.event] ?? []) cb(e.data);
