@@ -63,6 +63,41 @@ describe('ícones', () => {
   });
 });
 
+/** `<input type="search">` / `role="searchbox"` cru permitido por arquivo (quantidade máxima). Campo de busca de texto novo usa GnSearchField (✕ Aa ab .* dentro do campo, `aria-pressed`, atalhos). */
+const RAW_SEARCH_INPUTS: Record<string, { max: number; why: string }> = {
+  'components/BranchPicker.vue': { max: 1, why: 'filtro da lista de branches (setas e Enter próprios, sem opções de regex)' },
+  'components/ComboBox.vue': { max: 1, why: 'filtro da lista do combo: é o próprio componente de seleção' },
+  'components/EncodingMenu.vue': { max: 1, why: 'filtro da lista de codificações' },
+};
+
+describe('campo de busca vem do ui-kit', () => {
+  it('nenhuma tela ganha um <input type="search"> ou role="searchbox" cru novo: use GnSearchField (a lista de exceções só encolhe)', () => {
+    for (const f of files) {
+      const n = (template(f.text).match(/<input\b[^>]*(type="search"|role="searchbox")/g) ?? []).length;
+      const allowed = RAW_SEARCH_INPUTS[f.rel]?.max ?? 0;
+      expect(n, `${f.rel}: ${n} campos de busca crus, permitido ${allowed}. Use GnSearchField (docs/INTERFACE.md).`).toBeLessThanOrEqual(allowed);
+    }
+  });
+
+  it('toda exceção registrada ainda existe (se o campo cru sumiu, tire a linha da lista)', () => {
+    for (const [rel, { max }] of Object.entries(RAW_SEARCH_INPUTS)) {
+      const f = files.find((x) => x.rel === rel);
+      expect(f, `${rel} não existe mais`).toBeDefined();
+      const n = (template(f!.text).match(/<input\b[^>]*(type="search"|role="searchbox")/g) ?? []).length;
+      expect(n, `${rel} tem ${n} campos de busca crus, a lista diz ${max}: ajuste para o número real`).toBe(max);
+    }
+  });
+
+  it('a busca dentro do arquivo (FindBar) usa o GnSearchField, e o editor abre a barra com Ctrl+F', () => {
+    const bar = files.find((f) => f.rel === 'components/FindBar.vue')!;
+    expect(template(bar.text)).toContain('<GnSearchField');
+    expect(template(bar.text)).not.toMatch(/<input\b/);
+    const editor = files.find((f) => f.rel === 'components/CodeEditor.vue')!;
+    expect(editor.text).toContain("key: 'Mod-f'");
+    expect(editor.text).toContain('<FindBar');
+  });
+});
+
 describe('cores dos botões (docs/INTERFACE.md)', () => {
   it('"Atualizar" é neutro em todas as telas (mesma ação, mesma aparência)', () => {
     for (const f of files) {

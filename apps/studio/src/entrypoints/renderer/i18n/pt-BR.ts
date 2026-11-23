@@ -1257,6 +1257,28 @@ const ptBR = {
   'git.step.done': 'Tudo pronto! O Git{version} foi instalado.',
   'git.error': 'Não foi possível instalar o Git.',
   'git.done': 'Git {version} instalado. O GitNexus já pode ser usado.',
+  // --- pesquisa dentro do arquivo (barra do editor) ----------------------------------------------
+  'find.region': 'Pesquisar neste arquivo',
+  'find.field': 'Pesquisar no arquivo',
+  'find.placeholder': 'Pesquisar',
+  'find.clear': 'Limpar',
+  'find.case': 'Diferenciar maiúsculas de minúsculas',
+  'find.word': 'Palavra inteira',
+  'find.regex': 'Expressão regular',
+  'find.prev': 'Resultado anterior (Shift+Enter)',
+  'find.next': 'Próximo resultado (Enter)',
+  'find.close': 'Fechar a pesquisa (Esc)',
+  'find.inSelection': 'Na seleção',
+  'find.inSelectionTip': 'Pesquisar só no trecho selecionado',
+  'find.prevName': 'Resultado anterior',
+  'find.nextName': 'Próximo resultado',
+  'find.none': 'Nenhum resultado',
+  'find.of': '{i} de {total}',
+  'find.count': '{n} resultado|{n} resultados',
+  'find.capped': 'mais de {n} resultados',
+  'find.wrapEnd': 'Voltou ao início do arquivo',
+  'find.wrapStart': 'Foi para o fim do arquivo',
+  'find.regexError': 'Expressão regular inválida: {msg}',
 } as const;
 
 export default ptBR;

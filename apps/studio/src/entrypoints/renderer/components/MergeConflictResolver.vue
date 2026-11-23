@@ -118,7 +118,7 @@ const noBase = computed(() => props.block.base === '');
 .pane {
   display: flex; flex-direction: column; background: var(--gn-surface); min-width: 0; min-height: 0;
   &__title { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-bottom: 1px solid var(--gn-border); font-size: 12px; }
-  > :deep(.code-editor) { flex: 1; }
+  > :deep(.code-editor-wrap) { flex: 1; }
 }
 .blk { display: flex; align-items: center; gap: 4px; }
 .blk__go { background: none; border: none; color: var(--gn-accent); cursor: pointer; font: inherit; padding: 0 6px 0 0; &:hover { text-decoration: underline; } }

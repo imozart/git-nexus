@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { bracketMatching, syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
 import { Compartment, EditorState, RangeSetBuilder, type Extension } from '@codemirror/state';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { languageFor } from '../editor-language';
 import { fontRevision } from '../font';
+import { findExtension } from '../find-ext';
+import { seedText } from '../find-core';
+import FindBar from './FindBar.vue';
 import { theme } from '../theme';
 import { Decoration, EditorView, ViewPlugin, keymap, lineNumbers, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 
@@ -23,6 +26,14 @@ const emit = defineEmits<{ (e: 'update:modelValue', v: string): void }>();
 
 const host = ref<HTMLDivElement>();
 let view: EditorView | null = null;
+
+// Busca no arquivo (Ctrl+F): a barra é nossa (FindBar); o motor é o do @codemirror/search. `shallowRef`: o EditorView não pode virar proxy do Vue.
+const viewRef = shallowRef<EditorView | null>(null);
+const findOpen = ref(false);
+const findSeed = ref('');
+/** Sobe a cada atualização do editor (edição, seleção, busca): é o sinal para a barra recontar. */
+const revision = ref(0);
+const bar = ref<InstanceType<typeof FindBar>>();
 
 const LINE_CLASS = {
   marker: Decoration.line({ class: 'cm-cf-marker' }),
@@ -79,7 +90,32 @@ const baseTheme = EditorView.theme({
   '.cm-cf-ours': { backgroundColor: 'rgba(79,181,106,0.13)' },
   '.cm-cf-base': { backgroundColor: 'rgba(144,151,161,0.13)' },
   '.cm-cf-theirs': { backgroundColor: 'rgba(79,134,247,0.15)' },
+  // busca no arquivo: todas as ocorrências com fundo e contorno; a atual com contorno mais grosso (não depende só da cor)
+  '.cm-gn-find': { backgroundColor: 'color-mix(in srgb, var(--gn-warn) 32%, transparent)', borderRadius: '2px', boxShadow: '0 0 0 1px color-mix(in srgb, var(--gn-warn) 70%, transparent)' },
+  '.cm-gn-find-current': { backgroundColor: 'color-mix(in srgb, var(--gn-accent) 38%, transparent)', boxShadow: '0 0 0 2px var(--gn-accent)' },
 });
+
+function openFind(): boolean {
+  if (!view) return false;
+  const seed = seedText(view.state);
+  if (findOpen.value) bar.value?.reopen(seed);
+  else {
+    findSeed.value = seed;
+    findOpen.value = true;
+  }
+  return true;
+}
+function closeFind(): boolean {
+  if (!findOpen.value) return false;
+  findOpen.value = false;
+  void nextTick(() => view?.focus());
+  return true;
+}
+function findStep(backwards: boolean): boolean {
+  if (!findOpen.value) return openFind();
+  bar.value?.go(backwards);
+  return true;
+}
 
 function extensions(): Extension[] {
   const ext: Extension[] = [
@@ -89,13 +125,24 @@ function extensions(): Extension[] {
     syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
     themeSlot.of(theme.value === 'dark' ? oneDark : []),
     baseTheme,
-    keymap.of([...defaultKeymap, ...historyKeymap]),
+    findExtension,
+    keymap.of([
+      { key: 'Mod-f', run: openFind, preventDefault: true },
+      { key: 'Mod-g', run: () => findStep(false), shift: () => findStep(true), preventDefault: true },
+      { key: 'F3', run: () => findStep(false), shift: () => findStep(true), preventDefault: true },
+      { key: 'Escape', run: closeFind },
+      ...defaultKeymap,
+      ...historyKeymap,
+    ]),
     EditorState.readOnly.of(props.readOnly),
     EditorView.editable.of(!props.readOnly),
     EditorView.updateListener.of((u) => {
+      revision.value++;
       if (u.docChanged) emit('update:modelValue', u.state.doc.toString());
     }),
   ];
+  // somente leitura: o conteúdo precisa receber foco (Tab), senão Ctrl+F, as setas e a seleção não chegam ao editor
+  if (props.readOnly) ext.push(EditorView.contentAttributes.of({ tabindex: '0', 'aria-readonly': 'true' }));
   const lang = languageFor(props.filename);
   if (lang) ext.push(lang);
   if (props.highlightConflicts) ext.push(conflictPlugin);
@@ -112,6 +159,7 @@ onMounted(() => {
     parent: host.value!,
     state: EditorState.create({ doc: props.modelValue, extensions: extensions() }),
   });
+  viewRef.value = view;
   document.fonts?.ready.then(remeasure);
   document.fonts?.addEventListener('loadingdone', remeasure);
 });
@@ -128,6 +176,7 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  viewRef.value = null;
   document.fonts?.removeEventListener('loadingdone', remeasure);
   view?.destroy();
 });
@@ -136,13 +185,17 @@ onBeforeUnmount(() => {
 function scrollTo(pos: number): void {
   view?.dispatch({ selection: { anchor: pos }, effects: EditorView.scrollIntoView(pos, { y: 'center' }) });
 }
-defineExpose({ scrollTo });
+defineExpose({ scrollTo, openFind });
 </script>
 
 <template>
-  <div ref="host" class="code-editor"></div>
+  <div class="code-editor-wrap">
+    <div ref="host" class="code-editor"></div>
+    <FindBar v-if="findOpen && viewRef" ref="bar" :view="viewRef" :seed="findSeed" :revision="revision" @close="closeFind" />
+  </div>
 </template>
 
 <style scoped>
+.code-editor-wrap { position: relative; height: 100%; min-height: 0; }
 .code-editor { height: 100%; min-height: 0; overflow: hidden; }
 </style>
