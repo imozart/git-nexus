@@ -4,15 +4,17 @@ import { reactive, ref } from 'vue';
 import { HISTORY_MAX, pushHistory } from '@git-nexus/ui-kit';
 
 const KEY = 'gitnexus.find';
-function load(): { caseSensitive: boolean; wholeWord: boolean; regex: boolean; history: string[] } {
-  const base = { caseSensitive: false, wholeWord: false, regex: false, history: [] as string[] };
+function load(): { caseSensitive: boolean; wholeWord: boolean; regex: boolean; preserveCase: boolean; history: string[]; replaceHistory: string[] } {
+  const base = { caseSensitive: false, wholeWord: false, regex: false, preserveCase: false, history: [] as string[], replaceHistory: [] as string[] };
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<typeof base>;
     return {
       caseSensitive: raw.caseSensitive === true,
       wholeWord: raw.wholeWord === true,
       regex: raw.regex === true,
+      preserveCase: raw.preserveCase === true,
       history: Array.isArray(raw.history) ? raw.history.filter((h): h is string => typeof h === 'string').slice(-HISTORY_MAX) : [],
+      replaceHistory: Array.isArray(raw.replaceHistory) ? raw.replaceHistory.filter((h): h is string => typeof h === 'string').slice(-HISTORY_MAX) : [],
     };
   } catch {
     return base;
@@ -20,11 +22,13 @@ function load(): { caseSensitive: boolean; wholeWord: boolean; regex: boolean; h
 }
 const initial = load();
 /** As três opções e o texto da última busca (volta preenchido quando não há seleção para usar). */
-const prefs = reactive({ caseSensitive: initial.caseSensitive, wholeWord: initial.wholeWord, regex: initial.regex, last: '' });
+const prefs = reactive({ caseSensitive: initial.caseSensitive, wholeWord: initial.wholeWord, regex: initial.regex, preserveCase: initial.preserveCase, last: '', lastReplace: '' });
 const history = ref<string[]>(initial.history);
+/** Textos de "Substituir por" usados antes (↑ e ↓ no campo). */
+const replaceHistory = ref<string[]>(initial.replaceHistory);
 function persist(): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify({ caseSensitive: prefs.caseSensitive, wholeWord: prefs.wholeWord, regex: prefs.regex, history: history.value }));
+    localStorage.setItem(KEY, JSON.stringify({ caseSensitive: prefs.caseSensitive, wholeWord: prefs.wholeWord, regex: prefs.regex, preserveCase: prefs.preserveCase, history: history.value, replaceHistory: replaceHistory.value }));
   } catch {
     /* sem armazenamento: a busca funciona do mesmo jeito, só não lembra */
   }
@@ -32,17 +36,20 @@ function persist(): void {
 </script>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref as vref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref as vref, watch } from 'vue';
 import { EditorView } from '@codemirror/view';
 import { GnButton, GnIconButton, GnSearchField, GnTooltip, regexProblem } from '@git-nexus/ui-kit';
 import { t } from '../i18n';
 import { MARK_BUCKETS, analyze, makeQuery, matchesIn, nextMatch, seedText, type FindStats, type Span } from '../find-core';
 import { findField, setFind } from '../find-ext';
+import { infoAt, planReplaceAll, replacementFor, selectAllMatches } from '../replace-core';
 
 const props = defineProps<{
   view: EditorView;
   /** Texto para começar (a seleção ou a palavra sob o cursor); vazio = o da última busca. */
   seed: string;
+  /** Abre já com o campo "Substituir por" (Ctrl+H). */
+  replace?: boolean;
   /** Muda a cada edição ou mudança de seleção do editor: é o sinal para recontar. */
   revision: number;
 }>();
@@ -53,6 +60,13 @@ const field = vref<InstanceType<typeof GnSearchField>>();
 const stats = vref<FindStats>({ total: 0, capped: false, current: 0 });
 const marks = vref<number[]>([]);
 const wrapNote = vref('');
+/** Somente leitura: só busca (sem campo "Substituir por"). */
+const readOnly = props.view.state.readOnly;
+const replaceOpen = vref(!!props.replace && !readOnly);
+const replaceText = vref(prefs.lastReplace);
+const replaceField = vref<InstanceType<typeof GnSearchField>>();
+/** A ocorrência atual e como ficará (prévia). */
+const preview = vref<{ from: string; to: string } | null>(null);
 let anchor = props.view.state.selection.main.from;
 /** A seleção de várias linhas de quando a barra abriu: é o trecho do "Na seleção" (a busca incremental seleciona a ocorrência, e isso não conta). */
 const selAtOpen = vref<Span | null>(null);
@@ -93,6 +107,7 @@ function recount(): void {
     stats.value = r.stats;
     marks.value = r.marks;
     counted = true;
+    updatePreview();
   };
   // a primeira contagem não espera; as seguintes (digitar, rolar, editar) juntam os pedidos de 60 ms
   if (!counted) run();
@@ -114,11 +129,13 @@ function incremental(): void {
   if (m) select(m);
 }
 
-function note(key: 'find.wrapEnd' | 'find.wrapStart'): void {
-  wrapNote.value = t(key);
+/** Aviso curto ao lado do contador (a região é role="status": o leitor de tela anuncia). */
+function say(text: string, ms = 2200): void {
+  wrapNote.value = text;
   clearTimeout(wrapTimer);
-  wrapTimer = setTimeout(() => (wrapNote.value = ''), 2200);
+  wrapTimer = setTimeout(() => (wrapNote.value = ''), ms);
 }
+const note = (key: 'find.wrapEnd' | 'find.wrapStart'): void => say(t(key));
 
 /** Enter / Shift+Enter e os botões: próxima ou anterior, dando a volta no arquivo (e avisando). */
 function go(backwards: boolean): void {
@@ -139,6 +156,74 @@ function remember(): void {
   persist();
 }
 
+// ---------- substituir ----------
+const canReplace = computed(() => !!query.value && stats.value.total > 0 && !error.value);
+const ropts = () => ({ regex: prefs.regex, preserveCase: prefs.preserveCase });
+const shown = (s: string): string => (s.length > 60 ? s.slice(0, 59) + '…' : s).replace(/\r\n|\r|\n/g, '↵').replace(/\t/g, '⇥');
+
+/** A prévia da ocorrência atual: o trecho achado e o texto novo (com grupos, escapes e caixa). */
+function updatePreview(): void {
+  const q = query.value;
+  const st = props.view.state;
+  const sel = st.selection.main;
+  const m = replaceOpen.value && q && stats.value.current > 0 ? infoAt(st, q, range(), { from: sel.from, to: sel.to }) : null;
+  preview.value = m ? { from: shown(m.text), to: shown(replacementFor(replaceText.value, m, ropts(), st.lineBreak)) } : null;
+}
+
+function rememberReplace(): void {
+  prefs.lastReplace = replaceText.value;
+  replaceHistory.value = pushHistory(replaceHistory.value, replaceText.value);
+  persist();
+}
+
+/** Substituir (botão e Enter no campo novo): troca a ocorrência selecionada e vai para a próxima; se a seleção não é uma ocorrência, só vai para a primeira. */
+function replaceOne(): void {
+  const q = query.value;
+  if (!q || readOnly) return;
+  const st = props.view.state;
+  const sel = st.selection.main;
+  const m = infoAt(st, q, range(), { from: sel.from, to: sel.to });
+  if (!m) {
+    go(false);
+    return;
+  }
+  const insert = replacementFor(replaceText.value, m, ropts(), st.lineBreak);
+  const end = m.from + insert.length;
+  props.view.dispatch({ changes: { from: m.from, to: m.to, insert }, selection: { anchor: end }, userEvent: 'input.replace' });
+  rememberReplace();
+  anchor = end;
+  go(false);
+}
+
+/** Substituir todas: UMA transação (um Ctrl+Z desfaz tudo) e o aviso diz quantas. */
+function replaceAll(): void {
+  const q = query.value;
+  if (!q || readOnly) return;
+  const plan = planReplaceAll(props.view.state, q, range(), replaceText.value, ropts());
+  if (plan.tooMany) return say(t('find.tooMany'), 5000);
+  if (!plan.count) return;
+  props.view.dispatch({ changes: plan.changes, userEvent: 'input.replace.all' });
+  rememberReplace();
+  say(t('find.replacedAll', { n: plan.count }), 5000);
+}
+
+/** Selecionar todas as ocorrências (vários cursores): o foco volta ao editor, onde digitar troca todas de uma vez. */
+function selectAll(): void {
+  const q = query.value;
+  if (!q) return;
+  const r = selectAllMatches(props.view.state, q, range());
+  if (!r) return;
+  props.view.dispatch({ selection: r.selection, effects: EditorView.scrollIntoView(r.selection.main.head, { y: 'center' }), userEvent: 'select' });
+  say(r.capped ? t('find.selectedCapped', { n: r.count }) : t('find.selected', { n: r.count }), 5000);
+  props.view.focus();
+}
+
+function openReplace(focusIt: boolean): void {
+  if (readOnly) return;
+  replaceOpen.value = true;
+  if (focusIt) void nextTick(() => replaceField.value?.select());
+}
+
 function toggleSelection(): void {
   const next: Span | null = selectionOnly.value ? null : selAtOpen.value;
   props.view.dispatch({ effects: setFind.of({ query: query.value, range: next }) });
@@ -156,15 +241,17 @@ watch(query, (q, old) => {
   prefs.last = text.value;
 });
 watch(
-  () => [prefs.caseSensitive, prefs.wholeWord, prefs.regex],
+  () => [prefs.caseSensitive, prefs.wholeWord, prefs.regex, prefs.preserveCase],
   () => persist(),
 );
+watch([replaceText, () => prefs.preserveCase, () => prefs.regex, replaceOpen], () => updatePreview());
 
 onMounted(() => {
   props.view.dispatch({ effects: setFind.of({ query: query.value, range: null }) });
   if (query.value) incremental();
   recount();
-  field.value?.select();
+  if (replaceOpen.value && text.value) void nextTick(() => replaceField.value?.select());
+  else field.value?.select();
 });
 onBeforeUnmount(() => {
   clearTimeout(timer);
@@ -182,23 +269,44 @@ function onKey(e: KeyboardEvent): void {
   } else if (e.key === 'F3' || (mod && !e.altKey && e.key.toLowerCase() === 'g')) {
     e.preventDefault();
     go(e.shiftKey);
+  } else if (mod && !e.altKey && e.key.toLowerCase() === 'h') {
+    e.preventDefault();
+    openReplace(true);
+  } else if (e.key === 'Enter' && e.altKey) {
+    // Alt+Enter: selecionar todas as ocorrências; Ctrl+Alt+Enter: substituir todas
+    e.preventDefault();
+    if (mod) replaceAll();
+    else selectAll();
   }
 }
 
 defineExpose({
   go,
   /** Abrir a busca de novo (Ctrl+F com a barra já aberta): com texto selecionado, troca a busca por ele; sempre foca e seleciona o campo. */
-  reopen(seed: string) {
+  reopen(seed: string, withReplace = false) {
     if (seed) text.value = seed;
     captureSelection();
     anchor = props.view.state.selection.main.from;
-    field.value?.select();
+    if (withReplace && !readOnly) {
+      replaceOpen.value = true;
+      void nextTick(() => (text.value ? replaceField.value?.select() : field.value?.select()));
+    } else field.value?.select();
   },
 });
 </script>
 
 <template>
   <div class="fb" role="search" :aria-label="t('find.region')" data-testid="find-bar" @keydown="onKey">
+    <GnIconButton
+      v-if="!readOnly"
+      class="fb__toggle"
+      :icon="replaceOpen ? 'chevron-down' : 'chevron-right'"
+      :label="t('find.toggleReplace')"
+      :title="t('find.toggleReplaceTip')"
+      :aria-expanded="replaceOpen"
+      data-testid="find-toggle-replace"
+      @click="replaceOpen ? (replaceOpen = false) : openReplace(true)"
+    />
     <GnSearchField
       ref="field"
       v-model="text"
@@ -229,6 +337,34 @@ defineExpose({
       >{{ t('find.inSelection') }}<GnTooltip :text="t('find.inSelectionTip')" /></GnButton>
       <GnIconButton icon="x" :label="t('find.close')" data-testid="find-close" @click="emit('close')" />
     </div>
+    <div v-if="replaceOpen && !readOnly" class="fb__row2" data-testid="find-replace-row">
+      <GnSearchField
+        ref="replaceField"
+        v-model="replaceText"
+        variant="replace"
+        class="fb__field"
+        :label="t('find.replaceField')"
+        :placeholder="t('find.replacePlaceholder')"
+        :labels="labels"
+        :history="replaceHistory"
+        @enter="replaceOne"
+        @escape="emit('close')"
+      />
+      <div class="fb__ctrls">
+        <GnButton size="sm" :disabled="!canReplace" data-testid="find-replace-one" @click="replaceOne">{{ t('find.replaceOne') }}<GnTooltip :text="t('find.replaceOneTip')" /></GnButton>
+        <GnButton size="sm" :disabled="!canReplace" :aria-label="t('find.replaceAllName')" data-testid="find-replace-all" @click="replaceAll">{{ t('find.replaceAll') }}<GnTooltip :text="t('find.replaceAllTip')" /></GnButton>
+        <GnButton
+          size="sm"
+          :tone="prefs.preserveCase ? 'accent' : 'neutral'"
+          :variant="prefs.preserveCase ? undefined : 'ghost'"
+          :aria-pressed="prefs.preserveCase"
+          data-testid="find-preserve-case"
+          @click="prefs.preserveCase = !prefs.preserveCase"
+        >{{ t('find.preserveCase') }}<GnTooltip :text="t('find.preserveCaseTip')" /></GnButton>
+        <GnButton size="sm" variant="ghost" :disabled="!query || stats.total === 0" data-testid="find-select-all" @click="selectAll">{{ t('find.selectAll') }}<GnTooltip :text="t('find.selectAllTip')" /></GnButton>
+      </div>
+      <div v-if="preview" class="fb__preview" data-testid="find-preview">{{ t('find.preview') }}: <code>{{ preview.from }}</code> → <code>{{ preview.to }}</code></div>
+    </div>
   </div>
   <!-- marcas na barra de rolagem: onde, no arquivo, há ocorrências (decorativo: o contador é a informação) -->
   <div v-if="marks.length" class="fb__marks" aria-hidden="true" data-testid="find-marks">
@@ -243,6 +379,13 @@ defineExpose({
   box-shadow: var(--gn-shadow-md); font-family: var(--gn-font-ui);
 }
 .fb__field { flex: 1 1 210px; min-width: 0; }
+.fb__toggle.gn-btn { align-self: flex-start; margin-top: 1px; }
+// segunda linha (substituir): alinhada ao campo de cima, que fica depois do botão de abrir/fechar
+.fb__row2 { display: flex; flex-wrap: wrap; flex: 1 0 100%; align-items: flex-start; gap: 4px 6px; padding-left: 30px; box-sizing: border-box; }
+.fb__preview {
+  flex: 1 0 100%; min-width: 0; overflow: hidden; color: var(--gn-muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap;
+  code { padding: 0 3px; border-radius: var(--gn-radius-sm); background: var(--gn-surface-2); color: var(--gn-text); font-family: var(--gn-mono); font-size: 11.5px; }
+}
 .fb__ctrls { display: flex; align-items: center; flex: 0 1 auto; flex-wrap: nowrap; gap: 3px; min-height: 28px; margin-left: auto; }
 .fb__count { min-width: 3.5em; padding: 0 4px; color: var(--gn-muted); font-size: 12px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .fb__count--none { color: var(--gn-danger); font-weight: 600; }

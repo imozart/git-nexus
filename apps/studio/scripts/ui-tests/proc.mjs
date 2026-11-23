@@ -6,9 +6,10 @@ import { join } from 'node:path';
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const rmDir = (dir) => {
+/** Apaga a pasta com tentativas: no Windows o navegador morto ainda segura arquivos do perfil por alguns segundos. */
+export const rmDir = (dir) => {
   try {
-    rmSync(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 250 });
+    rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 300 });
   } catch {
     /* o Windows às vezes ainda segura um arquivo (perfil do navegador); a próxima execução varre o que sobrar */
   }

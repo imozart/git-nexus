@@ -8,9 +8,11 @@ import { languageFor } from '../editor-language';
 import { fontRevision } from '../font';
 import { findExtension } from '../find-ext';
 import { seedText } from '../find-core';
+import { crlfOnly } from '../replace-core';
 import FindBar from './FindBar.vue';
 import { theme } from '../theme';
-import { Decoration, EditorView, ViewPlugin, keymap, lineNumbers, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+import { selectNextOccurrence } from '@codemirror/search';
+import { Decoration, EditorView, ViewPlugin, drawSelection, keymap, lineNumbers, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 
 const props = withDefaults(
   defineProps<{
@@ -31,6 +33,8 @@ let view: EditorView | null = null;
 const viewRef = shallowRef<EditorView | null>(null);
 const findOpen = ref(false);
 const findSeed = ref('');
+/** A barra abre já com o campo "Substituir por" (Ctrl+H). */
+const findReplace = ref(false);
 /** Sobe a cada atualização do editor (edição, seleção, busca): é o sinal para a barra recontar. */
 const revision = ref(0);
 const bar = ref<InstanceType<typeof FindBar>>();
@@ -95,16 +99,18 @@ const baseTheme = EditorView.theme({
   '.cm-gn-find-current': { backgroundColor: 'color-mix(in srgb, var(--gn-accent) 38%, transparent)', boxShadow: '0 0 0 2px var(--gn-accent)' },
 });
 
-function openFind(): boolean {
+function openFind(replace = false): boolean {
   if (!view) return false;
   const seed = seedText(view.state);
-  if (findOpen.value) bar.value?.reopen(seed);
+  if (findOpen.value) bar.value?.reopen(seed, replace);
   else {
     findSeed.value = seed;
+    findReplace.value = replace;
     findOpen.value = true;
   }
   return true;
 }
+
 function closeFind(): boolean {
   if (!findOpen.value) return false;
   findOpen.value = false;
@@ -126,8 +132,14 @@ function extensions(): Extension[] {
     themeSlot.of(theme.value === 'dark' ? oneDark : []),
     baseTheme,
     findExtension,
+    // vários cursores (selecionar todas as ocorrências da busca, Ctrl+D): sem a camada de seleção própria o navegador só desenha uma seleção
+    drawSelection(),
+    EditorState.allowMultipleSelections.of(true),
+    ...(crlfOnly(props.modelValue) ? [EditorState.lineSeparator.of('\r\n')] : []),
     keymap.of([
-      { key: 'Mod-f', run: openFind, preventDefault: true },
+      { key: 'Mod-f', run: () => openFind(false), preventDefault: true },
+      { key: 'Mod-h', mac: 'Mod-Alt-f', run: () => openFind(true), preventDefault: true },
+      { key: 'Mod-d', run: selectNextOccurrence, preventDefault: true },
       { key: 'Mod-g', run: () => findStep(false), shift: () => findStep(true), preventDefault: true },
       { key: 'F3', run: () => findStep(false), shift: () => findStep(true), preventDefault: true },
       { key: 'Escape', run: closeFind },
@@ -138,7 +150,7 @@ function extensions(): Extension[] {
     EditorView.editable.of(!props.readOnly),
     EditorView.updateListener.of((u) => {
       revision.value++;
-      if (u.docChanged) emit('update:modelValue', u.state.doc.toString());
+      if (u.docChanged) emit('update:modelValue', u.state.sliceDoc(0));
     }),
   ];
   // somente leitura: o conteúdo precisa receber foco (Tab), senão Ctrl+F, as setas e a seleção não chegam ao editor
@@ -169,7 +181,7 @@ watch(theme, (v) => view?.dispatch({ effects: themeSlot.reconfigure(v === 'dark'
 watch(
   () => props.modelValue,
   (v) => {
-    if (view && v !== view.state.doc.toString()) {
+    if (view && v !== view.state.sliceDoc(0)) {
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: v } });
     }
   },
@@ -191,7 +203,7 @@ defineExpose({ scrollTo, openFind });
 <template>
   <div class="code-editor-wrap">
     <div ref="host" class="code-editor"></div>
-    <FindBar v-if="findOpen && viewRef" ref="bar" :view="viewRef" :seed="findSeed" :revision="revision" @close="closeFind" />
+    <FindBar v-if="findOpen && viewRef" ref="bar" :view="viewRef" :seed="findSeed" :replace="findReplace" :revision="revision" @close="closeFind" />
   </div>
 </template>
 

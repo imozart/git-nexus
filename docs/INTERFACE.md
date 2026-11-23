@@ -161,6 +161,12 @@ Campo de pesquisa de **texto** (procurar em arquivo, em repositório, na histór
 
 A **barra de busca no arquivo** (`FindBar.vue`, dentro do `CodeEditor`) usa o `GnSearchField`: `Ctrl+F` com o foco no editor abre a barra **daquele** arquivo (só leitura também), preenchida pela seleção de uma linha ou pela palavra sob o cursor. Destaca **todas** as ocorrências da parte visível (a atual com contorno mais grosso), mostra "3 de 12" (`10000+` acima do limite), `Enter`/`Shift+Enter` e `F3`/`Ctrl+G` navegam dando a volta (com aviso), "Na seleção" restringe ao trecho selecionado ao abrir, e marcas na lateral mostram onde há ocorrências. O motor é o `@codemirror/search` (`SearchQuery`, em `find-core.ts`); a interface, os textos e a acessibilidade são nossos.
 
+**Substituir** (`Ctrl+H`, `⌘⌥F` no macOS, ou o botão de alternar ao lado do campo): a segunda linha da barra tem o campo "Substituir por" (`GnSearchField variant="replace"`), **Substituir** (troca a ocorrência atual e vai para a próxima; `Enter` no campo faz o mesmo), **Todas** (uma única transação: **um** `Ctrl+Z` desfaz tudo; a contagem é anunciada na região `role="status"`), **Manter caixa**, **Selecionar todas** (`Alt+Enter`; vários cursores, e digitar troca todas) e a **prévia** da ocorrência atual. `Ctrl+Alt+Enter` substitui todas; `Ctrl+D` no editor adiciona a próxima ocorrência, um passo de cada vez. Em editor somente leitura só há busca. A regra de procurar, destacar e substituir é uma só (a `SearchQuery` do editor) e está em `replace-core.ts`:
+
+- **modo texto:** o texto novo é literal; **modo regex:** `$1`..`$99`, `$<nome>`, `$&`, `$$` ou `\$` (cifrão literal), `\n`, `\r`, `\t` e `\\` (grupo que não existe fica literal, como no JavaScript);
+- **manter a caixa:** TUDO MAIÚSCULO, minúsculo e Primeira maiúscula do trecho achado passam para o texto novo (foo→bar, Foo→Bar, FOO→BAR); outra mistura fica como digitada;
+- **fim de linha do arquivo preservado:** num arquivo CRLF o editor mantém CRLF (antes a primeira edição o trocava por LF) e toda quebra do texto novo entra como CRLF; num arquivo LF, LF.
+
 ## Como criar um componente do kit
 
 1. Nome `Gn` + substantivo, em `apps/ui-kit/src/components/`, exportado em `src/index.ts`.
