@@ -6,7 +6,8 @@ import { languageFor } from './editor-language';
 /** Acima disto o realce é desligado (o texto aparece sem cor): a análise do arquivo inteiro a cada escolha custaria caro. */
 export const MAX_HIGHLIGHT_CHARS = 400_000;
 
-export const escapeHtml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const NEEDS_ESCAPE = /[&<>]/;
+export const escapeHtml = (s: string): string => (NEEDS_ESCAPE.test(s) ? s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : s);
 
 /** Uma string HTML por linha (os mesmos índices de `lines`). Sem gramática para o arquivo, ou grande demais, é só o texto escapado. */
 export function highlightLines(lines: readonly string[], filename: string): string[] {
