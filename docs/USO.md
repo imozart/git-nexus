@@ -162,6 +162,16 @@ Quando um merge, rebase, pull, cherry-pick ou revert para por conflitos, a aba *
 - dentro do campo: `Aa` diferencia maiúsculas, `ab` casa palavra inteira, `.*` usa expressão regular (`Alt+C`, `Alt+O`, `Alt+X`; `⌘+Alt` no macOS; o AltGr dos teclados ABNT2 continua digitando). Uma expressão inválida mostra o motivo em vermelho. O ✕ limpa o campo (e `Ctrl+Z` desfaz);
 - `↑` e `↓` repetem pesquisas anteriores; **Na seleção** restringe a pesquisa ao trecho que estava selecionado quando a barra abriu; `Esc` fecha e devolve o foco ao editor.
 
+### Substituir
+
+`Ctrl+H` (⌘⌥F no macOS) abre a mesma barra com o campo **Substituir por** (só nos editores editáveis; nos somente leitura há busca, sem substituir):
+
+- **Substituir** (ou `Enter` no campo novo) troca a ocorrência atual e vai para a próxima; `Enter` no campo de pesquisar só anda (é o "pular"). **Todas** (`Ctrl+Alt+Enter`) troca tudo de uma vez e diz quantas; **um** `Ctrl+Z` desfaz a substituição inteira.
+- A **prévia** mostra a ocorrência atual e como ela ficará. **Manter caixa** faz `foo`→`bar`, `Foo`→`Bar`, `FOO`→`BAR`.
+- Com `.*` ligado, o texto novo aceita `$1`, `$2`, `$<nome>` (grupos), `$&` (o trecho achado), `$$` (cifrão), `\n` e `\t`. Sem `.*`, o texto novo é literal.
+- **Selecionar todas** (`Alt+Enter`) põe um cursor em cada ocorrência: digitar troca todas. `Ctrl+D` adiciona a próxima ocorrência, uma por vez.
+- O arquivo mantém o fim de linha (CRLF ou LF).
+
 ## Repositórios grandes
 
 Medido em um repositório sintético de **20.000 arquivos e 5.000 commits** (`GN_PERF=1 pnpm exec vitest run packages/git-core/test/perf.test.ts`; a ferramenta gera o repositório com `git fast-import` e imprime os tempos):
