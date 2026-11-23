@@ -4,6 +4,41 @@ Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https:/
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.25.0] - 2026-11-23
+
+### ✨ Novidades
+
+- **studio:** resolver conflitos simples por regras e reconhecer resolucoes do rerere ([`387b616`](https://github.com/imozart/git-nexus/commit/387b6169a0bf91277c8bf8c3bf640323b7f1eb41))
+- **studio:** resolvedor lado a lado, destaque por palavra, espaços e fim de linha ([`5cb0651`](https://github.com/imozart/git-nexus/commit/5cb065103d7735ec8767e00e0b1231b320c7c57e))
+- **studio:** decisão para conflitos de apagado, renomeado, binário, modo e submódulo ([`0115e8c`](https://github.com/imozart/git-nexus/commit/0115e8ce556f84e8c307fb193abe136c15594740))
+- **studio:** navegação, ações em massa, desfazer, rascunho e reabrir conflito no resolvedor ([`1b8d173`](https://github.com/imozart/git-nexus/commit/1b8d173749fc9b65d8cab57f16ae2cdbecade70b))
+
+### 🐛 Correções
+
+- **studio:** prévia de imagem do conflito sem relaxar a CSP e testes estáveis no Linux ([`7722fa2`](https://github.com/imozart/git-nexus/commit/7722fa2ab8039f0eaf5b7c80f967a828600fab8b))
+
+### ⚡ Performance
+
+- **studio:** resolvedor desenha só o que está perto da tela e dobra os trechos iguais em arquivos grandes ([`2020766`](https://github.com/imozart/git-nexus/commit/20207665d9c74259206f7ff00797b5baa85f25df))
+
+### 📚 Documentação
+
+- **studio:** seção Resolver conflitos no guia de uso e como medir o resolvedor ([`789afef`](https://github.com/imozart/git-nexus/commit/789afefbaab737f1b68d04c5c94d80c12ecc89ef))
+- **studio:** capturas dos conflitos simples e do rerere ([`22e7a68`](https://github.com/imozart/git-nexus/commit/22e7a68873b37152a5bc1d8920520640ae4ab565))
+- **studio:** capturas do resolvedor lado a lado, palavras, espaços e fim de linha ([`e5a2da0`](https://github.com/imozart/git-nexus/commit/e5a2da0a099b2757d8f9aba8558dee97fc08b930))
+
+### 🧪 Testes
+
+- **studio:** desempenho do motor e da tela, acessibilidade por teclado e eficácia sobre conflitos reais ([`cd60ede`](https://github.com/imozart/git-nexus/commit/cd60ede07e77cf5b179e3f535924f6f19a6ec2e5))
+- **git-core:** lista de tm(pt, en) acompanha resolveInsideRepo, que foi para paths.ts ([`77f9304`](https://github.com/imozart/git-nexus/commit/77f9304d692ddd111fc189f8ce1f205b2f69ba01))
+- **studio:** conflitos simples e rerere (unitarios, repositorio real e interface) ([`42e8000`](https://github.com/imozart/git-nexus/commit/42e8000edb62d737a81075a2c43f1459b3d398eb))
+- **studio:** texto das marcas lido sem regex de tags (alerta do CodeQL) ([`e4f5976`](https://github.com/imozart/git-nexus/commit/e4f59767e3bacfad92e4a672fd6d50c310d6171a))
+- **git-core:** bit de execução do teste de conflito também no disco (Linux) ([`9d483f8`](https://github.com/imozart/git-nexus/commit/9d483f863cc2779d1e58007b3fc9d9885bb18022))
+
+### 🧹 Manutenção
+
+- **deps-dev:** bump electron ([`2607674`](https://github.com/imozart/git-nexus/commit/2607674322e82a6aed1d8276fd2f4b5ea32a7357))
+
 ## [1.24.0] - 2026-11-19
 
 ### ✨ Novidades
@@ -476,6 +511,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.25.0]: https://github.com/imozart/git-nexus/compare/v1.24.0...v1.25.0
 [1.24.0]: https://github.com/imozart/git-nexus/compare/v1.23.0...v1.24.0
 [1.23.0]: https://github.com/imozart/git-nexus/compare/v1.22.0...v1.23.0
 [1.22.0]: https://github.com/imozart/git-nexus/compare/v1.21.0...v1.22.0
