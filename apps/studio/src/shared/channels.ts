@@ -13,6 +13,7 @@ export const WORKER_METHODS = [
   'updateSubmodules',
   'askpassAnswer',
   'startSearch',
+  'startMultiSearch',
   'cancelSearch',
   'cloneRepository',
   'initRepository',

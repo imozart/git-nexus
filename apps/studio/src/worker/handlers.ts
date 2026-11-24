@@ -1,5 +1,5 @@
 // Handlers do processo utilitário (sem dependência do Electron: testáveis em Node puro).
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import {
   CommitRejectedError,
@@ -120,6 +120,8 @@ import {
   type SearchQuery,
   type SecretScanResult,
   searchRepository,
+  type MultiSearchOptions,
+  type MultiSearchStarted,
   setMessageLocale,
 } from '@git-nexus/git-core';
 import {
@@ -133,6 +135,7 @@ import {
 } from '@git-nexus/governance-policy';
 import { HOOK_REJECTED_PREFIX, type WorkerMethod } from '../shared/channels';
 import { createReleaseTag, getReleaseInfo, writeChangelog } from './release';
+import { createMultiSearcher, MAX_REPOS, subId } from './multi-search';
 
 /** Lê o `.gitnexus.json` da raiz do repositório (ausente = sem política do time). */
 export async function readRepoPolicy(repoPath: string): Promise<RepoPolicyInfo> {
@@ -152,6 +155,12 @@ export type HandlerEvent = { event: 'searchBatch'; data: SearchBatchEvent } | { 
 export function createHandlers(dataDir: string, emit: (e: HandlerEvent) => void = () => undefined): Record<WorkerMethod, (...args: any[]) => Promise<unknown>> {
   /** Buscas em andamento: `cancelSearch` e uma busca nova com o mesmo id encerram o processo do git de verdade. */
   const searches = new Map<string, AbortController>();
+  /** Buscas em vários repositórios (fase 8 da #233): o orquestrador cuida de concorrência, limites e cancelamento por repositório. */
+  const multi = createMultiSearcher({
+    run: (path, query, hooks) => searchRepository(path, query, hooks),
+    exists: (path) => access(path).then(() => true, () => false),
+    emit,
+  });
   const storeFile = join(dataDir, 'repositories.json');
   /** Cópias de segurança das substituições em vários arquivos: uma pasta por lote, na pasta de dados (o id vem da interface, então só aceita o formato esperado). */
   const replacedDir = (id: string): string => {
@@ -236,8 +245,18 @@ export function createHandlers(dataDir: string, emit: (e: HandlerEvent) => void 
           if (searches.get(key) === ctl) searches.delete(key);
         });
     },
+    startMultiSearch: async (repoIds: string[], query: SearchQuery, id: string, opts?: MultiSearchOptions): Promise<MultiSearchStarted> => {
+      // a lista vem SÓ do catálogo do app: um id que não está nele (ou um caminho digitado no lugar do id) nunca roda
+      const catalog = new Map((await loadRepos()).map((r) => [r.id, r]));
+      const ids = [...new Set((Array.isArray(repoIds) ? repoIds : []).map(String))].slice(0, MAX_REPOS);
+      const repos = ids.map((i) => catalog.get(i)).filter((r): r is RepositoryMeta => !!r);
+      const key = String(id);
+      multi.start(repos, query, key, opts);
+      return { repos: repos.map((r) => ({ repoId: r.id, id: subId(key, r.id) })), rejected: ids.filter((i) => !catalog.has(i)) };
+    },
     cancelSearch: async (id: string) => {
       searches.get(String(id))?.abort();
+      multi.cancel(String(id));
     },
     cloneRepository: async (input: CloneInput) => register((await cloneRepository(input)).path),
     initRepository: async (input: InitInput) => {
