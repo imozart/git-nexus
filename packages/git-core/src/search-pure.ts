@@ -67,7 +67,14 @@ export interface NormalizedQuery extends Required<Pick<SearchQuery, 'pattern' | 
 
 /** A pasta do pedido, limpa (`./` e `/` nas pontas saem, a contrabarra vira `/`); `null` se não é um caminho de pasta (`..`, magia de pathspec, controle). */
 export function cleanFolder(folder: string | undefined): string | null {
-  const f = (folder ?? '').trim().replace(/\\/g, '/').replace(/^(\.\/)+/, '').replace(/^\/+|\/+$/g, '');
+  let f = (folder ?? '').trim().replace(/\\/g, '/');
+  // sem expressão regular nas pontas (barras repetidas em texto digitado fariam uma regex lenta)
+  while (f.startsWith('./')) f = f.slice(2);
+  let from = 0;
+  let to = f.length;
+  while (from < to && f[from] === '/') from++;
+  while (to > from && f[to - 1] === '/') to--;
+  f = f.slice(from, to);
   if (!f || f === '.') return '';
   // eslint-disable-next-line no-control-regex
   if (f.startsWith(':') || f.startsWith('-') || /[\u0000-\u001f]/.test(f) || f.split('/').some((p) => p === '..' || p === '')) return null;
