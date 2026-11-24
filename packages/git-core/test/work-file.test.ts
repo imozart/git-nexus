@@ -1,8 +1,9 @@
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { MAX_EDIT_BYTES, eolOf, readWorkingFile, saveWorkingFile, stampWorkingFile, writeWorkingFile } from '../src/index.js';
+import { MAX_EDIT_BYTES, eolOf, pruneBackups, readWorkingFile, restoreWorkingFile, saveWorkingFile, stampWorkingFile, writeWorkingFile } from '../src/index.js';
 import { runGit } from '../src/runner.js';
 
 let root: string;
@@ -150,5 +151,96 @@ describe('writeWorkingFile (usado pelo descarte por linha) também é atômico',
     await writeWorkingFile(root, 'w.txt', 'b\n');
     expect(raw('w.txt').toString()).toBe('b\n');
     expect(readdirSync(root).filter((f) => f.endsWith('.tmp'))).toEqual([]);
+  });
+});
+
+describe('cópia de segurança e desfazer (substituição em vários arquivos)', () => {
+  const lote = () => mkdtempSync(join(tmpdir(), 'gn-bk-'));
+
+  it('guarda o que estava no disco antes de gravar; a primeira cópia do lote é a original', async () => {
+    put('b1.txt', 'antes\r\n');
+    const bk = lote();
+    try {
+      const r1 = await readWorkingFile(root, 'b1.txt');
+      const a = await saveWorkingFile(root, 'b1.txt', 'depois\r\n', { expectHash: r1.hash }, bk);
+      expect(a).toMatchObject({ ok: true, backedUp: true });
+      expect(readFileSync(join(bk, 'b1.txt')).toString()).toBe('antes\r\n');
+      // gravar de novo no mesmo lote não troca a cópia original
+      if (!a.ok) throw new Error('x');
+      await saveWorkingFile(root, 'b1.txt', 'de novo\r\n', { expectHash: a.stamp.hash }, bk);
+      expect(readFileSync(join(bk, 'b1.txt')).toString()).toBe('antes\r\n');
+      // sem lote não há cópia
+      put('b2.txt', 'x\n');
+      const r2 = await readWorkingFile(root, 'b2.txt');
+      const b = await saveWorkingFile(root, 'b2.txt', 'y\n', { expectHash: r2.hash });
+      expect(b).toMatchObject({ ok: true });
+      expect(b.ok && b.backedUp).toBeFalsy();
+    } finally {
+      rmSync(bk, { recursive: true, force: true });
+    }
+  });
+
+  it('não copia quando a gravação é recusada (arquivo mudou, caractere fora da codificação)', async () => {
+    put('b3.txt', 'um\n');
+    const bk = lote();
+    try {
+      const r = await readWorkingFile(root, 'b3.txt');
+      put('b3.txt', 'mudou por fora\n');
+      expect(await saveWorkingFile(root, 'b3.txt', 'x\n', { expectHash: r.hash }, bk)).toMatchObject({ ok: false, reason: 'changed' });
+      expect(existsSync(join(bk, 'b3.txt'))).toBe(false);
+      expect(raw('b3.txt').toString()).toBe('mudou por fora\n');
+    } finally {
+      rmSync(bk, { recursive: true, force: true });
+    }
+  });
+
+  it('desfazer devolve o arquivo (byte a byte, com a codificação e o fim de linha originais) só se o disco ainda é o que foi gravado', async () => {
+    const original = Buffer.from([0x63, 0x61, 0x66, 0xe9, 0x0d, 0x0a, 0x66, 0x6f, 0x6f, 0x0d, 0x0a]); // "café\r\nfoo\r\n" em windows-1252
+    put('b4.txt', original);
+    const bk = lote();
+    try {
+      const r = await readWorkingFile(root, 'b4.txt');
+      const w = await saveWorkingFile(root, 'b4.txt', r.text.replace('foo', 'bar'), { expectHash: r.hash, encoding: r.encoding }, bk);
+      if (!w.ok) throw new Error('x');
+      expect(raw('b4.txt').toString('latin1')).toBe('caf\u00e9\r\nbar\r\n');
+      // a pessoa mexeu depois: nada é sobrescrito
+      put('b4.txt', 'mexi depois\n');
+      expect(await restoreWorkingFile(root, bk, 'b4.txt', w.stamp.hash)).toMatchObject({ ok: false, reason: 'changed' });
+      expect(raw('b4.txt').toString()).toBe('mexi depois\n');
+      // volta ao que a substituição gravou e então desfaz
+      writeFileSync(join(root, 'b4.txt'), Buffer.from('caf\u00e9\r\nbar\r\n', 'latin1'));
+      expect(await restoreWorkingFile(root, bk, 'b4.txt', w.stamp.hash)).toMatchObject({ ok: true });
+      expect(raw('b4.txt').equals(original)).toBe(true);
+      expect(readdirSync(root).filter((f) => f.endsWith('.tmp'))).toEqual([]);
+    } finally {
+      rmSync(bk, { recursive: true, force: true });
+    }
+  });
+
+  it('desfazer sem cópia diz "missing"; caminho fora do repositório é recusado', async () => {
+    const bk = lote();
+    try {
+      put('b5.txt', 'a\n');
+      expect(await restoreWorkingFile(root, bk, 'b5.txt', 'x')).toMatchObject({ ok: false, reason: 'missing' });
+      await expect(restoreWorkingFile(root, bk, '../fora.txt', 'x')).rejects.toThrow();
+    } finally {
+      rmSync(bk, { recursive: true, force: true });
+    }
+  });
+
+  it('a poda apaga só os lotes antigos', async () => {
+    const base = lote();
+    try {
+      mkdirSync(join(base, 'velho'));
+      mkdirSync(join(base, 'novo'));
+      writeFileSync(join(base, 'velho', 'a.txt'), 'x');
+      const old = new Date(Date.now() - 40 * 24 * 3600 * 1000);
+      utimesSync(join(base, 'velho'), old, old);
+      await pruneBackups(base, 30 * 24 * 3600 * 1000);
+      expect(readdirSync(base)).toEqual(['novo']);
+      await pruneBackups(join(base, 'nao-existe'), 1); // nunca lança
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
   });
 });

@@ -12,9 +12,19 @@ export type Group = 'file' | 'folder' | 'flat';
 
 export type Row =
   | { kind: 'dir'; key: string; dir: string; count: number; collapsed: boolean }
-  | { kind: 'file'; key: string; file: string; count: number; collapsed: boolean; depth: number }
+  | { kind: 'file'; key: string; file: string; count: number; collapsed: boolean; depth: number; /** por que o arquivo não será alterado (só na substituição) */ note?: string }
   | { kind: 'hit'; key: string; file: string; hit: SearchHit; depth: number; showFile: boolean }
-  | { kind: 'ctx'; key: string; file: string; line: number; text: string; depth: number };
+  | { kind: 'ctx'; key: string; file: string; line: number; text: string; depth: number }
+  /** Só na substituição: o texto da linha como ficará (logo abaixo da ocorrência). */
+  | { kind: 'new'; key: string; file: string; line: number; text: string; ranges: Array<[number, number]>; clippedStart: boolean; clippedEnd: boolean; depth: number };
+
+/** O texto novo de uma linha, para a prévia (o que a substituição em vários arquivos calcula por arquivo). */
+export interface AfterLine {
+  text: string;
+  ranges: Array<[number, number]>;
+  clippedStart: boolean;
+  clippedEnd: boolean;
+}
 
 /** Chave estável de uma ocorrência (arquivo e linha: uma entrada por linha). */
 export const hitKey = (h: Pick<SearchHit, 'file' | 'line'>): string => `${h.file}:${h.line}`;
@@ -50,6 +60,9 @@ export interface RowsOptions {
   hidden?: Hidden;
   /** Mostra as linhas de contexto que a busca trouxe (`before`/`after`). */
   context?: boolean;
+  /** Prévia da substituição: o texto novo de cada ocorrência (chave `arquivo:linha`) e, por arquivo, o motivo de ele não ser alterado. */
+  after?: ReadonlyMap<string, AfterLine>;
+  notes?: ReadonlyMap<string, string>;
 }
 
 /**
@@ -78,6 +91,11 @@ export class ResultModel {
     return this.groups.size;
   }
 
+  /** Os arquivos com ocorrência, na ordem em que chegaram. */
+  get fileNames(): string[] {
+    return [...this.groups.keys()];
+  }
+
   hitsOf(file: string): readonly SearchHit[] {
     return this.groups.get(file) ?? [];
   }
@@ -103,7 +121,7 @@ export class ResultModel {
 
   /** As linhas da lista: cabeçalhos (de pasta e de arquivo, conforme o agrupamento) e as ocorrências, menos as dos recolhidos e as tiradas. */
   rows(opts: RowsOptions = {}): Row[] {
-    const { collapsed = EMPTY_SET, group = 'file', hidden = NO_HIDDEN, context = true } = opts;
+    const { collapsed = EMPTY_SET, group = 'file', hidden = NO_HIDDEN, context = true, after, notes } = opts;
     const out: Row[] = [];
     const emitHits = (file: string, hits: readonly SearchHit[], depth: number, showFile: boolean): void => {
       const lines = new Set<number>();
@@ -119,6 +137,8 @@ export class ResultModel {
       for (const hit of hits) {
         if (context) ctx(hit.before);
         out.push({ kind: 'hit', key: hitKey(hit), file, hit, depth, showFile });
+        const nw = after?.get(hitKey(hit));
+        if (nw) out.push({ kind: 'new', key: `n:${hitKey(hit)}`, file, line: hit.line, text: nw.text, ranges: nw.ranges, clippedStart: nw.clippedStart, clippedEnd: nw.clippedEnd, depth });
         if (context) ctx(hit.after);
       }
     };
@@ -129,7 +149,8 @@ export class ResultModel {
     }
     const fileBlock = (file: string, hits: readonly SearchHit[], depth: number): void => {
       const closed = collapsed.has(fileKey(file));
-      out.push({ kind: 'file', key: fileKey(file), file, count: hits.length, collapsed: closed, depth });
+      const note = notes?.get(file);
+      out.push({ kind: 'file', key: fileKey(file), file, count: hits.length, collapsed: closed, depth, ...(note ? { note } : {}) });
       if (!closed) emitHits(file, hits, depth + 1, false);
     };
     if (group === 'file') {
@@ -157,6 +178,7 @@ const EMPTY_SET: ReadonlySet<string> = new Set();
 /** O que "ocultar" atinge a partir de uma linha: a ocorrência (`hit`), o arquivo dela (`file`) ou a pasta dela (`dir`). Cabeçalhos ocultam o que representam. */
 export function hideTarget(row: Row, level: 'hit' | 'file' | 'dir'): { kind: 'hit' | 'file' | 'dir'; key: string } | null {
   if (row.kind === 'ctx') return null;
+  if (row.kind === 'new') return level === 'dir' ? { kind: 'dir', key: dirOf(row.file) } : level === 'file' ? { kind: 'file', key: row.file } : { kind: 'hit', key: `${row.file}:${row.line}` };
   if (row.kind === 'dir') return { kind: 'dir', key: row.dir };
   if (row.kind === 'file') return level === 'dir' ? { kind: 'dir', key: dirOf(row.file) } : { kind: 'file', key: row.file };
   if (level === 'dir') return { kind: 'dir', key: dirOf(row.file) };

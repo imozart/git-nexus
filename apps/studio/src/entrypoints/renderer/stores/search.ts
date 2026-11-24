@@ -15,18 +15,21 @@ export const useSearchStore = defineStore('search', () => {
   const repo = ref<RepositoryMeta | null>(null);
   const seed = ref('');
   const preset = ref<SearchPreset | null>(null);
+  /** Abriu pelo atalho de substituir (Ctrl+Shift+H): a janela já mostra a linha "Substituir por". */
+  const replace = ref(false);
   /** Sobe a cada pedido de abrir: abrir de novo com a janela aberta (Ctrl+F outra vez) refoca e troca o texto. */
   const n = ref(0);
 
-  function open(r: RepositoryMeta, seedText = '', where: SearchPreset | null = null): void {
+  function open(r: RepositoryMeta, seedText = '', where: SearchPreset | null = null, withReplace = false): void {
     repo.value = r;
     seed.value = seedText;
     preset.value = where;
+    replace.value = withReplace;
     isOpen.value = true;
     n.value++;
   }
   function close(): void {
     isOpen.value = false;
   }
-  return { isOpen, repo, seed, preset, n, open, close };
+  return { isOpen, repo, seed, preset, replace, n, open, close };
 });

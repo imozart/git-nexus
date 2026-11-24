@@ -64,6 +64,8 @@ import {
   readWorkingFile,
   stampWorkingFile,
   saveWorkingFile,
+  restoreWorkingFile,
+  pruneBackups,
   getFileDiff,
   getGitStatus,
   getHistory,
@@ -151,6 +153,17 @@ export function createHandlers(dataDir: string, emit: (e: HandlerEvent) => void 
   /** Buscas em andamento: `cancelSearch` e uma busca nova com o mesmo id encerram o processo do git de verdade. */
   const searches = new Map<string, AbortController>();
   const storeFile = join(dataDir, 'repositories.json');
+  /** Cópias de segurança das substituições em vários arquivos: uma pasta por lote, na pasta de dados (o id vem da interface, então só aceita o formato esperado). */
+  const replacedDir = (id: string): string => {
+    if (!/^[A-Za-z0-9-]{8,64}$/.test(id)) throw new Error('id de cópia inválido');
+    return join(dataDir, 'replaced', id);
+  };
+  let lastPrune = 0;
+  const pruneReplacedOnce = (): void => {
+    if (Date.now() - lastPrune < 3_600_000) return; // no máximo uma vez por hora
+    lastPrune = Date.now();
+    void pruneBackups(join(dataDir, 'replaced'), 30 * 24 * 3_600_000);
+  };
 
   // Serializa gravações para não corromper o JSON com chamadas concorrentes.
   let queue: Promise<unknown> = Promise.resolve();
@@ -247,7 +260,13 @@ export function createHandlers(dataDir: string, emit: (e: HandlerEvent) => void 
     writeWorkingFile: (repoPath: string, file: string, content: string, encoding?: EncodingChoice) => writeWorkingFile(repoPath, file, content, encoding),
     readWorkingFile: (repoPath: string, file: string, encoding?: EncodingChoice) => readWorkingFile(repoPath, file, encoding),
     stampWorkingFile: (repoPath: string, file: string) => stampWorkingFile(repoPath, file),
-    saveWorkingFile: (repoPath: string, file: string, content: string, opts: SaveOptions) => saveWorkingFile(repoPath, file, content, opts),
+    saveWorkingFile: (repoPath: string, file: string, content: string, opts: SaveOptions) => {
+      if (!opts.backup) return saveWorkingFile(repoPath, file, content, opts);
+      const root = replacedDir(opts.backup);
+      pruneReplacedOnce();
+      return saveWorkingFile(repoPath, file, content, opts, root);
+    },
+    restoreWorkingFile: (repoPath: string, backupId: string, file: string, expectHash: string) => restoreWorkingFile(repoPath, replacedDir(backupId), file, expectHash),
     writeIndexContent: (repoPath: string, file: string, content: string, encoding?: EncodingChoice) => writeIndexContent(repoPath, file, content, encoding),
     discardFile: (repoPath: string, file: string, scope: DiscardScope) =>
       discardFile(repoPath, file, scope, join(dataDir, 'discarded', new Date().toISOString().replace(/[:.]/g, '-'))),
