@@ -145,7 +145,14 @@ export interface GitNexusIPC {
    * `onSearchDone`. O `id` é escolhido por quem chama (assim nenhum lote se perde antes de a resposta chegar) e só uma busca por id corre: reusar o id cancela a anterior.
    */
   startSearch(repoPath: string, query: SearchQuery, id: string): Promise<void>;
+  /**
+   * Busca em vários repositórios ao mesmo tempo (fase 8 da #233). A lista vem SÓ do catálogo do app (os ids de `getKnownRepositories`): o que não está nele volta em
+   * `rejected` e nunca roda. O worker orquestra (concorrência limitada, limite por repositório e global) e volta na hora; os lotes e o fim de cada repositório chegam
+   * pelos mesmos `onSearchBatch`/`onSearchDone`, com o id `<id>#<repoId>` e o `repoId`. A falha de um repositório não derruba os outros.
+   */
+  startMultiSearch(repoIds: string[], query: SearchQuery, id: string, opts?: MultiSearchOptions): Promise<MultiSearchStarted>;
   /** Encerra de verdade a busca `id` (o `git grep` termina). Sem efeito se ela já acabou. */
+  /** Cancela uma busca. Com o id de uma busca em vários repositórios cancela todos; com `<id>#<repoId>` cancela só aquele repositório (os outros seguem). */
   cancelSearch(id: string): Promise<void>;
   /** `git clone` para `<pasta>/<nome>` (nome padrão: o da URL) e já cataloga o repositório. O andamento chega por `onGitProgress` (`op: 'clone'`). */
   cloneRepository(input: CloneInput): Promise<RepositoryMeta>;
@@ -715,7 +722,27 @@ export interface SearchHit {
 
 export interface SearchBatchEvent {
   id: string;
+  /** Só na busca em vários repositórios: o dono das ocorrências. */
+  repoId?: string;
   hits: SearchHit[];
+}
+
+/** Ajustes da busca em vários repositórios (os padrões servem para quase todo uso). */
+export interface MultiSearchOptions {
+  /** Repositórios rodando ao mesmo tempo (padrão: metade dos núcleos, entre 1 e 4). */
+  concurrency?: number;
+  /** Ocorrências por repositório (padrão 1000). */
+  perRepoLimit?: number;
+  /** Ocorrências no total (padrão 5000): passou disso, o que ainda roda é parado e o que não começou não roda. */
+  globalLimit?: number;
+}
+
+/** O que o worker aceitou de uma busca em vários repositórios. */
+export interface MultiSearchStarted {
+  /** Os repositórios do catálogo que vão rodar, na ordem pedida, com o id do evento de cada um. */
+  repos: Array<{ repoId: string; id: string }>;
+  /** Ids que não estão no catálogo do app: recusados. */
+  rejected: string[];
 }
 
 export interface SearchSkipped {
@@ -730,6 +757,13 @@ export interface SearchDone {
   ok: boolean;
   /** Quando `ok` é false: por que a busca não rodou (expressão inválida, revisão que não existe...). */
   message?: string;
+  /** Só na busca em vários repositórios: o dono do resultado. */
+  repoId?: string;
+  /**
+   * Categoria do motivo, na busca em vários repositórios: `unavailable` (a pasta sumiu ou o disco não está), `noGit` (Git ausente), `noRevision` (o repositório
+   * não tem a revisão pedida: não é erro) e `globalLimit` (o limite global foi atingido antes de ele rodar).
+   */
+  reason?: 'unavailable' | 'noGit' | 'noRevision' | 'globalLimit';
   /** Dialeto da expressão usado de fato (o destaque e a substituição usam o mesmo). */
   dialect: 'fixed' | 'pcre' | 'extended' | 'javascript';
   /** Ocorrências (linhas) devolvidas nesta página e em quantos arquivos. */

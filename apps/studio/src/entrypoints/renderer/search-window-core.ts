@@ -10,7 +10,12 @@ export const OVERSCAN = 8;
 /** Como a lista agrupa as ocorrências: por arquivo (o padrão), por pasta (pasta, arquivo, ocorrência) ou plana (só as ocorrências, com o arquivo na linha). */
 export type Group = 'file' | 'folder' | 'flat';
 
+/** Em que pé está um repositório numa busca em vários (o cabeçalho dele diz): buscando, concluído, erro, pasta sumida, sem Git, sem a revisão pedida, parado ou cortado. */
+export type RepoState = 'queued' | 'running' | 'done' | 'cancelled' | 'error' | 'unavailable' | 'noGit' | 'noRevision';
+
 export type Row =
+  /** Só na busca em vários repositórios: o cabeçalho de cada repositório (`alias` é o prefixo virtual dos arquivos dele, ver `multi-search-core.ts`). */
+  | { kind: 'repo'; key: string; alias: string; name: string; count: number; files: number; state: RepoState; collapsed: boolean; /** o motivo, quando há */ message?: string; /** foi cortado: pelo limite do repositório, pelo global ou pelo tempo */ cut?: 'limit' | 'global' | 'time' }
   | { kind: 'dir'; key: string; dir: string; count: number; collapsed: boolean }
   | { kind: 'file'; key: string; file: string; count: number; collapsed: boolean; depth: number; /** por que o arquivo não será alterado (só na substituição) */ note?: string }
   | { kind: 'hit'; key: string; file: string; hit: SearchHit; depth: number; showFile: boolean }
@@ -178,6 +183,7 @@ const EMPTY_SET: ReadonlySet<string> = new Set();
 /** O que "ocultar" atinge a partir de uma linha: a ocorrência (`hit`), o arquivo dela (`file`) ou a pasta dela (`dir`). Cabeçalhos ocultam o que representam. */
 export function hideTarget(row: Row, level: 'hit' | 'file' | 'dir'): { kind: 'hit' | 'file' | 'dir'; key: string } | null {
   if (row.kind === 'ctx') return null;
+  if (row.kind === 'repo') return level === 'dir' ? { kind: 'dir', key: row.alias } : null; // o repositório inteiro: a "pasta" dele é o prefixo virtual
   if (row.kind === 'new') return level === 'dir' ? { kind: 'dir', key: dirOf(row.file) } : level === 'file' ? { kind: 'file', key: row.file } : { kind: 'hit', key: `${row.file}:${row.line}` };
   if (row.kind === 'dir') return { kind: 'dir', key: row.dir };
   if (row.kind === 'file') return level === 'dir' ? { kind: 'dir', key: dirOf(row.file) } : { kind: 'file', key: row.file };

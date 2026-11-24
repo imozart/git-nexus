@@ -70,3 +70,59 @@ describe('startSearch / cancelSearch', () => {
     expect(await done('a4')).toMatchObject({ ok: false });
   });
 });
+
+describe('startMultiSearch (vários repositórios)', () => {
+  const mk = async (name: string, files: Record<string, string>): Promise<{ id: string; path: string }> => {
+    const p = join(root, name);
+    await runGit(root, ['init', '-b', 'main', p]);
+    for (const [f, c] of Object.entries(files)) writeFileSync(join(p, f), c);
+    const meta = (await handlers.addRepositoryPath(p)) as { id: string; path: string };
+    return meta;
+  };
+  const sub = (id: string, repoId: string) => `${id}#${repoId}`;
+  const waitAll = async (id: string, ids: string[]): Promise<Record<string, SearchDone>> => {
+    const out: Record<string, SearchDone> = {};
+    for (const r of ids) out[r] = await done(sub(id, r));
+    return out;
+  };
+
+  it('procura em cada repositório do catálogo, com o id <busca>#<repo> e o repoId; um indisponível e um id de fora ficam de lado', async () => {
+    const a = await mk('mr-a', { 'a.txt': 'alvo aqui\n' });
+    const b = await mk('mr-b', { 'b.txt': 'nada\nalvo la\nalvo de novo\n' });
+    const gone = await mk('mr-gone', { 'g.txt': 'alvo\n' });
+    rmSync(gone.path, { recursive: true, force: true });
+    const started = (await handlers.startMultiSearch([a.id, b.id, gone.id, '/etc', 'nao-existe'], { pattern: 'alvo' }, 'm1')) as { repos: Array<{ repoId: string; id: string }>; rejected: string[] };
+    expect(started.rejected).toEqual(['/etc', 'nao-existe']); // só o catálogo: um caminho digitado no lugar do id nunca roda
+    expect(started.repos.map((r) => r.id)).toEqual([sub('m1', a.id), sub('m1', b.id), sub('m1', gone.id)]);
+    const d = await waitAll('m1', [a.id, b.id, gone.id]);
+    expect(d[a.id]).toMatchObject({ ok: true, hits: 1, repoId: a.id });
+    expect(d[b.id]).toMatchObject({ ok: true, hits: 2, repoId: b.id });
+    expect(d[gone.id]).toMatchObject({ ok: false, reason: 'unavailable' });
+    const batch = events.filter((e): e is { event: 'searchBatch'; data: SearchBatchEvent } => e.event === 'searchBatch' && e.data.id.startsWith('m1#'));
+    expect(batch.every((e) => e.data.repoId && e.data.id === sub('m1', e.data.repoId))).toBe(true);
+    expect(batch.map((e) => e.data.hits.length).reduce((x, y) => x + y, 0)).toBe(3);
+  });
+
+  it('"sem a revisão" aparece só no repositório que não a tem (não é erro dos outros)', async () => {
+    const a = await mk('mr-rev-a', { 'a.txt': 'alvo\n' });
+    const b = await mk('mr-rev-b', { 'b.txt': 'alvo\n' });
+    for (const [r, tag] of [[a, true], [b, false]] as const) {
+      await runGit(r.path, ['add', '.']);
+      await runGit(r.path, ['-c', 'user.name=T', '-c', 'user.email=t@e.com', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'x']);
+      if (tag) await runGit(r.path, ['tag', 'v9']);
+    }
+    await handlers.startMultiSearch([a.id, b.id], { pattern: 'alvo', scope: 'revision', revision: 'v9' }, 'm2');
+    const d = await waitAll('m2', [a.id, b.id]);
+    expect(d[a.id]).toMatchObject({ ok: true, hits: 1 });
+    expect(d[b.id]).toMatchObject({ ok: false, reason: 'noRevision' });
+  });
+
+  it('cancelSearch(id#repo) para só aquele; cancelSearch(id) para todos', async () => {
+    const a = await mk('mr-c-a', { 'a.txt': 'alvo\n' });
+    await handlers.startMultiSearch([a.id], { pattern: 'alvo' }, 'm3');
+    await handlers.cancelSearch('m3');
+    const d = await done(sub('m3', a.id));
+    expect(d.repoId).toBe(a.id);
+    await expect(handlers.cancelSearch(sub('m3', 'x'))).resolves.toBeUndefined();
+  });
+});

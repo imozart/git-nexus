@@ -132,7 +132,7 @@ export async function searchRepository(repoPath: string, query: SearchQuery, hoo
   try {
     if (q.scope === 'revision') {
       const rev = await runGit(repoPath, ['rev-parse', '--verify', '--quiet', `${q.revision}^{commit}`], { check: false, signal: ctl.signal });
-      if (rev.code !== 0 && !stop) return finish({ ok: false, message: tm('search.noRevision', { rev: q.revision }) });
+      if (rev.code !== 0 && !stop) return finish({ ok: false, reason: 'noRevision', message: tm('search.noRevision', { rev: q.revision }) });
     }
     const pcre = q.multiline ? false : await supportsPcre(repoPath);
     const dialect: Dialect | 'javascript' = q.multiline ? 'javascript' : dialectOf(q, pcre);
