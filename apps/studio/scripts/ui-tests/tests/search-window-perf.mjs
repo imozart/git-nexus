@@ -128,6 +128,67 @@ t.check('arquivo de 30 mil linhas abre no editor de baixo, já com a ocorrência
 t.check('o editor está na linha da ocorrência (rolou até ela)', (await t.ev(`document.querySelector('${W} .cm-gn-find')?.textContent`)) === 'zzfoo');
 await t.shot('pesquisa-30mil');
 
+// ---- 20 mil arquivos (opcional) -----------------------------------------------------------------------------------------------------------------------------
+// GN_SEARCH_BIG=<pasta> aponta para o repositório gerado por `GN_SEARCH_FILES=20000 GN_SEARCH_KEEP=1 npx vitest run packages/git-core/test/search-run.test.ts -t "arquivos numerosos"`
+// (fica em <TEMP>/gitnexus-search-big-20000; criá-lo leva minutos, então não roda por padrão nem na CI). Mede a interface inteira sobre ele.
+const BIG = process.env.GN_SEARCH_BIG;
+if (BIG) {
+  const name = BIG.replace(/[\\/]+$/, '').split(/[\\/]/).pop();
+  await t.key('Escape');
+  await sleep(300);
+  await t.ev(`window.gitNexus.addRepositoryPath(${lit(BIG)})`);
+  await t.ev('location.reload()');
+  await t.until(`[...document.querySelectorAll('li.repo')].some((x) => x.querySelector('strong')?.textContent.trim() === ${lit(name)})`, 30000);
+  await t.ev(`[...document.querySelectorAll('li.repo')].find((x) => x.querySelector('strong')?.textContent.trim() === ${lit(name)}).querySelector('.repo__btns button').click()`);
+  await t.until(`document.querySelector('.rv__btns')`, 30000);
+  await sleep(1500);
+  await t.key('f', 2);
+  await t.until(`document.querySelector(${lit(W)})`, 5000);
+  await t.send('Page.bringToFront');
+  // aquece o cache do sistema (a meta vale "com o cache quente") e recomeça do zero
+  await t.ev(`(() => { const e = document.querySelector(${lit(F)}); e.focus(); e.select(); })()`);
+  await t.send('Input.insertText', { text: 'palha' });
+  await t.until(`/ocorrências em/.test(document.querySelector('[data-testid="sw-count"]')?.textContent ?? '')`, 60000);
+  // esvazia o campo e espera a lista limpar: a medição seguinte só pode enxergar os resultados da busca nova (senão marcaria 10 ms)
+  await t.ev(`(() => { const e = document.querySelector(${lit(F)}); e.focus(); e.select(); })()`);
+  await t.key('Delete');
+  await t.until(`!document.querySelector('[data-testid="sw-row"]') && !/ocorrências em/.test(document.querySelector('[data-testid="sw-count"]')?.textContent ?? '')`, 10000);
+  await t.ev(`(() => {
+    window.__long = [];
+    try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__long.push(Math.round(e.duration)); }).observe({ type: 'longtask', buffered: false }); } catch {}
+    window.__t = {};
+    const t0 = performance.now();
+    const iv = setInterval(() => {
+      if (!window.__t.first && document.querySelector('[data-testid="sw-row"]')) window.__t.first = Math.round(performance.now() - t0);
+      if (/ocorrências em/.test(document.querySelector('[data-testid="sw-count"]')?.textContent ?? '')) { window.__t.done = Math.round(performance.now() - t0); clearInterval(iv); }
+    }, 4);
+    return true;
+  })()`);
+  await t.ev(`(() => { const e = document.querySelector(${lit(F)}); e.focus(); e.select(); })()`);
+  await t.send('Input.insertText', { text: 'AGULHA' });
+  await t.until(`window.__t.done`, 60000);
+  const big = await t.ev('window.__t');
+  const bigLongs = await t.ev('window.__long');
+  metrics.bigFiles = 20000;
+  metrics.bigFirstResultMs = big.first;
+  metrics.bigDoneMs = big.done;
+  metrics.bigMaxLongTaskMs = bigLongs.length ? Math.max(...bigLongs) : 0;
+  const bigCount = await t.ev(`document.querySelector('[data-testid="sw-count"]').textContent.replace(/\\s+/g, ' ').trim()`);
+  t.check('20 mil arquivos: a busca devolve o limite da janela (5000 ocorrências)', /^5\.?000 ocorrências em \d+ arquivos/.test(bigCount), bigCount);
+  t.check('20 mil arquivos: primeiro resultado em até 1,5 s da digitação (inclui os 250 ms de espera) e busca completa em até 3 s', big.first <= 1500 && big.done <= 3000, big);
+  t.check('20 mil arquivos: a interface não trava (nenhuma tarefa longa acima de 120 ms; meta 50 ms)', metrics.bigMaxLongTaskMs <= 120, bigLongs);
+  // uma busca nova substitui a anterior: digita outra coisa no meio da primeira e só a segunda aparece
+  await t.ev(`(() => { const e = document.querySelector(${lit(F)}); e.focus(); e.select(); })()`);
+  await t.send('Input.insertText', { text: 'palha' });
+  await sleep(320); // passou a espera de 250 ms: a busca de "palha" está rodando
+  await t.ev(`(() => { const e = document.querySelector(${lit(F)}); e.focus(); e.select(); })()`);
+  await t.send('Input.insertText', { text: 'v7_49 =' });
+  await t.until(`/ocorrências? em/.test(document.querySelector('[data-testid="sw-count"]')?.textContent ?? '') && !document.querySelector('[data-testid="sw-stop"]')`, 30000);
+  const second = await t.ev(`[...document.querySelectorAll('[data-testid="sw-row"]')].map((r) => r.textContent).join('|')`);
+  t.check('20 mil arquivos: uma busca nova no meio da anterior deixa só os resultados da segunda', /v7_49/.test(second) && !/palha/.test(second), second.slice(0, 200));
+  await t.shot('pesquisa-20mil');
+}
+
 const appErrors = t.errors().filter((e) => !/favicon|Failed to fetch|ERR_CONNECTION|Failed to load resource|chrome-extension|Could not establish connection/.test(String(e)));
 t.check('nenhum erro da interface no console', appErrors.length === 0, appErrors);
 t.close();
