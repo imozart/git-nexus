@@ -1,7 +1,7 @@
 import { parseLog } from './history.js';
 import { resolveInsideRepo } from './conflicts.js';
 import { runGit } from './runner.js';
-import type { BlameLine, CommitDetail, CommitFile, CommitInfo, HistorySearch } from './types/ipc.js';
+import type { BlameLine, CommitDetail, CommitFile, CommitInfo, FileAtRevision, HistorySearch } from './types/ipc.js';
 import { tm } from './messages.js';
 
 const LOG_FORMAT = ['%H', '%P', '%an', '%at', '%D', '%s'].join('%x1f') + '%x1e';
@@ -107,3 +107,21 @@ export async function getBlame(repoPath: string, file: string, rev?: string): Pr
   if (r.code !== 0) throw new Error(r.stderr.trim() || tm('Não foi possível calcular o blame (arquivo não versionado?).', 'Could not compute the blame (untracked file?).'));
   return parseBlame(r.stdout);
 }
+
+/** Um arquivo como estava num commit (para "Arquivo nesta versão" no resultado da busca na história). */
+export async function getFileAtRevision(repoPath: string, hash: string, file: string): Promise<FileAtRevision> {
+  assertHash(hash);
+  resolveInsideRepo(repoPath, file);
+  const spec = `${hash}:${file}`;
+  const size = await runGit(repoPath, ['cat-file', '-s', spec], { check: false });
+  if (size.code !== 0) return { exists: false, text: '', size: 0, tooBig: false, binary: false };
+  const bytes = Number(size.stdout.trim()) || 0;
+  if (bytes > FILE_AT_MAX) return { exists: true, text: '', size: bytes, tooBig: true, binary: false };
+  const r = await runGit(repoPath, ['cat-file', 'blob', spec], { check: false });
+  if (r.code !== 0) return { exists: false, text: '', size: 0, tooBig: false, binary: false };
+  // um NUL nos primeiros 8000 bytes é binário (a mesma regra do Git)
+  if (r.bytes.subarray(0, 8000).includes(0)) return { exists: true, text: '', size: bytes, tooBig: false, binary: true };
+  return { exists: true, text: r.stdout.replace(/^\uFEFF/, ''), size: bytes, tooBig: false, binary: false };
+}
+
+const FILE_AT_MAX = 2 * 1024 * 1024;

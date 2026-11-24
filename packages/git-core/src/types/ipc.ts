@@ -151,9 +151,16 @@ export interface GitNexusIPC {
    * pelos mesmos `onSearchBatch`/`onSearchDone`, com o id `<id>#<repoId>` e o `repoId`. A falha de um repositório não derruba os outros.
    */
   startMultiSearch(repoIds: string[], query: SearchQuery, id: string, opts?: MultiSearchOptions): Promise<MultiSearchStarted>;
-  /** Encerra de verdade a busca `id` (o `git grep` termina). Sem efeito se ela já acabou. */
   /** Cancela uma busca. Com o id de uma busca em vários repositórios cancela todos; com `<id>#<repoId>` cancela só aquele repositório (os outros seguem). */
   cancelSearch(id: string): Promise<void>;
+  /**
+   * Busca na história (fase 9 da #233): quando um texto entrou ou saiu (`-S`), linhas alteradas que casam (`-G`), mensagem (`--grep`) ou a história de um trecho
+   * (`-L`). Volta na hora; os commits chegam em lotes por `onHistoryBatch` (cada um com o selo entrou/saiu/mudou e os arquivos) e o fim por `onHistoryDone`
+   * (com `nextSkip` quando há mais páginas). O `id` é de quem chama: reusá-lo cancela a anterior, e `cancelSearch(id)` encerra o `git log` de verdade.
+   */
+  startHistorySearch(repoPath: string, query: HistoryQuery, id: string): Promise<void>;
+  /** O arquivo como estava num commit (até 2 MB; binário e grande demais voltam sem o texto). */
+  getFileAtRevision(repoPath: string, hash: string, file: string): Promise<FileAtRevision>;
   /** `git clone` para `<pasta>/<nome>` (nome padrão: o da URL) e já cataloga o repositório. O andamento chega por `onGitProgress` (`op: 'clone'`). */
   cloneRepository(input: CloneInput): Promise<RepositoryMeta>;
   /** `git init` em `<pasta>/<nome>` com branch inicial e `.gitignore` opcionais, e já cataloga o repositório. */
@@ -322,6 +329,117 @@ export interface HistorySearch {
   /** Datas aceitas pelo git (ex.: 2026-01-31, "2 weeks ago"). */
   since?: string;
   until?: string;
+}
+
+// ---------------------------------------------------------------- busca na história v2 (fase 9 da #233)
+
+/**
+ * O que a busca na história procura: `pickaxe` = quando o texto ENTROU ou SAIU (`git log -S`: o commit muda o número de ocorrências), `lines` = linhas
+ * alteradas que casam (`-G`), `message` = texto na mensagem do commit (`--grep`) e `range` = a história de um trecho de um arquivo (`git log -L`, que
+ * acompanha o trecho e as renomeações).
+ */
+export type HistoryMode = 'pickaxe' | 'lines' | 'message' | 'range';
+
+/** Onde procurar: o branch atual (HEAD), todos (branches, remotos e tags, sem o stash), um branch/tag/commit, um intervalo `A..B` ou só as tags. */
+export type HistoryScope = 'current' | 'all' | 'branch' | 'range' | 'tags';
+
+export interface HistoryQuery {
+  /** O texto (ou expressão) procurado. Pode ficar vazio quando há autor, período ou caminho (e em `range`). */
+  text: string;
+  mode?: HistoryMode;
+  /** `text` é expressão regular (POSIX estendida no Git; a contagem e o destaque usam a mesma expressão no JavaScript). */
+  regex?: boolean;
+  /** Padrão: não diferencia maiúsculas (igual à pesquisa no repositório). */
+  caseSensitive?: boolean;
+  /** Palavra inteira: o Git não tem isso no `-S`/`-G`, então o núcleo confere no próprio diff. */
+  wholeWord?: boolean;
+  scope?: HistoryScope;
+  /** O branch, a tag ou o commit de `branch`; `A..B` de `range`. */
+  revision?: string;
+  author?: string;
+  /** Datas aceitas pelo Git ("2026-01-31", "2 weeks ago"). */
+  since?: string;
+  until?: string;
+  /** Máscaras de arquivo (`*.ts, !*.test.ts`) ou um caminho; igual à pesquisa no repositório. */
+  include?: string;
+  /** Pasta (relativa à raiz) a que a busca fica restrita. */
+  folder?: string;
+  /** Segue as renomeações do arquivo (`--follow`): só com UM arquivo (sem máscara). */
+  follow?: boolean;
+  /** Só em `range`: o arquivo e as linhas (de 1, inclusive). */
+  lines?: { file: string; start: number; end: number };
+  /** Quantos commits pular (para "carregar mais"; use o `nextSkip` do fim da busca anterior). */
+  skip?: number;
+  /** Commits por página (padrão 200, no máximo 1000). */
+  limit?: number;
+  timeoutMs?: number;
+}
+
+/**
+ * Como o texto aparece no commit: `added` = só entrou (+), `removed` = só saiu (−), `changed` = entrou e saiu no mesmo commit, `message` = achado na
+ * mensagem, `unknown` = o Git achou mas o diff não deu para contar (binário, ou expressão que só o Git entende).
+ */
+export type HistoryKind = 'added' | 'removed' | 'changed' | 'message' | 'unknown';
+
+export interface HistoryFileHit {
+  path: string;
+  /** Nome antigo, quando o arquivo foi renomeado ou copiado neste commit. */
+  oldPath?: string;
+  /** A, M, D, R, C ou T. */
+  status: string;
+  /** Ocorrências que entraram e saíram NESTE arquivo (em `range`, as linhas `+`/`-` do trecho). */
+  added: number;
+  removed: number;
+  binary?: boolean;
+}
+
+export interface HistoryHit extends CommitInfo {
+  kind: HistoryKind;
+  /** Total de ocorrências que entraram (+) e saíram (−) neste commit, nos arquivos que a busca tocou. */
+  added: number;
+  removed: number;
+  files: HistoryFileHit[];
+  /** Arquivos além dos listados (a lista é cortada em 50). */
+  filesMore?: number;
+  /** Só em `range`: o diff do trecho naquele commit (cortado em 20 mil caracteres). */
+  patch?: string;
+  patchTruncated?: boolean;
+}
+
+export interface HistoryBatchEvent {
+  id: string;
+  hits: HistoryHit[];
+  /** Commits examinados até agora (estimativa pela ordem da história; ausente com `follow` ou `range`). */
+  examined?: number;
+}
+
+/** O fim de uma busca na história (concluída, com mais páginas, cortada pelo tempo, cancelada ou com erro). */
+export interface HistoryDone {
+  id: string;
+  ok: boolean;
+  message?: string;
+  /** Categoria do erro, para a tela dizer em linguagem de gente. */
+  reason?: 'noRevision' | 'noCommits' | 'badRegex' | 'badPath' | 'noGit';
+  /** Commits devolvidos nesta página. */
+  count: number;
+  /** Commits examinados e, quando se sabe, quantos há no escopo. */
+  examined?: number;
+  total?: number;
+  cancelled: boolean;
+  /** Há mais commits do que os devolvidos (página cheia ou tempo): peça de novo com `skip: nextSkip`. */
+  truncated: boolean;
+  truncatedReason?: 'limit' | 'time';
+  nextSkip?: number;
+  ms: number;
+}
+
+/** Um arquivo como estava num commit. `exists` = false: ainda não existia ou já tinha sido apagado; `tooBig`/`binary` = não vem o texto. */
+export interface FileAtRevision {
+  exists: boolean;
+  text: string;
+  size: number;
+  tooBig: boolean;
+  binary: boolean;
 }
 
 export interface CommitFile {
@@ -1296,6 +1414,9 @@ export interface GitNexusApi extends GitNexusIPC {
   onSearchBatch(cb: (e: SearchBatchEvent) => void): () => void;
   /** Fim de uma busca (concluída, cortada, cancelada ou com erro). */
   onSearchDone(cb: (e: SearchDone) => void): () => void;
+  /** Lotes e fim de uma busca na história (`startHistorySearch`). */
+  onHistoryBatch(cb: (e: HistoryBatchEvent) => void): () => void;
+  onHistoryDone(cb: (e: HistoryDone) => void): () => void;
   /** O git/ssh precisa de usuário, senha, token ou frase-senha: a interface mostra o diálogo e responde com `askpassAnswer`. */
   onAskpassRequest(cb: (r: AskpassRequest) => void): () => void;
 

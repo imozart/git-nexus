@@ -15,6 +15,13 @@ const messages: Partial<Record<MessageKey, string>> = {
   'search.badRevision': 'Invalid revision: {rev}',
   'search.noRevision': 'The revision "{rev}" does not exist in this repository.',
   'search.timeout': 'The search ran past {s} s and was stopped: narrow the text or the filters.',
+  'history.emptyQuery': 'Type the text to look for or use a filter (author, period, file).',
+  'history.multiline': 'In this mode the text must fit on one line: use "When it came in or went out" for multi-line text.',
+  'history.badFollow': 'Following renames only works with one file (no mask or folder).',
+  'history.badLines': 'Pick a file and the lines (from 1, the first no greater than the last).',
+  'history.badDate': 'Invalid date: {value}',
+  'history.noCommits': 'This repository has no commits yet.',
+  'history.noGit': 'Git was not found on this computer.',
   // janela (main.ts)
   'window.err.titleBarColors': 'Invalid title bar colors.',
   // instalação do Git (git-install.ts)
