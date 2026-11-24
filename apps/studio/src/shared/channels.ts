@@ -1,4 +1,4 @@
-import type { AskpassRequest, GitCommandEvent, GitNexusApi, GitProgressEvent, SearchBatchEvent, SearchDone } from '@git-nexus/git-core/pure';
+import type { AskpassRequest, GitCommandEvent, GitNexusApi, GitProgressEvent, HistoryBatchEvent, HistoryDone, SearchBatchEvent, SearchDone } from '@git-nexus/git-core/pure';
 
 /** Métodos executados no UtilityProcess (trabalho pesado de Git / disco). */
 export const WORKER_METHODS = [
@@ -63,6 +63,8 @@ export const WORKER_METHODS = [
   'fetchRepo',
   'pullRepo',
   'searchHistory',
+  'startHistorySearch',
+  'getFileAtRevision',
   'getFileHistory',
   'listTrackedFiles',
   'getCommitDetail',
@@ -128,6 +130,9 @@ export type UtilityEvent =
   /** Lote de ocorrências de uma busca em andamento e o fim dela (`startSearch`). */
   | { event: 'searchBatch'; data: SearchBatchEvent }
   | { event: 'searchDone'; data: SearchDone }
+  /** Lotes de commits de uma busca na história em andamento e o fim dela (`startHistorySearch`). */
+  | { event: 'historyBatch'; data: HistoryBatchEvent }
+  | { event: 'historyDone'; data: HistoryDone }
   /** O git/ssh pediu uma credencial: o processo principal repassa à interface, que mostra o diálogo. */
   | { event: 'askpass'; data: AskpassRequest }
   /** Exceção não tratada dentro do worker: o processo principal a registra no log do app. */

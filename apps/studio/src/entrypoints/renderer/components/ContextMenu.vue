@@ -9,7 +9,8 @@ export interface MenuItem {
   separator?: boolean;
 }
 
-const props = defineProps<{ x: number; y: number; items: MenuItem[] }>();
+/** `above`: o menu abre de dentro de um diálogo (acima dele, na camada dos diálogos). */
+const props = defineProps<{ x: number; y: number; items: MenuItem[]; above?: boolean }>();
 const emit = defineEmits<{ (e: 'select', id: string): void; (e: 'close'): void }>();
 
 const el = ref<HTMLDivElement>();
@@ -45,7 +46,7 @@ onBeforeUnmount(() => {
 
 <template>
   <Teleport to="body">
-    <div ref="el" class="ctx" role="menu" :style="{ left: pos.left + 'px', top: pos.top + 'px' }" @contextmenu.prevent>
+    <div ref="el" class="ctx" :class="{ 'ctx--above': above }" role="menu" :style="{ left: pos.left + 'px', top: pos.top + 'px' }" @contextmenu.prevent>
       <template v-for="(it, i) in items" :key="i">
         <div v-if="it.separator" class="ctx__sep" />
         <button
@@ -92,4 +93,6 @@ onBeforeUnmount(() => {
     &--danger { color: var(--gn-danger); &:hover:not(:disabled) { background: var(--gn-danger); color: #fff; } }
   }
 }
+/* aberto de dentro de um diálogo: acima dele (regra de camadas do GnDialog) */
+.ctx--above { z-index: calc(var(--gn-z-dialog) + 1); }
 </style>

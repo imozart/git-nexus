@@ -105,6 +105,11 @@ import {
   type PullMode,
   type UpdateMethod,
   type HistorySearch,
+  type HistoryQuery,
+  type HistoryBatchEvent,
+  type HistoryDone,
+  searchHistoryStream,
+  getFileAtRevision,
   type CreateTagInput,
   type DiffMode,
   type SaveOptions,
@@ -150,11 +155,17 @@ export async function readRepoPolicy(repoPath: string): Promise<RepoPolicyInfo> 
 }
 
 /** Evento espontâneo do worker que não é resposta a um pedido (lotes e fim de uma busca). */
-export type HandlerEvent = { event: 'searchBatch'; data: SearchBatchEvent } | { event: 'searchDone'; data: SearchDone };
+export type HandlerEvent =
+  | { event: 'searchBatch'; data: SearchBatchEvent }
+  | { event: 'searchDone'; data: SearchDone }
+  | { event: 'historyBatch'; data: HistoryBatchEvent }
+  | { event: 'historyDone'; data: HistoryDone };
 
 export function createHandlers(dataDir: string, emit: (e: HandlerEvent) => void = () => undefined): Record<WorkerMethod, (...args: any[]) => Promise<unknown>> {
   /** Buscas em andamento: `cancelSearch` e uma busca nova com o mesmo id encerram o processo do git de verdade. */
   const searches = new Map<string, AbortController>();
+  /** Buscas na história em andamento (fase 9 da #233): o mesmo id reiniciado ou `cancelSearch` encerram o `git log` de verdade. */
+  const histories = new Map<string, AbortController>();
   /** Buscas em vários repositórios (fase 8 da #233): o orquestrador cuida de concorrência, limites e cancelamento por repositório. */
   const multi = createMultiSearcher({
     run: (path, query, hooks) => searchRepository(path, query, hooks),
@@ -245,6 +256,18 @@ export function createHandlers(dataDir: string, emit: (e: HandlerEvent) => void 
           if (searches.get(key) === ctl) searches.delete(key);
         });
     },
+    startHistorySearch: async (repoPath: string, query: HistoryQuery, id: string) => {
+      const key = String(id);
+      histories.get(key)?.abort();
+      const ctl = new AbortController();
+      histories.set(key, ctl);
+      void searchHistoryStream(repoPath, query, { id: key, signal: ctl.signal, onBatch: (hits, examined) => emit({ event: 'historyBatch', data: { id: key, hits, ...(examined !== undefined ? { examined } : {}) } }) })
+        .then(({ done }) => emit({ event: 'historyDone', data: done }))
+        .catch((e: unknown) => emit({ event: 'historyDone', data: { id: key, ok: false, message: e instanceof Error ? e.message : String(e), count: 0, cancelled: false, truncated: false, ms: 0 } }))
+        .finally(() => {
+          if (histories.get(key) === ctl) histories.delete(key);
+        });
+    },
     startMultiSearch: async (repoIds: string[], query: SearchQuery, id: string, opts?: MultiSearchOptions): Promise<MultiSearchStarted> => {
       // a lista vem SÓ do catálogo do app: um id que não está nele (ou um caminho digitado no lugar do id) nunca roda
       const catalog = new Map((await loadRepos()).map((r) => [r.id, r]));
@@ -256,6 +279,7 @@ export function createHandlers(dataDir: string, emit: (e: HandlerEvent) => void 
     },
     cancelSearch: async (id: string) => {
       searches.get(String(id))?.abort();
+      histories.get(String(id))?.abort();
       multi.cancel(String(id));
     },
     cloneRepository: async (input: CloneInput) => register((await cloneRepository(input)).path),
@@ -308,6 +332,7 @@ export function createHandlers(dataDir: string, emit: (e: HandlerEvent) => void 
     listTrackedFiles: (repoPath: string) => listTrackedFiles(repoPath),
     getCommitDetail: (repoPath: string, hash: string) => getCommitDetail(repoPath, hash),
     getCommitFileDiff: (repoPath: string, hash: string, file: string) => getCommitFileDiff(repoPath, hash, file),
+    getFileAtRevision: (repoPath: string, hash: string, file: string) => getFileAtRevision(repoPath, hash, file),
     getBlame: (repoPath: string, file: string, rev?: string) => getBlame(repoPath, file, rev),
     listStashes: (repoPath: string) => listStashes(repoPath),
     createStash: (repoPath: string, input: CreateStashInput) => createStash(repoPath, input),

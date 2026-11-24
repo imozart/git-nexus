@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import type { RepositoryMeta } from '@git-nexus/git-core/pure';
+import type { HistoryQuery, RepositoryMeta } from '@git-nexus/git-core/pure';
 
 export type TabKind = 'home' | 'repo' | 'graph' | 'merge' | 'tools';
 
@@ -21,6 +21,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   /** Pedido para a aba Ferramentas abrir numa seção (e arquivo) específicos, ex.: "Blame" a partir do menu. */
   const toolsTarget = ref<{ repoId: string; section: string; file?: string; mode?: string; n: number } | null>(null);
 
+  /** Pedido para o grafo abrir já com uma busca na história (da janela de pesquisa, do editor ou da paleta); `n` sobe a cada pedido. */
+  const historyTarget = ref<{ repoId: string; query: HistoryQuery; n: number } | null>(null);
+
   const active = computed(() => tabs.value.find((t) => t.id === activeId.value));
 
   function open(kind: Exclude<TabKind, 'home'>, repo: RepositoryMeta): void {
@@ -32,6 +35,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   function openTools(repo: RepositoryMeta, section?: string, file?: string, mode?: string): void {
     if (section) toolsTarget.value = { repoId: repo.id, section, file, mode, n: (toolsTarget.value?.n ?? 0) + 1 };
     open('tools', repo);
+  }
+
+  /** Abre o histórico do repositório já buscando `query` (texto, opções, máscaras, escopo, ou o trecho de um arquivo). */
+  function openHistory(repo: RepositoryMeta, query: HistoryQuery): void {
+    historyTarget.value = { repoId: repo.id, query, n: (historyTarget.value?.n ?? 0) + 1 };
+    open('graph', repo);
   }
 
   function close(id: string): void {
@@ -51,5 +60,5 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     versions.value[repoId] = (versions.value[repoId] ?? 0) + 1;
   }
 
-  return { tabs, activeId, active, versions, toolsTarget, open, openTools, close, closeRepo, bump };
+  return { tabs, activeId, active, versions, toolsTarget, historyTarget, open, openTools, openHistory, close, closeRepo, bump };
 });

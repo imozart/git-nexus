@@ -177,6 +177,7 @@ Peças do renderer (não do kit: falam com a store e o `api`) que montam o `GnSe
 | `SearchWindow.vue` | Janela **Pesquisar no repositório** (`Ctrl+F`, `Ctrl+Shift+F`; `Ctrl+Shift+H` com "Substituir por") | um `GnDialog` com o campo, filtros, a lista de resultados e o arquivo editável embaixo; guarda as preferências em `gitnexus.searchWindow` |
 | `SearchFilters.vue` | Painel de filtros da janela (onde, pasta, novos, ignorados, contexto, agrupar) | só o formulário: quem refaz a busca é a janela |
 | `SearchRepos.vue` | Painel **Repositórios** da janela: onde pesquisar (os do catálogo do app), atalhos Todos / Abertos nas abas / Só este e os conjuntos salvos | só o formulário (`v-model` dos ids e dos conjuntos); `aria-pressed` no atalho que bate com a seleção; contador `role="status"` ("3 de 7 escolhidos") |
+| `HistorySearch.vue` | Painel **Buscar na história** do Grafo: o `GnSearchField` (Aa, ab, .*), os três modos (quando entrou ou saiu, linhas alteradas, mensagem), escopo, autor, período, arquivo ou máscara, seguir renomeações e o chip do trecho (`-L`) | só o formulário (`v-model:hits`, `v-model:active`, `v-model:running`); região `role="search"`; contador `role="status"` educado; erro `role="alert"`; o resumo "primeira vez que entrou / última que saiu" são botões; **o selo (entrou +2, saiu −3, mudou −1 +2) é sempre texto**, a cor só reforça |
 
 Regras de acessibilidade que valem para essa tela (e para qualquer lista de resultados parecida), todas cobertas por `search-teclado.mjs` e pelo teste de convenções:
 

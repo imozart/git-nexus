@@ -222,7 +222,7 @@ api.onGitProgress = (cb) => {
 // Sondagens separadas com um ponteiro compartilhado entregavam o mesmo lote em duplicidade quando a máquina estava carregada.
 // O ponto de partida é marcado quando a página carrega (uma página recarregada não repete buscas antigas), e NÃO na primeira sondagem: uma busca que a janela
 // dispara logo ao abrir (texto lembrado) podia começar antes dessa primeira sondagem, e os lotes dela eram descartados como "antigos".
-const searchListeners = { searchBatch: new Set(), searchDone: new Set() };
+const searchListeners = { searchBatch: new Set(), searchDone: new Set(), historyBatch: new Set(), historyDone: new Set() };
 let searchSeen = -1;
 let searchBusy = false;
 const searchStart = fetch('/searchevents?since=-1').then((r) => r.json()).then((r) => { searchSeen = r.next; }).catch(() => undefined);
@@ -246,7 +246,7 @@ const onSearchEvent = (name, cb) => {
   if (!searchTimer) searchTimer = setInterval(searchPoll, 40);
   return () => {
     searchListeners[name].delete(cb);
-    if (!searchListeners.searchBatch.size && !searchListeners.searchDone.size) {
+    if (!Object.values(searchListeners).some((s) => s.size)) {
       clearInterval(searchTimer);
       searchTimer = null;
     }
@@ -254,6 +254,8 @@ const onSearchEvent = (name, cb) => {
 };
 api.onSearchBatch = (cb) => onSearchEvent('searchBatch', cb);
 api.onSearchDone = (cb) => onSearchEvent('searchDone', cb);
+api.onHistoryBatch = (cb) => onSearchEvent('historyBatch', cb);
+api.onHistoryDone = (cb) => onSearchEvent('historyDone', cb);
 // -1: a primeira sondagem só marca o ponto de partida (uma página recarregada não repete pedidos antigos, como no Electron)
 let askSeen = -1;
 api.onAskpassRequest = (cb) => {

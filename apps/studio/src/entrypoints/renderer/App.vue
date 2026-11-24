@@ -21,6 +21,7 @@ import { useRepositoriesStore } from './stores/repositories';
 import { useSearchStore } from './stores/search';
 import { useSettingsStore } from './stores/settings';
 import { seedFromSelection } from './search-window-core';
+import { enteredQuery, linesQuery } from './history-search-core';
 import { useGitLogStore } from './stores/gitlog';
 import { useGitInstallStore } from './stores/git-install';
 import { useUpdateStore } from './stores/update';
@@ -188,6 +189,41 @@ function globalCommands(): Command[] {
         keywords: 'substituir trocar renomear replace rename varios arquivos massa',
         when: inRepo,
         run: () => search.open(repo, selectedText(), null, true),
+      },
+      // buscar na história (fase 9 da #233): o texto selecionado vira a busca; "Quando isto entrou ou saiu?" e "Histórico destas linhas" valem para o arquivo aberto na janela de pesquisa
+      {
+        id: 'history.search',
+        title: t('cmd.historySearch'),
+        group: nav,
+        keywords: 'buscar procurar história historico pickaxe quando entrou saiu git log search history',
+        when: inRepo,
+        run: () => ws.openHistory(repo, { text: selectedText(), mode: 'pickaxe' }),
+      },
+      {
+        id: 'history.entered',
+        title: t('cmd.historyEntered'),
+        group: nav,
+        keywords: 'quando entrou saiu texto selecionado pickaxe when added removed',
+        when: () => inRepo() && !!(search.fileContext?.()?.text.trim() || selectedText()),
+        run: () => {
+          const c = search.fileContext?.();
+          const text = c?.text.trim() ? c.text : selectedText();
+          search.close();
+          ws.openHistory(c?.repo ?? repo, enteredQuery(text));
+        },
+      },
+      {
+        id: 'history.lines',
+        title: t('cmd.historyLines'),
+        group: nav,
+        keywords: 'histórico linhas trecho git log -L line history',
+        when: () => inRepo() && !!search.fileContext?.() && !search.fileContext()!.dirty,
+        run: () => {
+          const c = search.fileContext?.();
+          if (!c) return;
+          search.close();
+          ws.openHistory(c.repo, linesQuery(c.file, c));
+        },
       },
       { id: 'view.staging', title: t('cmd.staging'), group: nav, keywords: 'commit alterações changes', when: inRepo, run: () => ws.open('repo', repo) },
       { id: 'view.graph', title: t('cmd.graph'), group: nav, keywords: 'log commits busca history search', when: inRepo, run: () => ws.open('graph', repo) },
