@@ -94,7 +94,7 @@ export async function connect(OUT, results) {
     await send('Page.bringToFront');
     writeFileSync(join(OUT, n + '.png'), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).result.data, 'base64'));
   };
-  const VK = { Enter: 13, Escape: 27, ArrowDown: 40, ArrowUp: 38, ArrowLeft: 37, ArrowRight: 39, Tab: 9, PageDown: 34, PageUp: 33, F5: 116, F7: 118 };
+  const VK = { Delete: 46, Enter: 13, Escape: 27, ArrowDown: 40, ArrowUp: 38, ArrowLeft: 37, ArrowRight: 39, Tab: 9, PageDown: 34, PageUp: 33, F5: 116, F7: 118 };
   /** Tecla real via CDP. mods: 1=Alt 2=Ctrl 4=Meta 8=Shift. */
   const key = async (k, mods = 0) => {
     const vk = VK[k] ?? k.toUpperCase().charCodeAt(0);

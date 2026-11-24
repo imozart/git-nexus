@@ -3,6 +3,7 @@ import { GrepParser, byteColToIndex, type RawHit } from '../src/index.js';
 import {
   buildGrepArgs,
   candidateLiteral,
+  cleanFolder,
   clipAround,
   compileJsRegex,
   fixedRanges,
@@ -30,6 +31,19 @@ describe('máscaras', () => {
 
   it('recusa o que não é máscara de arquivo: "..", magia de pathspec, barra no começo, opção e controle', () => {
     for (const bad of ['../x', 'a/../b', ':(top)x', ':!x', '/etc/passwd', '--help', '!:(exclude)x', 'a\u0001b']) expect(parseMasks(bad), bad).toHaveProperty('error');
+  });
+});
+
+describe('pasta do pedido', () => {
+  it('limpa o caminho e põe as máscaras dentro da pasta', () => {
+    expect(cleanFolder('./src//')).toBe('src');
+    expect(cleanFolder('a\\b')).toBe('a/b');
+    expect(cleanFolder('  ')).toBe('');
+    for (const bad of ['..', 'a/../b', ':(top)x', '-x', 'a//b']) expect(cleanFolder(bad), bad).toBeNull();
+    expect(norm({ pattern: 'x', folder: 'src' }).masks).toEqual({ include: ['src/**'], exclude: [] });
+    expect(norm({ pattern: 'x', folder: 'src', include: '*.ts, !dist/' }).masks).toEqual({ include: ['src/**/*.ts'], exclude: ['**/dist/**'] });
+    expect(norm({ pattern: 'x', folder: 'a[1]' }).masks.include).toEqual(['a\\[1\\]/**']);
+    expect(normalizeQuery({ pattern: 'x', folder: '../x' })).toHaveProperty('error.code', 'badMask');
   });
 });
 

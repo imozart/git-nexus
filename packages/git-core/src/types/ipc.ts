@@ -671,6 +671,8 @@ export interface SearchQuery {
   revision?: string;
   /** Máscaras de arquivo separadas por vírgula ou espaço; `!` exclui: `*.ts, *.vue, !*.test.ts, !dist/`. Sem barra, vale em qualquer pasta. */
   include?: string;
+  /** Só dentro desta pasta (caminho relativo à raiz, com `/`); as máscaras valem dentro dela. Vazio = o repositório todo. */
+  folder?: string;
   /** Inclui os arquivos ignorados pelo `.gitignore` (padrão: não). */
   includeIgnored?: boolean;
   /** Inclui os arquivos novos ainda não versionados (padrão: sim, no escopo `worktree`). */

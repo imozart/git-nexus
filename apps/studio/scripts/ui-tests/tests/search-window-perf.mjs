@@ -77,7 +77,7 @@ metrics.longTasks = longs;
 metrics.maxLongTaskMs = longs.length ? Math.max(...longs) : 0;
 const counter = await t.ev(`document.querySelector('[data-testid="sw-count"]').textContent.replace(/\\s+/g, ' ').trim()`);
 t.check('5 mil ocorrências (o limite da janela), em centenas de arquivos', /^5\.?000 ocorrências em \d+ arquivos/.test(counter), counter);
-t.check('avisa que há mais do que foi mostrado', /Mostrando só as primeiras 5000/.test((await t.text('[data-testid="sw-notes"]')) ?? ''), await t.text('[data-testid="sw-notes"]'));
+t.check('avisa que há mais do que foi mostrado', /Mostrando as primeiras 5000 ocorrências.*Carregar mais/.test((await t.text('[data-testid="sw-notes"]')) ?? ''), await t.text('[data-testid="sw-notes"]'));
 const totalRows = await t.ev(`Math.round(document.querySelector('.sw__spacer').getBoundingClientRect().height / 24)`);
 const mounted = await t.count('.sw__row');
 metrics.totalRows = totalRows;

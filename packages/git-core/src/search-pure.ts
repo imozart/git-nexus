@@ -65,6 +65,21 @@ export interface NormalizedQuery extends Required<Pick<SearchQuery, 'pattern' | 
   includeSubmodules: boolean;
 }
 
+/** A pasta do pedido, limpa (`./` e `/` nas pontas saem, a contrabarra vira `/`); `null` se não é um caminho de pasta (`..`, magia de pathspec, controle). */
+export function cleanFolder(folder: string | undefined): string | null {
+  const f = (folder ?? '').trim().replace(/\\/g, '/').replace(/^(\.\/)+/, '').replace(/^\/+|\/+$/g, '');
+  if (!f || f === '.') return '';
+  // eslint-disable-next-line no-control-regex
+  if (f.startsWith(':') || f.startsWith('-') || /[\u0000-\u001f]/.test(f) || f.split('/').some((p) => p === '..' || p === '')) return null;
+  return f;
+}
+
+/** As máscaras dentro de uma pasta: sem máscara de inclusão, a pasta inteira; com elas, cada uma sob a pasta. As exclusões continuam valendo onde estiverem. */
+export function maskedInFolder(masks: Masks, folder: string): Masks {
+  const lit = folder.replace(/[*?[\]\\]/g, '\\$&');
+  return { include: masks.include.length ? masks.include.map((g) => `${lit}/${g}`) : [`${lit}/**`], exclude: masks.exclude };
+}
+
 const clamp = (n: number | undefined, lo: number, hi: number, d: number) => (Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.floor(n as number))) : d);
 
 /** Uma revisão válida: nome de branch, tag ou commit, sem espaço, sem `..` e sem começar com `-` (nunca vira opção do Git). */
@@ -78,6 +93,8 @@ export function normalizeQuery(q: SearchQuery): { query: NormalizedQuery } | { e
   if (q.pattern.length > SEARCH_MAX_PATTERN) return { error: { code: 'tooLong', max: SEARCH_MAX_PATTERN } };
   const parsed = parseMasks(q.include);
   if ('error' in parsed) return { error: { code: 'badMask', mask: parsed.error } };
+  const folder = cleanFolder(q.folder);
+  if (folder === null) return { error: { code: 'badMask', mask: q.folder ?? '' } };
   const scope = q.scope ?? 'worktree';
   const revision = (q.revision ?? '').trim();
   if (scope === 'revision' && !isSafeRevision(revision)) return { error: { code: 'badRevision', rev: revision } };
@@ -92,7 +109,7 @@ export function normalizeQuery(q: SearchQuery): { query: NormalizedQuery } | { e
       multiline,
       scope,
       revision,
-      masks: parsed.masks,
+      masks: folder ? maskedInFolder(parsed.masks, folder) : parsed.masks,
       includeIgnored: !!q.includeIgnored,
       includeUntracked: q.includeUntracked ?? true,
       includeSubmodules: !!q.includeSubmodules,

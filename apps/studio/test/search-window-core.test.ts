@@ -1,6 +1,6 @@
 import type { SearchHit } from '@git-nexus/git-core/pure';
 import { describe, expect, it } from 'vitest';
-import { ROW_H, ResultModel, changedOutside, clampSplit, formatDuration, hitIndexes, hitKey, marksOf, pieces, readOnlyReason, scrollToRow, seedFromSelection, stepFile, stepHit, windowRange } from '../src/entrypoints/renderer/search-window-core';
+import { NO_HIDDEN, ROW_H, ResultModel, changedOutside, dirKey, dirOf, fileKey, hideTarget, isFileHidden, clampSplit, formatDuration, hitIndexes, hitKey, marksOf, pieces, readOnlyReason, scrollToRow, seedFromSelection, stepFile, stepHit, windowRange } from '../src/entrypoints/renderer/search-window-core';
 
 const hit = (file: string, line: number, text = 'x', ranges: Array<[number, number]> = [[0, 1]], extra: Partial<SearchHit> = {}): SearchHit => ({ file, line, text, ranges, before: [], after: [], ...extra });
 
@@ -20,7 +20,62 @@ describe('modelo dos resultados', () => {
   it('arquivo recolhido mostra só o cabeçalho', () => {
     const m = new ResultModel();
     m.add([hit('a.ts', 1), hit('b.ts', 2)]);
-    expect(m.rows(new Set(['a.ts'])).map((r) => r.key)).toEqual(['f:a.ts', 'f:b.ts', 'b.ts:2']);
+    expect(m.rows({ collapsed: new Set([fileKey('a.ts')]) }).map((r) => r.key)).toEqual(['f:a.ts', 'f:b.ts', 'b.ts:2']);
+  });
+
+  it('agrupar por pasta: pasta, arquivo, ocorrência; a raiz é a pasta vazia; recolher a pasta esconde os arquivos dela', () => {
+    const m = new ResultModel();
+    m.add([hit('src/a.ts', 1), hit('README.md', 3), hit('src/b.ts', 2), hit('src/x/c.ts', 4)]);
+    const rows = m.rows({ group: 'folder' });
+    expect(rows.map((r) => r.key)).toEqual(['d:src', 'f:src/a.ts', 'src/a.ts:1', 'f:src/b.ts', 'src/b.ts:2', 'd:', 'f:README.md', 'README.md:3', 'd:src/x', 'f:src/x/c.ts', 'src/x/c.ts:4']);
+    expect(rows[0]).toMatchObject({ kind: 'dir', dir: 'src', count: 2, collapsed: false });
+    expect(rows[1]).toMatchObject({ kind: 'file', depth: 1 });
+    expect(rows[2]).toMatchObject({ kind: 'hit', depth: 2, showFile: false });
+    expect(m.rows({ group: 'folder', collapsed: new Set([dirKey('src')]) }).map((r) => r.key)).toEqual(['d:src', 'd:', 'f:README.md', 'README.md:3', 'd:src/x', 'f:src/x/c.ts', 'src/x/c.ts:4']);
+    expect([dirOf('a/b/c.ts'), dirOf('c.ts')]).toEqual(['a/b', '']);
+  });
+
+  it('plano: só as ocorrências, com o arquivo na linha', () => {
+    const m = new ResultModel();
+    m.add([hit('a.ts', 1), hit('b.ts', 2)]);
+    const rows = m.rows({ group: 'flat' });
+    expect(rows.map((r) => r.key)).toEqual(['a.ts:1', 'b.ts:2']);
+    expect(rows.every((r) => r.kind === 'hit' && r.showFile)).toBe(true);
+  });
+
+  it('contexto: linhas antes e depois sem repetir as que já aparecem (nem as que são ocorrências)', () => {
+    const c = (line: number) => ({ line, text: 'ctx' + line });
+    const m = new ResultModel();
+    m.add([hit('a.ts', 5, 'x', [[0, 1]], { before: [c(3), c(4)], after: [c(6), c(7)] }), hit('a.ts', 8, 'x', [[0, 1]], { before: [c(6), c(7)], after: [c(9), c(10)] }), hit('a.ts', 20, 'x', [[0, 1]], { before: [c(19)], after: [] })]);
+    expect(m.rows().map((r) => r.key)).toEqual(['f:a.ts', 'c:a.ts:3', 'c:a.ts:4', 'a.ts:5', 'c:a.ts:6', 'c:a.ts:7', 'a.ts:8', 'c:a.ts:9', 'c:a.ts:10', 'c:a.ts:19', 'a.ts:20']);
+    expect(m.rows({ context: false }).map((r) => r.key)).toEqual(['f:a.ts', 'a.ts:5', 'a.ts:8', 'a.ts:20']);
+    // contexto nunca vira ocorrência para o teclado
+    expect(hitIndexes(m.rows())).toHaveLength(3);
+  });
+
+  it('tirar da lista: ocorrência, arquivo e pasta (com o que há dentro); a contagem acompanha e a raiz não leva as subpastas', () => {
+    const m = new ResultModel();
+    m.add([hit('a.ts', 1), hit('a.ts', 2), hit('src/b.ts', 3), hit('src/x/c.ts', 4)]);
+    const hidden = (p: { hits?: string[]; files?: string[]; dirs?: string[] }) => ({ hits: new Set(p.hits ?? []), files: new Set(p.files ?? []), dirs: new Set(p.dirs ?? []) });
+    expect(m.rows({ hidden: hidden({ hits: ['a.ts:1'] }) }).map((r) => r.key)).toEqual(['f:a.ts', 'a.ts:2', 'f:src/b.ts', 'src/b.ts:3', 'f:src/x/c.ts', 'src/x/c.ts:4']);
+    expect(m.rows({ hidden: hidden({ hits: ['a.ts:1', 'a.ts:2'] }) }).map((r) => r.key)).toEqual(['f:src/b.ts', 'src/b.ts:3', 'f:src/x/c.ts', 'src/x/c.ts:4']);
+    expect(m.rows({ hidden: hidden({ dirs: ['src'] }) }).map((r) => r.key)).toEqual(['f:a.ts', 'a.ts:1', 'a.ts:2']);
+    expect(m.rows({ hidden: hidden({ dirs: [''] }) }).map((r) => r.key)).toEqual(['f:src/b.ts', 'src/b.ts:3', 'f:src/x/c.ts', 'src/x/c.ts:4']);
+    expect(m.count(NO_HIDDEN)).toEqual({ hits: 4, files: 3 });
+    expect(m.count(hidden({ files: ['a.ts'], hits: ['src/b.ts:3'] }))).toEqual({ hits: 1, files: 1 });
+    expect(isFileHidden('src/x/c.ts', hidden({ dirs: ['src'] }))).toBe(true);
+    expect(isFileHidden('src2/c.ts', hidden({ dirs: ['src'] }))).toBe(false);
+  });
+
+  it('o que "ocultar" atinge a partir de cada linha', () => {
+    const m = new ResultModel();
+    m.add([hit('src/a.ts', 1)]);
+    const [file, h] = m.rows();
+    expect(hideTarget(h!, 'hit')).toEqual({ kind: 'hit', key: 'src/a.ts:1' });
+    expect(hideTarget(h!, 'file')).toEqual({ kind: 'file', key: 'src/a.ts' });
+    expect(hideTarget(h!, 'dir')).toEqual({ kind: 'dir', key: 'src' });
+    expect(hideTarget(file!, 'hit')).toEqual({ kind: 'file', key: 'src/a.ts' });
+    expect(hideTarget({ kind: 'ctx', key: 'c', file: 'x', line: 1, text: '', depth: 0 }, 'hit')).toBeNull();
   });
 
   it('limpa', () => {

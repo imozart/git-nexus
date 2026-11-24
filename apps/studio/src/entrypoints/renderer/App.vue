@@ -251,7 +251,7 @@ onBeforeUnmount(() => {
   <CoreInterface />
   <CommandPalette />
   <SettingsDialog v-if="settings.isOpen" @close="settings.close()" />
-  <SearchWindow v-if="search.isOpen && search.repo" :repo="search.repo" :seed="search.seed" :open-n="search.n" @close="search.close()" />
+  <SearchWindow v-if="search.isOpen && search.repo" :repo="search.repo" :seed="search.seed" :preset="search.preset ?? undefined" :open-n="search.n" @close="search.close()" />
   <LocaleWelcome v-if="askLocale" @done="askLocale = false" />
   <AskpassDialog />
   <GitGate />

@@ -97,6 +97,17 @@ A barra de qualidade do resolvedor (issue #231) é medida, não suposta:
 - **Esc dentro da janela:** o `GnDialog` deixa o Esc para quem está dentro de um `[data-dialog-esc="own"]` (o `CodeEditor` com a barra de busca aberta). Linhas da lista **não** usam `aria-expanded` (o diálogo trataria como lista aberta e não fecharia com Esc): o estado recolhido vai no nome.
 - **Testes:** `search-window-core.test.ts` e `work-file.test.ts` (unidade); `content-search.mjs` (a pesquisa), `search-window.mjs` (editar com segurança) e `search-window-perf.mjs` (5 mil resultados, rolagem, tarefas longas e 30 mil linhas; as medidas saem em `search-window-perf-metrics.json`).
 
+### Filtros, histórico e mensagens da pesquisa (fase 5)
+
+- **Arquivos:** `search-filters-core.ts` (puro: `Filters`, `buildQuery`, histórico, `regexErrorAt`, sugestões de "nada encontrado"), `components/SearchFilters.vue` (o painel de filtros, só o formulário) e, na lista, `Row` ganhou `dir` e `ctx` (`search-window-core.ts`). O núcleo da busca ganhou `SearchQuery.folder` (`cleanFolder`/`maskedInFolder` em `search-pure.ts`: as máscaras valem dentro da pasta; a pasta não passa pelo separador de máscaras, então aceita espaço).
+- **Os filtros são o pedido do núcleo:** nada é refeito no renderer. `buildQuery(prefs)` monta o `SearchQuery` (escopo, revisão, pasta, máscara, ignorados, novos, submódulos, contexto); mudou um filtro, a janela refaz a busca (agrupar só refaz as linhas).
+- **Ocultar da lista** (`Hidden`: ocorrências, arquivos e pastas) é só da lista: a contagem do núcleo continua sendo o total e `ResultModel.count(hidden)` dá o que sobra. A pasta raiz (`''`) vale só para os arquivos direto nela, não para as subpastas. Uma pesquisa nova limpa o que foi ocultado; refazer por causa de uma gravação, não. (A fase de substituir em vários arquivos usa esse mesmo conjunto: o que está oculto não é substituído.)
+- **Contexto:** o núcleo devolve `before`/`after` em cada ocorrência; a lista os mostra como linhas `ctx` de 24 px (sem repetir uma linha que já aparece como contexto de outra ocorrência, e sem repetir as que são ocorrência). Elas não entram no teclado (`stepHit`) nem na contagem.
+- **Carregar mais:** a página tem 5.000 ocorrências; `done.nextOffset` pede a seguinte (`offset`) e os resultados novos entram depois dos que já estão na lista.
+- **Histórico:** `gitnexus.searchHistory` (por id do repositório, 30 entradas, com as opções, a máscara, o escopo, a revisão e a pasta). Entra quando a pessoa age sobre a pesquisa (Enter, escolher uma ocorrência, fechar a janela, escolher no histórico), não a cada tecla.
+- **Esc e `aria-expanded`:** o botão Filtros e o de histórico usam `aria-expanded`, então o `GnDialog` deixa o Esc para a janela, que fecha primeiro o histórico, depois os filtros, e só então a janela.
+- **Testes:** `search-filters-core.test.ts`, `search-window-core.test.ts` (agrupar, contexto, ocultar) e, no núcleo, `search-pure.test.ts`/`search-run.test.ts` (pasta); `search-filters.mjs` (48 verificações com `git` de verdade: escopos, máscara, pasta, contexto, agrupar, ocultar, histórico que sobrevive a recarregar, mensagens, carregar mais, "Pesquisar aqui", tema claro e inglês).
+
 ## Notas sobre versões
 
 Os números exatos estão no `package.json` de cada pacote e no `pnpm-lock.yaml` (esta página não repete o que muda a cada atualização). O que vale saber:

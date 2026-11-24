@@ -100,7 +100,7 @@ describe('uso das chaves no código', () => {
   it('toda chave do português é usada em algum lugar (sem chave morta)', () => {
     const all = files.map((f) => readFileSync(f, 'utf8')).join('\n');
     // chaves montadas por template literal (ex.: commit.type.${ty}) e por TOOLS (title: 'tools.x')
-    const dynamic = [/^commit\.type\./, /^tools\./, /^sw\.ro\./, /^theme\.(system|dark|light)$/, /^font\.(jetbrains|system)$/, /^motion\.(system|reduced|normal)$/, /^sub\.state\./, /^lfs\.state\./, /^commit\.signFormat\./, /^git\.(step|method)\./];
+    const dynamic = [/^commit\.type\./, /^tools\./, /^sw\.ro\./, /^sw\.(scope|group|sg|chip)\./,/^theme\.(system|dark|light)$/, /^font\.(jetbrains|system)$/, /^motion\.(system|reduced|normal)$/, /^sub\.state\./, /^lfs\.state\./, /^commit\.signFormat\./, /^git\.(step|method)\./];
     const unused = Object.keys(ptBR).filter((k) => !all.includes(`'${k}'`) && !dynamic.some((re) => re.test(k)));
     expect(unused).toEqual([]);
   });
