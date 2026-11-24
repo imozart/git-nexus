@@ -90,7 +90,9 @@ describe(`busca na história em ${N} commits`, () => {
     const r = await p;
     const cancel = Date.now() - tc;
     console.log(`HIST ${N} commits: cancelar ${cancel} ms (a busca já corria há ${tc - t0} ms)`);
-    expect(r.done.cancelled).toBe(true);
+    expect(r.done.ok).toBe(true);
+    // num repositório pequeno e máquina rápida a varredura inteira cabe nos 30 ms de espera (aí não há o que cancelar): só vale com a história grande
+    if (N >= 5000) expect(r.done.cancelled).toBe(true);
     // a meta é 100 ms; a folga é para máquina carregada (o Windows leva ~50 ms só para encerrar o processo)
     expect(cancel).toBeLessThan(1000);
   }, 120_000);
