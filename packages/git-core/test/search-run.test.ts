@@ -114,6 +114,15 @@ describe('máscaras e escopos', () => {
     expect(at((await search({ pattern: 'timeout', include: '!src/, !dist/, !*.md, !big.txt, !crlf.txt, !cafe.txt, !bin.dat' })).hits)).toEqual(['novo.txt:1', 'stage.txt:1'].filter((f) => f !== 'stage.txt:1'));
   });
 
+  it('pasta: só dentro dela, com as máscaras valendo dentro; pasta com espaço e pasta inválida', async () => {
+    expect(at((await search({ pattern: 'timeout', folder: 'src' })).hits)).toEqual(['src/app.ts:2', 'src/app.ts:3', 'src/app.ts:5', 'src/app.ts:7', 'src/util.test.ts:1']);
+    expect(at((await search({ pattern: 'timeout', folder: './src/', include: '*.test.ts' })).hits)).toEqual(['src/util.test.ts:1']);
+    expect(at((await search({ pattern: 'timeout', folder: 'src', include: '!*.test.ts' })).hits)).toEqual(['src/app.ts:2', 'src/app.ts:3', 'src/app.ts:5', 'src/app.ts:7']);
+    const bad = await search({ pattern: 'timeout', folder: '../fora' });
+    expect(bad.done.ok).toBe(false);
+    expect((await search({ pattern: 'timeout', folder: 'nao/existe' })).hits).toEqual([]);
+  });
+
   it('worktree (padrão) vê o novo não versionado e não vê o ignorado; "incluir ignorados" vê', async () => {
     const files = (r: Awaited<ReturnType<typeof search>>) => [...new Set(r.hits.map((h) => h.file))];
     expect(files(await search({ pattern: 'timeout' }))).toContain('novo.txt');

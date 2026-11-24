@@ -1,11 +1,12 @@
 <script lang="ts">
-// Preferências da janela: valem entre aberturas (a janela "reabre onde estava": texto, opções, máscaras e a divisória).
+// Preferências da janela: valem entre aberturas (a janela "reabre onde estava": texto, opções, máscaras, filtros e a divisória).
 import { reactive } from 'vue';
 import { clampSplit } from '../search-window-core';
+import { DEFAULT_FILTERS, readFilters, readHistory, type HistoryEntry } from '../search-filters-core';
 
 const KEY = 'gitnexus.searchWindow';
 function load() {
-  const base = { pattern: '', regex: false, caseSensitive: false, wholeWord: false, include: '', split: 0.4 };
+  const base = { pattern: '', regex: false, caseSensitive: false, wholeWord: false, include: '', split: 0.4, ...DEFAULT_FILTERS };
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<typeof base>;
     return {
@@ -15,6 +16,7 @@ function load() {
       wholeWord: raw.wholeWord === true,
       include: typeof raw.include === 'string' ? raw.include.slice(0, 500) : '',
       split: clampSplit(typeof raw.split === 'number' ? raw.split : base.split),
+      ...readFilters(raw),
     };
   } catch {
     return base;
@@ -30,6 +32,28 @@ function persist(): void {
     /* sem armazenamento: funciona do mesmo jeito, só não lembra */
   }
 }
+
+/** O histórico de pesquisas é por repositório e vive no armazenamento do app: sobrevive a fechar e abrir o app. */
+const HISTORY_KEY = 'gitnexus.searchHistory';
+function allHistory(): Record<string, unknown> {
+  try {
+    const all = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '{}') as unknown;
+    return all && typeof all === 'object' && !Array.isArray(all) ? (all as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+const loadHistory = (repoId: string): HistoryEntry[] => readHistory(allHistory()[repoId]);
+function saveHistory(repoId: string, list: HistoryEntry[]): void {
+  try {
+    const all = allHistory();
+    if (list.length) all[repoId] = list;
+    else delete all[repoId];
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(all));
+  } catch {
+    /* sem armazenamento: só não lembra */
+  }
+}
 </script>
 
 <script setup lang="ts">
@@ -40,11 +64,15 @@ import { api, errMsg } from '../api';
 import { locale, t, type MessageKey } from '../i18n';
 import { useWorkspaceStore } from '../stores/workspace';
 import CodeEditor from './CodeEditor.vue';
+import SearchFilters from './SearchFilters.vue';
 import {
+  NO_HIDDEN,
   ROW_H,
   ResultModel,
   changedOutside,
   formatDuration,
+  hasHidden,
+  hideTarget,
   marksOf,
   pieces,
   readOnlyReason,
@@ -52,11 +80,28 @@ import {
   stepFile,
   stepHit,
   windowRange,
+  type Hidden,
   type Mark,
   type Row,
 } from '../search-window-core';
+import {
+  applySuggestion,
+  buildQuery,
+  changedFilters,
+  emptySuggestions,
+  entryOf,
+  historyMatching,
+  needsRevision,
+  pushHistory,
+  regexErrorAt,
+  skippedCounts,
+  type FilterKey,
+  type Filters,
+  type Suggestion,
+} from '../search-filters-core';
+import type { SearchPreset } from '../stores/search';
 
-const props = defineProps<{ repo: RepositoryMeta; seed: string; openN: number }>();
+const props = defineProps<{ repo: RepositoryMeta; seed: string; openN: number; preset?: SearchPreset }>();
 const emit = defineEmits<{ (e: 'close'): void }>();
 const ws = useWorkspaceStore();
 
@@ -79,8 +124,38 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 
 const patternError = computed(() => {
   const m = prefs.regex && prefs.pattern ? regexProblem(prefs.pattern) : null;
-  return m ? t('find.regexError', { msg: m }) : '';
+  if (!m) return '';
+  const at = regexErrorAt(prefs.pattern);
+  return t('find.regexError', { msg: m }) + (at === null ? '' : ` (${t('sw.regexAt', { n: at + 1 })})`);
 });
+
+// ---------- filtros, ocultar e histórico ----------
+const filtersOpen = ref(false);
+const hidden = shallowRef<Hidden>(NO_HIDDEN);
+/** Quantas ocorrências a busca trouxe no total (o que está oculto da lista continua contando aqui). */
+const totalN = ref(0);
+const filters = computed<Filters>(() => ({
+  scope: prefs.scope,
+  revision: prefs.revision,
+  folder: prefs.folder,
+  includeIgnored: prefs.includeIgnored,
+  includeUntracked: prefs.includeUntracked,
+  includeSubmodules: prefs.includeSubmodules,
+  context: prefs.context,
+  group: prefs.group,
+}));
+const changed = computed(() => changedFilters(filters.value));
+const scopeLabel = (): string => t(`sw.scope.${prefs.scope}` as MessageKey) + (prefs.scope === 'revision' && prefs.revision.trim() ? `: ${prefs.revision.trim()}` : '');
+function chipText(k: FilterKey): string {
+  const v = k === 'scope' ? scopeLabel() : k === 'folder' ? prefs.folder.trim() : k === 'group' ? t(`sw.group.${prefs.group}` as MessageKey) : String(prefs.context);
+  return t(`sw.chip.${k}` as MessageKey, { v });
+}
+const searches = ref<HistoryEntry[]>([]);
+const pastOpen = ref(false);
+const pastActive = ref(0);
+const pastList = computed(() => historyMatching(searches.value, prefs.pattern));
+const hiddenCount = computed(() => Math.max(0, totalN.value - live.value.hits));
+const suggestions = computed<Suggestion[]>(() => emptySuggestions(prefs));
 const fieldLabels = computed(() => ({ clear: t('find.clear'), caseSensitive: t('find.case'), wholeWord: t('find.word'), regex: t('find.regex') }));
 
 /** Os lotes chegam em ondas: cada quadro leva no máximo isto para a lista, e a interface nunca fica parada com 5 mil ocorrências de uma vez. */
@@ -93,6 +168,13 @@ const schedule = (): void => {
   if (!raf) raf = setTimeout(flush, FRAME_MS);
 };
 
+/** Refaz as linhas da lista (agrupamento, recolhidos, ocultos e contexto) e os números que dependem delas. */
+function rebuild(): void {
+  rows.value = model.rows({ collapsed: collapsed.value, group: prefs.group, hidden: hidden.value, context: prefs.context > 0 });
+  live.value = model.count(hidden.value);
+  totalN.value = model.total;
+}
+
 function flush(): void {
   raf = 0;
   if (pending.length) {
@@ -101,8 +183,7 @@ function flush(): void {
       replaceOnFirst = false;
     }
     model.add(pending.splice(0, PER_FRAME));
-    rows.value = model.rows(collapsed.value);
-    live.value = { hits: model.total, files: model.files };
+    rebuild();
   }
   if (pending.length) schedule();
   else if (doneEvent) finish();
@@ -114,6 +195,7 @@ function finish(): void {
     model.clear();
     rows.value = [];
     live.value = { hits: 0, files: 0 };
+    totalN.value = 0;
     replaceOnFirst = false;
   }
   done.value = doneEvent;
@@ -131,18 +213,27 @@ function resetResults(): void {
   raf = 0;
   rows.value = [];
   live.value = { hits: 0, files: 0 };
+  totalN.value = 0;
   done.value = null;
   searchError.value = '';
 }
 
 const searchError = ref('');
 
-async function run(keep = false): Promise<void> {
+/** `offset` > 0: a próxima página (carregar mais): os resultados já na lista ficam e os novos entram depois deles. */
+async function run(keep = false, offset = 0): Promise<void> {
   clearTimeout(timer);
   if (currentId) void api.cancelSearch(currentId).catch(() => undefined);
   const pattern = prefs.pattern;
   currentId = '';
-  if (keep && model.total) {
+  if (offset > 0) {
+    pending = [];
+    doneEvent = null;
+    if (raf) clearTimeout(raf);
+    raf = 0;
+    searchError.value = '';
+    replaceOnFirst = false;
+  } else if (keep && model.total) {
     pending = [];
     doneEvent = null;
     if (raf) clearTimeout(raf);
@@ -151,9 +242,10 @@ async function run(keep = false): Promise<void> {
     replaceOnFirst = true;
   } else {
     replaceOnFirst = false;
+    hidden.value = NO_HIDDEN; // pesquisa nova: o que foi ocultado da anterior volta
     resetResults();
   }
-  if (!pattern.trim() || patternError.value) {
+  if (!pattern.trim() || patternError.value || needsRevision(prefs)) {
     running.value = false;
     return;
   }
@@ -161,11 +253,7 @@ async function run(keep = false): Promise<void> {
   currentId = id;
   running.value = true;
   try {
-    await api.startSearch(
-      props.repo.path,
-      { pattern, regex: prefs.regex, caseSensitive: prefs.caseSensitive, wholeWord: prefs.wholeWord, include: prefs.include.trim() || undefined, limit: 5000 },
-      id,
-    );
+    await api.startSearch(props.repo.path, buildQuery(prefs, { limit: 5000, ...(offset > 0 ? { offset } : {}) }), id);
   } catch (e) {
     if (currentId === id) {
       running.value = false;
@@ -179,7 +267,7 @@ function later(): void {
   timer = setTimeout(() => void run(), 250);
 }
 watch(
-  () => [prefs.pattern, prefs.regex, prefs.caseSensitive, prefs.wholeWord, prefs.include],
+  () => [prefs.pattern, prefs.regex, prefs.caseSensitive, prefs.wholeWord, prefs.include, prefs.scope, prefs.revision, prefs.folder, prefs.includeIgnored, prefs.includeUntracked, prefs.includeSubmodules, prefs.context],
   () => {
     persist();
     // expressão inválida: os resultados velhos saem na hora (não ficam na tela dizendo o que a pesquisa anterior achou)
@@ -190,6 +278,15 @@ watch(
       running.value = false;
       resetResults();
     } else later();
+  },
+);
+
+// agrupar só muda a forma da lista (não refaz a busca)
+watch(
+  () => prefs.group,
+  () => {
+    persist();
+    rebuild();
   },
 );
 
@@ -205,16 +302,105 @@ const counter = computed(() => {
   if (running.value) return t('sw.searching', { n: live.value.hits });
   const d = done.value;
   if (!d || !d.ok) return '';
-  if (!d.hits) return `${t('sw.none')} · ${formatDuration(d.ms, locale.value)}`;
-  return `${t('search.matches', { n: d.hits })} ${t('search.inFiles', { n: d.files })} · ${formatDuration(d.ms, locale.value)}`;
+  if (!totalN.value) return `${t('sw.none')} · ${formatDuration(d.ms, locale.value)}`;
+  return `${t('search.matches', { n: live.value.hits })} ${t('search.inFiles', { n: live.value.files })} · ${formatDuration(d.ms, locale.value)}`;
 });
+/** O que ficou de fora e por quê, em uma frase: "Ignorados: 3 binários e 1 acima de 5 MB". */
+const skippedText = computed(() => {
+  const d = done.value;
+  if (!d?.skipped.length) return '';
+  const c = skippedCounts(d.skipped);
+  const parts = [c.binary ? t('sw.skipBinary', { n: c.binary }) : '', c.large ? t('sw.skipLarge', { n: c.large }) : ''].filter(Boolean);
+  return t('sw.skipped', { what: parts.join(t('sw.and')) });
+});
+const canMore = computed(() => !running.value && done.value?.ok === true && done.value.truncatedReason === 'limit' && done.value.nextOffset !== undefined);
 const notes = computed(() => {
   const d = done.value;
   const out: string[] = [];
-  if (d?.truncated) out.push(t('sw.truncated', { n: d.hits }));
-  if (d?.skipped.length) out.push(t('sw.skipped', { n: d.skipped.length }));
+  if (d?.truncatedReason === 'limit') out.push(t('sw.truncated', { n: model.total }));
+  else if (d?.truncated) out.push(d.message ?? t('sw.truncatedTime', { n: model.total }));
+  if (skippedText.value) out.push(skippedText.value);
   return out.join(' · ');
 });
+function loadMore(): void {
+  const next = done.value?.nextOffset;
+  if (canMore.value && next !== undefined) void run(false, next);
+}
+
+// ---------- ocultar da lista ----------
+function hide(index: number, level: 'hit' | 'file' | 'dir'): void {
+  const r = rows.value[index];
+  const target = r ? hideTarget(r, level) : null;
+  if (!target) return;
+  const h = hidden.value;
+  const next = { hits: new Set(h.hits), files: new Set(h.files), dirs: new Set(h.dirs) };
+  (target.kind === 'hit' ? next.hits : target.kind === 'file' ? next.files : next.dirs).add(target.key);
+  hidden.value = next;
+  rebuild();
+  if (selectedKey.value !== null && !rows.value.some((x) => x.key === selectedKey.value)) {
+    const from = Math.min(index, rows.value.length - 1);
+    let j = rows.value.findIndex((x, k) => k >= from && x.kind === 'hit');
+    if (j < 0) for (let k = from; k >= 0 && j < 0; k--) if (rows.value[k]!.kind === 'hit') j = k;
+    if (j >= 0) select(j);
+    else selectedKey.value = null;
+  }
+}
+function unhide(): void {
+  hidden.value = NO_HIDDEN;
+  rebuild();
+}
+
+// ---------- histórico de pesquisas ----------
+/** Guarda a pesquisa atual no histórico do repositório (a mais recente primeiro, sem repetir, as últimas 30). */
+function remember(): void {
+  if (!prefs.pattern.trim() || patternError.value) return;
+  const e = entryOf(prefs);
+  const top = searches.value[0];
+  if (top && JSON.stringify(top) === JSON.stringify(e)) return;
+  searches.value = pushHistory(searches.value, e);
+  saveHistory(props.repo.id, searches.value);
+}
+function openPast(): void {
+  pastActive.value = 0;
+  pastOpen.value = true;
+}
+function closePast(): void {
+  pastOpen.value = false;
+  field.value?.focus();
+}
+function applyPast(i: number): void {
+  const e = pastList.value[i];
+  if (!e) return;
+  pastOpen.value = false;
+  Object.assign(prefs, { pattern: e.pattern, regex: e.regex, caseSensitive: e.caseSensitive, wholeWord: e.wholeWord, include: e.include, scope: e.scope, revision: e.revision, folder: e.folder });
+  persist();
+  remember(); // a escolhida sobe para o topo
+  clearTimeout(timer);
+  void run();
+  void nextTick(() => field.value?.focus());
+}
+function removePast(i: number): void {
+  const e = pastList.value[i];
+  if (!e) return;
+  searches.value = searches.value.filter((x) => x !== e);
+  saveHistory(props.repo.id, searches.value);
+  pastActive.value = Math.min(pastActive.value, Math.max(0, pastList.value.length - 1));
+}
+function clearPast(): void {
+  searches.value = [];
+  saveHistory(props.repo.id, []);
+  closePast();
+}
+function pastText(e: HistoryEntry): string {
+  const bits = [e.caseSensitive ? 'Aa' : '', e.wholeWord ? 'ab' : '', e.regex ? '.*' : '', e.include, e.scope !== 'worktree' ? t(`sw.scope.${e.scope}` as MessageKey) + (e.revision ? ` ${e.revision}` : '') : '', e.folder ? e.folder + '/' : ''];
+  return bits.filter(Boolean).join(' · ');
+}
+
+function applySg(sg: Suggestion): void {
+  Object.assign(prefs, applySuggestion(sg));
+  clearTimeout(timer);
+  void run();
+}
 
 // ---------- lista virtualizada ----------
 const listEl = ref<HTMLElement>();
@@ -242,11 +428,11 @@ function ensureVisible(index: number): void {
 }
 const selectedIndex = computed(() => (selectedKey.value === null ? -1 : rows.value.findIndex((r) => r.key === selectedKey.value)));
 
-function toggleFile(file: string): void {
+function toggleKey(key: string): void {
   const next = new Set(collapsed.value);
-  if (!next.delete(file)) next.add(file);
+  if (!next.delete(key)) next.add(key);
   collapsed.value = next;
-  rows.value = model.rows(next);
+  rebuild();
 }
 
 // ---------- arquivo aberto ----------
@@ -322,6 +508,7 @@ function select(index: number, opts: { open?: boolean; focus?: boolean; now?: bo
   if (!r || r.kind !== 'hit') return;
   selectedKey.value = r.key;
   ensureVisible(index);
+  remember();
   if (opts.open === false) return;
   clearTimeout(navTimer);
   const go = (): void => void openHit(r.hit, opts.focus);
@@ -330,8 +517,8 @@ function select(index: number, opts: { open?: boolean; focus?: boolean; now?: bo
 }
 
 function onRowClick(i: number, r: Row): void {
-  if (r.kind === 'file') toggleFile(r.file);
-  else select(i, { now: true });
+  if (r.kind === 'file' || r.kind === 'dir') toggleKey(r.key);
+  else if (r.kind === 'hit') select(i, { now: true });
 }
 
 // ---------- teclado ----------
@@ -357,6 +544,33 @@ function onKey(e: KeyboardEvent): void {
     return;
   }
   if (e.defaultPrevented) return; // o editor (a barra de busca do arquivo) já tratou
+  if (e.key === 'Escape' && filtersOpen.value) {
+    e.preventDefault();
+    closeFilters();
+    return;
+  }
+  // histórico de pesquisas: Alt+↓ (ou ↓ com o campo vazio) abre; ↑/↓ andam; Shift+Delete tira a entrada
+  const inField = target.matches('.sw__field textarea, .sw__field input');
+  if (inField && !pastOpen.value && e.key === 'ArrowDown' && !mod && !e.shiftKey && (e.altKey || !prefs.pattern)) {
+    e.preventDefault();
+    openPast();
+    return;
+  }
+  if (pastOpen.value && !mod && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    e.preventDefault();
+    pastActive.value = Math.min(Math.max(0, pastList.value.length - 1), Math.max(0, pastActive.value + (e.key === 'ArrowDown' ? 1 : -1)));
+    return;
+  }
+  if (pastOpen.value && e.key === 'Delete' && e.shiftKey) {
+    e.preventDefault();
+    removePast(pastActive.value);
+    return;
+  }
+  if (e.key === 'Delete' && target.closest('.sw__list') && selectedIndex.value >= 0 && !e.altKey) {
+    e.preventDefault();
+    hide(selectedIndex.value, e.shiftKey ? (mod ? 'dir' : 'file') : 'hit');
+    return;
+  }
   if (mod && e.altKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
     e.preventDefault();
     moveFile(e.key === 'ArrowDown' ? 1 : -1);
@@ -377,7 +591,22 @@ function onKey(e: KeyboardEvent): void {
   }
 }
 
+function onFieldEscape(): void {
+  if (pastOpen.value) pastOpen.value = false;
+  else if (filtersOpen.value) closeFilters();
+}
+function closeFilters(): void {
+  filtersOpen.value = false;
+  void nextTick(() => filtersBtn.value?.$el?.focus?.());
+}
+const filtersBtn = ref<InstanceType<typeof GnButton>>();
+
 function onFieldEnter(): void {
+  if (pastOpen.value) {
+    applyPast(pastActive.value);
+    return;
+  }
+  remember();
   if (running.value || !done.value) {
     clearTimeout(timer);
     void run();
@@ -484,7 +713,10 @@ function answer(a: 'save' | 'discard' | 'stay'): void {
 }
 
 async function requestClose(): Promise<void> {
-  if (await guard()) emit('close');
+  if (await guard()) {
+    remember();
+    emit('close');
+  }
 }
 
 // ---------- ações do arquivo ----------
@@ -530,6 +762,14 @@ function onSplitKey(e: KeyboardEvent): void {
 // ---------- ciclo de vida ----------
 const field = ref<InstanceType<typeof GnSearchField>>();
 
+const onFilters = (f: Filters): void => void Object.assign(prefs, f);
+const rowStyle = (r: Row): Record<string, string> | undefined => (r.kind === 'dir' ? undefined : { paddingLeft: `${12 + r.depth * 14}px` });
+const rowTestId = (r: Row): string => (r.kind === 'file' ? 'sw-file-row' : r.kind === 'dir' ? 'sw-dir-row' : r.kind === 'ctx' ? 'sw-ctx-row' : 'sw-row');
+/** Clicar fora do histórico aberto fecha. */
+function onPointer(e: PointerEvent): void {
+  if (pastOpen.value && !(e.target as HTMLElement).closest('.sw__past, .sw__pastbtn')) pastOpen.value = false;
+}
+
 /** Depois da busca: mantém a seleção se a ocorrência ainda existe, reabre a última (ao reabrir a janela) e refaz as marcas do arquivo aberto. */
 function afterResults(): void {
   refreshMarks();
@@ -543,7 +783,17 @@ function afterResults(): void {
   } else if (selectedKey.value) selectedKey.value = null;
 }
 
+/** "Pesquisar neste arquivo / nesta pasta": a máscara, a pasta e o onde vêm de quem abriu a janela. */
+function applyPreset(): void {
+  const p = props.preset;
+  if (!p) return;
+  prefs.include = p.include ?? '';
+  prefs.folder = p.folder ?? '';
+  prefs.scope = p.scope ?? 'worktree';
+}
+
 function applySeed(): void {
+  applyPreset();
   if (props.seed) prefs.pattern = props.seed;
   void nextTick(() => field.value?.select());
 }
@@ -551,6 +801,7 @@ function applySeed(): void {
 watch(() => props.openN, () => {
   applySeed();
   if (props.seed) void run();
+  else if (props.preset && prefs.pattern.trim()) void run();
 });
 
 onMounted(() => {
@@ -571,6 +822,7 @@ onMounted(() => {
     ro.observe(listEl.value);
   }
   window.addEventListener('focus', checkExternal);
+  searches.value = loadHistory(props.repo.id);
   applySeed();
   if (prefs.pattern.trim()) void run();
 });
@@ -587,15 +839,21 @@ onBeforeUnmount(() => {
 });
 
 // o estado recolhido vai no nome (e não em aria-expanded: o diálogo trata um aria-expanded="true" na caixa como "lista aberta" e deixaria de fechar com Esc)
-const rowLabel = (r: Row): string => (r.kind === 'file' ? t('sw.rowFile', { file: r.file, n: r.count }) + (r.collapsed ? ' ' + t('sw.collapsed') : '') : t('sw.rowHit', { line: r.hit.line, text: r.hit.text }));
+const rowLabel = (r: Row): string => {
+  if (r.kind === 'dir') return t('sw.rowFile', { file: r.dir || t('sw.rootDir'), n: r.count }) + (r.collapsed ? ' ' + t('sw.collapsed') : '');
+  if (r.kind === 'file') return t('sw.rowFile', { file: r.file, n: r.count }) + (r.collapsed ? ' ' + t('sw.collapsed') : '');
+  if (r.kind === 'ctx') return t('sw.rowCtx', { line: r.line, text: r.text });
+  return (r.showFile ? r.file + ', ' : '') + t('sw.rowHit', { line: r.hit.line, text: r.hit.text });
+};
 const status = computed(() => (running.value ? '' : counter.value));
-const emptyHint = computed(() => (!prefs.pattern.trim() ? t('sw.hint') : ''));
+const emptyHint = computed(() => (!prefs.pattern.trim() ? t('sw.hint') : needsRevision(prefs) ? t('sw.revisionNeeded') : ''));
 const splitPct = computed(() => Math.round(prefs.split * 100));
 </script>
 
 <template>
   <GnDialog width="min(1500px, 96vw)" max-height="90vh" :label="t('sw.label')" initial-focus="[data-testid='sf-input']" @close="requestClose">
-    <div class="sw" data-testid="search-window" @keydown="onKey">
+    <div class="sw" data-testid="search-window" @keydown="onKey" @pointerdown="onPointer">
+      <div class="sw__headwrap">
       <header class="sw__head">
         <GnSearchField
           ref="field"
@@ -609,22 +867,83 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
           :labels="fieldLabels"
           :error="patternError"
           @enter="onFieldEnter"
+          @escape="onFieldEscape"
+        />
+        <GnIconButton
+          class="sw__pastbtn"
+          icon="history"
+          :label="t('sw.past')"
+          :title="t('sw.pastTip')"
+          :aria-expanded="pastOpen"
+          aria-controls="sw-past-list"
+          data-testid="sw-past-toggle"
+          @click="pastOpen ? closePast() : openPast()"
         />
         <label class="sw__masks">
           <span>{{ t('sw.masks') }}</span>
           <input v-model="prefs.include" data-testid="sw-masks" :placeholder="t('sw.masksPh')" spellcheck="false" autocomplete="off" />
         </label>
+        <GnButton ref="filtersBtn" size="sm" :aria-expanded="filtersOpen" aria-controls="sw-filters" data-testid="sw-filters-toggle" @click="filtersOpen = !filtersOpen">
+          {{ t('sw.filters') }}<GnBadge v-if="changed.length" tone="accent" data-testid="sw-filters-n">{{ changed.length }}</GnBadge>
+        </GnButton>
         <span class="sw__count" data-testid="sw-count" role="status" aria-live="polite">{{ running ? t('sw.searching', { n: live.hits }) : status }}</span>
         <GnButton v-if="running" size="sm" tone="warn" data-testid="sw-stop" @click="stop">{{ t('sw.stop') }}</GnButton>
         <GnIconButton icon="x" :label="t('sw.close')" data-testid="sw-close" @click="requestClose" />
       </header>
+      <div v-if="pastOpen" class="sw__past" data-testid="sw-past">
+        <ul id="sw-past-list" role="listbox" :aria-label="t('sw.pastLabel')" :aria-activedescendant="pastList.length ? 'sw-past-' + pastActive : undefined">
+          <li
+            v-for="(e, i) in pastList"
+            :id="'sw-past-' + i"
+            :key="i"
+            class="sw__pastitem"
+            :class="{ 'sw__pastitem--on': i === pastActive }"
+            role="option"
+            :aria-selected="i === pastActive"
+            data-testid="sw-past-item"
+            @click="applyPast(i)"
+          >
+            <span class="sw__pastpat">{{ e.pattern }}</span>
+            <span class="sw__pastopts">{{ pastText(e) }}</span>
+            <GnIconButton class="sw__pastx" icon="x" :label="t('sw.pastRemove')" tabindex="-1" aria-hidden="true" @click.stop="removePast(i)" />
+          </li>
+        </ul>
+        <p v-if="!pastList.length" class="sw__hint" data-testid="sw-past-empty">{{ t('sw.pastEmpty') }}</p>
+        <footer class="sw__pastfoot">
+          <span>{{ t('sw.pastHint') }}</span>
+          <GnButton v-if="searches.length" size="sm" variant="ghost" tone="danger" data-testid="sw-past-clear" @click="clearPast">{{ t('sw.pastClear') }}</GnButton>
+        </footer>
+      </div>
+      <SearchFilters v-if="filtersOpen" :model-value="filters" :repo-path="repo.path" @update:model-value="onFilters" />
+      <div v-else-if="changed.length" class="sw__chips" data-testid="sw-chips">
+        <GnButton v-for="k in changed" :key="k" size="sm" variant="ghost" tone="accent" :data-testid="'sw-chip-' + k" @click="filtersOpen = true">{{ chipText(k) }}</GnButton>
+      </div>
+      </div>
       <p v-if="searchError" class="sw__error" role="alert" data-testid="sw-error">{{ searchError }}</p>
-      <p v-else-if="notes" class="sw__notes" data-testid="sw-notes">{{ notes }}</p>
+      <div v-else-if="notes || canMore || hiddenCount" class="sw__notes" data-testid="sw-notes">
+        <span v-if="notes">{{ notes }}</span>
+        <GnButton v-if="canMore" size="sm" data-testid="sw-more" @click="loadMore">{{ t('sw.more') }}</GnButton>
+        <template v-if="hiddenCount">
+          <span data-testid="sw-hidden">{{ t('sw.hidden', { n: hiddenCount }) }}</span>
+          <GnButton size="sm" variant="ghost" data-testid="sw-unhide" @click="unhide">{{ t('sw.unhide') }}</GnButton>
+        </template>
+      </div>
 
       <div ref="bodyEl" class="sw__body">
         <section class="sw__results" :style="{ flexBasis: splitPct + '%' }">
           <p v-if="emptyHint" class="sw__hint" data-testid="sw-hint">{{ emptyHint }}</p>
-          <p v-else-if="done?.ok && !done.hits" class="sw__hint" data-testid="sw-empty">{{ t('search.none') }}</p>
+          <div v-else-if="done?.ok && !totalN" class="sw__hint sw__empty" data-testid="sw-empty">
+            <p>{{ t('search.none') }}</p>
+            <template v-if="suggestions.length">
+              <p>{{ t('sw.try') }}</p>
+              <ul class="sw__sg">
+                <li v-for="sg in suggestions" :key="sg">
+                  <GnButton size="sm" variant="ghost" tone="accent" :data-testid="'sw-sg-' + sg" @click="applySg(sg)">{{ t(('sw.sg.' + sg) as MessageKey) }}</GnButton>
+                </li>
+              </ul>
+            </template>
+          </div>
+          <p v-else-if="done?.ok && !live.hits" class="sw__hint" data-testid="sw-allhidden">{{ t('sw.allHidden') }}</p>
           <div
             ref="listEl"
             class="sw__list"
@@ -642,21 +961,35 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
                   :id="'sw-r' + v.i"
                   :key="v.row.key"
                   class="sw__row"
-                  :class="{ 'sw__row--file': v.row.kind === 'file', 'sw__row--sel': v.row.key === selectedKey }"
+                  :class="{ 'sw__row--file': v.row.kind === 'file' || v.row.kind === 'dir', 'sw__row--dir': v.row.kind === 'dir', 'sw__row--ctx': v.row.kind === 'ctx', 'sw__row--sel': v.row.key === selectedKey }"
+                  :style="rowStyle(v.row)"
                   role="option"
                   :aria-selected="v.row.key === selectedKey"
                   :aria-label="rowLabel(v.row)"
-                  :data-testid="v.row.kind === 'file' ? 'sw-file-row' : 'sw-row'"
+                  :data-testid="rowTestId(v.row)"
                   @click="onRowClick(v.i, v.row)"
                 >
-                  <template v-if="v.row.kind === 'file'">
+                  <template v-if="v.row.kind === 'dir'">
+                    <GnIcon :name="v.row.collapsed ? 'chevron-right' : 'chevron-down'" />
+                    <span class="sw__fname">{{ v.row.dir || t('sw.rootDir') }}</span>
+                    <GnBadge tone="neutral">{{ v.row.count }}</GnBadge>
+                    <GnIconButton class="sw__hide" icon="x" :label="t('sw.hide')" :title="t('sw.hideTip')" tabindex="-1" aria-hidden="true" @click.stop="hide(v.i, 'dir')" />
+                  </template>
+                  <template v-else-if="v.row.kind === 'file'">
                     <GnIcon :name="v.row.collapsed ? 'chevron-right' : 'chevron-down'" />
                     <span class="sw__fname">{{ v.row.file }}</span>
                     <GnBadge tone="neutral">{{ v.row.count }}</GnBadge>
+                    <GnIconButton class="sw__hide" icon="x" :label="t('sw.hide')" :title="t('sw.hideTip')" tabindex="-1" aria-hidden="true" @click.stop="hide(v.i, 'file')" />
+                  </template>
+                  <template v-else-if="v.row.kind === 'ctx'">
+                    <span class="sw__ln">{{ v.row.line }}</span>
+                    <span class="sw__text">{{ v.row.text }}</span>
                   </template>
                   <template v-else>
+                    <span v-if="v.row.showFile" class="sw__fp">{{ v.row.file }}</span>
                     <span class="sw__ln">{{ v.row.hit.line }}</span>
                     <span class="sw__text"><template v-for="(p, k) in pieces(v.row.hit)" :key="k"><mark v-if="p.hit">{{ p.text }}</mark><template v-else>{{ p.text }}</template></template></span>
+                    <GnIconButton class="sw__hide" icon="x" :label="t('sw.hide')" :title="t('sw.hideTip')" tabindex="-1" aria-hidden="true" @click.stop="hide(v.i, 'hit')" />
                   </template>
                 </div>
               </div>
@@ -729,12 +1062,35 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
 
 <style scoped lang="scss">
 .sw { display: flex; flex-direction: column; height: 86vh; min-height: 0; font-family: var(--gn-font-ui); }
+.sw__headwrap { position: relative; flex: none; }
+.sw__chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 12px 6px; }
+.sw__past {
+  position: absolute; z-index: 20; top: 46px; left: 12px; width: min(680px, calc(100% - 24px)); max-height: 320px; display: flex; flex-direction: column;
+  background: var(--gn-surface); border: 1px solid var(--gn-border); border-radius: 8px; box-shadow: var(--gn-shadow-lg); overflow: hidden;
+  ul { margin: 0; padding: 4px 0; list-style: none; overflow: auto; min-height: 0; }
+}
+.sw__pastitem {
+  display: flex; align-items: center; gap: 10px; padding: 3px 12px; cursor: pointer; font: 12.5px var(--gn-mono);
+  &:hover, &--on { background: color-mix(in srgb, var(--gn-accent) 16%, transparent); }
+  &--on { box-shadow: inset 3px 0 0 var(--gn-accent); }
+}
+.sw__pastpat { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sw__pastopts { flex: none; color: var(--gn-muted); font-size: 11.5px; }
+.sw__pastx { opacity: 0; }
+.sw__pastitem:hover .sw__pastx, .sw__pastitem--on .sw__pastx { opacity: 1; }
+.sw__pastfoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 12px; border-top: 1px solid var(--gn-border); color: var(--gn-muted); font-size: 11.5px; }
+.sw__empty { display: flex; flex-direction: column; gap: 4px; p { margin: 0; } }
+.sw__sg { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.sw__hide { margin-left: auto; opacity: 0; }
+.sw__row:hover .sw__hide, .sw__row--sel .sw__hide { opacity: 1; }
+.sw__row--ctx { color: var(--gn-muted); }
+.sw__fp { flex: none; color: var(--gn-muted); }
 .sw__head { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px 6px; }
 .sw__field { flex: 1 1 360px; min-width: 0; }
 .sw__masks { display: flex; align-items: center; gap: 6px; flex: 0 1 230px; min-width: 0; font-size: 12px; color: var(--gn-muted); input { flex: 1; min-width: 0; font-family: var(--gn-mono); } }
 .sw__count { align-self: center; min-width: 8em; color: var(--gn-muted); font-size: 12.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .sw__error { margin: 0; padding: 2px 14px 6px; color: var(--gn-danger); font-size: 12px; white-space: pre-wrap; }
-.sw__notes { margin: 0; padding: 0 14px 6px; color: var(--gn-warn); font-size: 12px; }
+.sw__notes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; padding: 0 14px 6px; color: var(--gn-warn); font-size: 12px; }
 .sw__body { flex: 1; display: flex; flex-direction: column; min-height: 0; border-top: 1px solid var(--gn-border); }
 .sw__results { display: flex; flex-direction: column; flex: 0 0 40%; min-height: 0; }
 .sw__hint { margin: 0; padding: 10px 14px; color: var(--gn-muted); font-size: 12.5px; }

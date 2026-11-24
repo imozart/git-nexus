@@ -10,6 +10,8 @@ import { checkState, groupEntries, hasStaged, isUntracked, statusLabel, statusLe
 import { t, type MessageKey } from '../i18n';
 import { useCommandsStore, type Command } from '../stores/commands';
 import { useFileEncodingStore } from '../stores/file-encoding';
+import { useSearchStore } from '../stores/search';
+import { maskForPath } from '../search-filters-core';
 import { useWorkspaceStore } from '../stores/workspace';
 import BranchPicker from '../components/BranchPicker.vue';
 import SyncButton from '../components/SyncButton.vue';
@@ -25,6 +27,7 @@ import SideBySideDiff from '../components/SideBySideDiff.vue';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
 const ws = useWorkspaceStore();
+const search = useSearchStore();
 const fileEnc = useFileEncodingStore();
 const cmds = useCommandsStore();
 
@@ -553,7 +556,7 @@ const menuItems = computed<MenuItem[]>(() => {
   );
   if (single) {
     if (!allNew && !isDir) items.push({ id: 'history', label: t('rv.menu.history') }, { id: 'blame', label: t('rv.menu.blame') }, { id: 's4', separator: true });
-    items.push({ id: 'reveal', label: t('rv.menu.reveal') }, { id: 'open', label: t('rv.menu.open'), disabled: isDir });
+    items.push({ id: 'searchHere', label: isDir ? t('rv.menu.searchDir') : t('rv.menu.searchFile') }, { id: 'reveal', label: t('rv.menu.reveal') }, { id: 'open', label: t('rv.menu.open'), disabled: isDir });
   }
   return items;
 });
@@ -588,6 +591,11 @@ async function onMenu(id: string): Promise<void> {
         return ws.openTools(props.repo, 'file', paths[0]!, 'history');
       case 'blame':
         return ws.openTools(props.repo, 'file', paths[0]!, 'blame');
+      case 'searchHere': {
+        // "Pesquisar aqui": abre a janela de pesquisa já limitada a este arquivo ou a esta pasta
+        const p = paths[0]!;
+        return search.open(props.repo, '', p.endsWith('/') ? { folder: p.replace(/\/+$/, ''), include: '' } : { include: maskForPath(p), folder: '' });
+      }
       case 'reveal':
         return await api.showItemInFolder(props.repo.path, paths[0]!);
       case 'open': {
