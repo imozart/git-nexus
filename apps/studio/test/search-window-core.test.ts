@@ -67,6 +67,29 @@ describe('modelo dos resultados', () => {
     expect(isFileHidden('src2/c.ts', hidden({ dirs: ['src'] }))).toBe(false);
   });
 
+  it('substituição: a linha "depois" vem logo abaixo da ocorrência (só das que têm prévia) e o arquivo recusado leva o motivo', () => {
+    const m = new ResultModel();
+    m.add([hit('a.ts', 1), hit('a.ts', 4), hit('b.ts', 2)]);
+    const after = new Map([
+      ['a.ts:1', { text: 'novo', ranges: [[0, 4]] as Array<[number, number]>, clippedStart: false, clippedEnd: false }],
+      ['a.ts:4', { text: 'outro', ranges: [[0, 5]] as Array<[number, number]>, clippedStart: false, clippedEnd: false }],
+    ]);
+    const rows = m.rows({ after, notes: new Map([['b.ts', 'binary']]) });
+    expect(rows.map((r) => r.key)).toEqual(['f:a.ts', 'a.ts:1', 'n:a.ts:1', 'a.ts:4', 'n:a.ts:4', 'f:b.ts', 'b.ts:2']);
+    expect(rows[2]).toMatchObject({ kind: 'new', file: 'a.ts', line: 1, text: 'novo', depth: 1 });
+    expect(rows[5]).toMatchObject({ kind: 'file', note: 'binary' });
+    expect(rows[0]).not.toHaveProperty('note');
+    // a linha nova não é ocorrência para o teclado nem para a contagem
+    expect(hitIndexes(rows)).toHaveLength(3);
+    // ocultar a ocorrência esconde também a linha dela
+    const hidden = { hits: new Set(['a.ts:1']), files: new Set<string>(), dirs: new Set<string>() };
+    expect(m.rows({ after, hidden }).map((r) => r.key)).toEqual(['f:a.ts', 'a.ts:4', 'n:a.ts:4', 'f:b.ts', 'b.ts:2']);
+    expect(m.fileNames).toEqual(['a.ts', 'b.ts']);
+    // ocultar a partir da linha nova atinge a ocorrência dela
+    expect(hideTarget(rows[2]!, 'hit')).toEqual({ kind: 'hit', key: 'a.ts:1' });
+    expect(hideTarget(rows[2]!, 'file')).toEqual({ kind: 'file', key: 'a.ts' });
+  });
+
   it('o que "ocultar" atinge a partir de cada linha', () => {
     const m = new ResultModel();
     m.add([hit('src/a.ts', 1)]);

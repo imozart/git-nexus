@@ -6,7 +6,7 @@ import { DEFAULT_FILTERS, readFilters, readHistory, type HistoryEntry } from '..
 
 const KEY = 'gitnexus.searchWindow';
 function load() {
-  const base = { pattern: '', regex: false, caseSensitive: false, wholeWord: false, include: '', split: 0.4, ...DEFAULT_FILTERS };
+  const base = { pattern: '', regex: false, caseSensitive: false, wholeWord: false, include: '', split: 0.4, replaceText: '', preserveCase: false, ...DEFAULT_FILTERS };
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<typeof base>;
     return {
@@ -16,6 +16,8 @@ function load() {
       wholeWord: raw.wholeWord === true,
       include: typeof raw.include === 'string' ? raw.include.slice(0, 500) : '',
       split: clampSplit(typeof raw.split === 'number' ? raw.split : base.split),
+      replaceText: typeof raw.replaceText === 'string' ? raw.replaceText.slice(0, 4000) : '',
+      preserveCase: raw.preserveCase === true,
       ...readFilters(raw),
     };
   } catch {
@@ -25,6 +27,14 @@ function load() {
 const prefs = reactive(load());
 /** A última ocorrência aberta (por repositório): a janela volta a ela ao reabrir. */
 const lastOpen = new Map<string, string>();
+
+/** A última substituição em vários arquivos de cada repositório: o que dá para desfazer enquanto o app está aberto (a cópia de segurança fica na pasta de dados). */
+interface LastReplace {
+  batch: string;
+  replacements: number;
+  files: Array<{ file: string; afterHash: string }>;
+}
+const lastReplace = reactive<Record<string, LastReplace | undefined>>({});
 function persist(): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(prefs));
@@ -73,6 +83,8 @@ import {
   formatDuration,
   hasHidden,
   hideTarget,
+  hitKey,
+  isFileHidden,
   marksOf,
   pieces,
   readOnlyReason,
@@ -80,6 +92,7 @@ import {
   stepFile,
   stepHit,
   windowRange,
+  type AfterLine,
   type Hidden,
   type Mark,
   type Row,
@@ -100,8 +113,10 @@ import {
   type Suggestion,
 } from '../search-filters-core';
 import type { SearchPreset } from '../stores/search';
+import { makeQuery } from '../find-core';
+import { applyFile, planFile, reasonCounts, scopeRefused, tally, type FilePlan, type RefuseReason } from '../replace-files-core';
 
-const props = defineProps<{ repo: RepositoryMeta; seed: string; openN: number; preset?: SearchPreset }>();
+const props = defineProps<{ repo: RepositoryMeta; seed: string; openN: number; preset?: SearchPreset; replace?: boolean }>();
 const emit = defineEmits<{ (e: 'close'): void }>();
 const ws = useWorkspaceStore();
 
@@ -156,6 +171,28 @@ const pastActive = ref(0);
 const pastList = computed(() => historyMatching(searches.value, prefs.pattern));
 const hiddenCount = computed(() => Math.max(0, totalN.value - live.value.hits));
 const suggestions = computed<Suggestion[]>(() => emptySuggestions(prefs));
+
+// ---------- substituir em vários arquivos ----------
+const replaceOpen = ref(props.replace === true);
+const replaceField = ref<InstanceType<typeof GnSearchField>>();
+/** A prévia de cada arquivo (o texto novo por linha, ou o motivo de não ser alterado), calculada do que está NO DISCO. */
+const plans = shallowRef(new Map<string, FilePlan>());
+/** O hash que cada arquivo tinha quando a prévia foi calculada: se mudar até o aplicar, o arquivo é recusado. */
+const planHash = new Map<string, string>();
+const planning = ref({ done: 0, total: 0 });
+const applying = ref<{ done: number; total: number } | null>(null);
+const confirmApply = ref(false);
+interface ReplaceResult {
+  kind: 'applied' | 'undone';
+  replacements: number;
+  files: number;
+  skipped: Array<{ file: string; reason: RefuseReason | 'changedSince'; char?: string }>;
+}
+const result = ref<ReplaceResult | null>(null);
+const refusedScope = computed(() => scopeRefused(prefs.scope));
+const rquery = computed(() => makeQuery({ text: prefs.pattern, caseSensitive: prefs.caseSensitive, wholeWord: prefs.wholeWord, regex: prefs.regex }));
+const ropts = computed(() => ({ regex: prefs.regex, preserveCase: prefs.preserveCase }));
+const undoable = computed(() => !!lastReplace[props.repo.id]);
 const fieldLabels = computed(() => ({ clear: t('find.clear'), caseSensitive: t('find.case'), wholeWord: t('find.word'), regex: t('find.regex') }));
 
 /** Os lotes chegam em ondas: cada quadro leva no máximo isto para a lista, e a interface nunca fica parada com 5 mil ocorrências de uma vez. */
@@ -168,9 +205,21 @@ const schedule = (): void => {
   if (!raf) raf = setTimeout(flush, FRAME_MS);
 };
 
+/** Da prévia para a lista: o texto novo de cada ocorrência e o motivo de cada arquivo recusado (só com a substituição aberta). */
+function previewData(): { after?: Map<string, AfterLine>; notes?: Map<string, string> } {
+  if (!replaceOpen.value || !plans.value.size) return {};
+  const after = new Map<string, AfterLine>();
+  const notes = new Map<string, string>();
+  for (const [file, pl] of plans.value) {
+    if (!pl.ok) notes.set(file, pl.reason);
+    else for (const [line, l] of pl.lines) after.set(`${file}:${line}`, { text: l.after, ranges: l.ranges, clippedStart: l.clippedStart, clippedEnd: l.clippedEnd });
+  }
+  return { after, notes };
+}
+
 /** Refaz as linhas da lista (agrupamento, recolhidos, ocultos e contexto) e os números que dependem delas. */
 function rebuild(): void {
-  rows.value = model.rows({ collapsed: collapsed.value, group: prefs.group, hidden: hidden.value, context: prefs.context > 0 });
+  rows.value = model.rows({ collapsed: collapsed.value, group: prefs.group, hidden: hidden.value, context: prefs.context > 0, ...previewData() });
   live.value = model.count(hidden.value);
   totalN.value = model.total;
 }
@@ -240,10 +289,12 @@ async function run(keep = false, offset = 0): Promise<void> {
     raf = 0;
     searchError.value = '';
     replaceOnFirst = true;
+    dropPlans(); // refeita por causa de uma gravação: o disco mudou
   } else {
     replaceOnFirst = false;
     hidden.value = NO_HIDDEN; // pesquisa nova: o que foi ocultado da anterior volta
     resetResults();
+    dropPlans();
   }
   if (!pattern.trim() || patternError.value || needsRevision(prefs)) {
     running.value = false;
@@ -519,6 +570,7 @@ function select(index: number, opts: { open?: boolean; focus?: boolean; now?: bo
 function onRowClick(i: number, r: Row): void {
   if (r.kind === 'file' || r.kind === 'dir') toggleKey(r.key);
   else if (r.kind === 'hit') select(i, { now: true });
+  else if (r.kind === 'new') select(i - 1, { now: true }); // a linha nova é da ocorrência de cima
 }
 
 // ---------- teclado ----------
@@ -719,6 +771,247 @@ async function requestClose(): Promise<void> {
   }
 }
 
+// ---------- substituir em vários arquivos: prévia, aplicar e desfazer ----------
+/** O conteúdo lido dos arquivos para a prévia (até um teto de memória): trocar o texto novo recalcula sem reler o disco. */
+const CONTENT_BUDGET = 24 * 1024 * 1024;
+let budget = 0;
+const contents = new Map<string, WorkingFileInfo>();
+let planSeq = 0;
+let planTimer: ReturnType<typeof setTimeout> | undefined;
+
+function dropPlans(): void {
+  planSeq++;
+  contents.clear();
+  budget = 0;
+  planHash.clear();
+  if (plans.value.size) plans.value = new Map();
+  planning.value = { done: 0, total: 0 };
+}
+
+async function contentOf(file: string): Promise<WorkingFileInfo> {
+  const hit = contents.get(file);
+  if (hit) return hit;
+  const info = await api.readWorkingFile(props.repo.path, file);
+  if (info.exists && !info.binary && !info.tooLarge && budget + info.text.length * 2 <= CONTENT_BUDGET) {
+    contents.set(file, info);
+    budget += info.text.length * 2;
+  }
+  return info;
+}
+
+/** Por que um arquivo lido não pode ser alterado (`null` = pode). */
+function refusal(info: WorkingFileInfo): RefuseReason | null {
+  if (!info.exists) return 'missing';
+  if (info.binary) return 'binary';
+  if (info.tooLarge) return 'tooLarge';
+  if (info.invalid) return 'invalid';
+  if (info.eol === 'mixed') return 'mixedEol';
+  return null;
+}
+
+const hitLinesOf = (file: string): Set<number> => new Set(model.hitsOf(file).map((h) => h.line));
+
+async function planOne(file: string): Promise<FilePlan> {
+  const q = rquery.value;
+  if (!q) return { ok: false, reason: 'failed' };
+  const info = await contentOf(file);
+  const why = refusal(info);
+  if (why) return { ok: false, reason: why };
+  planHash.set(file, info.hash);
+  return planFile(info.text, info.eol, q, prefs.replaceText, ropts.value, hitLinesOf(file));
+}
+
+/** Calcula a prévia dos arquivos da lista (4 por vez), mostrando-a aos poucos. Só com a substituição aberta e depois que a busca terminou. */
+function schedulePlans(ms: number): void {
+  clearTimeout(planTimer);
+  planTimer = setTimeout(() => void computePlans(), ms);
+}
+async function computePlans(): Promise<void> {
+  const mine = ++planSeq;
+  if (!replaceOpen.value || refusedScope.value || !rquery.value || patternError.value || !done.value?.ok || running.value) {
+    if (plans.value.size) {
+      plans.value = new Map();
+      rebuild();
+    }
+    planning.value = { done: 0, total: 0 };
+    return;
+  }
+  const files = model.fileNames;
+  const next = new Map<string, FilePlan>();
+  planning.value = { done: 0, total: files.length };
+  let i = 0;
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      const k = i++;
+      if (k >= files.length || mine !== planSeq) return;
+      const file = files[k]!;
+      next.set(file, await planOne(file).catch(() => ({ ok: false, reason: 'failed' }) as FilePlan));
+      if (mine !== planSeq) return;
+      planning.value = { done: next.size, total: files.length };
+      if (next.size % 40 === 0) {
+        plans.value = new Map(next);
+        rebuild();
+      }
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  if (mine !== planSeq) return;
+  plans.value = next;
+  rebuild();
+}
+
+/** As linhas escolhidas (as ocorrências que não foram ocultadas) de cada arquivo. */
+function chosenLines(): Map<string, Set<number>> {
+  const out = new Map<string, Set<number>>();
+  const h = hidden.value;
+  for (const file of model.fileNames) {
+    if (isFileHidden(file, h)) continue;
+    const lines = new Set<number>();
+    for (const hit of model.hitsOf(file)) if (!h.hits.has(hitKey(hit))) lines.add(hit.line);
+    if (lines.size) out.set(file, lines);
+  }
+  return out;
+}
+const planReady = computed(() => replaceOpen.value && !refusedScope.value && done.value?.ok === true && !running.value && planning.value.total > 0 && planning.value.done >= planning.value.total && plans.value.size === planning.value.total);
+const totals = computed(() => {
+  void live.value;
+  void hidden.value;
+  return planReady.value ? tally(plans.value, chosenLines()) : null;
+});
+const canApply = computed(() => !!totals.value && totals.value.replacements > 0 && !applying.value && !patternError.value);
+const reasonText = (list: ReadonlyArray<{ reason: RefuseReason | 'changedSince' }>): string => reasonCounts(list as Array<{ reason: RefuseReason }>).map((r) => `${r.n} ${t(`sw.rp.why.${r.reason}` as MessageKey)}`).join(', ');
+/** "142 substituições em 17 arquivos". */
+const countText = (n: number, f: number): string => `${t('sw.rp.count', { n })} ${t('search.inFiles', { n: f })}`;
+const summaryText = computed(() => {
+  if (refusedScope.value) return '';
+  if (!prefs.pattern.trim() || !rquery.value) return t('sw.rp.needSearch');
+  if (applying.value) return t('sw.rp.applying', { done: applying.value.done, total: applying.value.total });
+  if (!planReady.value) return running.value || !done.value ? '' : t('sw.rp.preparing', { done: planning.value.done, total: planning.value.total });
+  const tl = totals.value!;
+  if (!tl.replacements) return t('sw.rp.nothing') + (tl.refused.length ? ` · ${t('sw.rp.refused', { n: tl.refused.length })} (${reasonText(tl.refused)})` : '');
+  return countText(tl.replacements, tl.files) + (tl.refused.length ? ` · ${t('sw.rp.refused', { n: tl.refused.length })} (${reasonText(tl.refused)})` : '');
+});
+
+function toggleReplace(): void {
+  replaceOpen.value = !replaceOpen.value;
+  result.value = null;
+  if (replaceOpen.value) {
+    schedulePlans(0);
+    void nextTick(() => replaceField.value?.focus());
+  } else {
+    dropPlans();
+    rebuild();
+  }
+}
+watch(
+  () => [prefs.replaceText, prefs.preserveCase],
+  () => {
+    persist();
+    if (replaceOpen.value) schedulePlans(250);
+  },
+);
+
+async function askApply(): Promise<void> {
+  if (!canApply.value) return;
+  if (!(await guard())) return; // alterações não salvas no arquivo aberto lá embaixo: salvar, descartar ou ficar
+  confirmApply.value = true;
+}
+
+/**
+ * Aplica: para cada arquivo, lê DE NOVO do disco; se o hash não é o da prévia o arquivo é recusado (mudou depois da busca); senão recalcula o texto novo desse
+ * conteúdo (nunca do que a lista mostrava) e grava de forma atômica, com a cópia de segurança do lote antes. Nunca cria commit.
+ */
+async function applyAll(): Promise<void> {
+  confirmApply.value = false;
+  const q = rquery.value;
+  if (!q || !canApply.value) return;
+  const chosen = chosenLines();
+  const batch = crypto.randomUUID();
+  const todo = [...chosen].filter(([file]) => plans.value.get(file)?.ok);
+  const skipped: ReplaceResult['skipped'] = [];
+  const applied: LastReplace['files'] = [];
+  let replacements = 0;
+  applying.value = { done: 0, total: todo.length };
+  let n = 0;
+  try {
+    for (const [file, lines] of todo) {
+      try {
+        const cur = await api.readWorkingFile(props.repo.path, file);
+        const why = refusal(cur);
+        if (why) skipped.push({ file, reason: why });
+        else if (cur.hash !== planHash.get(file)) skipped.push({ file, reason: 'changed' });
+        else {
+          const again = planFile(cur.text, cur.eol, q, prefs.replaceText, ropts.value, hitLinesOf(file));
+          if (!again.ok) skipped.push({ file, reason: again.reason });
+          else {
+            const next = applyFile(cur.text, cur.eol, q, prefs.replaceText, ropts.value, lines);
+            if (next.replaced) {
+              const r = await api.saveWorkingFile(props.repo.path, file, next.text, { encoding: cur.encoding, expectHash: cur.hash, backup: batch });
+              if (r.ok) {
+                applied.push({ file, afterHash: r.stamp.hash });
+                replacements += next.replaced;
+              } else skipped.push({ file, reason: r.reason === 'unencodable' ? 'unencodable' : r.reason === 'changed' ? 'changed' : 'failed', ...(r.char ? { char: r.char } : {}) });
+            }
+          }
+        }
+      } catch {
+        skipped.push({ file, reason: 'failed' });
+      }
+      applying.value = { done: ++n, total: todo.length };
+    }
+  } finally {
+    applying.value = null;
+  }
+  // os arquivos que a prévia já recusava (binário, grande...) também entram no resumo, para nada ficar calado
+  for (const r of tally(plans.value, chosen).refused) skipped.push(r);
+  if (applied.length) lastReplace[props.repo.id] = { batch, replacements, files: applied };
+  result.value = { kind: 'applied', replacements, files: applied.length, skipped };
+  await afterWrite(applied.map((a) => a.file));
+}
+
+/** Depois de gravar ou desfazer: a tela do repositório recarrega, o arquivo aberto lá embaixo relê e a busca se refaz. */
+async function afterWrite(files: string[]): Promise<void> {
+  if (!files.length) return;
+  ws.bump(props.repo.id);
+  if (cur.value && files.includes(cur.value.file)) await loadFile(cur.value.file);
+  void run(true);
+}
+
+async function undoReplace(): Promise<void> {
+  const last = lastReplace[props.repo.id];
+  if (!last || applying.value) return;
+  if (!(await guard())) return;
+  const skipped: ReplaceResult['skipped'] = [];
+  const restored: string[] = [];
+  applying.value = { done: 0, total: last.files.length };
+  let n = 0;
+  try {
+    for (const f of last.files) {
+      try {
+        const r = await api.restoreWorkingFile(props.repo.path, last.batch, f.file, f.afterHash);
+        if (r.ok) restored.push(f.file);
+        else skipped.push({ file: f.file, reason: r.reason === 'changed' ? 'changedSince' : 'failed' });
+      } catch {
+        skipped.push({ file: f.file, reason: 'failed' });
+      }
+      applying.value = { done: ++n, total: last.files.length };
+    }
+  } finally {
+    applying.value = null;
+  }
+  lastReplace[props.repo.id] = undefined;
+  result.value = { kind: 'undone', replacements: last.replacements, files: restored.length, skipped };
+  await afterWrite(restored);
+}
+
+const resultText = computed(() => {
+  const r = result.value;
+  if (!r) return '';
+  const head = r.kind === 'applied' ? countText(r.replacements, r.files) : t('sw.rp.undone', { n: r.files });
+  return head + (r.skipped.length ? `, ${t('sw.rp.refused', { n: r.skipped.length })} (${reasonText(r.skipped)})` : '');
+});
+const resultFiles = computed(() => (result.value?.skipped ?? []).slice(0, 12));
+
 // ---------- ações do arquivo ----------
 async function goTool(mode: 'history' | 'blame'): Promise<void> {
   const c = cur.value;
@@ -764,7 +1057,14 @@ const field = ref<InstanceType<typeof GnSearchField>>();
 
 const onFilters = (f: Filters): void => void Object.assign(prefs, f);
 const rowStyle = (r: Row): Record<string, string> | undefined => (r.kind === 'dir' ? undefined : { paddingLeft: `${12 + r.depth * 14}px` });
-const rowTestId = (r: Row): string => (r.kind === 'file' ? 'sw-file-row' : r.kind === 'dir' ? 'sw-dir-row' : r.kind === 'ctx' ? 'sw-ctx-row' : 'sw-row');
+const rowTestId = (r: Row): string => (r.kind === 'file' ? 'sw-file-row' : r.kind === 'dir' ? 'sw-dir-row' : r.kind === 'ctx' ? 'sw-ctx-row' : r.kind === 'new' ? 'sw-new-row' : 'sw-row');
+/** A ocorrência tem prévia (a linha nova logo abaixo): a lista a mostra como "antes". */
+const hasAfter = (key: string): boolean => replaceOpen.value && plans.value.size > 0 && previewKeys.value.has(key);
+const previewKeys = computed(() => {
+  const keys = new Set<string>();
+  for (const [file, pl] of plans.value) if (pl.ok) for (const line of pl.lines.keys()) keys.add(`${file}:${line}`);
+  return keys;
+});
 /** Clicar fora do histórico aberto fecha. */
 function onPointer(e: PointerEvent): void {
   if (pastOpen.value && !(e.target as HTMLElement).closest('.sw__past, .sw__pastbtn')) pastOpen.value = false;
@@ -773,6 +1073,7 @@ function onPointer(e: PointerEvent): void {
 /** Depois da busca: mantém a seleção se a ocorrência ainda existe, reabre a última (ao reabrir a janela) e refaz as marcas do arquivo aberto. */
 function afterResults(): void {
   refreshMarks();
+  schedulePlans(0);
   const want = selectedKey.value ?? lastOpen.get(props.repo.id) ?? null;
   const idx = want ? rows.value.findIndex((r) => r.key === want) : -1;
   if (idx >= 0) {
@@ -799,6 +1100,8 @@ function applySeed(): void {
 }
 
 watch(() => props.openN, () => {
+  if (props.replace && !replaceOpen.value) toggleReplace();
+  else if (props.replace) void nextTick(() => replaceField.value?.focus());
   applySeed();
   if (props.seed) void run();
   else if (props.preset && prefs.pattern.trim()) void run();
@@ -843,6 +1146,7 @@ const rowLabel = (r: Row): string => {
   if (r.kind === 'dir') return t('sw.rowFile', { file: r.dir || t('sw.rootDir'), n: r.count }) + (r.collapsed ? ' ' + t('sw.collapsed') : '');
   if (r.kind === 'file') return t('sw.rowFile', { file: r.file, n: r.count }) + (r.collapsed ? ' ' + t('sw.collapsed') : '');
   if (r.kind === 'ctx') return t('sw.rowCtx', { line: r.line, text: r.text });
+  if (r.kind === 'new') return t('sw.rp.rowNew', { line: r.line, text: r.text });
   return (r.showFile ? r.file + ', ' : '') + t('sw.rowHit', { line: r.hit.line, text: r.hit.text });
 };
 const status = computed(() => (running.value ? '' : counter.value));
@@ -886,6 +1190,7 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
         <GnButton ref="filtersBtn" size="sm" :aria-expanded="filtersOpen" aria-controls="sw-filters" data-testid="sw-filters-toggle" @click="filtersOpen = !filtersOpen">
           {{ t('sw.filters') }}<GnBadge v-if="changed.length" tone="accent" data-testid="sw-filters-n">{{ changed.length }}</GnBadge>
         </GnButton>
+        <GnButton size="sm" :aria-pressed="replaceOpen" data-testid="sw-replace-toggle" @click="toggleReplace">{{ t('sw.rp.toggle') }}<GnTooltip :text="t('sw.rp.toggleTip')" /></GnButton>
         <span class="sw__count" data-testid="sw-count" role="status" aria-live="polite">{{ running ? t('sw.searching', { n: live.hits }) : status }}</span>
         <GnButton v-if="running" size="sm" tone="warn" data-testid="sw-stop" @click="stop">{{ t('sw.stop') }}</GnButton>
         <GnIconButton icon="x" :label="t('sw.close')" data-testid="sw-close" @click="requestClose" />
@@ -913,6 +1218,38 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
           <span>{{ t('sw.pastHint') }}</span>
           <GnButton v-if="searches.length" size="sm" variant="ghost" tone="danger" data-testid="sw-past-clear" @click="clearPast">{{ t('sw.pastClear') }}</GnButton>
         </footer>
+      </div>
+      <div v-if="replaceOpen" class="sw__repl" data-testid="sw-replace-row">
+        <GnSearchField
+          ref="replaceField"
+          v-model="prefs.replaceText"
+          variant="replace"
+          class="sw__field"
+          :label="t('find.replaceField')"
+          :placeholder="t('find.replacePlaceholder')"
+          :labels="fieldLabels"
+          @enter="askApply"
+        />
+        <GnButton
+          size="sm"
+          :tone="prefs.preserveCase ? 'accent' : 'neutral'"
+          :variant="prefs.preserveCase ? undefined : 'ghost'"
+          :aria-pressed="prefs.preserveCase"
+          data-testid="sw-preserve-case"
+          @click="prefs.preserveCase = !prefs.preserveCase"
+        >{{ t('find.preserveCase') }}<GnTooltip :text="t('find.preserveCaseTip')" /></GnButton>
+        <span class="sw__rsum" data-testid="sw-rsummary" role="status" aria-live="polite">{{ summaryText }}</span>
+        <GnButton size="sm" variant="primary" :disabled="!canApply" data-testid="sw-apply" @click="askApply">{{ t('sw.rp.apply') }}</GnButton>
+        <GnButton v-if="undoable" size="sm" tone="warn" :disabled="!!applying" data-testid="sw-undo" @click="undoReplace">{{ t('sw.rp.undo') }}<GnTooltip :text="t('sw.rp.undoTip')" /></GnButton>
+      </div>
+      <p v-if="replaceOpen && refusedScope" class="sw__error" role="note" data-testid="sw-rscope">{{ t('sw.rp.scopeRefused') }}</p>
+      <div v-if="result" class="sw__result" data-testid="sw-rresult">
+        <p role="status">{{ resultText }}</p>
+        <ul v-if="resultFiles.length" class="sw__resfiles" data-testid="sw-rresult-files">
+          <li v-for="f in resultFiles" :key="f.file"><code>{{ f.file }}</code> — {{ t(('sw.rp.why.' + f.reason) as MessageKey) }}<template v-if="f.char"> ({{ f.char }})</template></li>
+          <li v-if="(result.skipped.length ?? 0) > resultFiles.length">{{ t('sw.rp.andMore', { n: result.skipped.length - resultFiles.length }) }}</li>
+        </ul>
+        <GnButton size="sm" variant="ghost" data-testid="sw-rresult-close" @click="result = null">{{ t('sw.rp.dismiss') }}</GnButton>
       </div>
       <SearchFilters v-if="filtersOpen" :model-value="filters" :repo-path="repo.path" @update:model-value="onFilters" />
       <div v-else-if="changed.length" class="sw__chips" data-testid="sw-chips">
@@ -961,7 +1298,7 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
                   :id="'sw-r' + v.i"
                   :key="v.row.key"
                   class="sw__row"
-                  :class="{ 'sw__row--file': v.row.kind === 'file' || v.row.kind === 'dir', 'sw__row--dir': v.row.kind === 'dir', 'sw__row--ctx': v.row.kind === 'ctx', 'sw__row--sel': v.row.key === selectedKey }"
+                  :class="{ 'sw__row--new': v.row.kind === 'new', 'sw__row--old': v.row.kind === 'hit' && hasAfter(v.row.key), 'sw__row--file': v.row.kind === 'file' || v.row.kind === 'dir', 'sw__row--dir': v.row.kind === 'dir', 'sw__row--ctx': v.row.kind === 'ctx', 'sw__row--sel': v.row.key === selectedKey }"
                   :style="rowStyle(v.row)"
                   role="option"
                   :aria-selected="v.row.key === selectedKey"
@@ -979,7 +1316,13 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
                     <GnIcon :name="v.row.collapsed ? 'chevron-right' : 'chevron-down'" />
                     <span class="sw__fname">{{ v.row.file }}</span>
                     <GnBadge tone="neutral">{{ v.row.count }}</GnBadge>
+                    <GnBadge v-if="v.row.note" tone="warn" data-testid="sw-file-note">{{ t(('sw.rp.why.' + v.row.note) as MessageKey) }}</GnBadge>
                     <GnIconButton class="sw__hide" icon="x" :label="t('sw.hide')" :title="t('sw.hideTip')" tabindex="-1" aria-hidden="true" @click.stop="hide(v.i, 'file')" />
+                  </template>
+                  <template v-else-if="v.row.kind === 'new'">
+                    <span class="sw__ln">+</span>
+                    <span class="sw__text"><template v-for="(p, k) in pieces(v.row)" :key="k"><ins v-if="p.hit">{{ p.text }}</ins><template v-else>{{ p.text }}</template></template></span>
+                    <GnIconButton class="sw__hide" icon="x" :label="t('sw.hide')" :title="t('sw.hideTip')" tabindex="-1" aria-hidden="true" @click.stop="hide(v.i, 'hit')" />
                   </template>
                   <template v-else-if="v.row.kind === 'ctx'">
                     <span class="sw__ln">{{ v.row.line }}</span>
@@ -1046,6 +1389,18 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
       </div>
     </div>
 
+    <GnDialog v-if="confirmApply && totals" role="alertdialog" width="min(480px, 92vw)" :label="t('sw.rp.confirmTitle')" initial-focus="[data-testid='sw-confirm-apply']" @close="confirmApply = false">
+      <div class="sw__ask" data-testid="sw-confirm">
+        <h2>{{ t('sw.rp.confirmTitle') }}</h2>
+        <p>{{ t('sw.rp.confirmBody', { what: countText(totals.replacements, totals.files) }) }}</p>
+        <p v-if="prefs.replaceText === ''" class="sw__warn" role="alert" data-testid="sw-confirm-empty">{{ t('sw.rp.confirmEmpty') }}</p>
+        <div class="sw__ask-btns">
+          <GnButton variant="primary" data-testid="sw-confirm-apply" @click="applyAll">{{ t('sw.rp.apply') }}</GnButton>
+          <GnButton variant="ghost" data-testid="sw-confirm-cancel" @click="confirmApply = false">{{ t('sw.rp.cancel') }}</GnButton>
+        </div>
+      </div>
+    </GnDialog>
+
     <GnDialog v-if="prompt" role="alertdialog" width="min(460px, 92vw)" :label="t('sw.unsavedTitle')" initial-focus="[data-testid='sw-unsaved-save']" @close="answer('stay')">
       <div class="sw__ask" data-testid="sw-unsaved">
         <h2>{{ t('sw.unsavedTitle') }}</h2>
@@ -1079,6 +1434,13 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
 .sw__pastx { opacity: 0; }
 .sw__pastitem:hover .sw__pastx, .sw__pastitem--on .sw__pastx { opacity: 1; }
 .sw__pastfoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 12px; border-top: 1px solid var(--gn-border); color: var(--gn-muted); font-size: 11.5px; }
+.sw__repl { display: flex; align-items: flex-start; gap: 8px; padding: 0 12px 6px; .sw__field { flex: 1 1 360px; } }
+.sw__warn { margin: 0 0 12px; color: var(--gn-danger); font-weight: 600; }
+.sw__rsum { align-self: center; flex: 0 1 auto; color: var(--gn-muted); font-size: 12.5px; }
+.sw__result { display: flex; align-items: flex-start; gap: 12px; padding: 4px 14px 6px; font-size: 12.5px; background: color-mix(in srgb, var(--gn-success) 10%, transparent); border-top: 1px solid var(--gn-border); p { margin: 0; flex: 1; } }
+.sw__resfiles { margin: 0; padding: 0 0 0 16px; font-size: 12px; color: var(--gn-muted); code { font: 12px var(--gn-mono); color: var(--gn-text); } }
+.sw__row--new { background: color-mix(in srgb, var(--gn-success) 9%, transparent); ins { text-decoration: none; background: color-mix(in srgb, var(--gn-success) 35%, transparent); border-radius: 2px; } .sw__ln { color: var(--gn-success); } }
+.sw__row--old mark { background: color-mix(in srgb, var(--gn-danger) 30%, transparent); text-decoration: line-through; }
 .sw__empty { display: flex; flex-direction: column; gap: 4px; p { margin: 0; } }
 .sw__sg { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .sw__hide { margin-left: auto; opacity: 0; }

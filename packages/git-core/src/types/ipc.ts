@@ -783,12 +783,19 @@ export interface SaveOptions {
   expectHash: string | null;
   /** Grava mesmo que o arquivo tenha mudado por fora (a pessoa escolheu sobrescrever). */
   force?: boolean;
+  /** Id do lote de uma substituição em vários arquivos: antes de gravar, guarda uma cópia do que estava no disco (na pasta de dados, por lote). */
+  backup?: string;
 }
 
 export type SaveResult =
-  | { ok: true; stamp: WorkingFileStamp }
+  | { ok: true; stamp: WorkingFileStamp; /** o que estava no disco foi copiado para o lote `backup` antes de gravar */ backedUp?: boolean }
   /** `changed`: mudou por fora desde a leitura; `unencodable`: um caractere não existe na codificação; `failed`: erro do sistema de arquivos. */
   | { ok: false; reason: 'changed' | 'unencodable' | 'failed'; message: string; char?: string; stamp?: WorkingFileStamp };
+
+/** O resultado de devolver um arquivo à cópia de segurança de uma substituição: só volta se o disco ainda é o que a substituição gravou. */
+export type RestoreResult =
+  | { ok: true; stamp: WorkingFileStamp }
+  | { ok: false; reason: 'changed' | 'missing' | 'failed'; message: string };
 
 /** Quantos commits de cada lado o painel de sincronização lista. O resto vira "e mais N" (o total vem do adiante/atrás). */
 export const SYNC_COMMITS_LIMIT = 20;
@@ -1122,6 +1129,11 @@ export interface GitNexusApi extends GitNexusIPC {
    * na codificação ou se o arquivo mudou por fora desde a leitura (`expectHash`), a menos que `force`.
    */
   saveWorkingFile(repoPath: string, file: string, content: string, opts: SaveOptions): Promise<SaveResult>;
+  /**
+   * Desfaz a gravação de uma substituição: devolve o arquivo à cópia de segurança do lote `backupId`, mas só se o disco ainda tem o hash que a substituição gravou
+   * (`expectHash`); se a pessoa mexeu no arquivo depois, nada é sobrescrito (`changed`).
+   */
+  restoreWorkingFile(repoPath: string, backupId: string, file: string, expectHash: string): Promise<RestoreResult>;
   /** Grava o conteúdo como versão do arquivo no ÍNDICE (stage por linha/trecho), sem alterar o disco. Mesma regra de codificação. */
   writeIndexContent(repoPath: string, file: string, content: string, encoding?: EncodingChoice): Promise<void>;
   /**

@@ -179,6 +179,16 @@ function globalCommands(): Command[] {
         when: inRepo,
         run: () => search.open(repo, selectedText()),
       },
+      // Ctrl+Shift+H: a mesma janela com a linha "Substituir por" (substituir em vários arquivos, com prévia e desfazer)
+      {
+        id: 'search.replace',
+        title: t('cmd.searchReplace'),
+        group: nav,
+        shortcut: 'Mod+Shift+H',
+        keywords: 'substituir trocar renomear replace rename varios arquivos massa',
+        when: inRepo,
+        run: () => search.open(repo, selectedText(), null, true),
+      },
       { id: 'view.staging', title: t('cmd.staging'), group: nav, keywords: 'commit alterações changes', when: inRepo, run: () => ws.open('repo', repo) },
       { id: 'view.graph', title: t('cmd.graph'), group: nav, keywords: 'log commits busca history search', when: inRepo, run: () => ws.open('graph', repo) },
       { id: 'view.merge', title: t('cmd.merge'), group: nav, keywords: 'merge resolver conflicts resolve', when: inRepo, run: () => ws.open('merge', repo) },
@@ -251,7 +261,7 @@ onBeforeUnmount(() => {
   <CoreInterface />
   <CommandPalette />
   <SettingsDialog v-if="settings.isOpen" @close="settings.close()" />
-  <SearchWindow v-if="search.isOpen && search.repo" :repo="search.repo" :seed="search.seed" :preset="search.preset ?? undefined" :open-n="search.n" @close="search.close()" />
+  <SearchWindow v-if="search.isOpen && search.repo" :repo="search.repo" :seed="search.seed" :preset="search.preset ?? undefined" :replace="search.replace" :open-n="search.n" @close="search.close()" />
   <LocaleWelcome v-if="askLocale" @done="askLocale = false" />
   <AskpassDialog />
   <GitGate />

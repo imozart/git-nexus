@@ -29,6 +29,7 @@ export const WORKER_METHODS = [
   'readWorkingFile',
   'stampWorkingFile',
   'saveWorkingFile',
+  'restoreWorkingFile',
   'writeIndexContent',
   'discardFile',
   'restoreBackup',

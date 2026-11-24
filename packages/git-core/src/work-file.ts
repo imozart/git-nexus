@@ -4,12 +4,12 @@
 //    na codificação e com o fim de linha do arquivo, mantém o modo (executável), recusa quando um caractere não existe na codificação (nada é gravado)
 //    e quando o arquivo mudou por fora desde a leitura (a impressão não bate), a menos que `force`.
 import { createHash } from 'node:crypto';
-import { chmod, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { resolveInsideRepo } from './conflicts.js';
 import { EncodingError, decodeText, detectEncodingOf, encodeText, resolveEncoding } from './encoding.js';
 import type { EncodingChoice } from './file-encoding.js';
-import type { Eol, SaveOptions, SaveResult, WorkingFileInfo, WorkingFileStamp } from './types/ipc.js';
+import type { Eol, RestoreResult, SaveOptions, SaveResult, WorkingFileInfo, WorkingFileStamp } from './types/ipc.js';
 
 /** Acima disto o arquivo abre só para leitura (e a interface não o carrega): é o mesmo limite do diff. */
 export const MAX_EDIT_BYTES = 2_000_000;
@@ -84,7 +84,8 @@ export async function writeFileAtomic(abs: string, bytes: Uint8Array): Promise<v
   }
 }
 
-export async function saveWorkingFile(repoPath: string, file: string, content: string, opts: SaveOptions): Promise<SaveResult> {
+/** `backupRoot`: a pasta do lote; antes de gravar, o que estava no disco é copiado para `backupRoot/<arquivo>` (nunca por cima de uma cópia que já existe: a primeira vale). */
+export async function saveWorkingFile(repoPath: string, file: string, content: string, opts: SaveOptions, backupRoot?: string): Promise<SaveResult> {
   const abs = resolveInsideRepo(repoPath, file);
   // codifica ANTES de tocar no disco: um caractere que a codificação não tem deixa o arquivo como estava
   let bytes: Buffer;
@@ -99,11 +100,64 @@ export async function saveWorkingFile(repoPath: string, file: string, content: s
     const now = await stampWorkingFile(repoPath, file);
     if ((now?.hash ?? null) !== opts.expectHash) return { ok: false, reason: 'changed', message: 'changed', ...(now ? { stamp: now } : {}) };
   }
+  let backedUp = false;
   try {
+    if (backupRoot) backedUp = await backupFile(abs, join(backupRoot, file));
     await writeFileAtomic(abs, bytes);
   } catch (e) {
     return { ok: false, reason: 'failed', message: e instanceof Error ? e.message : String(e) };
   }
   const stamp = await stampWorkingFile(repoPath, file);
-  return { ok: true, stamp: stamp ?? { size: bytes.length, mtimeMs: Date.now(), hash: sha1(bytes) } };
+  return { ok: true, stamp: stamp ?? { size: bytes.length, mtimeMs: Date.now(), hash: sha1(bytes) }, ...(backedUp ? { backedUp } : {}) };
+}
+
+/** Copia o arquivo do disco para a cópia de segurança. `false` se não havia arquivo (nada a guardar) ou se já existe uma cópia deste lote (a primeira é a original). */
+async function backupFile(abs: string, dest: string): Promise<boolean> {
+  try {
+    await stat(dest);
+    return false;
+  } catch {
+    /* ainda não há cópia */
+  }
+  try {
+    await stat(abs);
+  } catch {
+    return false;
+  }
+  await mkdir(dirname(dest), { recursive: true });
+  await cp(abs, dest);
+  return true;
+}
+
+/** Devolve o arquivo à cópia de segurança do lote, se o disco ainda é o que a substituição gravou (`expectHash`). */
+export async function restoreWorkingFile(repoPath: string, backupRoot: string, file: string, expectHash: string): Promise<RestoreResult> {
+  const abs = resolveInsideRepo(repoPath, file);
+  let original: Buffer;
+  try {
+    original = await readFile(join(backupRoot, file));
+  } catch {
+    return { ok: false, reason: 'missing', message: 'missing' };
+  }
+  const now = await stampWorkingFile(repoPath, file);
+  if (!now || now.hash !== expectHash) return { ok: false, reason: 'changed', message: 'changed' };
+  try {
+    await writeFileAtomic(abs, original);
+  } catch (e) {
+    return { ok: false, reason: 'failed', message: e instanceof Error ? e.message : String(e) };
+  }
+  return { ok: true, stamp: (await stampWorkingFile(repoPath, file)) ?? { size: original.length, mtimeMs: Date.now(), hash: sha1(original) } };
+}
+
+/** Apaga os lotes de cópia de segurança com mais de `maxAgeMs` (pela data da pasta). Nunca lança. */
+export async function pruneBackups(root: string, maxAgeMs: number): Promise<void> {
+  try {
+    const now = Date.now();
+    for (const name of await readdir(root)) {
+      const dir = join(root, name);
+      const s = await stat(dir).catch(() => null);
+      if (s && now - s.mtimeMs > maxAgeMs) await rm(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+    }
+  } catch {
+    /* sem pasta ainda, ou um arquivo em uso: a próxima poda tenta de novo */
+  }
 }
