@@ -94,6 +94,9 @@ import { api, errMsg } from '../api';
 import { locale, t, type MessageKey } from '../i18n';
 import { useWorkspaceStore } from '../stores/workspace';
 import CodeEditor from './CodeEditor.vue';
+import ContextMenu, { type MenuItem } from './ContextMenu.vue';
+import { enteredQuery, fromSearchPrefs, linesQuery } from '../history-search-core';
+import { useSearchStore } from '../stores/search';
 import SearchFilters from './SearchFilters.vue';
 import SearchRepos from './SearchRepos.vue';
 import {
@@ -1240,6 +1243,48 @@ const resultText = computed(() => {
 const resultFiles = computed(() => (result.value?.skipped ?? []).slice(0, 12));
 
 // ---------- ações do arquivo ----------
+/** "Buscar na história": o texto, as opções e as máscaras desta pesquisa viram a busca no histórico do repositório. */
+async function goHistorySearch(): Promise<void> {
+  if (!prefs.pattern.trim() || !(await guard())) return;
+  emit('close');
+  ws.openHistory(props.repo, fromSearchPrefs(prefs));
+}
+/** "Quando isto entrou ou saiu?" (o texto selecionado) e "Histórico destas linhas" (as linhas selecionadas), no repositório dono do arquivo. */
+async function goFileHistory(kind: 'entered' | 'lines'): Promise<void> {
+  const c = cur.value;
+  const sel = editorRef.value?.selectionInfo();
+  if (!c || !sel) return;
+  if (kind === 'entered' && !sel.text.trim()) {
+    notice.value = { kind: 'error', text: t('hs.noSelection') };
+    return;
+  }
+  if (!(await guard())) return;
+  const o = own(c.file);
+  emit('close');
+  ws.openHistory(o.repo, kind === 'entered' ? enteredQuery(sel.text) : linesQuery(o.rel, sel));
+}
+const searchStore = useSearchStore();
+onMounted(() => {
+  searchStore.fileContext = () => {
+    const c = cur.value;
+    const sel = editorRef.value?.selectionInfo();
+    if (!c || !sel) return null;
+    const o = own(c.file);
+    return { repo: o.repo, file: o.rel, text: sel.text, startLine: sel.startLine, endLine: sel.endLine, dirty: dirty.value };
+  };
+});
+onBeforeUnmount(() => {
+  searchStore.fileContext = null;
+});
+const editorMenu = ref<{ x: number; y: number } | null>(null);
+const editorMenuItems = computed<MenuItem[]>(() => [
+  { id: 'entered', label: t('hs.entered') },
+  { id: 'lines', label: t('hs.lines') },
+]);
+function onEditorMenu(id: string): void {
+  editorMenu.value = null;
+  void goFileHistory(id === 'lines' ? 'lines' : 'entered');
+}
 async function goTool(mode: 'history' | 'blame'): Promise<void> {
   const c = cur.value;
   if (!c || !(await guard())) return;
@@ -1439,6 +1484,7 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
         <GnButton ref="reposBtn" size="sm" :aria-expanded="reposOpen" aria-controls="sw-repos" data-testid="sw-repos-toggle" @click="toggleRepos">
           {{ t('sw.mr.toggle') }}<GnBadge v-if="multiOn" tone="accent" data-testid="sw-repos-n">{{ prefs.repoIds.length }}</GnBadge><GnTooltip :text="t('sw.mr.toggleTip')" />
         </GnButton>
+        <GnButton size="sm" :disabled="!prefs.pattern.trim()" data-testid="sw-history-search" @click="goHistorySearch">{{ t('hs.openFromSearch') }}<GnTooltip :text="t('hs.openFromSearchTip')" /></GnButton>
         <GnButton size="sm" :aria-pressed="replaceOpen" data-testid="sw-replace-toggle" @click="toggleReplace">{{ t('sw.rp.toggle') }}<GnTooltip :text="t('sw.rp.toggleTip')" /></GnButton>
         <span class="sw__count" data-testid="sw-count" role="status" aria-live="polite">{{ running ? t('sw.searching', { n: live.hits }) : status }}</span>
         <GnButton v-if="running" size="sm" tone="warn" data-testid="sw-stop" @click="stop">{{ t('sw.stop') }}</GnButton>
@@ -1645,6 +1691,8 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
               <GnButton size="sm" :disabled="!dirty" data-testid="sw-revert" @click="revert">{{ t('sw.revert') }}<GnTooltip :text="t('sw.revertTip')" /></GnButton>
               <GnButton size="sm" variant="ghost" data-testid="sw-history" @click="goTool('history')">{{ t('sw.history') }}</GnButton>
               <GnButton size="sm" variant="ghost" data-testid="sw-blame" @click="goTool('blame')">{{ t('sw.blame') }}</GnButton>
+              <GnButton size="sm" variant="ghost" data-testid="sw-hist-entered" @click="goFileHistory('entered')">{{ t('hs.entered') }}<GnTooltip :text="t('hs.enteredTip')" /></GnButton>
+              <GnButton size="sm" variant="ghost" data-testid="sw-hist-lines" @click="goFileHistory('lines')">{{ t('hs.lines') }}<GnTooltip :text="t('hs.linesTip')" /></GnButton>
               <GnButton size="sm" variant="ghost" data-testid="sw-copy" @click="copyRef">{{ t('sw.copyRef') }}</GnButton>
               <GnButton size="sm" variant="ghost" data-testid="sw-open-out" @click="openOutside">{{ t('sw.openOut') }}</GnButton>
             </div>
@@ -1658,7 +1706,8 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
             <p v-if="notice" class="sw__notice" :class="'sw__notice--' + notice.kind" :role="notice.kind === 'error' ? 'alert' : 'status'" data-testid="sw-notice">{{ notice.text }}</p>
             <div class="sw__editor" data-testid="sw-editor">
               <p v-if="loadingFile && !cur.info.text" class="sw__hint">{{ t('sw.loading') }}</p>
-              <CodeEditor v-else :key="cur.n" ref="editorRef" v-model="editText" :filename="cur.file" :read-only="readOnly" :marks="marks" />
+              <CodeEditor v-else :key="cur.n" ref="editorRef" v-model="editText" :filename="cur.file" :read-only="readOnly" :marks="marks" context-menu @menu="editorMenu = $event" />
+              <ContextMenu v-if="editorMenu" above :x="editorMenu.x" :y="editorMenu.y" :items="editorMenuItems" @select="onEditorMenu" @close="editorMenu = null" />
             </div>
           </template>
           <p v-else class="sw__hint" data-testid="sw-nofile">{{ loadingFile ? t('sw.loading') : t('sw.noFile') }}</p>

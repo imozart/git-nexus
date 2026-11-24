@@ -22,6 +22,7 @@ export * from './tags.js';
 export * from './clone.js';
 export * from './search-parse.js';
 export * from './search-run.js';
+export * from './history-search.js';
 export * from './askpass.js';
 export * from './submodules.js';
 export * from './lfs.js';

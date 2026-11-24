@@ -114,7 +114,7 @@ Um arquivo `.gitnexus.json` na raiz do repositório define as regras de commit d
 
 - **Operações (desfazer de verdade):** lista tudo o que mudou o HEAD (commits, amends, merges, pulls, rebases, resets, trocas de branch) a partir do reflog. *Desfazer* volta ao estado anterior à operação (e às mais novas), pedindo confirmação com a lista do que será revertido. Commit e amend voltam as alterações ao stage; as demais usam `reset --keep` (preserva o que você tem local e cancela se houver conflito). O próprio desfazer aparece na lista e pode ser desfeito (refazer). Trocas de branch só são desfeitas quando são a operação mais recente, porque o reflog do HEAD não registra de qual branch é cada entrada.
 - **Stash (shelf) com nome:** guarde as alterações com um nome (tudo, ou só alguns arquivos; opcionalmente os arquivos novos e mantendo o que já está no stage). Cada stash lista seus arquivos com o diff; dá para **restaurar só alguns arquivos** (recusa se já tiverem alterações locais, a menos que você confirme sobrescrever), aplicar tudo (mantendo ou removendo), **renomear** e excluir. Conflitos ao aplicar são avisados e o stash é mantido.
-- **Busca no histórico (aba Grafo):** por texto na mensagem, por **código adicionado/removido** (pickaxe, `-S`), por **regex** nas linhas alteradas (`-G`), por autor, arquivo/pasta e data. Clicar num commit mostra a mensagem completa, os arquivos alterados e o diff de cada um.
+- **Busca no histórico (aba Grafo):** quando um texto **entrou ou saiu** (com o selo em cada commit), linhas alteradas que casam, mensagem do commit e o **histórico de um trecho**, por branch, intervalo, autor, período e arquivo; veja [Buscar na história](#buscar-na-história). Clicar num commit mostra a mensagem completa, os arquivos alterados e o diff de cada um.
 - **Pesquisar no repositório** (**Ctrl+F** ou **Ctrl+Shift+F**): veja a seção [Pesquisar no repositório](#pesquisar-no-repositório) abaixo; a antiga aba *Buscar no código* de Ferramentas saiu.
 - **Submódulos** (seção *Submódulos* em Ferramentas, ou a paleta): lista os submódulos do repositório (os de `.gitmodules`) com o **estado** de cada um: *No commit registrado*, *Não inicializado* (clone feito sem eles), *Em outro commit* (típico depois de um pull que mudou o commit registrado) e *Conflito*, mais a marca **Alterações locais** quando há arquivos modificados dentro dele. **Inicializar** baixa os que faltam (`git submodule update --init --recursive`); **Atualizar** leva cada um ao commit que o repositório registra. Nada é descartado: o submódulo com alterações locais, com conflito ou com **commits próprios que o repositório não registrou** é pulado, e a mensagem diz o motivo. As ações perguntam usuário e senha se o servidor pedir (veja Credenciais).
 - **Git LFS** (seção *Git LFS* em Ferramentas, ou a paleta): o LFS guarda arquivos grandes fora do repositório e deixa um **ponteiro** no lugar. O painel detecta o uso (`filter=lfs` em algum `.gitattributes`, inclusive de subpastas) e lista os arquivos do LFS, cada um como **Só o ponteiro** (conteúdo ainda não baixado), **Baixado** ou **Fora da pasta**, com o tamanho real, os padrões (`*.psd`…) e um filtro por nome. **Baixar** (um arquivo) e **Baixar todos os ponteiros** rodam `git lfs pull`, com o diálogo de credenciais se o servidor pedir. Ver o estado não exige o `git-lfs` instalado; baixar exige, e o painel avisa quando ele não está.
@@ -188,6 +188,35 @@ Para saber "onde isso aparece no meu conjunto de projetos?", o botão **Reposit�
 
 ![Tema claro, em inglês](media/pesquisa/multi-claro-en.png)
 
+### Buscar na história
+
+Para saber "quando isso entrou? quando saiu? quem mexeu?", a aba **Grafo** tem o painel **Buscar na história**. Ele usa o mesmo campo da pesquisa (✕, **Aa**, **ab**, **.***) e entrega commits com o **selo do que aconteceu com o texto**.
+
+![Quando o texto entrou ou saiu: cada commit com o selo e o resumo](media/pesquisa/historia-resultados.png)
+
+- **De onde se chega:** o botão **Buscar na história** da janela de pesquisa (leva o texto, as opções, as máscaras, a pasta e o branch ou tag escolhido); na barra do arquivo aberto, **Quando isto entrou ou saiu?** (o texto selecionado) e **Histórico destas linhas** (as linhas selecionadas), também no **botão direito** do editor; e, na paleta (`Ctrl+K`), **Buscar na história**, **Quando isto entrou ou saiu?** e **Histórico destas linhas**.
+
+  ![O botão direito no editor da pesquisa](media/pesquisa/historia-menu.png)
+
+- **O que procurar** (a lista ao lado do campo, em palavras de gente):
+  - **Quando entrou ou saiu** (`git log -S`): commits em que o **número de ocorrências** do texto mudou. É o modo para "quando apareceu esta função?" e "quem a tirou?". Aceita texto de várias linhas.
+  - **Linhas alteradas que casam** (`-G`): commits que mexeram numa linha com o texto, mesmo sem mudar quantas vezes ele aparece (trocar `alvo` por `alvos` entra aqui, mas não no modo anterior).
+  - **Mensagem do commit** (`--grep`).
+- **Aa, ab e .\*:** o campo funciona como o da pesquisa. `Aa` desligado (o padrão) não diferencia maiúsculas: o Git faz isso nos três modos (`--regexp-ignore-case`). `ab` (palavra inteira) **o Git não tem** nos modos `-S` e `-G`: o app pede ao Git as linhas mexidas que têm o texto e **confere no próprio diff** se ele entrou ou saiu como palavra inteira. `.*` é expressão regular POSIX estendida do Git; o destaque e a contagem usam a mesma expressão no JavaScript e, se ela só o Git entende, o commit aparece com o selo "achado" e sem destaque.
+- **O selo de cada commit** (sempre em texto; a cor só reforça): **entrou +2** (só entrou), **saiu −3** (só saiu), **mudou −1 +2** (entrou e saiu no mesmo commit), **mensagem**, ou **achado** (o Git achou, mas o diff não deu para contar: arquivo binário, por exemplo). Os números são ocorrências do texto nos arquivos que a busca tocou.
+- **Um commit aberto** mostra os arquivos que a busca tocou **com a contagem** (−3, +2), e ao escolher um arquivo o diff vem com **cada ocorrência marcada** (fundo e sublinhado, não só cor). Em cada arquivo, **Arquivo nesta versão** abre o conteúdo como estava naquele commit (com o texto marcado), e **Histórico** e **Blame** levam ao arquivo. **Copiar hash**, **Cherry-pick**, **Reverter**, **Rebase** e **Criar tag** seguem no mesmo lugar.
+- **Resumo:** na busca "quando entrou ou saiu", o painel diz a **primeira vez que o texto entrou** e a **última vez que saiu** (um clique seleciona o commit); se há mais páginas, avisa que vale "dentro do que já foi carregado".
+- **Onde procurar:** o **branch atual**, **todos os branches** (locais, remotos e tags, sem o stash), **um branch, tag ou commit**, um **intervalo `A..B`** (`v1.0..main`) ou **só as tags**; além de **autor** (sem diferenciar maiúsculas), **desde / até** (`2026-01-31`, `2 weeks ago`) e **arquivo ou máscara** (`*.ts, !*.test.ts`, as mesmas da pesquisa). Com **um arquivo só** aparece **Seguir renomeações** (`--follow`: o histórico atravessa as renomeações).
+- **Histórico de um trecho** (`git log -L`): os commits que mexeram nas linhas escolhidas, **acompanhando o trecho** mesmo quando o arquivo foi renomeado, com o **diff só do trecho** no detalhe. O chip "Trecho src/main.ts, linhas 2 a 2" mostra o que está valendo e o ✕ volta à busca por texto.
+
+![O histórico de um trecho: os commits e o diff só das linhas](media/pesquisa/historia-trecho.png)
+
+- **Como roda:** no worker, em fluxo: os commits chegam **em lotes** (o mais recente primeiro), o contador diz "**14 commits achados · 6.200 de 20.000 commits examinados**", dá para **Parar** (o `git log` termina de verdade) e a página tem **200 commits**: **Carregar mais** continua de onde parou, sem repetir nenhum. Passou de 60 s, a busca é interrompida e o botão continua dali. Os erros vêm em texto: "A revisão "x" não existe neste repositório.", expressão regular inválida, "Este repositório ainda não tem commits." (que não é erro).
+- **O que a busca não faz:** commits de **merge** não são comparados com os pais (como no `git log -S` puro), então só aparecem se a mensagem casar; com **Seguir renomeações** e no **histórico de um trecho** não há contagem de commits examinados (o Git não dá a ordem do escopo).
+- **Teclado e leitor de tela:** o painel é uma região `search`, os campos têm nome, o contador é uma região `status` educada, o erro é um `alert` e cada commit da lista é um botão (`Tab` chega, `Enter` ou `Espaço` abre) com o nome "entrou +1: assunto". Mensagens em pt-BR e en, tema claro e escuro.
+
+![Tema claro, em inglês](media/pesquisa/historia-claro-en.png)
+
 ### Só com o teclado e com leitor de tela
 
 O fluxo inteiro (abrir, digitar, andar pelos resultados, trocar de arquivo, editar, salvar e fechar) se faz sem tocar no mouse, e o teste `search-teclado.mjs` o percorre com teclas de verdade.
@@ -217,8 +246,12 @@ Medido em 24/11/2026 numa máquina de desenvolvimento (Windows 11, Git instalado
 | Vários repositórios, 10 x 5 mil arquivos: primeiro lote de resultados | até 500 ms | **331 ms** |
 | Vários repositórios, 10 x 5 mil arquivos: busca completa até o limite geral (5 mil ocorrências) | — | **2,0 s** |
 | Vários repositórios: Parar com tudo em andamento e na fila | até 100 ms | **17 ms** (10 de 10 repositórios parados) |
+| História, 20 mil commits: primeiro lote de commits | — | **400 a 500 ms** (o Git precisa abrir o repositório e achar o segundo commit) |
+| História, 20 mil commits: varredura completa atrás de um texto que só existe no commit mais antigo | — | **2,0 a 3,0 s** |
+| História, 20 mil commits: Parar uma busca em andamento | até 100 ms | **3 a 9 ms** |
+| História, 20 mil commits: uma página de 200 commits e a seguinte ("Carregar mais") | — | **0,6 a 0,9 s** / **0,6 s** |
 
-Como repetir: `search-window-perf.mjs` (5 mil resultados, rolagem e 30 mil linhas; roda sempre) e, para os 20 mil arquivos, `GN_SEARCH_FILES=20000 GN_SEARCH_KEEP=1 npx vitest run packages/git-core/test/search-run.test.ts -t "arquivos numerosos"` (o núcleo; gera o repositório em `<TEMP>/gitnexus-search-big-20000`, o que leva minutos) e depois `GN_SEARCH_BIG=<essa pasta>` no `search-window-perf.mjs` (a interface). As medidas da interface saem em `search-window-perf-metrics.json`. Para os vários repositórios: `GN_MULTI_FILES=5000 npx vitest run apps/studio/test/multi-search-perf.test.ts` (gera 10 repositórios de 5 mil arquivos e imprime `MULTI primeiro-lote`, `cancelar-todos` e `limite-global`).
+Como repetir: `search-window-perf.mjs` (5 mil resultados, rolagem e 30 mil linhas; roda sempre) e, para os 20 mil arquivos, `GN_SEARCH_FILES=20000 GN_SEARCH_KEEP=1 npx vitest run packages/git-core/test/search-run.test.ts -t "arquivos numerosos"` (o núcleo; gera o repositório em `<TEMP>/gitnexus-search-big-20000`, o que leva minutos) e depois `GN_SEARCH_BIG=<essa pasta>` no `search-window-perf.mjs` (a interface). As medidas da interface saem em `search-window-perf-metrics.json`. Para os vários repositórios: `GN_MULTI_FILES=5000 npx vitest run apps/studio/test/multi-search-perf.test.ts` (gera 10 repositórios de 5 mil arquivos e imprime `MULTI primeiro-lote`, `cancelar-todos` e `limite-global`). Para a história: `GN_HIST_COMMITS=20000 npx vitest run packages/git-core/test/history-search-perf.test.ts --silent=false` (gera o repositório com `git fast-import` e imprime as linhas `HIST ...`).
 
 ## Pesquisar dentro de um arquivo
 

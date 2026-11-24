@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { runGit } from '@git-nexus/git-core';
-import type { SearchBatchEvent, SearchDone } from '@git-nexus/git-core/pure';
+import type { HistoryBatchEvent, HistoryDone, SearchBatchEvent, SearchDone } from '@git-nexus/git-core/pure';
 import { createHandlers, type HandlerEvent } from '../src/worker/handlers';
 
 // `startSearch` / `cancelSearch` no worker: o id é do chamador, os lotes e o fim sobem como eventos e cancelar encerra de verdade.
@@ -124,5 +124,58 @@ describe('startMultiSearch (vários repositórios)', () => {
     const d = await done(sub('m3', a.id));
     expect(d.repoId).toBe(a.id);
     await expect(handlers.cancelSearch(sub('m3', 'x'))).resolves.toBeUndefined();
+  });
+});
+
+describe('startHistorySearch (busca na história)', () => {
+  const hdone = async (id: string): Promise<HistoryDone> => {
+    for (let i = 0; i < 400; i++) {
+      const e = events.find((x) => x.event === 'historyDone' && x.data.id === id);
+      if (e) return e.data as HistoryDone;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    throw new Error('a busca na história não terminou');
+  };
+  const hbatches = (id: string) => events.filter((e): e is { event: 'historyBatch'; data: HistoryBatchEvent } => e.event === 'historyBatch' && e.data.id === id);
+  let hrepo: string;
+  const commit = async (msg: string, content: string) => {
+    writeFileSync(join(hrepo, 'f.txt'), content);
+    await runGit(hrepo, ['add', '.']);
+    await runGit(hrepo, ['-c', 'user.name=T', '-c', 'user.email=t@e.com', '-c', 'commit.gpgsign=false', 'commit', '-qm', msg]);
+  };
+  beforeAll(async () => {
+    hrepo = join(root, 'hist');
+    await runGit(root, ['init', '-b', 'main', hrepo]);
+    await commit('um', 'a\nagulha\n');
+    await commit('dois', 'a\n');
+    await commit('tres', 'a\nagulha\nagulha\n');
+  });
+
+  it('volta na hora; os commits chegam em lotes com o id do chamador e o fim traz o resumo', async () => {
+    await handlers.startHistorySearch(hrepo, { text: 'agulha' }, 'h1');
+    const d = await hdone('h1');
+    expect(d).toMatchObject({ id: 'h1', ok: true, count: 3, cancelled: false, truncated: false, total: 3, examined: 3 });
+    const hits = hbatches('h1').flatMap((b) => b.data.hits);
+    expect(hits.map((h) => [h.subject, h.kind])).toEqual([['tres', 'added'], ['dois', 'removed'], ['um', 'added']]);
+  });
+
+  it('cancelar encerra (cancelled) e o mesmo id reiniciado cancela a anterior', async () => {
+    await handlers.startHistorySearch(hrepo, { text: 'agulha' }, 'h2');
+    await handlers.cancelSearch('h2');
+    expect((await hdone('h2')).cancelled).toBe(true);
+    await handlers.startHistorySearch(hrepo, { text: 'agulha' }, 'h3');
+    await handlers.startHistorySearch(hrepo, { text: 'a', mode: 'message' }, 'h3');
+    const finals: HistoryDone[] = [];
+    for (let i = 0; i < 400 && finals.length < 2; i++) {
+      finals.length = 0;
+      finals.push(...events.filter((e): e is { event: 'historyDone'; data: HistoryDone } => e.event === 'historyDone' && e.data.id === 'h3').map((e) => e.data));
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    expect(finals).toHaveLength(2);
+  });
+
+  it('pedido recusado chega como fim com a mensagem, sem lançar', async () => {
+    await handlers.startHistorySearch(hrepo, { text: 'x', include: '../fora' }, 'h4');
+    expect(await hdone('h4')).toMatchObject({ ok: false });
   });
 });

@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { GnBadge, GnButton, GnIconButton, GnTooltip } from '@git-nexus/ui-kit';
-import { buildGraph, type CiStatus, type CommitDetail, type CommitInfo, type HistorySearchMode, type RepositoryMeta } from '@git-nexus/git-core/pure';
+import { computed, onMounted, ref, watch } from 'vue';
+import { GnBadge, GnButton, GnDialog, GnIconButton, GnTooltip } from '@git-nexus/ui-kit';
+import { buildGraph, type CiStatus, type CommitDetail, type CommitInfo, type FileAtRevision, type HistoryHit, type HistoryQuery, type RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { useWorkspaceStore } from '../stores/workspace';
 import { dateLocale, t, type MessageKey } from '../i18n';
-import ComboBox from '../components/ComboBox.vue';
+import { KIND_KEY, KIND_TONE, diffLines, kindNumbers, rangerFor } from '../history-search-core';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
+import CodeEditor from '../components/CodeEditor.vue';
+import HistorySearch from '../components/HistorySearch.vue';
 
 const props = defineProps<{ repo: RepositoryMeta }>();
 const ws = useWorkspaceStore();
@@ -20,39 +22,31 @@ const limit = ref(300);
 const error = ref('');
 const loading = ref(false);
 const selectedHash = ref('');
-const searchModes = computed(() => [
-  { value: 'message', label: t('gv.modeMessage') },
-  { value: 'content', label: t('gv.modeContent') },
-  { value: 'regex', label: t('gv.modeRegex') },
-]);
 
 const layout = computed(() => buildGraph(commits.value));
 const graphW = computed(() => Math.max(1, layout.value.lanes) * COL_W + 8);
-// --- busca no histórico ---------------------------------------------------------------------
-const q = reactive({ text: '', mode: 'message' as HistorySearchMode, author: '', path: '', since: '' });
-/** Resultado da busca (sem o desenho do grafo: o conjunto filtrado não forma linhas contínuas). */
-const results = ref<CommitInfo[] | null>(null);
-const searching = ref(false);
-const hasFilter = computed(() => !!(q.text.trim() || q.author.trim() || q.path.trim() || q.since.trim()));
-const shown = computed(() => results.value ?? commits.value);
-const selected = computed(() => shown.value.find((c) => c.hash === selectedHash.value));
 
-async function runSearch(): Promise<void> {
-  if (!hasFilter.value) return clearSearch();
-  searching.value = true;
-  error.value = '';
-  try {
-    results.value = await api.searchHistory(props.repo.path, { ...q }, 500);
-  } catch (e) {
-    error.value = errMsg(e);
-  } finally {
-    searching.value = false;
-  }
-}
-function clearSearch(): void {
-  Object.assign(q, { text: '', author: '', path: '', since: '' });
-  results.value = null;
-}
+// --- busca na história (fase 9 da #233): o painel manda os commits achados, a lista os mostra ------------------------
+/** Resultado da busca (sem o desenho do grafo: o conjunto filtrado não forma linhas contínuas). `null` = nenhuma busca na tela. */
+const hits = ref<HistoryHit[] | null>(null);
+/** O pedido da busca que está na tela: o destaque do diff usa o mesmo texto e as mesmas opções. */
+const active = ref<HistoryQuery | null>(null);
+const searching = ref(false);
+/** Um pedido de fora (janela de pesquisa, editor, paleta) para este repositório. */
+const target = computed(() => (ws.historyTarget && ws.historyTarget.repoId === props.repo.id ? ws.historyTarget : null));
+const shown = computed<CommitInfo[]>(() => hits.value ?? commits.value);
+const selected = computed(() => shown.value.find((c) => c.hash === selectedHash.value));
+const hitOf = (c: CommitInfo | undefined): HistoryHit | undefined => (c && 'kind' in c ? (c as HistoryHit) : undefined);
+const selectedHit = computed(() => hitOf(selected.value));
+const ranger = computed(() => (active.value ? rangerFor(active.value) : null));
+/** O selo só aparece quando a busca tem texto (uma busca só por autor ou período não tem "entrou/saiu"). */
+const showKind = (h: HistoryHit): boolean => !!active.value?.text || active.value?.mode === 'range' || h.kind === 'message';
+const kindText = (h: HistoryHit): string => `${t(KIND_KEY[h.kind])}${kindNumbers(h) ? ' ' + kindNumbers(h) : ''}`;
+const rowLabel = (c: CommitInfo): string => {
+  const h = hitOf(c);
+  return h && showKind(h) ? t('hs.rowLabel', { kind: t(KIND_KEY[h.kind]), nums: kindNumbers(h), subject: c.subject }) : c.subject;
+};
+const KIND_TIP = { added: 'hs.kindTip.added', removed: 'hs.kindTip.removed', changed: 'hs.kindTip.changed', message: 'hs.kindTip.message', unknown: 'hs.kindTip.unknown' } as const;
 
 // --- detalhe do commit: mensagem completa, arquivos e diff ---------------------------------------
 const detail = ref<CommitDetail | null>(null);
@@ -65,6 +59,9 @@ const canCi = () => (hostingReady ??= api.hostingInfo(props.repo.path).then((i) 
 const failUrl = computed(() => ci.value?.checks.find((c) => c.state === 'failure')?.url);
 const diffFile = ref('');
 const diffText = ref('');
+/** O diff do arquivo escolhido, linha a linha, com o que a busca procurou marcado nas linhas + e −. */
+const diffRows = computed(() => diffLines(diffText.value, ranger.value));
+const patchRows = computed(() => (selectedHit.value?.patch ? diffLines(selectedHit.value.patch, null) : []));
 watch(selectedHash, async (h) => {
   ci.value = null;
   if (h && (await canCi())) api.getCiStatus(props.repo.path, h).then((s) => h === selectedHash.value && (ci.value = s)).catch(() => undefined);
@@ -84,6 +81,41 @@ async function showFile(f: string): Promise<void> {
   diffText.value = await api.getCommitFileDiff(props.repo.path, selectedHash.value, f);
 }
 const STATUS: Record<string, MessageKey> = { A: 'gv.st.A', M: 'gv.st.M', D: 'gv.st.D', T: 'gv.st.T' };
+/** O que a busca contou neste arquivo do commit (`null` = a busca não tocou nele). */
+const touched = (path: string) => selectedHit.value?.files.find((f) => f.path === path || f.oldPath === path) ?? null;
+const countText = (f: { added: number; removed: number }) => [f.removed ? `−${f.removed}` : '', f.added ? `+${f.added}` : ''].filter(Boolean).join(' ');
+async function copyHash(): Promise<void> {
+  if (selected.value) await api.copyText(selected.value.hash).catch(() => undefined);
+}
+
+// --- arquivo nesta versão -----------------------------------------------------------------------
+const fileAt = ref<{ hash: string; file: string; data: FileAtRevision | null; error: string } | null>(null);
+async function openFileAt(file: string): Promise<void> {
+  const hash = selectedHash.value;
+  fileAt.value = { hash, file, data: null, error: '' };
+  try {
+    const data = await api.getFileAtRevision(props.repo.path, hash, file);
+    if (fileAt.value?.hash === hash && fileAt.value.file === file) fileAt.value.data = data;
+  } catch (e) {
+    if (fileAt.value) fileAt.value.error = errMsg(e);
+  }
+}
+/** Onde a busca casa no arquivo daquela versão (o editor marca; no máximo 3000 trechos). */
+const fileAtMarks = computed(() => {
+  const text = fileAt.value?.data?.text;
+  const r = ranger.value;
+  if (!text || !r) return [];
+  const out: Array<{ line: number; from: number; to: number }> = [];
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length && out.length < 3000; i++) for (const [from, to] of r.ranges(lines[i]!.replace(/\r$/, ''))) out.push({ line: i + 1, from, to });
+  return out;
+});
+const fileAtMessage = computed(() => {
+  const d = fileAt.value?.data;
+  if (!d) return '';
+  if (!d.exists) return t('hs.fileAtGone');
+  return d.tooBig || d.binary ? t('hs.fileAtBig') : '';
+});
 
 const x = (lane: number) => lane * COL_W + COL_W / 2 + 2;
 const color = (lane: number) => COLORS[lane % COLORS.length]!;
@@ -130,6 +162,7 @@ async function runCommitOp(): Promise<void> {
 
 const fmtDate = (s: number) => new Date(s * 1000).toLocaleString(dateLocale.value);
 const refTone = (r: string) => (r.startsWith('HEAD') ? 'accent' : r.startsWith('tag:') ? 'warn' : r.includes('/') ? 'neutral' : 'success');
+const pick = (hash: string) => (selectedHash.value = hash);
 
 onMounted(load);
 watch(() => ws.versions[props.repo.id], load);
@@ -139,35 +172,34 @@ watch(() => ws.versions[props.repo.id], load);
   <div class="gv">
     <header class="gv__head">
       <strong>{{ repo.name }}</strong>
-      <span class="muted">{{ results ? t('gv.results', { n: results.length }) : t('gv.commitsAll', { n: commits.length }) }}</span>
+      <span class="muted">{{ hits ? t('gv.results', { n: hits.length }) : t('gv.commitsAll', { n: commits.length }) }}</span>
       <span class="spacer" />
       <GnButton size="sm" :disabled="loading" @click="load">{{ t('rv.refresh') }}</GnButton>
       <GnButton size="sm" tone="accent" @click="ws.open('repo', repo)">{{ t('gv.backToStaging') }}</GnButton>
     </header>
-    <form class="gv__search" @submit.prevent="runSearch">
-      <ComboBox v-model="q.mode" :options="searchModes" :title="t('gv.whereToSearch')" />
-      <input v-model="q.text" class="gv__q" :placeholder="t('gv.textPh')" spellcheck="false" />
-      <input v-model="q.author" :placeholder="t('gv.authorPh')" spellcheck="false" />
-      <input v-model="q.path" :placeholder="t('gv.pathPh')" spellcheck="false" />
-      <input v-model="q.since" :placeholder="t('gv.sincePh')" spellcheck="false" />
-      <GnButton size="sm" tone="accent" type="submit" :disabled="searching || !hasFilter">{{ t('gv.search') }}</GnButton>
-      <GnButton v-if="results" size="sm" type="button" @click="clearSearch">{{ t('gv.clear') }}</GnButton>
-    </form>
+    <HistorySearch v-model:hits="hits" v-model:active="active" v-model:running="searching" :repo="repo" :target="target" :selected="selectedHash" @select="pick" @consumed="ws.historyTarget = null" />
     <p v-if="error" class="err">{{ error }}</p>
-    <p v-else-if="results && !results.length" class="muted empty">{{ t('gv.noMatch') }}</p>
-    <p v-else-if="!commits.length && !loading" class="muted empty">{{ t('gv.noCommits') }}</p>
+    <p v-else-if="hits && !hits.length && !searching" class="muted empty" data-testid="gv-nomatch">{{ t('gv.noMatch') }}</p>
+    <p v-else-if="!commits.length && !loading && !hits" class="muted empty">{{ t('gv.noCommits') }}</p>
 
     <div class="gv__body">
-      <div class="gv__list">
+      <div class="gv__list" data-testid="gv-list">
         <div
           v-for="(c, i) in shown"
           :key="c.hash"
           class="row"
           :class="{ 'row--on': c.hash === selectedHash }"
           :style="{ height: ROW_H + 'px' }"
+          role="button"
+          tabindex="0"
+          :aria-pressed="c.hash === selectedHash"
+          :aria-label="rowLabel(c)"
+          data-testid="gv-row"
           @click="selectedHash = c.hash"
+          @keydown.enter.prevent="selectedHash = c.hash"
+          @keydown.space.prevent="selectedHash = c.hash"
         >
-          <svg v-if="!results" class="row__graph" :width="graphW" :height="ROW_H">
+          <svg v-if="!hits" class="row__graph" :width="graphW" :height="ROW_H" aria-hidden="true">
             <g v-if="layout.rows[i]" fill="none" stroke-width="2">
               <line
                 v-for="lane in layout.rows[i]!.through"
@@ -195,18 +227,21 @@ watch(() => ws.versions[props.repo.id], load);
             />
           </svg>
           <div class="row__text">
+            <GnBadge v-if="hitOf(c) && showKind(hitOf(c)!)" :tone="KIND_TONE[hitOf(c)!.kind]" class="row__kind" data-testid="gv-kind" :data-kind="hitOf(c)!.kind">
+              {{ kindText(hitOf(c)!) }}<GnTooltip :text="t(KIND_TIP[hitOf(c)!.kind])" />
+            </GnBadge>
             <GnBadge v-for="r in c.refs" :key="r" :tone="refTone(r)">{{ r }}</GnBadge>
             <span class="row__subject">{{ c.subject }}</span>
           </div>
           <span class="row__meta muted">{{ c.author }}</span>
           <span class="row__meta muted">{{ c.shortHash }}</span>
         </div>
-        <div v-if="!results && commits.length >= limit" class="more">
+        <div v-if="!hits && commits.length >= limit" class="more">
           <GnButton size="sm" :disabled="loading" @click="more">{{ t('gv.loadMore') }}</GnButton>
         </div>
       </div>
 
-      <aside v-if="selected" class="gv__detail">
+      <aside v-if="selected" class="gv__detail" data-testid="gv-detail">
         <h3>{{ selected.subject }}</h3>
         <dl>
           <dt>{{ t('gv.hash') }}</dt><dd class="mono">{{ selected.hash }}</dd>
@@ -214,6 +249,10 @@ watch(() => ws.versions[props.repo.id], load);
           <dt>{{ t('gv.date') }}</dt><dd>{{ fmtDate(selected.date) }}</dd>
           <dt>{{ t('gv.parents') }}</dt><dd class="mono">{{ selected.parents.map((p) => p.slice(0, 7)).join(', ') || '—' }}</dd>
         </dl>
+        <div v-if="selectedHit && showKind(selectedHit)" class="gv__hit" data-testid="gv-hit">
+          <GnBadge :tone="KIND_TONE[selectedHit.kind]">{{ kindText(selectedHit) }}<GnTooltip :text="t(KIND_TIP[selectedHit.kind])" /></GnBadge>
+        </div>
+        <GnButton size="sm" class="gv__rb" data-testid="gv-copy-hash" @click="copyHash">{{ t('hs.copyHash') }}</GnButton>
         <div v-if="ci" class="gv__ci">
           <GnBadge :tone="CI_TONE[ci.state]">{{ t(CI_TEXT[ci.state]) }}<GnTooltip :text="ci.checks.map((c) => `${c.name}: ${c.state}`).join('\n')" /></GnBadge>
           <GnButton v-if="failUrl" size="sm" tone="danger" @click="api.hostingOpen(repo.path, failUrl!)">{{ t('gv.seeFailure') }}</GnButton>
@@ -235,17 +274,22 @@ watch(() => ws.versions[props.repo.id], load);
         </div>
         <p v-if="opNotice" class="gv__opnote" :class="opNotice.ok ? 'gv__opnote--ok' : 'gv__opnote--err'" role="status" data-testid="gv-op-notice">{{ opNotice.text }}</p>
         <pre v-if="detail && detail.message.includes('\n')" class="gv__msg">{{ detail.message }}</pre>
+        <template v-if="patchRows.length">
+          <h4>{{ t('hs.showPatch') }}</h4>
+          <pre class="gv__diff" data-testid="gv-patch"><template v-for="(l, i) in patchRows" :key="i"><span :class="l.kind === 'add' ? 'a' : l.kind === 'del' ? 'd' : l.kind === 'hunk' ? 'h' : ''">{{ l.segments.map((s) => s.text).join('') }}{{ '\n' }}</span></template></pre>
+        </template>
         <h4 v-if="detail">{{ t('gv.filesChanged', { n: detail.files.length }) }}</h4>
         <ul v-if="detail" class="gv__files">
-          <li v-for="f in detail.files" :key="f.path" :class="{ on: diffFile === f.path }" @click="showFile(f.path)">
+          <li v-for="f in detail.files" :key="f.path" :class="{ on: diffFile === f.path, touched: !!touched(f.path) }" data-testid="gv-file" @click="showFile(f.path)">
             <GnBadge :tone="f.status === 'D' ? 'danger' : f.status === 'A' ? 'success' : 'accent'">{{ STATUS[f.status] ? t(STATUS[f.status]!) : f.status }}</GnBadge>
             <span class="gv__fpath">{{ f.path }}<GnTooltip :text="f.path" /></span>
+            <span v-if="touched(f.path)" class="gv__cnt" data-testid="gv-file-count">{{ touched(f.path)!.binary ? t('hs.binary') : countText(touched(f.path)!) }}</span>
+            <GnIconButton icon="external" :label="t('hs.fileAt')" data-testid="gv-file-at" @click.stop="openFileAt(f.path)" />
             <GnIconButton icon="history" :label="t('gv.fileHistory')" @click.stop="ws.openTools(repo, 'file', f.path, 'history')" />
             <GnIconButton icon="person" :label="t('gv.blame')" @click.stop="ws.openTools(repo, 'file', f.path, 'blame')" />
           </li>
         </ul>
-        <pre v-if="diffFile" class="gv__diff"><template v-for="(l, i) in diffText.split('\n')" :key="i"><span :class="l.startsWith('+') && !l.startsWith('+++') ? 'a' : l.startsWith('-') && !l.startsWith('---') ? 'd' : l.startsWith('@@') ? 'h' : ''">{{ l }}
-</span></template></pre>
+        <pre v-if="diffFile" class="gv__diff" data-testid="gv-diff"><template v-for="(l, i) in diffRows" :key="i"><span :class="l.kind === 'add' ? 'a' : l.kind === 'del' ? 'd' : l.kind === 'hunk' ? 'h' : ''"><template v-for="(s, j) in l.segments" :key="j"><mark v-if="s.hit" class="gv__m">{{ s.text }}</mark><template v-else>{{ s.text }}</template></template>{{ '\n' }}</span></template></pre>
       </aside>
     </div>
     <ConfirmDialog
@@ -256,6 +300,20 @@ watch(() => ws.versions[props.repo.id], load);
       @confirm="runCommitOp"
       @cancel="ask = null"
     />
+    <GnDialog v-if="fileAt" width="min(1100px, 94vw)" max-height="88vh" :label="t('hs.fileAtTitle', { file: fileAt.file, hash: fileAt.hash.slice(0, 7) })" @close="fileAt = null">
+      <div class="gv__fa" data-testid="gv-file-at-dialog">
+        <header class="gv__fa-head">
+          <strong class="mono">{{ t('hs.fileAtTitle', { file: fileAt.file, hash: fileAt.hash.slice(0, 7) }) }}</strong>
+          <span class="spacer" />
+          <GnButton size="sm" data-testid="gv-file-at-close" @click="fileAt = null">{{ t('hs.close') }}</GnButton>
+        </header>
+        <p v-if="fileAt.error" class="err" role="alert">{{ fileAt.error }}</p>
+        <p v-else-if="fileAtMessage" class="muted empty" role="status">{{ fileAtMessage }}</p>
+        <div v-else-if="fileAt.data" class="gv__fa-body">
+          <CodeEditor :model-value="fileAt.data.text" read-only :filename="fileAt.file" :marks="fileAtMarks" />
+        </div>
+      </div>
+    </GnDialog>
   </div>
 </template>
 
@@ -265,17 +323,22 @@ watch(() => ws.versions[props.repo.id], load);
   &__head { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--gn-border); }
   &__body { flex: 1; min-height: 0; display: flex; }
   &__list { flex: 1; overflow: auto; min-width: 0; }
-  &__search { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 14px; border-bottom: 1px solid var(--gn-border); input, select { min-width: 0; } }
-  &__q { flex: 1; min-width: 160px; }
   &__rb { margin-top: 10px; }
+  &__hit { margin-top: 10px; }
   &__ci { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
   &__msg { white-space: pre-wrap; font-family: var(--gn-mono); font-size: 12px; background: var(--gn-bg); padding: 8px 10px; border-radius: var(--gn-radius); margin: 10px 0 0; }
-  &__files { list-style: none; margin: 6px 0 0; padding: 0; li { display: flex; align-items: center; gap: 6px; padding: 3px 4px; cursor: pointer; font-size: 12px; border-radius: 4px; &:hover, &.on { background: var(--gn-surface-2); } } }
+  &__files { list-style: none; margin: 6px 0 0; padding: 0; li { display: flex; align-items: center; gap: 6px; padding: 3px 4px; cursor: pointer; font-size: 12px; border-radius: 4px; &:hover, &.on { background: var(--gn-surface-2); } &.touched .gv__fpath { font-weight: 600; } } }
   &__fpath { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--gn-mono); }
+  &__cnt { font-family: var(--gn-mono); font-size: 11px; color: var(--gn-muted); white-space: nowrap; }
   &__diff { margin: 8px 0 0; padding: 8px 10px; background: var(--gn-bg); border: 1px solid var(--gn-border); border-radius: var(--gn-radius); font-family: var(--gn-mono); font-size: 11.5px; overflow: auto; max-height: 340px; .a { color: var(--gn-success); } .d { color: var(--gn-danger); } .h { color: var(--gn-accent); } }
+  /* o que a busca procurou: fundo E sublinhado (nunca só cor) */
+  &__m { background: color-mix(in srgb, var(--gn-warn) 38%, transparent); color: inherit; text-decoration: underline; text-underline-offset: 2px; border-radius: 2px; }
   &__ops { display: flex; gap: 8px; margin-top: 8px; }
   &__opnote { margin: 8px 0 0; padding: 6px 10px; font-size: 12px; border-radius: var(--gn-radius); border: 1px solid var(--gn-border); &--ok { color: var(--gn-success); border-color: var(--gn-success); } &--err { color: var(--gn-warn); border-color: var(--gn-warn); } }
   &__detail { width: 420px; border-left: 1px solid var(--gn-border); padding: 14px; overflow: auto; h3 { margin: 0 0 10px; font-size: 14px; } }
+  &__fa { display: flex; flex-direction: column; height: 76vh; min-height: 0; }
+  &__fa-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--gn-border); }
+  &__fa-body { flex: 1; min-height: 0; }
 }
 .spacer { flex: 1; }
 .muted { color: var(--gn-muted); }
@@ -287,6 +350,7 @@ watch(() => ws.versions[props.repo.id], load);
   &--on { background: rgba(79, 134, 247, 0.18); }
   &__graph { flex-shrink: 0; }
   &__text { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; overflow: hidden; }
+  &__kind { flex-shrink: 0; font-family: var(--gn-mono); }
   &__subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   &__meta { font-size: 11px; white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
 }

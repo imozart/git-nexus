@@ -16,6 +16,14 @@ const messages = {
   'search.badRevision': 'Revisão inválida: {rev}',
   'search.noRevision': 'A revisão "{rev}" não existe neste repositório.',
   'search.timeout': 'A busca passou de {s} s e foi interrompida: refine o texto ou os filtros.',
+  // busca na história (history-search.ts)
+  'history.emptyQuery': 'Escreva o texto procurado ou use um filtro (autor, período, arquivo).',
+  'history.multiline': 'Neste modo o texto tem de caber numa linha só: use "Quando entrou ou saiu" para texto de várias linhas.',
+  'history.badFollow': 'Seguir renomeações só vale com um arquivo (sem máscara nem pasta).',
+  'history.badLines': 'Escolha um arquivo e as linhas (de 1, a inicial não passa da final).',
+  'history.badDate': 'Data inválida: {value}',
+  'history.noCommits': 'Este repositório ainda não tem commits.',
+  'history.noGit': 'O Git não foi encontrado neste computador.',
   // janela (main.ts)
   'window.err.titleBarColors': 'Cores da barra de título inválidas.',
   // instalação do Git (git-install.ts)

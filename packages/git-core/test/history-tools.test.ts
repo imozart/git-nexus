@@ -6,6 +6,7 @@ import {
   getBlame,
   getCommitDetail,
   getCommitFileDiff,
+  getFileAtRevision,
   getFileHistory,
   listTrackedFiles,
   parseBlame,
@@ -110,5 +111,26 @@ describe('blame', () => {
     writeFileSync(join(repo, 'solto.txt'), 'x\n');
     await expect(getBlame(repo, 'solto.txt')).rejects.toThrow();
     expect(parseBlame('')).toEqual([]);
+  });
+});
+
+describe('arquivo numa revisão', () => {
+  it('devolve o texto como estava naquele commit; arquivo que ainda não existia vem como "não existe"', async () => {
+    const a = await getFileAtRevision(repo, hashes['feat: cria a']!, 'a.txt');
+    expect(a).toMatchObject({ exists: true, binary: false, tooBig: false });
+    expect(a.text.replace(/\r\n/g, '\n')).toBe('um\ndois\n');
+    const b = await getFileAtRevision(repo, hashes['feat: cria a']!, 'b.txt');
+    expect(b).toMatchObject({ exists: false, text: '' });
+  });
+  it('recusa hash inválido e caminho fora do repositório', async () => {
+    await expect(getFileAtRevision(repo, '--output=x', 'a.txt')).rejects.toThrow();
+    await expect(getFileAtRevision(repo, hashes['feat: cria a']!, '../fora')).rejects.toThrow();
+  });
+  it('binário não devolve texto', async () => {
+    writeFileSync(join(repo, 'bin.dat'), Buffer.from([1, 2, 0, 3, 4]));
+    await git('add', 'bin.dat');
+    await git('commit', '-m', 'bin');
+    const h = (await git('rev-parse', 'HEAD')).stdout.trim();
+    expect(await getFileAtRevision(repo, h, 'bin.dat')).toMatchObject({ exists: true, binary: true, text: '' });
   });
 });

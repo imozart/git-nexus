@@ -23,10 +23,12 @@ const props = withDefaults(
     highlightConflicts?: boolean;
     /** Trechos a destacar, vindos de fora (a pesquisa do repositório): linha (de 1) e colunas na linha. */
     marks?: Array<{ line: number; from: number; to: number }>;
+    /** O botão direito emite `menu` (no lugar do menu do navegador): quem usa mostra as ações da seleção. */
+    contextMenu?: boolean;
   }>(),
-  { readOnly: false, filename: '', highlightConflicts: false, marks: undefined },
+  { readOnly: false, filename: '', highlightConflicts: false, marks: undefined, contextMenu: false },
 );
-const emit = defineEmits<{ (e: 'update:modelValue', v: string): void }>();
+const emit = defineEmits<{ (e: 'update:modelValue', v: string): void; (e: 'menu', at: { x: number; y: number }): void }>();
 
 const host = ref<HTMLDivElement>();
 let view: EditorView | null = null;
@@ -148,6 +150,17 @@ function extensions(): Extension[] {
       ...defaultKeymap,
       ...historyKeymap,
     ]),
+    ...(props.contextMenu
+      ? [
+          EditorView.domEventHandlers({
+            contextmenu: (e) => {
+              e.preventDefault();
+              emit('menu', { x: e.clientX, y: e.clientY });
+              return true;
+            },
+          }),
+        ]
+      : []),
     EditorState.readOnly.of(props.readOnly),
     EditorView.editable.of(!props.readOnly),
     EditorView.updateListener.of((u) => {
@@ -228,7 +241,18 @@ function reveal(line: number, from: number, to: number, focus = false): void {
 }
 const focusEditor = (): void => view?.focus();
 
-defineExpose({ scrollTo, openFind, reveal, focus: focusEditor });
+/** O texto selecionado e as linhas que a seleção cobre (de 1); sem seleção, a linha do cursor e o texto vazio. */
+function selectionInfo(): { text: string; startLine: number; endLine: number } {
+  if (!view) return { text: '', startLine: 1, endLine: 1 };
+  const { from, to } = view.state.selection.main;
+  const doc = view.state.doc;
+  const startLine = doc.lineAt(from).number;
+  // uma seleção que termina no começo de uma linha não cobre essa linha
+  const endLine = to > from && doc.lineAt(to).from === to ? Math.max(startLine, doc.lineAt(to).number - 1) : doc.lineAt(to).number;
+  return { text: view.state.sliceDoc(from, to), startLine, endLine };
+}
+
+defineExpose({ scrollTo, openFind, reveal, focus: focusEditor, selectionInfo });
 </script>
 
 <template>
