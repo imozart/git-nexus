@@ -2,11 +2,12 @@
 // Preferências da janela: valem entre aberturas (a janela "reabre onde estava": texto, opções, máscaras, filtros e a divisória).
 import { reactive } from 'vue';
 import { clampSplit } from '../search-window-core';
+import { MAX_SELECTED, readSets, type RepoSet } from '../multi-search-core';
 import { DEFAULT_FILTERS, readFilters, readHistory, type HistoryEntry } from '../search-filters-core';
 
 const KEY = 'gitnexus.searchWindow';
 function load() {
-  const base = { pattern: '', regex: false, caseSensitive: false, wholeWord: false, include: '', split: 0.4, replaceText: '', preserveCase: false, ...DEFAULT_FILTERS };
+  const base = { pattern: '', regex: false, caseSensitive: false, wholeWord: false, include: '', split: 0.4, replaceText: '', preserveCase: false, repoIds: [] as string[], multi: false, ...DEFAULT_FILTERS };
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<typeof base>;
     return {
@@ -18,6 +19,9 @@ function load() {
       split: clampSplit(typeof raw.split === 'number' ? raw.split : base.split),
       replaceText: typeof raw.replaceText === 'string' ? raw.replaceText.slice(0, 4000) : '',
       preserveCase: raw.preserveCase === true,
+      // a última seleção de repositórios (busca em vários) e se a janela estava nesse modo
+      repoIds: Array.isArray(raw.repoIds) ? raw.repoIds.filter((x): x is string => typeof x === 'string').slice(0, MAX_SELECTED) : [],
+      multi: raw.multi === true,
       ...readFilters(raw),
     };
   } catch {
@@ -64,6 +68,22 @@ function saveHistory(repoId: string, list: HistoryEntry[]): void {
     /* sem armazenamento: só não lembra */
   }
 }
+/** Os conjuntos de repositórios salvos ("Backend", "Front"): preferência do usuário, valem para qualquer repositório. */
+const SETS_KEY = 'gitnexus.searchRepoSets';
+function loadSets(): RepoSet[] {
+  try {
+    return readSets(JSON.parse(localStorage.getItem(SETS_KEY) ?? '[]'));
+  } catch {
+    return [];
+  }
+}
+function saveSets(list: RepoSet[]): void {
+  try {
+    localStorage.setItem(SETS_KEY, JSON.stringify(list));
+  } catch {
+    /* sem armazenamento: só não lembra */
+  }
+}
 </script>
 
 <script setup lang="ts">
@@ -75,6 +95,7 @@ import { locale, t, type MessageKey } from '../i18n';
 import { useWorkspaceStore } from '../stores/workspace';
 import CodeEditor from './CodeEditor.vue';
 import SearchFilters from './SearchFilters.vue';
+import SearchRepos from './SearchRepos.vue';
 import {
   NO_HIDDEN,
   ROW_H,
@@ -115,6 +136,22 @@ import {
 import type { SearchPreset } from '../stores/search';
 import { makeQuery } from '../find-core';
 import { applyFile, planFile, reasonCounts, scopeRefused, tally, type FilePlan, type RefuseReason } from '../replace-files-core';
+import {
+  aliasOf,
+  assignAliases,
+  isActive,
+  newRun,
+  withRepoHeaders,
+  ownerOf,
+  plainPath,
+  pruneIds,
+  runFromDone,
+  searchOrder,
+  totalsOf,
+  virtualFile,
+  type RepoRun,
+  type Slot,
+} from '../multi-search-core';
 
 const props = defineProps<{ repo: RepositoryMeta; seed: string; openN: number; preset?: SearchPreset; replace?: boolean }>();
 const emit = defineEmits<{ (e: 'close'): void }>();
@@ -127,6 +164,48 @@ const collapsed = ref(new Set<string>());
 const done = ref<SearchDone | null>(null);
 const running = ref(false);
 const live = ref({ hits: 0, files: 0 });
+
+// ---------- vários repositórios (fase 8 da #233) ----------
+/** O painel "onde pesquisar" (os repositórios do catálogo do app). */
+const reposOpen = ref(false);
+const catalog = ref<RepositoryMeta[]>([]);
+const repoSets = ref<RepoSet[]>(loadSets());
+/** Os repositórios da busca que está na tela, com o nome único (prefixo virtual) de cada um, e como cada um está. */
+const slots = shallowRef<Slot[]>([]);
+const slotMap = computed(() => new Map(slots.value.map((sl) => [sl.alias, sl])));
+const runs = shallowRef(new Map<string, RepoRun>());
+/** A busca que está na tela é em vários repositórios (os arquivos têm o prefixo virtual `<alias>/`). */
+const resultsMulti = ref(false);
+const rejected = ref(0);
+let multiStart = 0;
+const multiOn = computed(() => prefs.multi && prefs.repoIds.length > 0);
+const openIds = computed(() => ws.tabs.filter((tab) => tab.repo).map((tab) => tab.repo!.id));
+async function ensureCatalog(): Promise<void> {
+  if (catalog.value.length) return;
+  try {
+    catalog.value = await api.getKnownRepositories();
+  } catch {
+    catalog.value = [];
+  }
+  // quem saiu do catálogo sai da seleção; sem ninguém, volta a procurar só neste repositório
+  const keep = pruneIds(prefs.repoIds, catalog.value);
+  if (keep.length !== prefs.repoIds.length) {
+    prefs.repoIds = keep;
+    if (!keep.length) prefs.multi = false;
+  }
+}
+/** O dono de um arquivo da lista e o caminho dele dentro do repositório (numa busca de um repositório só, é este e o próprio caminho). */
+function own(file: string): { repo: RepositoryMeta; rel: string } {
+  if (resultsMulti.value) {
+    const o = ownerOf(file, slotMap.value);
+    const repo = o ? catalog.value.find((r) => r.id === o.slot.id) : undefined;
+    if (o && repo) return { repo, rel: o.rel };
+  }
+  return { repo: props.repo, rel: file };
+}
+/** O nome do arquivo na lista, sem o prefixo virtual. */
+const virtualOf = (repoId: string, rel: string): string => (resultsMulti.value ? virtualFile(slots.value.find((sl) => sl.id === repoId)?.alias ?? '', rel) : rel);
+const collapsedRepos = (): Set<string> => new Set([...collapsed.value].filter((k) => k.startsWith('r:')).map((k) => k.slice(2)));
 const selectedKey = ref<string | null>(null);
 let seq = 0;
 let currentId = '';
@@ -192,7 +271,13 @@ const result = ref<ReplaceResult | null>(null);
 const refusedScope = computed(() => scopeRefused(prefs.scope));
 const rquery = computed(() => makeQuery({ text: prefs.pattern, caseSensitive: prefs.caseSensitive, wholeWord: prefs.wholeWord, regex: prefs.regex }));
 const ropts = computed(() => ({ regex: prefs.regex, preserveCase: prefs.preserveCase }));
-const undoable = computed(() => !!lastReplace[props.repo.id]);
+/** Substituir em vários repositórios nasce DESLIGADO: só a pessoa liga, a cada busca, e a confirmação e o desfazer são por repositório. */
+const allowMultiReplace = ref(false);
+const multiLocked = computed(() => resultsMulti.value && !allowMultiReplace.value);
+/** Os repositórios cuja última substituição ainda dá para desfazer (um botão por repositório). */
+const undoRepos = computed(() => (resultsMulti.value ? slots.value.filter((sl) => lastReplace[sl.id]).map((sl) => ({ id: sl.id, name: sl.name })) : lastReplace[props.repo.id] ? [{ id: props.repo.id, name: props.repo.name }] : []));
+/** Na confirmação: quais repositórios entram (só os marcados). */
+const confirmRepos = ref(new Set<string>());
 const fieldLabels = computed(() => ({ clear: t('find.clear'), caseSensitive: t('find.case'), wholeWord: t('find.word'), regex: t('find.regex') }));
 
 /** Os lotes chegam em ondas: cada quadro leva no máximo isto para a lista, e a interface nunca fica parada com 5 mil ocorrências de uma vez. */
@@ -219,7 +304,8 @@ function previewData(): { after?: Map<string, AfterLine>; notes?: Map<string, st
 
 /** Refaz as linhas da lista (agrupamento, recolhidos, ocultos e contexto) e os números que dependem delas. */
 function rebuild(): void {
-  rows.value = model.rows({ collapsed: collapsed.value, group: prefs.group, hidden: hidden.value, context: prefs.context > 0, ...previewData() });
+  const flat = model.rows({ collapsed: collapsed.value, group: prefs.group, hidden: hidden.value, context: prefs.context > 0, ...previewData() });
+  rows.value = resultsMulti.value ? withRepoHeaders(flat, slots.value, runs.value, collapsedRepos()) : flat;
   live.value = model.count(hidden.value);
   totalN.value = model.total;
 }
@@ -269,6 +355,61 @@ function resetResults(): void {
 
 const searchError = ref('');
 
+/** O fim da busca em vários repositórios, contado a partir de cada um (o worker só avisa o fim de cada repositório). */
+function multiDone(id: string): SearchDone {
+  const all = [...runs.value.values()];
+  const tl = totalsOf(all);
+  return {
+    id,
+    ok: true,
+    dialect: 'fixed',
+    hits: all.reduce((n, r) => n + r.hits, 0),
+    files: all.reduce((n, r) => n + r.files, 0),
+    skipped: [],
+    cancelled: all.length > 0 && all.every((r) => r.state === 'cancelled'),
+    truncated: tl.cut > 0,
+    ms: Date.now() - multiStart,
+  };
+}
+
+/** Começa a busca em vários repositórios: a lista vem do catálogo, o repositório da aba ativa vai primeiro e cada um ganha o nome único dele. */
+async function startMulti(id: string): Promise<void> {
+  await ensureCatalog();
+  const byId = new Map(catalog.value.map((r) => [r.id, r]));
+  const ids = searchOrder(pruneIds(prefs.repoIds, catalog.value), props.repo.id);
+  slots.value = assignAliases(ids.map((i) => byId.get(i)!).filter(Boolean));
+  runs.value = new Map(slots.value.map((sl) => [sl.alias, newRun(sl)]));
+  resultsMulti.value = true;
+  rejected.value = 0;
+  multiStart = Date.now();
+  if (!ids.length) {
+    doneEvent = multiDone(id);
+    finish();
+    return;
+  }
+  const started = await api.startMultiSearch(ids, buildQuery(prefs, { limit: 5000 }), id);
+  if (currentId !== id) return;
+  rejected.value = started.rejected.length;
+}
+
+/** O fim de UM repositório: o estado dele muda e, quando todos terminaram, a busca acaba. */
+function onRepoDone(e: SearchDone): void {
+  const slot = slots.value.find((sl) => sl.id === e.repoId);
+  if (!slot) return;
+  const next = new Map(runs.value);
+  next.set(slot.alias, runFromDone(next.get(slot.alias) ?? newRun(slot), e));
+  runs.value = next;
+  if (![...next.values()].some((r) => isActive(r.state))) doneEvent = multiDone(currentId);
+  if (!pending.length && !raf && doneEvent) finish();
+  else schedule();
+}
+
+/** Parar só este repositório (os outros seguem). */
+function stopRepo(alias: string): void {
+  const slot = slotMap.value.get(alias);
+  if (slot && currentId) void api.cancelSearch(`${currentId}#${slot.id}`).catch(() => undefined);
+}
+
 /** `offset` > 0: a próxima página (carregar mais): os resultados já na lista ficam e os novos entram depois deles. */
 async function run(keep = false, offset = 0): Promise<void> {
   clearTimeout(timer);
@@ -304,7 +445,11 @@ async function run(keep = false, offset = 0): Promise<void> {
   currentId = id;
   running.value = true;
   try {
-    await api.startSearch(props.repo.path, buildQuery(prefs, { limit: 5000, ...(offset > 0 ? { offset } : {}) }), id);
+    if (multiOn.value) await startMulti(id);
+    else {
+      resultsMulti.value = false;
+      await api.startSearch(props.repo.path, buildQuery(prefs, { limit: 5000, ...(offset > 0 ? { offset } : {}) }), id);
+    }
   } catch (e) {
     if (currentId === id) {
       running.value = false;
@@ -354,7 +499,8 @@ const counter = computed(() => {
   const d = done.value;
   if (!d || !d.ok) return '';
   if (!totalN.value) return `${t('sw.none')} · ${formatDuration(d.ms, locale.value)}`;
-  return `${t('search.matches', { n: live.value.hits })} ${t('search.inFiles', { n: live.value.files })} · ${formatDuration(d.ms, locale.value)}`;
+  const ofRepos = resultsMulti.value ? ` ${t('sw.mr.ofRepos', { n: totalsOf(runs.value.values()).withHits })}` : '';
+  return `${t('search.matches', { n: live.value.hits })} ${t('search.inFiles', { n: live.value.files })}${ofRepos} · ${formatDuration(d.ms, locale.value)}`;
 });
 /** O que ficou de fora e por quê, em uma frase: "Ignorados: 3 binários e 1 acima de 5 MB". */
 const skippedText = computed(() => {
@@ -364,10 +510,17 @@ const skippedText = computed(() => {
   const parts = [c.binary ? t('sw.skipBinary', { n: c.binary }) : '', c.large ? t('sw.skipLarge', { n: c.large }) : ''].filter(Boolean);
   return t('sw.skipped', { what: parts.join(t('sw.and')) });
 });
-const canMore = computed(() => !running.value && done.value?.ok === true && done.value.truncatedReason === 'limit' && done.value.nextOffset !== undefined);
+const canMore = computed(() => !resultsMulti.value && !running.value && done.value?.ok === true && done.value.truncatedReason === 'limit' && done.value.nextOffset !== undefined);
 const notes = computed(() => {
   const d = done.value;
   const out: string[] = [];
+  if (resultsMulti.value) {
+    // cada repositório mostra o seu estado no cabeçalho; aqui, o que ficou cortado e o que foi recusado, em uma frase
+    const cut = [...runs.value.values()].filter((r) => r.cut);
+    if (cut.length) out.push(t('sw.mr.cutNote', { names: cut.map((r) => r.slot.name).join(', ') }));
+    if (rejected.value) out.push(t('sw.mr.rejected', { n: rejected.value }));
+    return out.join(' · ');
+  }
   if (d?.truncatedReason === 'limit') out.push(t('sw.truncated', { n: model.total }));
   else if (d?.truncated) out.push(d.message ?? t('sw.truncatedTime', { n: model.total }));
   if (skippedText.value) out.push(skippedText.value);
@@ -524,7 +677,8 @@ async function loadFile(file: string): Promise<boolean> {
   loadingFile.value = true;
   external.value = null;
   try {
-    const info = await api.readWorkingFile(props.repo.path, file);
+    const o = own(file);
+    const info = await api.readWorkingFile(o.repo.path, o.rel);
     if (mine !== openSeq) return false;
     cur.value = { file, info, original: info.text, n: ++loadN };
     editText.value = info.text;
@@ -568,7 +722,7 @@ function select(index: number, opts: { open?: boolean; focus?: boolean; now?: bo
 }
 
 function onRowClick(i: number, r: Row): void {
-  if (r.kind === 'file' || r.kind === 'dir') toggleKey(r.key);
+  if (r.kind === 'file' || r.kind === 'dir' || r.kind === 'repo') toggleKey(r.key);
   else if (r.kind === 'hit') select(i, { now: true });
   else if (r.kind === 'new') select(i - 1, { now: true }); // a linha nova é da ocorrência de cima
 }
@@ -599,6 +753,11 @@ function onKey(e: KeyboardEvent): void {
   if (e.key === 'Escape' && filtersOpen.value) {
     e.preventDefault();
     closeFilters();
+    return;
+  }
+  if (e.key === 'Escape' && reposOpen.value) {
+    e.preventDefault();
+    closeRepos();
     return;
   }
   // histórico de pesquisas: Alt+↓ (ou ↓ com o campo vazio) abre; ↑/↓ andam; Shift+Delete tira a entrada
@@ -646,7 +805,38 @@ function onKey(e: KeyboardEvent): void {
 function onFieldEscape(): void {
   if (pastOpen.value) pastOpen.value = false;
   else if (filtersOpen.value) closeFilters();
+  else if (reposOpen.value) closeRepos();
 }
+function closeRepos(): void {
+  reposOpen.value = false;
+  void nextTick(() => reposBtn.value?.$el?.focus?.());
+}
+const reposBtn = ref<InstanceType<typeof GnButton>>();
+function toggleRepos(): void {
+  reposOpen.value = !reposOpen.value;
+  if (reposOpen.value) void ensureCatalog();
+}
+/** A seleção do painel: nada escolhido, ou só este repositório, é a busca de sempre; o resto é a busca em vários. */
+function onRepos(ids: string[]): void {
+  prefs.repoIds = ids;
+  prefs.multi = ids.length > 0 && !(ids.length === 1 && ids[0] === props.repo.id);
+}
+function onSets(list: RepoSet[]): void {
+  repoSets.value = list;
+  saveSets(list);
+}
+// trocar onde procurar refaz a busca (a lista velha seria de outro conjunto de repositórios)
+watch(
+  () => [prefs.repoIds.join(','), prefs.multi],
+  () => {
+    persist();
+    allowMultiReplace.value = false;
+    if (prefs.pattern.trim()) {
+      clearTimeout(timer);
+      void run();
+    }
+  },
+);
 function closeFilters(): void {
   filtersOpen.value = false;
   void nextTick(() => filtersBtn.value?.$el?.focus?.());
@@ -677,13 +867,14 @@ async function save(force: boolean): Promise<boolean> {
   saving.value = true;
   notice.value = null;
   try {
-    const r = await api.saveWorkingFile(props.repo.path, c.file, editText.value, { encoding: c.info.encoding, expectHash: c.info.hash, force });
+    const o = own(c.file);
+    const r = await api.saveWorkingFile(o.repo.path, o.rel, editText.value, { encoding: c.info.encoding, expectHash: c.info.hash, force });
     if (r.ok) {
       c.info = { ...c.info, hash: r.stamp.hash, size: r.stamp.size, mtimeMs: r.stamp.mtimeMs };
       c.original = editText.value;
       external.value = null;
       notice.value = { kind: 'ok', text: t('sw.saved') };
-      ws.bump(props.repo.id);
+      ws.bump(o.repo.id);
       void run(true); // a lista se reajusta ao que ficou no disco
       return true;
     }
@@ -720,7 +911,8 @@ async function checkExternal(): Promise<void> {
   if (!c || checking || saving.value) return;
   checking = true;
   try {
-    const s = await api.stampWorkingFile(props.repo.path, c.file);
+    const o = own(c.file);
+    const s = await api.stampWorkingFile(o.repo.path, o.rel);
     if (cur.value !== c) return;
     if (!changedOutside({ hash: c.info.hash, size: c.info.size }, s)) {
       external.value = null;
@@ -791,7 +983,8 @@ function dropPlans(): void {
 async function contentOf(file: string): Promise<WorkingFileInfo> {
   const hit = contents.get(file);
   if (hit) return hit;
-  const info = await api.readWorkingFile(props.repo.path, file);
+  const o = own(file);
+  const info = await api.readWorkingFile(o.repo.path, o.rel);
   if (info.exists && !info.binary && !info.tooLarge && budget + info.text.length * 2 <= CONTENT_BUDGET) {
     contents.set(file, info);
     budget += info.text.length * 2;
@@ -828,7 +1021,7 @@ function schedulePlans(ms: number): void {
 }
 async function computePlans(): Promise<void> {
   const mine = ++planSeq;
-  if (!replaceOpen.value || refusedScope.value || !rquery.value || patternError.value || !done.value?.ok || running.value) {
+  if (!replaceOpen.value || refusedScope.value || multiLocked.value || !rquery.value || patternError.value || !done.value?.ok || running.value) {
     if (plans.value.size) {
       plans.value = new Map();
       rebuild();
@@ -872,7 +1065,7 @@ function chosenLines(): Map<string, Set<number>> {
   }
   return out;
 }
-const planReady = computed(() => replaceOpen.value && !refusedScope.value && done.value?.ok === true && !running.value && planning.value.total > 0 && planning.value.done >= planning.value.total && plans.value.size === planning.value.total);
+const planReady = computed(() => replaceOpen.value && !refusedScope.value && !multiLocked.value && done.value?.ok === true && !running.value && planning.value.total > 0 && planning.value.done >= planning.value.total && plans.value.size === planning.value.total);
 const totals = computed(() => {
   void live.value;
   void hidden.value;
@@ -884,6 +1077,7 @@ const reasonText = (list: ReadonlyArray<{ reason: RefuseReason | 'changedSince' 
 const countText = (n: number, f: number): string => `${t('sw.rp.count', { n })} ${t('search.inFiles', { n: f })}`;
 const summaryText = computed(() => {
   if (refusedScope.value) return '';
+  if (multiLocked.value) return t('sw.mr.replaceOff');
   if (!prefs.pattern.trim() || !rquery.value) return t('sw.rp.needSearch');
   if (applying.value) return t('sw.rp.applying', { done: applying.value.done, total: applying.value.total });
   if (!planReady.value) return running.value || !done.value ? '' : t('sw.rp.preparing', { done: planning.value.done, total: planning.value.total });
@@ -911,32 +1105,61 @@ watch(
   },
 );
 
+/** Os totais de cada repositório (para a confirmação por repositório). */
+const perRepoTotals = computed(() => {
+  if (!resultsMulti.value || !totals.value) return [];
+  const chosen = chosenLines();
+  return slots.value
+    .map((sl) => {
+      const tl = tally(new Map([...plans.value].filter(([file]) => aliasOf(file) === sl.alias)), new Map([...chosen].filter(([file]) => aliasOf(file) === sl.alias)));
+      return { alias: sl.alias, name: sl.name, replacements: tl.replacements, files: tl.files, refused: tl.refused.length };
+    })
+    .filter((r) => r.replacements > 0 || r.refused > 0);
+});
+function toggleConfirmRepo(alias: string, on: boolean): void {
+  const next = new Set(confirmRepos.value);
+  if (on) next.add(alias);
+  else next.delete(alias);
+  confirmRepos.value = next;
+}
+const confirmTotals = computed(() => {
+  if (!resultsMulti.value) return totals.value;
+  const rs = perRepoTotals.value.filter((r) => confirmRepos.value.has(r.alias));
+  return { replacements: rs.reduce((n, r) => n + r.replacements, 0), files: rs.reduce((n, r) => n + r.files, 0) };
+});
+
 async function askApply(): Promise<void> {
   if (!canApply.value) return;
   if (!(await guard())) return; // alterações não salvas no arquivo aberto lá embaixo: salvar, descartar ou ficar
+  confirmRepos.value = new Set(perRepoTotals.value.filter((r) => r.replacements > 0).map((r) => r.alias)); // cada repositório vem marcado e pode ser desmarcado
   confirmApply.value = true;
 }
 
 /**
- * Aplica: para cada arquivo, lê DE NOVO do disco; se o hash não é o da prévia o arquivo é recusado (mudou depois da busca); senão recalcula o texto novo desse
- * conteúdo (nunca do que a lista mostrava) e grava de forma atômica, com a cópia de segurança do lote antes. Nunca cria commit.
+ * Aplica: para cada arquivo, lê DE NOVO do disco do repositório dono; se o hash não é o da prévia o arquivo é recusado (mudou depois da busca); senão recalcula o
+ * texto novo desse conteúdo (nunca do que a lista mostrava) e grava de forma atômica, com a cópia de segurança antes. Cada repositório tem o seu lote de cópia
+ * (assim o desfazer é por repositório). Nunca cria commit.
  */
 async function applyAll(): Promise<void> {
   confirmApply.value = false;
   const q = rquery.value;
   if (!q || !canApply.value) return;
-  const chosen = chosenLines();
-  const batch = crypto.randomUUID();
+  const wanted = (file: string): boolean => !resultsMulti.value || confirmRepos.value.has(aliasOf(file));
+  const chosen = new Map([...chosenLines()].filter(([file]) => wanted(file)));
   const todo = [...chosen].filter(([file]) => plans.value.get(file)?.ok);
   const skipped: ReplaceResult['skipped'] = [];
-  const applied: LastReplace['files'] = [];
+  const batches = new Map<string, { batch: string; replacements: number; files: LastReplace['files'] }>();
+  const appliedNames: string[] = [];
   let replacements = 0;
   applying.value = { done: 0, total: todo.length };
   let n = 0;
   try {
     for (const [file, lines] of todo) {
+      const o = own(file);
+      let grp = batches.get(o.repo.id);
+      if (!grp) batches.set(o.repo.id, (grp = { batch: crypto.randomUUID(), replacements: 0, files: [] }));
       try {
-        const cur = await api.readWorkingFile(props.repo.path, file);
+        const cur = await api.readWorkingFile(o.repo.path, o.rel);
         const why = refusal(cur);
         if (why) skipped.push({ file, reason: why });
         else if (cur.hash !== planHash.get(file)) skipped.push({ file, reason: 'changed' });
@@ -946,9 +1169,11 @@ async function applyAll(): Promise<void> {
           else {
             const next = applyFile(cur.text, cur.eol, q, prefs.replaceText, ropts.value, lines);
             if (next.replaced) {
-              const r = await api.saveWorkingFile(props.repo.path, file, next.text, { encoding: cur.encoding, expectHash: cur.hash, backup: batch });
+              const r = await api.saveWorkingFile(o.repo.path, o.rel, next.text, { encoding: cur.encoding, expectHash: cur.hash, backup: grp.batch });
               if (r.ok) {
-                applied.push({ file, afterHash: r.stamp.hash });
+                grp.files.push({ file: o.rel, afterHash: r.stamp.hash });
+                grp.replacements += next.replaced;
+                appliedNames.push(file);
                 replacements += next.replaced;
               } else skipped.push({ file, reason: r.reason === 'unencodable' ? 'unencodable' : r.reason === 'changed' ? 'changed' : 'failed', ...(r.char ? { char: r.char } : {}) });
             }
@@ -964,22 +1189,24 @@ async function applyAll(): Promise<void> {
   }
   // os arquivos que a prévia já recusava (binário, grande...) também entram no resumo, para nada ficar calado
   for (const r of tally(plans.value, chosen).refused) skipped.push(r);
-  if (applied.length) lastReplace[props.repo.id] = { batch, replacements, files: applied };
-  result.value = { kind: 'applied', replacements, files: applied.length, skipped };
-  await afterWrite(applied.map((a) => a.file));
+  for (const [repoId, g] of batches) if (g.files.length) lastReplace[repoId] = { batch: g.batch, replacements: g.replacements, files: g.files };
+  result.value = { kind: 'applied', replacements, files: appliedNames.length, skipped };
+  await afterWrite(appliedNames, [...batches].filter(([, g]) => g.files.length).map(([id]) => id));
 }
 
-/** Depois de gravar ou desfazer: a tela do repositório recarrega, o arquivo aberto lá embaixo relê e a busca se refaz. */
-async function afterWrite(files: string[]): Promise<void> {
+/** Depois de gravar ou desfazer: a tela de cada repositório alterado recarrega, o arquivo aberto lá embaixo relê e a busca se refaz. */
+async function afterWrite(files: string[], repoIds: string[]): Promise<void> {
   if (!files.length) return;
-  ws.bump(props.repo.id);
+  for (const id of repoIds) ws.bump(id);
   if (cur.value && files.includes(cur.value.file)) await loadFile(cur.value.file);
   void run(true);
 }
 
-async function undoReplace(): Promise<void> {
-  const last = lastReplace[props.repo.id];
-  if (!last || applying.value) return;
+/** Desfaz a última substituição de UM repositório (cada repositório tem a sua cópia de segurança). */
+async function undoReplace(repoId: string = props.repo.id): Promise<void> {
+  const last = lastReplace[repoId];
+  const repo = repoId === props.repo.id ? props.repo : catalog.value.find((r) => r.id === repoId);
+  if (!last || !repo || applying.value) return;
   if (!(await guard())) return;
   const skipped: ReplaceResult['skipped'] = [];
   const restored: string[] = [];
@@ -988,20 +1215,20 @@ async function undoReplace(): Promise<void> {
   try {
     for (const f of last.files) {
       try {
-        const r = await api.restoreWorkingFile(props.repo.path, last.batch, f.file, f.afterHash);
-        if (r.ok) restored.push(f.file);
-        else skipped.push({ file: f.file, reason: r.reason === 'changed' ? 'changedSince' : 'failed' });
+        const r = await api.restoreWorkingFile(repo.path, last.batch, f.file, f.afterHash);
+        if (r.ok) restored.push(virtualOf(repo.id, f.file));
+        else skipped.push({ file: virtualOf(repo.id, f.file), reason: r.reason === 'changed' ? 'changedSince' : 'failed' });
       } catch {
-        skipped.push({ file: f.file, reason: 'failed' });
+        skipped.push({ file: virtualOf(repo.id, f.file), reason: 'failed' });
       }
       applying.value = { done: ++n, total: last.files.length };
     }
   } finally {
     applying.value = null;
   }
-  lastReplace[props.repo.id] = undefined;
+  lastReplace[repoId] = undefined;
   result.value = { kind: 'undone', replacements: last.replacements, files: restored.length, skipped };
-  await afterWrite(restored);
+  await afterWrite(restored, [repo.id]);
 }
 
 const resultText = computed(() => {
@@ -1017,15 +1244,22 @@ async function goTool(mode: 'history' | 'blame'): Promise<void> {
   const c = cur.value;
   if (!c || !(await guard())) return;
   emit('close');
-  ws.openTools(props.repo, 'file', c.file, mode);
+  const o = own(c.file);
+  ws.openTools(o.repo, 'file', o.rel, mode);
 }
 async function copyRef(): Promise<void> {
   const c = cur.value;
   const h = rows.value[selectedIndex.value];
-  if (c) await api.copyText(h && h.kind === 'hit' ? `${c.file}:${h.hit.line}` : c.file).catch(() => undefined);
+  if (c) {
+    const o = own(c.file);
+    await api.copyText(h && h.kind === 'hit' ? `${o.rel}:${h.hit.line}` : o.rel).catch(() => undefined);
+  }
 }
 async function openOutside(): Promise<void> {
-  if (cur.value) await api.openPath(props.repo.path, cur.value.file).catch(() => undefined);
+  if (cur.value) {
+    const o = own(cur.value.file);
+    await api.openPath(o.repo.path, o.rel).catch(() => undefined);
+  }
 }
 
 // ---------- divisória ----------
@@ -1056,8 +1290,8 @@ function onSplitKey(e: KeyboardEvent): void {
 const field = ref<InstanceType<typeof GnSearchField>>();
 
 const onFilters = (f: Filters): void => void Object.assign(prefs, f);
-const rowStyle = (r: Row): Record<string, string> | undefined => (r.kind === 'dir' ? undefined : { paddingLeft: `${12 + r.depth * 14}px` });
-const rowTestId = (r: Row): string => (r.kind === 'file' ? 'sw-file-row' : r.kind === 'dir' ? 'sw-dir-row' : r.kind === 'ctx' ? 'sw-ctx-row' : r.kind === 'new' ? 'sw-new-row' : 'sw-row');
+const rowStyle = (r: Row): Record<string, string> | undefined => (r.kind === 'dir' || r.kind === 'repo' ? undefined : { paddingLeft: `${12 + r.depth * 14}px` });
+const rowTestId = (r: Row): string => (r.kind === 'repo' ? 'sw-repo-row' : r.kind === 'file' ? 'sw-file-row' : r.kind === 'dir' ? 'sw-dir-row' : r.kind === 'ctx' ? 'sw-ctx-row' : r.kind === 'new' ? 'sw-new-row' : 'sw-row');
 /** A ocorrência tem prévia (a linha nova logo abaixo): a lista a mostra como "antes". */
 const hasAfter = (key: string): boolean => replaceOpen.value && plans.value.size > 0 && previewKeys.value.has(key);
 const previewKeys = computed(() => {
@@ -1109,11 +1343,19 @@ watch(() => props.openN, () => {
 
 onMounted(() => {
   offBatch = api.onSearchBatch((e) => {
+    if (resultsMulti.value && e.repoId && e.id === `${currentId}#${e.repoId}`) {
+      const slot = slots.value.find((sl) => sl.id === e.repoId);
+      if (!slot) return;
+      for (const h of e.hits) pending.push({ ...h, file: virtualFile(slot.alias, h.file) });
+      schedule();
+      return;
+    }
     if (e.id !== currentId) return;
     pending.push(...e.hits);
     schedule();
   });
   offDone = api.onSearchDone((e) => {
+    if (resultsMulti.value && e.repoId && e.id === `${currentId}#${e.repoId}`) return onRepoDone(e);
     if (e.id !== currentId) return;
     doneEvent = e;
     if (!pending.length && !raf) finish();
@@ -1142,12 +1384,16 @@ onBeforeUnmount(() => {
 });
 
 // o estado recolhido vai no nome (e não em aria-expanded: o diálogo trata um aria-expanded="true" na caixa como "lista aberta" e deixaria de fechar com Esc)
+const stateText = (r: Extract<Row, { kind: 'repo' }>): string => (r.state === 'noRevision' ? t('sw.mr.state.noRevision', { rev: prefs.revision.trim() }) : t(`sw.mr.state.${r.state}` as MessageKey));
+const cutText = (r: Extract<Row, { kind: 'repo' }>): string => (r.cut ? t(`sw.mr.cut.${r.cut}` as MessageKey) : '');
+const stateTone = (st: string): 'success' | 'danger' | 'warn' | 'neutral' => (st === 'done' ? 'success' : st === 'error' || st === 'unavailable' || st === 'noGit' ? 'danger' : st === 'noRevision' || st === 'cancelled' ? 'warn' : 'neutral');
 const rowLabel = (r: Row): string => {
-  if (r.kind === 'dir') return t('sw.rowFile', { file: r.dir || t('sw.rootDir'), n: r.count }) + (r.collapsed ? ' ' + t('sw.collapsed') : '');
-  if (r.kind === 'file') return t('sw.rowFile', { file: r.file, n: r.count }) + (r.collapsed ? ' ' + t('sw.collapsed') : '');
+  if (r.kind === 'repo') return t('sw.mr.rowRepo', { name: r.name, n: r.count, state: stateText(r) }) + (r.collapsed ? ' ' + t('sw.collapsed') : '');
+  if (r.kind === 'dir') return t('sw.rowFile', { file: plainPath(r.dir, resultsMulti.value) || t('sw.rootDir'), n: r.count }) + (r.collapsed ? ' ' + t('sw.collapsed') : '');
+  if (r.kind === 'file') return t('sw.rowFile', { file: plainPath(r.file, resultsMulti.value), n: r.count }) + (r.collapsed ? ' ' + t('sw.collapsed') : '');
   if (r.kind === 'ctx') return t('sw.rowCtx', { line: r.line, text: r.text });
   if (r.kind === 'new') return t('sw.rp.rowNew', { line: r.line, text: r.text });
-  return (r.showFile ? r.file + ', ' : '') + t('sw.rowHit', { line: r.hit.line, text: r.hit.text });
+  return (r.showFile ? plainPath(r.file, resultsMulti.value) + ', ' : '') + t('sw.rowHit', { line: r.hit.line, text: r.hit.text });
 };
 const status = computed(() => (running.value ? '' : counter.value));
 const emptyHint = computed(() => (!prefs.pattern.trim() ? t('sw.hint') : needsRevision(prefs) ? t('sw.revisionNeeded') : ''));
@@ -1189,6 +1435,9 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
         </label>
         <GnButton ref="filtersBtn" size="sm" :aria-expanded="filtersOpen" aria-controls="sw-filters" data-testid="sw-filters-toggle" @click="filtersOpen = !filtersOpen">
           {{ t('sw.filters') }}<GnBadge v-if="changed.length" tone="accent" data-testid="sw-filters-n">{{ changed.length }}</GnBadge>
+        </GnButton>
+        <GnButton ref="reposBtn" size="sm" :aria-expanded="reposOpen" aria-controls="sw-repos" data-testid="sw-repos-toggle" @click="toggleRepos">
+          {{ t('sw.mr.toggle') }}<GnBadge v-if="multiOn" tone="accent" data-testid="sw-repos-n">{{ prefs.repoIds.length }}</GnBadge><GnTooltip :text="t('sw.mr.toggleTip')" />
         </GnButton>
         <GnButton size="sm" :aria-pressed="replaceOpen" data-testid="sw-replace-toggle" @click="toggleReplace">{{ t('sw.rp.toggle') }}<GnTooltip :text="t('sw.rp.toggleTip')" /></GnButton>
         <span class="sw__count" data-testid="sw-count" role="status" aria-live="polite">{{ running ? t('sw.searching', { n: live.hits }) : status }}</span>
@@ -1238,9 +1487,13 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
           data-testid="sw-preserve-case"
           @click="prefs.preserveCase = !prefs.preserveCase"
         >{{ t('find.preserveCase') }}<GnTooltip :text="t('find.preserveCaseTip')" /></GnButton>
+        <label v-if="resultsMulti" class="sw__allow" data-testid="sw-allow-label">
+          <input v-model="allowMultiReplace" type="checkbox" data-testid="sw-allow-multi" @change="allowMultiReplace ? schedulePlans(0) : (dropPlans(), rebuild())" />
+          {{ t('sw.mr.allowReplace', { n: slots.length }) }}
+        </label>
         <span class="sw__rsum" data-testid="sw-rsummary" role="status" aria-live="polite">{{ summaryText }}</span>
         <GnButton size="sm" variant="primary" :disabled="!canApply" data-testid="sw-apply" @click="askApply">{{ t('sw.rp.apply') }}</GnButton>
-        <GnButton v-if="undoable" size="sm" tone="warn" :disabled="!!applying" data-testid="sw-undo" @click="undoReplace">{{ t('sw.rp.undo') }}<GnTooltip :text="t('sw.rp.undoTip')" /></GnButton>
+        <GnButton v-for="u in undoRepos" :key="u.id" size="sm" tone="warn" :disabled="!!applying" data-testid="sw-undo" :data-repo="u.name" @click="undoReplace(u.id)">{{ t('sw.rp.undo') }}<template v-if="resultsMulti"> · {{ u.name }}</template><GnTooltip :text="t('sw.rp.undoTip')" /></GnButton>
       </div>
       <p v-if="replaceOpen && refusedScope" class="sw__error" role="note" data-testid="sw-rscope">{{ t('sw.rp.scopeRefused') }}</p>
       <div v-if="result" class="sw__result" data-testid="sw-rresult">
@@ -1250,6 +1503,19 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
           <li v-if="(result.skipped.length ?? 0) > resultFiles.length">{{ t('sw.rp.andMore', { n: result.skipped.length - resultFiles.length }) }}</li>
         </ul>
         <GnButton size="sm" variant="ghost" data-testid="sw-rresult-close" @click="result = null">{{ t('sw.rp.dismiss') }}</GnButton>
+      </div>
+      <SearchRepos
+        v-if="reposOpen"
+        :catalog="catalog"
+        :model-value="prefs.multi ? prefs.repoIds : [repo.id]"
+        :active-id="repo.id"
+        :open-ids="openIds"
+        :sets="repoSets"
+        @update:model-value="onRepos"
+        @update:sets="onSets"
+      />
+      <div v-else-if="multiOn" class="sw__chips" data-testid="sw-repos-chip">
+        <GnButton size="sm" variant="ghost" tone="accent" data-testid="sw-chip-repos" @click="toggleRepos">{{ t('sw.mr.chip', { n: prefs.repoIds.length }) }}</GnButton>
       </div>
       <SearchFilters v-if="filtersOpen" :model-value="filters" :repo-path="repo.path" @update:model-value="onFilters" />
       <div v-else-if="changed.length" class="sw__chips" data-testid="sw-chips">
@@ -1298,7 +1564,7 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
                   :id="'sw-r' + v.i"
                   :key="v.row.key"
                   class="sw__row"
-                  :class="{ 'sw__row--new': v.row.kind === 'new', 'sw__row--old': v.row.kind === 'hit' && hasAfter(v.row.key), 'sw__row--file': v.row.kind === 'file' || v.row.kind === 'dir', 'sw__row--dir': v.row.kind === 'dir', 'sw__row--ctx': v.row.kind === 'ctx', 'sw__row--sel': v.row.key === selectedKey }"
+                  :class="{ 'sw__row--new': v.row.kind === 'new', 'sw__row--old': v.row.kind === 'hit' && hasAfter(v.row.key), 'sw__row--file': v.row.kind === 'file' || v.row.kind === 'dir', 'sw__row--dir': v.row.kind === 'dir', 'sw__row--repo': v.row.kind === 'repo', 'sw__row--ctx': v.row.kind === 'ctx', 'sw__row--sel': v.row.key === selectedKey }"
                   :style="rowStyle(v.row)"
                   role="option"
                   :aria-selected="v.row.key === selectedKey"
@@ -1306,15 +1572,25 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
                   :data-testid="rowTestId(v.row)"
                   @click="onRowClick(v.i, v.row)"
                 >
-                  <template v-if="v.row.kind === 'dir'">
+                  <template v-if="v.row.kind === 'repo'">
                     <GnIcon :name="v.row.collapsed ? 'chevron-right' : 'chevron-down'" />
-                    <span class="sw__fname">{{ v.row.dir || t('sw.rootDir') }}</span>
+                    <span class="sw__fname sw__rname" data-testid="sw-repo-name">{{ v.row.name }}</span>
+                    <GnBadge tone="neutral" data-testid="sw-repo-count">{{ v.row.count }}</GnBadge>
+                    <GnBadge :tone="stateTone(v.row.state)" data-testid="sw-repo-state" :data-state="v.row.state">{{ stateText(v.row) }}</GnBadge>
+                    <GnBadge v-if="v.row.cut" tone="warn" data-testid="sw-repo-cut">{{ cutText(v.row) }}</GnBadge>
+                    <span v-if="v.row.message && v.row.state === 'error'" class="sw__rmsg">{{ v.row.message }}</span>
+                    <GnButton v-if="isActive(v.row.state)" class="sw__rstop" size="sm" tone="warn" variant="ghost" tabindex="-1" :aria-label="t('sw.mr.stopRepo', { name: v.row.name })" data-testid="sw-repo-stop" @click.stop="stopRepo(v.row.alias)">{{ t('sw.stop') }}</GnButton>
+                    <GnIconButton class="sw__hide" icon="x" :label="t('sw.hide')" :title="t('sw.hideTip')" tabindex="-1" aria-hidden="true" @click.stop="hide(v.i, 'dir')" />
+                  </template>
+                  <template v-else-if="v.row.kind === 'dir'">
+                    <GnIcon :name="v.row.collapsed ? 'chevron-right' : 'chevron-down'" />
+                    <span class="sw__fname">{{ plainPath(v.row.dir, resultsMulti) || t('sw.rootDir') }}</span>
                     <GnBadge tone="neutral">{{ v.row.count }}</GnBadge>
                     <GnIconButton class="sw__hide" icon="x" :label="t('sw.hide')" :title="t('sw.hideTip')" tabindex="-1" aria-hidden="true" @click.stop="hide(v.i, 'dir')" />
                   </template>
                   <template v-else-if="v.row.kind === 'file'">
                     <GnIcon :name="v.row.collapsed ? 'chevron-right' : 'chevron-down'" />
-                    <span class="sw__fname">{{ v.row.file }}</span>
+                    <span class="sw__fname">{{ plainPath(v.row.file, resultsMulti) }}</span>
                     <GnBadge tone="neutral">{{ v.row.count }}</GnBadge>
                     <GnBadge v-if="v.row.note" tone="warn" data-testid="sw-file-note">{{ t(('sw.rp.why.' + v.row.note) as MessageKey) }}</GnBadge>
                     <GnIconButton class="sw__hide" icon="x" :label="t('sw.hide')" :title="t('sw.hideTip')" tabindex="-1" aria-hidden="true" @click.stop="hide(v.i, 'file')" />
@@ -1329,7 +1605,7 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
                     <span class="sw__text">{{ v.row.text }}</span>
                   </template>
                   <template v-else>
-                    <span v-if="v.row.showFile" class="sw__fp">{{ v.row.file }}</span>
+                    <span v-if="v.row.showFile" class="sw__fp">{{ plainPath(v.row.file, resultsMulti) }}</span>
                     <span class="sw__ln">{{ v.row.hit.line }}</span>
                     <span class="sw__text"><template v-for="(p, k) in pieces(v.row.hit)" :key="k"><mark v-if="p.hit">{{ p.text }}</mark><template v-else>{{ p.text }}</template></template></span>
                     <GnIconButton class="sw__hide" icon="x" :label="t('sw.hide')" :title="t('sw.hideTip')" tabindex="-1" aria-hidden="true" @click.stop="hide(v.i, 'hit')" />
@@ -1359,7 +1635,8 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
         <section class="sw__file" data-testid="sw-file">
           <template v-if="cur">
             <div class="sw__fbar">
-              <span class="sw__path" data-testid="sw-path">{{ cur.file }}</span>
+              <GnBadge v-if="resultsMulti" tone="accent" data-testid="sw-owner">{{ own(cur.file).repo.name }}</GnBadge>
+              <span class="sw__path" data-testid="sw-path">{{ plainPath(cur.file, resultsMulti) }}</span>
               <GnBadge tone="neutral" data-testid="sw-encoding">{{ encodingLabel(cur.info.encoding) }}</GnBadge>
               <GnBadge v-if="eolLabel" tone="neutral" data-testid="sw-eol">{{ eolLabel }}</GnBadge>
               <GnBadge v-if="dirty" tone="warn" data-testid="sw-dirty">{{ t('sw.modified') }}</GnBadge>
@@ -1392,10 +1669,19 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
     <GnDialog v-if="confirmApply && totals" role="alertdialog" width="min(480px, 92vw)" :label="t('sw.rp.confirmTitle')" initial-focus="[data-testid='sw-confirm-apply']" @close="confirmApply = false">
       <div class="sw__ask" data-testid="sw-confirm">
         <h2>{{ t('sw.rp.confirmTitle') }}</h2>
-        <p>{{ t('sw.rp.confirmBody', { what: countText(totals.replacements, totals.files) }) }}</p>
+        <ul v-if="resultsMulti" class="sw__askrepos" data-testid="sw-confirm-repos">
+          <li v-for="r in perRepoTotals" :key="r.alias">
+            <label>
+              <input type="checkbox" :checked="confirmRepos.has(r.alias)" :disabled="r.replacements === 0" :data-testid="'sw-confirm-repo-' + r.name" @change="toggleConfirmRepo(r.alias, ($event.target as HTMLInputElement).checked)" />
+              <strong>{{ r.name }}</strong>
+              <span>{{ r.replacements > 0 ? countText(r.replacements, r.files) : t('sw.rp.nothing') }}<template v-if="r.refused"> · {{ t('sw.rp.refused', { n: r.refused }) }}</template></span>
+            </label>
+          </li>
+        </ul>
+        <p>{{ t('sw.rp.confirmBody', { what: countText(confirmTotals?.replacements ?? 0, confirmTotals?.files ?? 0) }) }}</p>
         <p v-if="prefs.replaceText === ''" class="sw__warn" role="alert" data-testid="sw-confirm-empty">{{ t('sw.rp.confirmEmpty') }}</p>
         <div class="sw__ask-btns">
-          <GnButton variant="primary" data-testid="sw-confirm-apply" @click="applyAll">{{ t('sw.rp.apply') }}</GnButton>
+          <GnButton variant="primary" :disabled="resultsMulti && !confirmRepos.size" data-testid="sw-confirm-apply" @click="applyAll">{{ t('sw.rp.apply') }}</GnButton>
           <GnButton variant="ghost" data-testid="sw-confirm-cancel" @click="confirmApply = false">{{ t('sw.rp.cancel') }}</GnButton>
         </div>
       </div>
@@ -1435,6 +1721,12 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
 .sw__pastitem:hover .sw__pastx, .sw__pastitem--on .sw__pastx { opacity: 1; }
 .sw__pastfoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 12px; border-top: 1px solid var(--gn-border); color: var(--gn-muted); font-size: 11.5px; }
 .sw__repl { display: flex; align-items: flex-start; gap: 8px; padding: 0 12px 6px; .sw__field { flex: 1 1 360px; } }
+.sw__row--repo { background: color-mix(in srgb, var(--gn-accent) 8%, var(--gn-surface-2)); font-weight: 700; box-shadow: inset 0 -1px 0 var(--gn-border); }
+.sw__rname { font-family: var(--gn-font-ui); }
+.sw__rmsg { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--gn-muted); font-weight: 400; }
+.sw__rstop { flex: none; margin-left: auto; height: 18px; min-height: 0; padding: 0 8px; font-size: 11px; }
+.sw__allow { display: inline-flex; align-items: center; gap: 6px; align-self: center; font-size: 12.5px; cursor: pointer; }
+.sw__askrepos { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 4px; label { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; span { color: var(--gn-muted); } } }
 .sw__warn { margin: 0 0 12px; color: var(--gn-danger); font-weight: 600; }
 .sw__rsum { align-self: center; flex: 0 1 auto; color: var(--gn-muted); font-size: 12.5px; }
 .sw__result { display: flex; align-items: flex-start; gap: 12px; padding: 4px 14px 6px; font-size: 12.5px; background: color-mix(in srgb, var(--gn-success) 10%, transparent); border-top: 1px solid var(--gn-border); p { margin: 0; flex: 1; } }

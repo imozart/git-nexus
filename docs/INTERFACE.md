@@ -176,6 +176,7 @@ Peças do renderer (não do kit: falam com a store e o `api`) que montam o `GnSe
 | `FindBar.vue` | Barra de pesquisa e substituição **do arquivo** aberto | dentro do `CodeEditor`; `role="search"`, contador `role="status"` ("3 de 12") |
 | `SearchWindow.vue` | Janela **Pesquisar no repositório** (`Ctrl+F`, `Ctrl+Shift+F`; `Ctrl+Shift+H` com "Substituir por") | um `GnDialog` com o campo, filtros, a lista de resultados e o arquivo editável embaixo; guarda as preferências em `gitnexus.searchWindow` |
 | `SearchFilters.vue` | Painel de filtros da janela (onde, pasta, novos, ignorados, contexto, agrupar) | só o formulário: quem refaz a busca é a janela |
+| `SearchRepos.vue` | Painel **Repositórios** da janela: onde pesquisar (os do catálogo do app), atalhos Todos / Abertos nas abas / Só este e os conjuntos salvos | só o formulário (`v-model` dos ids e dos conjuntos); `aria-pressed` no atalho que bate com a seleção; contador `role="status"` ("3 de 7 escolhidos") |
 
 Regras de acessibilidade que valem para essa tela (e para qualquer lista de resultados parecida), todas cobertas por `search-teclado.mjs` e pelo teste de convenções:
 
@@ -184,6 +185,7 @@ Regras de acessibilidade que valem para essa tela (e para qualquer lista de resu
 - **`aria-expanded` só onde há lista aberta de verdade** (histórico, filtros): o `GnDialog` entrega o `Esc` ao controle que está expandido. Linha recolhida de arquivo **não** usa `aria-expanded`: o estado vai no nome.
 - **Total e contador em região viva educada** (`role="status"` + `aria-live="polite"`): "128 ocorrências em 14 arquivos · 0,2 s" e "3 de 12". Aviso que impede algo (não coube na codificação, arquivo mudou) é `role="alert"`.
 - **Nada só por cor:** o trecho achado tem fundo (e na prévia do "substituir" o velho é riscado e o novo é `<ins>`), a linha selecionada tem fundo **e** barra lateral, as opções ligadas do `GnSearchField` têm fundo, borda e sublinhado.
+- **Vários repositórios:** cada repositório tem um **cabeçalho** na lista (`role="option"` como as outras linhas, com o nome acessível "Repositório api, 12 ocorrências, concluído"), e o **estado vai em texto** no selo (buscando, concluído, erro, indisponível, sem Git, sem a revisão X), nunca só na cor. O **Parar** de cada repositório é um botão da linha (`tabindex="-1"`, com nome "Parar a busca em api"); o **Parar** geral da janela continua sendo o caminho do teclado. A lista de repositórios vem do catálogo, nunca de um campo de texto.
 - **Medir antes de declarar pronto:** `search-window-perf.mjs` (5 mil resultados, rolagem, tarefas longas, 30 mil linhas) e `packages/git-core/test/search-run.test.ts` (20 mil arquivos); a tabela com os tempos está em `docs/USO.md`, seção "Pesquisar no repositório".
 
 ## Como criar um componente do kit

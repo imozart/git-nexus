@@ -172,6 +172,22 @@ Quando um merge, rebase, pull, cherry-pick ou revert para por conflitos, a aba *
   - **Não substitui:** binário, arquivo acima de 2 MB, arquivo com fim de linha misto (CRLF e LF juntos), arquivo com bytes que a codificação não entende, e nada nos escopos **Stage** e **Branch, tag ou commit** (não são o arquivo do disco); o motivo aparece na tela. Uma linha da lista que não confere mais com o disco recusa o arquivo.
 - **Editar com segurança:** se um caractere digitado **não existe na codificação** do arquivo (um emoji num arquivo Windows-1252, por exemplo), **nada é gravado** e a janela diz qual caractere; se o arquivo **mudou por fora**, ele recarrega sozinho quando está limpo e, com alterações suas, pergunta **Recarregar / Sobrescrever / Ficar**; ao trocar de arquivo ou fechar com alterações não salvas, pergunta **Salvar / Descartar / Ficar**. Depois de salvar a lista se reajusta e a tela do repositório recarrega. **Só leitura:** binário, arquivo acima de 2 MB, fim de linha **misto** (CRLF e LF no mesmo arquivo: gravar mudaria linhas que você não tocou) e arquivo com bytes que a codificação não entende. Um arquivo só ASCII abre como UTF-8. Diferente da busca do Grafo, que procura no **histórico** (mensagens e commits).
 
+### Pesquisar em vários repositórios
+
+Para saber "onde isso aparece no meu conjunto de projetos?", o botão **Repositórios** (ao lado de Filtros) abre o painel de **onde pesquisar**, com os repositórios que o app já conhece (nome, caminho e a marca **WSL**; o da aba ativa vem marcado). A lista é **sempre a do catálogo do app**: nunca um caminho digitado.
+
+![O painel Repositórios e os resultados por repositório](media/pesquisa/multi-resultados.png)
+
+- **Escolher:** marque os repositórios, filtre por nome ou caminho, ou use os atalhos **Todos**, **Abertos nas abas** e **Só este** (volta à pesquisa de sempre). Os **conjuntos** guardam uma escolha com nome ("Backend", "Front"): digite o nome e **Salvar conjunto**; clicar no conjunto aplica; o ✕ o apaga. O botão ganha o número escolhido e, com o painel fechado, o chip "3 repositórios" lembra onde a pesquisa está; **a última escolha é lembrada** ao reabrir a janela.
+- **Resultados:** agrupados por **repositório** e, dentro dele, por arquivo (o mesmo caminho em dois repositórios aparece uma vez em cada, sem se misturar). O repositório da aba ativa vem primeiro. O cabeçalho de cada um mostra a contagem e o **estado**, sempre em texto: *buscando…*, *concluído*, *erro*, *indisponível* (a pasta sumiu ou o disco não está ligado), *sem Git* ou *sem a revisão v9* (quando o escopo é um branch/tag e aquele repositório não o tem: não é erro). Clicar no cabeçalho recolhe o repositório; **Parar** no cabeçalho para só aquele, e o **Parar** da janela, todos. O contador diz "320 ocorrências em 41 arquivos de 3 repositórios".
+- **Como roda:** até 4 repositórios ao mesmo tempo (nunca mais que a metade dos núcleos do computador), no máximo **1.000 ocorrências por repositório** e **5.000 no total**: o que passa disso é cortado e o cabeçalho diz ("cortado no limite do repositório", "não coube no limite geral"), então um repositório enorme não esconde os outros. Um repositório com problema **nunca derruba** os demais. Não há "Carregar mais" nessa pesquisa.
+- **O arquivo de baixo** abre e **grava no repositório dono** da ocorrência (o selo mostra qual), com tudo o que a pesquisa de um repositório faz: codificação e fim de linha preservados, aviso de mudança por fora e a tela daquele repositório recarregando ao salvar. Histórico, Blame, copiar `caminho:linha` e abrir fora do app valem para ele. Os escopos *Alterados* e *Stage* valem para cada repositório; *Branch, tag ou commit* aceita um nome e quem não o tem aparece como "sem a revisão".
+- **Substituir em vários repositórios** nasce **desligado**: com a substituição aberta, o resumo diz que está desligada até você marcar **Permitir substituir nestes N repositórios** (a cada pesquisa; nada é lido do disco antes disso). Ligada, vale tudo o que a substituição de um repositório já faz (prévia, exclusão, recusa do arquivo que mudou, cópia de segurança, nunca cria commit) e a **confirmação lista cada repositório** com o resumo dele e uma caixa: desmarque os que ficam de fora. A cópia de segurança e o **Desfazer substituição** são **por repositório** (um botão para cada, "Desfazer substituição · api").
+
+![Confirmação por repositório](media/pesquisa/multi-confirmar.png)
+
+![Tema claro, em inglês](media/pesquisa/multi-claro-en.png)
+
 ### Só com o teclado e com leitor de tela
 
 O fluxo inteiro (abrir, digitar, andar pelos resultados, trocar de arquivo, editar, salvar e fechar) se faz sem tocar no mouse, e o teste `search-teclado.mjs` o percorre com teclas de verdade.
@@ -198,8 +214,11 @@ Medido em 24/11/2026 numa máquina de desenvolvimento (Windows 11, Git instalado
 | Interface, 5 mil ocorrências em 600 arquivos: primeiro resultado / fim | — | **588 a 786 ms** / **816 a 865 ms** |
 | Rolar 5 mil resultados (lista virtualizada: 20 linhas no DOM de 5.418) | 60 quadros por segundo | **60 quadros por segundo** (95% dos quadros em 17 ms) |
 | Abrir um arquivo de 30 mil linhas no editor de baixo, com a ocorrência destacada | até 500 ms | **212 a 300 ms** (3 execuções) |
+| Vários repositórios, 10 x 5 mil arquivos: primeiro lote de resultados | até 500 ms | **331 ms** |
+| Vários repositórios, 10 x 5 mil arquivos: busca completa até o limite geral (5 mil ocorrências) | — | **2,0 s** |
+| Vários repositórios: Parar com tudo em andamento e na fila | até 100 ms | **17 ms** (10 de 10 repositórios parados) |
 
-Como repetir: `search-window-perf.mjs` (5 mil resultados, rolagem e 30 mil linhas; roda sempre) e, para os 20 mil arquivos, `GN_SEARCH_FILES=20000 GN_SEARCH_KEEP=1 npx vitest run packages/git-core/test/search-run.test.ts -t "arquivos numerosos"` (o núcleo; gera o repositório em `<TEMP>/gitnexus-search-big-20000`, o que leva minutos) e depois `GN_SEARCH_BIG=<essa pasta>` no `search-window-perf.mjs` (a interface). As medidas da interface saem em `search-window-perf-metrics.json`.
+Como repetir: `search-window-perf.mjs` (5 mil resultados, rolagem e 30 mil linhas; roda sempre) e, para os 20 mil arquivos, `GN_SEARCH_FILES=20000 GN_SEARCH_KEEP=1 npx vitest run packages/git-core/test/search-run.test.ts -t "arquivos numerosos"` (o núcleo; gera o repositório em `<TEMP>/gitnexus-search-big-20000`, o que leva minutos) e depois `GN_SEARCH_BIG=<essa pasta>` no `search-window-perf.mjs` (a interface). As medidas da interface saem em `search-window-perf-metrics.json`. Para os vários repositórios: `GN_MULTI_FILES=5000 npx vitest run apps/studio/test/multi-search-perf.test.ts` (gera 10 repositórios de 5 mil arquivos e imprime `MULTI primeiro-lote`, `cancelar-todos` e `limite-global`).
 
 ## Pesquisar dentro de um arquivo
 
