@@ -46,6 +46,11 @@ await t.ev(`[...document.querySelectorAll('li.repo')].find((x) => x.querySelecto
 await t.until(`document.querySelector('.rv__btns')`, 20000);
 await sleep(800);
 
+// as capturas vão para a documentação: o caminho do repositório (que mostra a pasta do usuário) não aparece nelas
+const shot = async (n) => {
+  await t.ev(`(() => { if (!document.getElementById('gn-nopath')) { const s = document.createElement('style'); s.id = 'gn-nopath'; s.textContent = '.rv__path { visibility: hidden !important; }'; document.head.appendChild(s); } })()`);
+  await t.shot(n);
+};
 const W = '[data-testid="search-window"]';
 const q = (id) => `${W} [data-testid="${id}"]`;
 const F = q('sf-input');
@@ -107,7 +112,7 @@ await openFilters();
 await pick('sw-scope', 'Alterados');
 await waitCount('^4 ocorrências em 2 arquivos');
 t.check('Alterados: só o que mudou (arquivo alterado e arquivo novo)', /^4 ocorrências em 2 arquivos/.test(await count()) && JSON.stringify(await fileSet()) === JSON.stringify(['novo.txt', 'src/app.ts']), [await count(), await fileSet()]);
-await t.shot('filtros-alterados');
+await shot('filtros-alterados');
 
 await pick('sw-scope', 'Stage');
 await waitCount('^6 ocorrências em 5 arquivos');
@@ -156,7 +161,7 @@ await t.until(`document.querySelectorAll('[data-testid="sw-ctx-row"]').length > 
 const ctx = await t.ev(`[...document.querySelectorAll('[data-testid="sw-ctx-row"]')].map((r) => r.textContent.replace(/\\s+/g, ' ').trim())`);
 t.check('contexto 2: as linhas em volta aparecem (sem repetir as que já são ocorrência) e são só texto', ctx.length === 3 && /const other = 2;/.test(ctx[0]) && (await t.ev(`document.querySelectorAll('[data-testid="sw-ctx-row"] mark').length`)) === 0, ctx);
 t.check('o contexto não vira ocorrência (o contador não muda)', /^4 ocorrências em 2 arquivos/.test(await count()), await count());
-await t.shot('filtros-contexto');
+await shot('filtros-contexto');
 await seg('sw-context', '0');
 await t.until(`document.querySelectorAll('[data-testid="sw-ctx-row"]').length === 0`, 8000);
 t.check('contexto 0: sem linhas de contexto', (await t.count('[data-testid="sw-ctx-row"]')) === 0);
@@ -168,7 +173,7 @@ await seg('sw-group', 'Pasta');
 await t.until(`document.querySelectorAll('[data-testid="sw-dir-row"]').length > 0`, 5000);
 const dirs = await t.ev(`[...document.querySelectorAll('[data-testid="sw-dir-row"]')].map((r) => r.getAttribute('aria-label').split(',')[0])`);
 t.check('agrupar por pasta: uma linha por pasta (e a raiz do repositório), depois os arquivos', JSON.stringify([...dirs].sort()) === JSON.stringify(['(raiz do repositório)', 'dist', 'docs', 'src']), dirs);
-await t.shot('filtros-agrupar-pasta');
+await shot('filtros-agrupar-pasta');
 await t.ev(`document.querySelector('[data-testid="sw-dir-row"]').click()`);
 await sleep(200);
 t.check('clicar na pasta recolhe os arquivos dela', (await t.count('[data-testid="sw-file-row"]')) < 5);
@@ -222,7 +227,7 @@ await typeInto(F, 'NEEDLE');
 await waitCount('^Nada encontrado');
 const sg = await t.ev(`[...document.querySelectorAll('[data-testid^="sw-sg-"]')].map((b) => b.getAttribute('data-testid'))`);
 t.check('nada encontrado: diz o que tentar (só o que aperta a busca: Aa e os ignorados)', (await t.count('[data-testid="sw-empty"]')) === 1 && JSON.stringify(sg) === JSON.stringify(['sw-sg-case', 'sw-sg-ignored']), sg);
-await t.shot('filtros-nada-encontrado');
+await shot('filtros-nada-encontrado');
 await click('sw-sg-case');
 await waitCount('^7 ocorrências em 5 arquivos');
 t.check('a sugestão desfaz a opção e refaz a pesquisa', /^7 ocorrências em 5 arquivos/.test(await count()) && (await t.count('[data-testid="sw-empty"]')) === 0, await count());
@@ -232,7 +237,7 @@ await click('sf-regex');
 await typeInto(F, 'ab(cd');
 await t.until(`document.querySelector('[data-testid="sf-error"]')`, 5000);
 t.check('regex inválida: a mensagem diz a posição', /posição 3/.test((await t.text('[data-testid="sf-error"]')) ?? ''), await t.text('[data-testid="sf-error"]'));
-await t.shot('filtros-regex-posicao');
+await shot('filtros-regex-posicao');
 await click('sf-regex');
 await typeInto(F, 'needle');
 await waitCount('^7 ocorrências em 5 arquivos');
@@ -254,7 +259,7 @@ await t.until(`document.querySelector(${lit(q('sw-past'))})`, 3000);
 const past = async () => t.ev(`[...document.querySelectorAll('[data-testid="sw-past-item"] .sw__pastpat')].map((e) => e.textContent.trim())`);
 t.check('↓ com o campo vazio abre o histórico, a mais recente primeiro', JSON.stringify(await past()) === JSON.stringify(['beta', 'alfa', 'needle']), await past());
 t.check('o histórico é uma lista com nome e o botão mostra que está aberto', (await t.ev(`document.querySelector('#sw-past-list').getAttribute('role')`)) === 'listbox' && (await t.ev(`document.querySelector(${lit(q('sw-past-toggle'))}).getAttribute('aria-expanded')`)) === 'true');
-await t.shot('filtros-historico');
+await shot('filtros-historico');
 await t.key('ArrowDown');
 await t.key('ArrowDown');
 await t.key('Enter');
@@ -295,7 +300,7 @@ writeFileSync(join(repo, 'many.txt'), Array.from({ length: 5100 }, (_, i) => `ma
 await typeInto(F, 'manyline');
 await t.until(`/Carregar mais/.test(document.querySelector('[data-testid="sw-notes"]')?.textContent ?? '')`, 20000);
 t.check('mais que o limite: diz que mostra as primeiras 5.000 e oferece Carregar mais', /primeiras 5\D?000 ocorrências/.test((await notes()) ?? '') && (await t.count(q('sw-more'))) === 1, await notes());
-await t.shot('filtros-carregar-mais');
+await shot('filtros-carregar-mais');
 await click('sw-more');
 await waitCount('^5\\D?100 ocorrências em 1 arquivo');
 t.check('Carregar mais traz o resto e junta ao que já estava na lista (5.100 no total)', /^5\D?100 ocorrências em 1 arquivo/.test(await count()) && (await t.count(q('sw-more'))) === 0, await count());
@@ -355,7 +360,7 @@ const en = await t.ev(`(() => ({
   past: document.querySelector(${lit(q('sw-past-toggle'))})?.getAttribute('aria-label'),
 }))()`);
 t.check('tema claro e inglês: botão Filtros, rótulos, agrupar e o histórico traduzidos', en.theme === 'light' && /^Filters/.test(en.toggle) && en.where.includes('Where to search') && en.where.includes('Context lines') && JSON.stringify(en.group) === JSON.stringify(['File', 'Folder', 'Flat']) && en.past === 'Previous searches', en);
-await t.shot('filtros-claro-en');
+await shot('filtros-claro-en');
 
 const appErrors = t.errors().filter((e) => !/favicon|Failed to fetch|ERR_CONNECTION|Failed to load resource|chrome-extension|Could not establish connection/.test(String(e)));
 t.check('nenhum erro da interface no console', appErrors.length === 0, appErrors);
