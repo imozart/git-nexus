@@ -95,6 +95,18 @@ describe('campo de busca vem do ui-kit', () => {
     expect(editor.text).toContain("key: 'Mod-f'");
     expect(editor.text).toContain('<FindBar');
   });
+
+  it('a janela de pesquisa (SearchWindow) é um diálogo nomeado, usa o GnSearchField e expõe lista, total e histórico aos leitores de tela', () => {
+    const win = files.find((f) => f.rel === 'components/SearchWindow.vue')!;
+    const tpl = template(win.text);
+    expect(tpl).toMatch(/<GnDialog\b[^>]*:label="t\('sw\.label'\)"/); // diálogo modal com nome
+    expect(tpl.match(/<GnSearchField\b/g)?.length, 'o campo de pesquisar e o de substituir').toBe(2);
+    expect(tpl).not.toMatch(/<(select|datalist)\b/); // nada nativo fora do ComboBox
+    expect(tpl).toMatch(/role="listbox"[^>]*aria-activedescendant/); // resultados
+    expect(tpl).toMatch(/data-testid="sw-count" role="status" aria-live="polite"/); // "128 ocorrências em 14 arquivos"
+    expect(tpl).toMatch(/:aria-expanded="pastOpen"/); // o histórico anuncia o estado
+    expect(tpl).not.toMatch(/<input\b[^>]*(type="search"|role="searchbox")/);
+  });
 });
 
 describe('cores dos botões (docs/INTERFACE.md)', () => {

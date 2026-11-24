@@ -167,6 +167,25 @@ A **barra de busca no arquivo** (`FindBar.vue`, dentro do `CodeEditor`) usa o `G
 - **manter a caixa:** TUDO MAIÚSCULO, minúsculo e Primeira maiúscula do trecho achado passam para o texto novo (foo→bar, Foo→Bar, FOO→BAR); outra mistura fica como digitada;
 - **fim de linha do arquivo preservado:** num arquivo CRLF o editor mantém CRLF (antes a primeira edição o trocava por LF) e toda quebra do texto novo entra como CRLF; num arquivo LF, LF.
 
+## A janela de pesquisa (renderer)
+
+Peças do renderer (não do kit: falam com a store e o `api`) que montam o `GnSearchField` e o `GnDialog`:
+
+| Componente | Para quê | Detalhes |
+|---|---|---|
+| `FindBar.vue` | Barra de pesquisa e substituição **do arquivo** aberto | dentro do `CodeEditor`; `role="search"`, contador `role="status"` ("3 de 12") |
+| `SearchWindow.vue` | Janela **Pesquisar no repositório** (`Ctrl+F`, `Ctrl+Shift+F`; `Ctrl+Shift+H` com "Substituir por") | um `GnDialog` com o campo, filtros, a lista de resultados e o arquivo editável embaixo; guarda as preferências em `gitnexus.searchWindow` |
+| `SearchFilters.vue` | Painel de filtros da janela (onde, pasta, novos, ignorados, contexto, agrupar) | só o formulário: quem refaz a busca é a janela |
+
+Regras de acessibilidade que valem para essa tela (e para qualquer lista de resultados parecida), todas cobertas por `search-teclado.mjs` e pelo teste de convenções:
+
+- **Diálogo modal nomeado** (`GnDialog` com `label`), foco inicial no campo (`initial-focus`), foco preso e devolvido a quem abriu. Não use `<dialog>` nativo, `<select>` nem `<datalist>`: listas curtas são o `ComboBox`.
+- **Lista virtualizada como `listbox`:** o contêiner tem `role="listbox"`, nome e `tabindex="0"`; **o foco fica no campo** e a opção ativa é `aria-activedescendant` (o `id` de uma linha que **existe no DOM**; linhas de 24 px, só as visíveis montadas). Cada `role="option"` tem `aria-label` com tudo o que a linha diz ("arquivo, linha 12: texto"), porque o trecho destacado quebra o texto em pedaços.
+- **`aria-expanded` só onde há lista aberta de verdade** (histórico, filtros): o `GnDialog` entrega o `Esc` ao controle que está expandido. Linha recolhida de arquivo **não** usa `aria-expanded`: o estado vai no nome.
+- **Total e contador em região viva educada** (`role="status"` + `aria-live="polite"`): "128 ocorrências em 14 arquivos · 0,2 s" e "3 de 12". Aviso que impede algo (não coube na codificação, arquivo mudou) é `role="alert"`.
+- **Nada só por cor:** o trecho achado tem fundo (e na prévia do "substituir" o velho é riscado e o novo é `<ins>`), a linha selecionada tem fundo **e** barra lateral, as opções ligadas do `GnSearchField` têm fundo, borda e sublinhado.
+- **Medir antes de declarar pronto:** `search-window-perf.mjs` (5 mil resultados, rolagem, tarefas longas, 30 mil linhas) e `packages/git-core/test/search-run.test.ts` (20 mil arquivos); a tabela com os tempos está em `docs/USO.md`, seção "Pesquisar no repositório".
+
 ## Como criar um componente do kit
 
 1. Nome `Gn` + substantivo, em `apps/ui-kit/src/components/`, exportado em `src/index.ts`.
