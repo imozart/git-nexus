@@ -153,6 +153,12 @@ export interface GitNexusIPC {
   startMultiSearch(repoIds: string[], query: SearchQuery, id: string, opts?: MultiSearchOptions): Promise<MultiSearchStarted>;
   /** Cancela uma busca. Com o id de uma busca em vários repositórios cancela todos; com `<id>#<repoId>` cancela só aquele repositório (os outros seguem). */
   cancelSearch(id: string): Promise<void>;
+  /** O estado do índice de busca do repositório (fase 10). Se uma construção ficou pela metade quando o app fechou, retoma. */
+  getSearchIndex(repoPath: string): Promise<SearchIndexInfo>;
+  /** Muda o modo (`auto`, `always`, `never`) e/ou o limite de disco (MB) do índice do repositório. */
+  configureSearchIndex(repoPath: string, patch: { mode?: SearchIndexMode; limitMB?: number }): Promise<SearchIndexInfo>;
+  /** Constrói, pausa, retoma, cancela, reconstrói ou apaga o índice (`dismiss`: "agora não" na proposta). O andamento chega por `onSearchIndex`. */
+  controlSearchIndex(repoPath: string, action: SearchIndexAction): Promise<SearchIndexInfo>;
   /**
    * Busca na história (fase 9 da #233): quando um texto entrou ou saiu (`-S`), linhas alteradas que casam (`-G`), mensagem (`--grep`) ou a história de um trecho
    * (`-L`). Volta na hora; os commits chegam em lotes por `onHistoryBatch` (cada um com o selo entrou/saiu/mudou e os arquivos) e o fim por `onHistoryDone`
@@ -896,8 +902,43 @@ export interface SearchDone {
   truncatedReason?: 'limit' | 'time';
   /** `offset` para pedir a próxima página, quando `truncated` por limite. */
   nextOffset?: number;
+  /** A busca usou o índice de busca (fase 10): o resultado é o mesmo, só mais rápido. `candidates` = arquivos que o Git precisou conferir. */
+  accelerated?: { candidates: number; builtAt: number; updatedAt: number };
   ms: number;
 }
+
+/** Como o índice de busca de um repositório é usado: `auto` propõe quando vale a pena, `always` mantém sempre, `never` nunca usa nem atualiza. */
+export type SearchIndexMode = 'auto' | 'always' | 'never';
+/** `none` = sem índice; `building` = construindo ou atualizando; `paused` = pausado (continua de onde parou); `ready` = pronto; `error` = parou (ver `message`). */
+export type SearchIndexState = 'none' | 'building' | 'paused' | 'ready' | 'error';
+/** Por que o app propõe acelerar as buscas: muitos arquivos, muito texto ou buscas lentas. */
+export type SearchIndexReason = 'files' | 'size' | 'slow';
+
+/** O estado do índice de busca de um repositório (fase 10 da #233). */
+export interface SearchIndexInfo {
+  repoPath: string;
+  mode: SearchIndexMode;
+  state: SearchIndexState;
+  /** Arquivos que o índice conhece / arquivos que ele sempre manda conferir (binário, grande demais, atalho). */
+  files: number;
+  alwaysChecked: number;
+  /** Tamanho no disco e o limite configurado (bytes). */
+  bytes: number;
+  limitBytes: number;
+  /** Quando o índice ficou completo pela primeira vez e quando foi atualizado pela última vez (ms desde 1970). */
+  builtAt?: number;
+  updatedAt?: number;
+  /** Andamento enquanto constrói ou atualiza. */
+  progress?: { done: number; total: number };
+  /** Mensagem de erro ou aviso (já traduzida). */
+  message?: string;
+  /** A regra de ativação pede o índice (modo `auto`, ainda sem índice): a interface propõe "Acelerar as buscas neste repositório". */
+  suggest?: SearchIndexReason;
+  /** O que a regra mediu: arquivos do repositório, texto dele (bytes), mediana das últimas buscas (ms) e quantas entram nela. */
+  measured: { files?: number; textBytes?: number; medianMs?: number; samples: number };
+}
+
+export type SearchIndexAction = 'build' | 'pause' | 'resume' | 'cancel' | 'rebuild' | 'delete' | 'dismiss';
 
 /** Fim de linha de um texto: só LF, só CRLF, misto (inclui CR solto) ou nenhum. */
 export type Eol = 'lf' | 'crlf' | 'mixed' | 'none';
@@ -1417,6 +1458,8 @@ export interface GitNexusApi extends GitNexusIPC {
   /** Lotes e fim de uma busca na história (`startHistorySearch`). */
   onHistoryBatch(cb: (e: HistoryBatchEvent) => void): () => void;
   onHistoryDone(cb: (e: HistoryDone) => void): () => void;
+  /** O índice de busca de um repositório mudou de estado ou andou (construção, atualização, pausa, erro). */
+  onSearchIndex(cb: (e: SearchIndexInfo) => void): () => void;
   /** O git/ssh precisa de usuário, senha, token ou frase-senha: a interface mostra o diálogo e responde com `askpassAnswer`. */
   onAskpassRequest(cb: (r: AskpassRequest) => void): () => void;
 

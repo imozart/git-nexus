@@ -125,6 +125,11 @@ import {
   type SearchQuery,
   type SecretScanResult,
   searchRepository,
+  SearchIndexes,
+  type IndexRule,
+  type SearchIndexAction,
+  type SearchIndexInfo,
+  type SearchIndexMode,
   type MultiSearchOptions,
   type MultiSearchStarted,
   setMessageLocale,
@@ -159,16 +164,19 @@ export type HandlerEvent =
   | { event: 'searchBatch'; data: SearchBatchEvent }
   | { event: 'searchDone'; data: SearchDone }
   | { event: 'historyBatch'; data: HistoryBatchEvent }
-  | { event: 'historyDone'; data: HistoryDone };
+  | { event: 'historyDone'; data: HistoryDone }
+  | { event: 'searchIndex'; data: SearchIndexInfo };
 
-export function createHandlers(dataDir: string, emit: (e: HandlerEvent) => void = () => undefined): Record<WorkerMethod, (...args: any[]) => Promise<unknown>> {
+export function createHandlers(dataDir: string, emit: (e: HandlerEvent) => void = () => undefined, opts: { indexRule?: Partial<IndexRule> } = {}): Record<WorkerMethod, (...args: any[]) => Promise<unknown>> {
   /** Buscas em andamento: `cancelSearch` e uma busca nova com o mesmo id encerram o processo do git de verdade. */
   const searches = new Map<string, AbortController>();
   /** Buscas na história em andamento (fase 9 da #233): o mesmo id reiniciado ou `cancelSearch` encerram o `git log` de verdade. */
   const histories = new Map<string, AbortController>();
+  /** Índices de busca persistentes (fase 10 da #233): um por repositório, na pasta de dados. As buscas os consultam; a construção corre em segundo plano neste worker. */
+  const indexes = new SearchIndexes(join(dataDir, 'search-index'), (info) => emit({ event: 'searchIndex', data: info }), opts.indexRule);
   /** Buscas em vários repositórios (fase 8 da #233): o orquestrador cuida de concorrência, limites e cancelamento por repositório. */
   const multi = createMultiSearcher({
-    run: (path, query, hooks) => searchRepository(path, query, hooks),
+    run: (path, query, hooks) => searchRepository(path, query, { ...hooks, accelerator: indexes }),
     exists: (path) => access(path).then(() => true, () => false),
     emit,
   });
@@ -249,7 +257,8 @@ export function createHandlers(dataDir: string, emit: (e: HandlerEvent) => void 
       searches.get(key)?.abort();
       const ctl = new AbortController();
       searches.set(key, ctl);
-      void searchRepository(repoPath, query, { id: key, signal: ctl.signal, onBatch: (hits) => emit({ event: 'searchBatch', data: { id: key, hits } }) })
+      void indexes.info(repoPath).catch(() => undefined); // retoma o que ficou pela metade e mede o repositório (uma vez)
+      void searchRepository(repoPath, query, { id: key, signal: ctl.signal, accelerator: indexes, onBatch: (hits) => emit({ event: 'searchBatch', data: { id: key, hits } }) })
         .then(({ done }) => emit({ event: 'searchDone', data: done }))
         .catch((e: unknown) => emit({ event: 'searchDone', data: { id: key, ok: false, message: e instanceof Error ? e.message : String(e), dialect: 'fixed', hits: 0, files: 0, skipped: [], cancelled: false, truncated: false, ms: 0 } }))
         .finally(() => {
@@ -277,6 +286,12 @@ export function createHandlers(dataDir: string, emit: (e: HandlerEvent) => void 
       multi.start(repos, query, key, opts);
       return { repos: repos.map((r) => ({ repoId: r.id, id: subId(key, r.id) })), rejected: ids.filter((i) => !catalog.has(i)) };
     },
+    getSearchIndex: (repoPath: string) => indexes.info(String(repoPath)),
+    configureSearchIndex: (repoPath: string, patch: { mode?: SearchIndexMode; limitMB?: number }) => indexes.configure(String(repoPath), { ...(patch?.mode ? { mode: patch.mode } : {}), ...(typeof patch?.limitMB === 'number' ? { limitMB: patch.limitMB } : {}) }),
+    controlSearchIndex: async (repoPath: string, action: SearchIndexAction) => {
+      if (!['build', 'pause', 'resume', 'cancel', 'rebuild', 'delete', 'dismiss'].includes(action)) throw new Error('ação inválida');
+      return indexes.control(String(repoPath), action);
+    },
     cancelSearch: async (id: string) => {
       searches.get(String(id))?.abort();
       histories.get(String(id))?.abort();
@@ -288,7 +303,13 @@ export function createHandlers(dataDir: string, emit: (e: HandlerEvent) => void 
       return { ...r, repo: await register(r.path) };
     },
     removeRepository: (id: string) =>
-      serial(async () => saveRepos((await loadRepos()).filter((r) => r.id !== id))),
+      serial(async () => {
+        const all = await loadRepos();
+        await saveRepos(all.filter((r) => r.id !== id));
+        // o índice de busca sai junto com o repositório
+        const gone = all.find((r) => r.id === id);
+        if (gone) await indexes.drop(gone.path).catch(() => undefined);
+      }),
     touchRepository: (id: string) =>
       serial(async () =>
         saveRepos((await loadRepos()).map((r) => (r.id === id ? { ...r, lastOpenedAt: Date.now() } : r))),

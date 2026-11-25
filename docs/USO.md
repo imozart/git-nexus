@@ -217,6 +217,31 @@ Para saber "quando isso entrou? quando saiu? quem mexeu?", a aba **Grafo** tem o
 
 ![Tema claro, em inglês](media/pesquisa/historia-claro-en.png)
 
+### Acelerar as buscas (índice de busca)
+
+Em repositórios com dezenas de milhares de arquivos o `git grep` lê tudo a cada busca. O **índice de busca** guarda, para cada arquivo, os trechos de 3 letras que ele tem; assim a busca vai direto aos arquivos que **podem** ter o texto e o Git só confere esses. **O resultado é sempre o mesmo da busca sem índice** (mesmos acertos, mesma ordem, mesmas colunas, mesma lista de ignorados): o índice só muda o tempo.
+
+![A linha do índice na janela de pesquisa, com o selo "Busca acelerada"](media/pesquisa/indice-busca-acelerada.png)
+
+- **Quando o app propõe:** com mais de **50 mil arquivos**, mais de **2 GB de texto**, ou quando a **mediana das últimas buscas passa de 1,5 s** (pelo menos 3 medidas). A linha logo abaixo do campo diz o motivo e pergunta "**Acelerar as buscas neste repositório?**" com **Acelerar** e **Agora não** (a proposta volta em 7 dias). Sem índice tudo funciona igual, só mais devagar.
+
+  ![A proposta de acelerar, com o motivo](media/pesquisa/indice-proposta.png)
+
+- **A linha do índice** mostra a situação em texto: "Índice de busca desligado", "Construindo o índice: 42 % (2.100 de 5.000 arquivos)" com **Pausar** e **Continuar**, "Índice pausado em 42 %", "Índice pronto · atualizado há 3 minutos · 12.345 arquivos · 85 MB". Depois de uma busca que usou o índice aparece o selo **Busca acelerada · 2 arquivos conferidos** (quantos arquivos o Git precisou ler).
+- **O diálogo "Índice…"** (também na paleta, `Ctrl+K`, **Índice de busca…**) escolhe o modo por repositório e mostra o que há no disco:
+  - **Automático** (padrão): propõe quando a regra pede e usa o índice se ele existir. **Sempre**: constrói e mantém o índice atualizado. **Nunca**: não usa nem atualiza (os arquivos ficam até você apagar).
+  - **Criar o índice**, **Pausar**, **Continuar**, **Cancelar**, **Reconstruir** e **Apagar o índice**; o **limite de disco** (padrão 2.048 MB): se a construção passa dele, ela para com uma mensagem e as buscas seguem sem o índice.
+  - O que há nele: arquivos no índice, **sempre conferidos** (binários, arquivos maiores que 2 MB, atalhos e arquivos que o Git foi mandado ignorar com `assume-unchanged` ou `skip-worktree`: o índice não os guarda e a busca sempre os lê), tamanho no disco, idade e o que foi medido (arquivos, texto, mediana das buscas).
+
+  ![O diálogo do índice, pronto](media/pesquisa/indice-dialogo-pronto.png)
+
+- **Em segundo plano e à prova de fechar o app:** a construção roda no worker (a janela segue usável), mostra o andamento, pode ser **pausada**, e se o app fechar no meio ela **continua sozinha** na próxima vez que você abrir a pesquisa. Depois de pronto, o índice se atualiza sozinho por arquivo (só o que mudou volta a ser lido).
+- **O que você altera continua valendo na hora:** o que está **modificado, novo ou apagado no disco** é sempre conferido direto, junto com os candidatos do índice, então uma edição que você acabou de salvar aparece na busca antes de o índice se atualizar. Um índice atrasado nunca omite um resultado.
+- **Se algo estiver errado:** um índice corrompido (arquivo cortado, lista com defeito, soma de verificação que não bate) é detectado, a busca daquela vez roda sem ele e ele é **apagado e reconstruído** em segundo plano. Uma conferência por amostragem (alguns arquivos relidos a cada minuto) faz o mesmo se o índice deixar de refletir o disco.
+- **Onde fica:** na pasta de dados do app (`search-index/`), **nunca dentro do repositório**, uma pasta por repositório; **sai junto** quando você tira o repositório do app. **Não vale** para buscas em uma revisão, no stage, "só os alterados", com "ignorados" ligado, com submódulos, em repositórios dentro do WSL, nem com máscaras que usam colchete, chave ou barra invertida; nesses casos a busca roda como sempre. Textos com menos de 3 caracteres e expressões regulares sem um trecho fixo também rodam sem o índice.
+
+![Tema claro, em inglês](media/pesquisa/indice-claro-en.png)
+
 ### Só com o teclado e com leitor de tela
 
 O fluxo inteiro (abrir, digitar, andar pelos resultados, trocar de arquivo, editar, salvar e fechar) se faz sem tocar no mouse, e o teste `search-teclado.mjs` o percorre com teclas de verdade.
@@ -231,7 +256,7 @@ O fluxo inteiro (abrir, digitar, andar pelos resultados, trocar de arquivo, edit
 
 ### Desempenho (medido)
 
-Medido em 24/11/2026 numa máquina de desenvolvimento (Windows 11, Git instalado, Edge sem janela como motor da interface), com o cache do sistema quente. A meta é a da issue #233; "interface" inclui os 250 ms de espera depois da última tecla.
+Medido em 24 e 25/11/2026 numa máquina de desenvolvimento (Windows 11, Git instalado, Edge sem janela como motor da interface), com o cache do sistema quente. A meta é a da issue #233; "interface" inclui os 250 ms de espera depois da última tecla.
 
 | O que se mede | Meta | Medido |
 |---|---|---|
@@ -250,8 +275,16 @@ Medido em 24/11/2026 numa máquina de desenvolvimento (Windows 11, Git instalado
 | História, 20 mil commits: varredura completa atrás de um texto que só existe no commit mais antigo | — | **2,0 a 3,0 s** |
 | História, 20 mil commits: Parar uma busca em andamento | até 100 ms | **3 a 9 ms** |
 | História, 20 mil commits: uma página de 200 commits e a seguinte ("Carregar mais") | — | **0,6 a 0,9 s** / **0,6 s** |
+| Índice, 100 mil arquivos (234 MB de texto): tamanho do índice | até ~1× o texto | **188 a 193 MB** (**0,80 a 0,82×**) |
+| Índice, 100 mil arquivos: pico de memória da construção (acima do que o processo já usava) | até 300 MB | **+155 MB** (230 MB no processo inteiro, que já tinha 75 MB) |
+| Índice, 100 mil arquivos: construção em segundo plano | — | **7,6 min** (máquina quieta) a **19,7 min** (máquina muito carregada) |
+| Índice, 100 mil arquivos: consulta de um literal de 3 caracteres ou mais, com índice (p50 / p95) | p95 até 150 ms | **215 a 255 ms** em regime (máquina quieta); **550 a 700 ms / 690 a 970 ms** com a máquina carregada. **Meta não alcançada**: ver abaixo |
+| Índice, 100 mil arquivos: a mesma consulta sem índice (p50) | — | **5,6 a 8,9 s** (o índice fica **9 a 13 vezes** mais rápido) |
+| Índice, 100 mil arquivos: atualizar 100 arquivos editados e commitados | até 2 s | **1,95 s** no melhor caso; **3,1 a 5,7 s** com a máquina carregada (a conta inclui a busca que dispara a atualização) |
 
-Como repetir: `search-window-perf.mjs` (5 mil resultados, rolagem e 30 mil linhas; roda sempre) e, para os 20 mil arquivos, `GN_SEARCH_FILES=20000 GN_SEARCH_KEEP=1 npx vitest run packages/git-core/test/search-run.test.ts -t "arquivos numerosos"` (o núcleo; gera o repositório em `<TEMP>/gitnexus-search-big-20000`, o que leva minutos) e depois `GN_SEARCH_BIG=<essa pasta>` no `search-window-perf.mjs` (a interface). As medidas da interface saem em `search-window-perf-metrics.json`. Para os vários repositórios: `GN_MULTI_FILES=5000 npx vitest run apps/studio/test/multi-search-perf.test.ts` (gera 10 repositórios de 5 mil arquivos e imprime `MULTI primeiro-lote`, `cancelar-todos` e `limite-global`). Para a história: `GN_HIST_COMMITS=20000 npx vitest run packages/git-core/test/history-search-perf.test.ts --silent=false` (gera o repositório com `git fast-import` e imprime as linhas `HIST ...`).
+**Sobre o índice de busca:** o resultado de cada consulta foi conferido contra a busca sem índice (nenhuma diferença). A meta de 150 ms (p95) **não foi alcançada nesta máquina**: com o índice, a consulta é feita por dois processos do Git em sequência, o `git status` (para saber o que está sujo ou novo, e que corre junto com a consulta ao índice) e o `git grep` só nos candidatos, e cada processo do Git custa de 70 a 140 ms aqui (um `git rev-parse` sozinho leva ~150 ms com a máquina carregada). O índice em si responde em poucos milissegundos (as chaves ficam na memória; as listas são lidas por posição). O ganho é o que se vê: de 5 a 9 s para 0,2 a 0,7 s. A mesma medição roda no Linux e no Windows da CI pelo workflow manual **Carga do índice de busca**. As medidas variam muito com a carga da máquina (a construção levou de 7,6 a 19,7 min com a mesma entrada), então os números acima são o intervalo observado, não uma promessa.
+
+Como repetir: `search-window-perf.mjs` (5 mil resultados, rolagem e 30 mil linhas; roda sempre) e, para os 20 mil arquivos, `GN_SEARCH_FILES=20000 GN_SEARCH_KEEP=1 npx vitest run packages/git-core/test/search-run.test.ts -t "arquivos numerosos"` (o núcleo; gera o repositório em `<TEMP>/gitnexus-search-big-20000`, o que leva minutos) e depois `GN_SEARCH_BIG=<essa pasta>` no `search-window-perf.mjs` (a interface). As medidas da interface saem em `search-window-perf-metrics.json`. Para os vários repositórios: `GN_MULTI_FILES=5000 npx vitest run apps/studio/test/multi-search-perf.test.ts` (gera 10 repositórios de 5 mil arquivos e imprime `MULTI primeiro-lote`, `cancelar-todos` e `limite-global`). Para a história: `GN_HIST_COMMITS=20000 npx vitest run packages/git-core/test/history-search-perf.test.ts --silent=false` (gera o repositório com `git fast-import` e imprime as linhas `HIST ...`). Para o índice: `GN_INDEX_FILES=100000 GN_INDEX_KEEP=1 npx vitest run packages/git-core/test/search-index-perf.test.ts --silent=false` (imprime as linhas `INDEX ...`; guarda o repositório e o índice em `<TEMP>/gitnexus-index-100000*`, que você apaga depois).
 
 ## Pesquisar dentro de um arquivo
 

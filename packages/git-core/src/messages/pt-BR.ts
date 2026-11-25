@@ -16,6 +16,13 @@ const messages = {
   'search.badRevision': 'Revisão inválida: {rev}',
   'search.noRevision': 'A revisão "{rev}" não existe neste repositório.',
   'search.timeout': 'A busca passou de {s} s e foi interrompida: refine o texto ou os filtros.',
+  // índice de busca (search-index.ts)
+  'searchIndex.limit': 'O índice passou do limite de disco ({mb} MB) e parou: aumente o limite ou apague o índice.',
+  'searchIndex.failed': 'O índice não pôde ser construído: {detail}',
+  'searchIndex.corrupt': 'O índice estava corrompido: foi apagado e será reconstruído. Enquanto isso a busca roda sem ele.',
+  'searchIndex.wsl': 'Repositórios em WSL não usam o índice de busca.',
+  'searchIndex.noList': 'O Git não listou os arquivos do repositório.',
+  'searchIndex.badPaths': 'O repositório tem nomes de arquivo fora do UTF-8: o índice não os enxerga direito, então a busca segue sem ele.',
   // busca na história (history-search.ts)
   'history.emptyQuery': 'Escreva o texto procurado ou use um filtro (autor, período, arquivo).',
   'history.multiline': 'Neste modo o texto tem de caber numa linha só: use "Quando entrou ou saiu" para texto de várias linhas.',

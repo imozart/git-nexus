@@ -30,6 +30,8 @@ export const useSearchStore = defineStore('search', () => {
   const replace = ref(false);
   /** Sobe a cada pedido de abrir: abrir de novo com a janela aberta (Ctrl+F outra vez) refoca e troca o texto. */
   const n = ref(0);
+  /** A paleta pediu o diálogo do índice de busca: a janela o abre e baixa a bandeira. */
+  const indexPending = ref(false);
   /** Quem mostra um arquivo (a janela de pesquisa) registra aqui como ler o arquivo e a seleção do momento; sai quando a janela fecha. */
   const fileContext = ref<(() => SearchFileContext | null) | null>(null);
 
@@ -41,8 +43,13 @@ export const useSearchStore = defineStore('search', () => {
     isOpen.value = true;
     n.value++;
   }
+  /** Abre a janela de pesquisa já com o diálogo do índice de busca (comando da paleta). */
+  function openIndex(r: RepositoryMeta): void {
+    open(r);
+    indexPending.value = true;
+  }
   function close(): void {
     isOpen.value = false;
   }
-  return { isOpen, repo, seed, preset, replace, n, fileContext, open, close };
+  return { isOpen, repo, seed, preset, replace, n, indexPending, fileContext, open, openIndex, close };
 });
