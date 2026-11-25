@@ -165,6 +165,7 @@ await t.until(`document.querySelector(${lit(D)})`, 8000);
 t.check('o comando abre a janela de pesquisa já com o diálogo do índice', (await t.count(W)) === 1 && (await t.count(D)) === 1);
 
 // ---- apagar --------------------------------------------------------------------------------------------------------------------------------------------------------------------
+await t.until(`document.querySelector(${lit(dq('sid-delete'))})`, 15000); // o diálogo da paleta abre antes de o estado chegar
 await clickD('sid-delete');
 await t.until(`document.querySelector(${lit(dq('sid-state'))})?.textContent.trim() === 'Sem índice'`, 15000);
 t.check('"Apagar o índice" volta ao estado "Sem índice" e some o que era do índice', (await t.count(dq('sid-files'))) === 0 && (await t.count(dq('sid-delete'))) === 0 && (await t.count(dq('sid-build'))) === 1);

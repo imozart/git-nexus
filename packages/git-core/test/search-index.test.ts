@@ -35,6 +35,16 @@ const ready = async () => {
   await waitFor(async () => !(await idx.info(dir)).progress);
 };
 
+/** Depois de uma corrupção a reconstrução corre em segundo plano (e o estado ainda diz "pronto" por um instante): continua pesquisando, como o usuário, até o índice voltar a ser usado. */
+const untilAccelerated = async (pattern: string, ms = 30_000): Promise<boolean> => {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if ((await fast({ pattern })).done.accelerated) return true;
+    await sleep(100);
+  }
+  return false;
+};
+
 /** O que importa de um resultado: tudo, menos tempo e o selo `accelerated`. */
 const shape = (r: { hits: SearchHit[]; done: SearchDone }) => ({
   hits: r.hits.map((h) => ({ file: h.file, line: h.line, endLine: h.endLine, text: h.text, ranges: h.ranges, before: h.before, after: h.after })),
@@ -309,18 +319,30 @@ describe('estado, controle e robustez', () => {
     }
     const first = await fast({ pattern: 'ALVO' });
     expect(shape(first)).toEqual(shape(await plain({ pattern: 'ALVO' })));
+    expect(await untilAccelerated('ALVO')).toBe(true);
     await ready();
     expect(await same({ pattern: 'ALVO' })).toBe(true);
     expect((await idx.info(dir)).state).toBe('ready');
   }, 60_000);
 
   it('arquivo de segmento truncado ou apagado também é reconstruído', async () => {
-    const base = join(data, indexKey(dir));
-    const dict = readdirSync(base).find((f) => f.endsWith('.dict'))!;
-    truncateSync(join(base, dict), 20);
-    expect(shape(await fast({ pattern: 'ALVO' }))).toEqual(shape(await plain({ pattern: 'ALVO' })));
-    await ready();
-    expect(await same({ pattern: 'ALVO' })).toBe(true);
+    // numa CÓPIA, aberta por outro gerenciador (o dicionário do que já está aberto fica na memória, então só um gerenciador novo enxerga o arquivo cortado)
+    const data3 = join(root, 'data3b');
+    cpSync(join(data, indexKey(dir)), join(data3, indexKey(dir)), { recursive: true });
+    const base = join(data3, indexKey(dir));
+    const meta = JSON.parse(readFileSync(join(base, 'meta.json'), 'utf8')) as { segs: number[] };
+    truncateSync(join(base, `seg-${meta.segs[0]}.dict`), 20);
+    const idx3 = new SearchIndexes(data3);
+    const search3 = (pattern: string) => searchRepository(dir, { pattern }, { accelerator: idx3 });
+    expect(shape(await search3('ALVO'))).toEqual(shape(await plain({ pattern: 'ALVO' })));
+    let used = false;
+    for (let i = 0; i < 300 && !used; i++) {
+      used = !!(await search3('ALVO')).done.accelerated;
+      if (!used) await sleep(100);
+    }
+    expect(used).toBe(true);
+    expect(shape(await search3('ALVO'))).toEqual(shape(await plain({ pattern: 'ALVO' })));
+    await idx3.disposeAll();
   }, 60_000);
 
   it('manifesto ilegível: o índice é descartado e reconstruído', async () => {
@@ -331,11 +353,10 @@ describe('estado, controle e robustez', () => {
     const idx2 = new SearchIndexes(data2);
     const mf = readdirSync(base).find((f) => f.startsWith('manifest-'))!;
     writeFileSync(join(base, mf), '{ não é json');
-    // o novo gerenciador lê o disco: o manifesto não confere
-    const i = await idx2.info(dir);
-    expect(['none', 'building', 'ready']).toContain(i.state);
-    await idx2.control(dir, 'rebuild');
+    // o novo gerenciador lê o disco: o manifesto não confere, o índice é apagado e recomeça sozinho
+    await idx2.info(dir);
     expect(await waitFor(async () => (await idx2.info(dir)).state === 'ready')).toBe(true);
+    expect((await searchRepository(dir, { pattern: 'ALVO' }, { accelerator: idx2 })).done.accelerated).toBeTruthy();
     await idx2.disposeAll();
   }, 60_000);
 

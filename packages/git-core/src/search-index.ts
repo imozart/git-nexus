@@ -201,6 +201,7 @@ class RepoIndex {
   private syncTimer: NodeJS.Timeout | null = null;
   /** Sobe quando juntar segmentos troca os arquivos e renumera o manifesto: uma consulta que começou antes não pode misturar os dois estados. */
   private gen = 0;
+  private rebuildPending = false;
   private lastSuggest: string | undefined;
   /** Trabalhos soltos (amostragem, medição, reconstrução): `dispose` espera por eles antes de soltar a pasta do repositório. */
   private readonly bg = new Set<Promise<unknown>>();
@@ -238,6 +239,7 @@ class RepoIndex {
         await this.openSegments();
       } catch {
         await this.reset('corrupt');
+        this.rebuildPending = true; // abriu com o índice quebrado: recomeça sozinho (quem pediu a consulta já usa a busca sem ele)
       }
     }
     await this.sweep();
@@ -394,6 +396,7 @@ class RepoIndex {
   /** Chamado ao abrir a janela de pesquisa: retoma o que ficou pela metade, cria o que o modo `always` pede e mede o repositório para a regra de ativação. */
   async wake(): Promise<void> {
     await this.load();
+    this.resumeRebuild();
     if (this.meta.state !== 'none' && this.meta.mode !== 'never') void untrackedOrder(); // medida uma vez; a primeira busca com índice não espera por ela
     if (!this.resumeChecked) {
       this.resumeChecked = true;
@@ -407,6 +410,13 @@ class RepoIndex {
       }, MEASURE_DELAY_MS);
       this.measureTimer.unref?.();
     }
+  }
+
+  /** O índice que estava no disco não prestava (apagado ao abrir): se o modo deixa, recomeça. */
+  private resumeRebuild(): void {
+    if (!this.rebuildPending) return;
+    this.rebuildPending = false;
+    if (this.meta.mode !== 'never') this.start();
   }
 
   /** Arquivos e tamanho do texto do repositório (`git ls-tree -r -l`), no máximo uma vez por dia: alimenta a regra "mais de 50 mil arquivos / 2 GB". */
@@ -781,6 +791,7 @@ class RepoIndex {
   async candidates(q: NormalizedQuery, literal: string | undefined, signal: AbortSignal): Promise<AccelCandidates | null> {
     try {
       await this.load();
+      this.resumeRebuild();
       if (this.meta.mode === 'never' || this.meta.state === 'none' || this.meta.state === 'error' || !this.manifest || !this.segs.length) {
         if (this.meta.mode === 'always' && this.meta.state === 'none') this.start();
         return null;
