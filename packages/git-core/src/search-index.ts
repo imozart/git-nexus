@@ -202,6 +202,9 @@ class RepoIndex {
   /** Sobe quando juntar segmentos troca os arquivos e renumera o manifesto: uma consulta que começou antes não pode misturar os dois estados. */
   private gen = 0;
   private rebuildPending = false;
+  private rebuilding: Promise<void> | null = null;
+  /** Sobe cada vez que o índice é apagado: o defeito achado por uma consulta que começou ANTES (com os arquivos velhos) não é do índice novo e não o apaga. */
+  private epoch = 0;
   private lastSuggest: string | undefined;
   /** Trabalhos soltos (amostragem, medição, reconstrução): `dispose` espera por eles antes de soltar a pasta do repositório. */
   private readonly bg = new Set<Promise<unknown>>();
@@ -345,6 +348,7 @@ class RepoIndex {
 
   /** Esquece o índice (arquivos e memória). O modo escolhido fica. */
   private async reset(why?: 'corrupt' | 'delete'): Promise<void> {
+    this.epoch++;
     // `nextSeg` NÃO volta ao começo: um segmento novo com o nome de um velho seria apagado pelo `retire` (minuto de atraso) do velho, ou lido com o dicionário velho do cache
     const keep = { nextSeg: this.meta.nextSeg, mode: this.meta.mode, limitMB: this.meta.limitMB, recent: this.meta.recent, treeFiles: this.meta.treeFiles, treeBytes: this.meta.treeBytes, treeAt: this.meta.treeAt, dismissedAt: this.meta.dismissedAt, invalidations: this.meta.invalidations + (why === 'corrupt' ? 1 : 0) };
     for (const s of this.segs) await s.remove();
@@ -789,9 +793,12 @@ class RepoIndex {
 
   /** Os arquivos que podem conter o texto, ou `null` (busca sem índice). Nunca lança. */
   async candidates(q: NormalizedQuery, literal: string | undefined, signal: AbortSignal): Promise<AccelCandidates | null> {
+    let epoch = -1;
     try {
       await this.load();
       this.resumeRebuild();
+      if (this.rebuilding) return null;
+      epoch = this.epoch;
       if (this.meta.mode === 'never' || this.meta.state === 'none' || this.meta.state === 'error' || !this.manifest || !this.segs.length) {
         if (this.meta.mode === 'always' && this.meta.state === 'none') this.start();
         return null;
@@ -861,7 +868,7 @@ class RepoIndex {
       };
     } catch (e) {
       if (signal.aborted) return null;
-      if (e instanceof CorruptIndexError) {
+      if (e instanceof CorruptIndexError && epoch === this.epoch) {
         // o índice não presta: apaga e reconstrói em segundo plano; esta busca roda sem ele
         this.track(this.rebuildAfterCorruption());
       }
@@ -869,7 +876,18 @@ class RepoIndex {
     }
   }
 
-  private async rebuildAfterCorruption(): Promise<void> {
+  /**
+   * Apaga o índice que não presta e recomeça. UMA reconstrução por vez: várias buscas que dão de cara com o mesmo defeito (e a amostragem) chamam isto juntas, e
+   * cada chamada cancelava a reconstrução da anterior, deixando o índice parado em "sem índice".
+   */
+  private rebuildAfterCorruption(): Promise<void> {
+    this.rebuilding ??= this.doRebuildAfterCorruption().finally(() => {
+      this.rebuilding = null;
+    });
+    return this.rebuilding;
+  }
+
+  private async doRebuildAfterCorruption(): Promise<void> {
     if (this.task) await this.stopAndWait('cancel');
     await this.reset('corrupt');
     if (this.meta.mode !== 'never') {
@@ -946,6 +964,7 @@ class RepoIndex {
   private async sample(dirty: Dirty, stale: Set<string>): Promise<void> {
     const manifest = this.manifest;
     if (!manifest || this.meta.state !== 'ready') return;
+    const epoch = this.epoch;
     const pool = [...manifest].filter(([p, e]) => !e[3] && e[1] >= 0 && !dirty.tracked.has(p) && !stale.has(p)); // o que o Git já mudou (blob novo) tem resumo velho: não é defeito
     if (!pool.length) return;
     for (let i = 0; i < Math.min(SAMPLE_FILES, pool.length); i++) {
@@ -962,6 +981,7 @@ class RepoIndex {
       // e o Git não pode ter trocado o blob (um commit no meio) desde que a busca começou
       const now = await listIndex(this.repoPath);
       if (!now || now.files.get(p)?.blob !== e[2]) continue;
+      if (epoch !== this.epoch) return; // o índice foi apagado e refeito enquanto isto rodava
       await this.rebuildAfterCorruption();
       return;
     }
