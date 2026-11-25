@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -177,5 +177,62 @@ describe('startHistorySearch (busca na história)', () => {
   it('pedido recusado chega como fim com a mensagem, sem lançar', async () => {
     await handlers.startHistorySearch(hrepo, { text: 'x', include: '../fora' }, 'h4');
     expect(await hdone('h4')).toMatchObject({ ok: false });
+  });
+});
+
+describe('índice de busca (getSearchIndex / configureSearchIndex / controlSearchIndex)', () => {
+  let irepo: string;
+  let idata: string;
+  let ih: ReturnType<typeof createHandlers>;
+  const ievents: HandlerEvent[] = [];
+  const state = async () => ((await ih.getSearchIndex(irepo)) as { state: string }).state;
+
+  beforeAll(async () => {
+    irepo = join(root, 'irepo');
+    idata = join(root, 'idata');
+    await runGit(root, ['init', '-b', 'main', irepo]);
+    for (const [k, v] of [['user.name', 'T'], ['user.email', 't@e.com'], ['commit.gpgsign', 'false'], ['core.fsmonitor', 'false']] as const) await runGit(irepo, ['config', k, v]);
+    for (let f = 0; f < 30; f++) writeFileSync(join(irepo, `f${f}.txt`), `linha ${f}\n${f === 7 ? 'AGULHAUNICA\n' : ''}`);
+    await runGit(irepo, ['add', '-A']);
+    await runGit(irepo, ['commit', '-qm', 'tudo']);
+    ih = createHandlers(idata, (e) => ievents.push(e));
+  }, 60_000);
+
+  it('começa sem índice, em modo automático, e o modo e o limite mudam', async () => {
+    expect(await ih.getSearchIndex(irepo)).toMatchObject({ state: 'none', mode: 'auto', files: 0 });
+    expect(await ih.configureSearchIndex(irepo, { mode: 'never' })).toMatchObject({ mode: 'never' });
+    expect(await ih.configureSearchIndex(irepo, { mode: 'qualquer' as never, limitMB: 64 })).toMatchObject({ mode: 'never', limitBytes: 64 * 1024 * 1024 });
+    expect(await ih.configureSearchIndex(irepo, { mode: 'auto' })).toMatchObject({ mode: 'auto' });
+  });
+
+  it('ação desconhecida é recusada', async () => {
+    await expect(ih.controlSearchIndex(irepo, 'apagar-tudo' as never)).rejects.toThrow();
+  });
+
+  it('constrói em segundo plano, avisa o andamento pelo evento e as buscas passam a usar o índice', async () => {
+    await ih.controlSearchIndex(irepo, 'build');
+    for (let i = 0; i < 400 && (await state()) !== 'ready'; i++) await new Promise((r) => setTimeout(r, 50));
+    expect(await state()).toBe('ready');
+    const fromEvents = () => ievents.filter((e) => e.event === 'searchIndex').map((e) => (e.data as { state: string }).state);
+    for (let i = 0; i < 100 && fromEvents()[fromEvents().length - 1] !== 'ready'; i++) await new Promise((r) => setTimeout(r, 50)); // o evento de "pronto" sai logo depois de o estado mudar
+    expect(fromEvents()).toContain('building');
+    expect(fromEvents()[fromEvents().length - 1]).toBe('ready');
+    await ih.startSearch(irepo, { pattern: 'AGULHAUNICA' }, 'i1');
+    let d: SearchDone | undefined;
+    for (let i = 0; i < 200 && !d; i++) {
+      d = ievents.find((e) => e.event === 'searchDone' && e.data.id === 'i1')?.data as SearchDone | undefined;
+      if (!d) await new Promise((r) => setTimeout(r, 25));
+    }
+    expect(d).toMatchObject({ ok: true, hits: 1, files: 1 });
+    expect(d!.accelerated?.candidates).toBe(1);
+  });
+
+  it('tirar o repositório do app apaga o índice dele', async () => {
+    const meta = (await ih.addRepositoryPath(irepo)) as { id: string };
+    const dir = join(idata, 'search-index');
+    expect(existsSync(dir)).toBe(true);
+    await ih.removeRepository(meta.id);
+    expect(existsSync(dir) ? readdirSync(dir) : []).toEqual([]);
+    expect(await state()).toBe('none');
   });
 });

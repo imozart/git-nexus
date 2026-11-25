@@ -1,0 +1,48 @@
+name: Carga do índice de busca
+
+# Teste de carga do índice de busca (fase 10 da #233, issue #268). MANUAL: gera um repositório grande (padrão: 100 mil arquivos) e mede a construção, o tamanho do
+# índice, o pico de memória, a consulta de literal (p50 e p95) e a atualização de 100 arquivos, conferindo cada resposta contra a busca sem índice. Leva dezenas
+# de minutos, por isso não roda em pull request. As linhas `INDEX ...` ficam no resumo da execução.
+
+on:
+  workflow_dispatch:
+    inputs:
+      files:
+        description: 'Quantidade de arquivos do repositório de teste (só dígitos)'
+        required: true
+        default: '100000'
+
+permissions:
+  contents: read
+
+jobs:
+  load:
+    name: Carga do índice (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - name: Medir o índice
+        shell: bash
+        env:
+          FILES: ${{ inputs.files }}
+        run: |
+          if ! [[ "$FILES" =~ ^[0-9]+$ ]]; then
+            echo "A quantidade de arquivos precisa ter só dígitos." >&2
+            exit 1
+          fi
+          export GN_INDEX_FILES="$FILES"
+          pnpm exec vitest run packages/git-core/test/search-index-perf.test.ts --silent=false 2>&1 | tee load.log
+          {
+            echo "### Índice de busca em $FILES arquivos (${RUNNER_OS})"
+            echo '```'
+            grep '^INDEX' load.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

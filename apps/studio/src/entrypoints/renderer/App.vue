@@ -192,6 +192,14 @@ function globalCommands(): Command[] {
       },
       // buscar na história (fase 9 da #233): o texto selecionado vira a busca; "Quando isto entrou ou saiu?" e "Histórico destas linhas" valem para o arquivo aberto na janela de pesquisa
       {
+        id: 'search.index',
+        title: t('cmd.searchIndex'),
+        group: nav,
+        keywords: 'índice indice busca acelerar rápida trigramas search index speed up faster',
+        when: inRepo,
+        run: () => search.openIndex(repo),
+      },
+      {
         id: 'history.search',
         title: t('cmd.historySearch'),
         group: nav,

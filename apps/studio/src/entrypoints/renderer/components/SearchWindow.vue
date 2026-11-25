@@ -99,6 +99,7 @@ import { enteredQuery, fromSearchPrefs, linesQuery } from '../history-search-cor
 import { useSearchStore } from '../stores/search';
 import SearchFilters from './SearchFilters.vue';
 import SearchRepos from './SearchRepos.vue';
+import SearchIndexBar from './SearchIndexBar.vue';
 import {
   NO_HIDDEN,
   ROW_H,
@@ -1490,6 +1491,7 @@ const splitPct = computed(() => Math.round(prefs.split * 100));
         <GnButton v-if="running" size="sm" tone="warn" data-testid="sw-stop" @click="stop">{{ t('sw.stop') }}</GnButton>
         <GnIconButton icon="x" :label="t('sw.close')" data-testid="sw-close" @click="requestClose" />
       </header>
+      <SearchIndexBar :repo="repo" :done="done" :open-dialog="searchStore.indexPending" @dialog-opened="searchStore.indexPending = false" />
       <div v-if="pastOpen" class="sw__past" data-testid="sw-past">
         <ul id="sw-past-list" role="listbox" :aria-label="t('sw.pastLabel')" :aria-activedescendant="pastList.length ? 'sw-past-' + pastActive : undefined">
           <li

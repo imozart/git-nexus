@@ -48,12 +48,16 @@ function findBrowser() {
   return found;
 }
 
+/** Variáveis só de um teste (valem para o harness e para o próprio teste). `search-indice`: a regra de ativação do índice baixa para 100 arquivos, senão a proposta exigiria 50 mil. */
+const TEST_ENV = { 'search-indice.mjs': { GN_INDEX_RULE: '{"files":100}' } };
+
 /** Roda um arquivo de teste com harness e navegador novos. Devolve `{ ok, checks, lines }`. */
 async function runOne({ file, work, harness, dist, browser }) {
   const data = mkdtempSync(join(work, 'data-'));
   const profile = mkdtempSync(join(work, 'profile-'));
   const detached = process.platform !== 'win32';
-  const server = spawn(process.execPath, [harness, dist, data, String(APP_PORT)], { stdio: 'ignore', detached });
+  const env = { ...process.env, ...(TEST_ENV[file] ?? {}) };
+  const server = spawn(process.execPath, [harness, dist, data, String(APP_PORT)], { stdio: 'ignore', detached, env });
   let chrome;
   try {
     await waitFor(`http://127.0.0.1:${APP_PORT}/`, 'harness');
@@ -74,7 +78,7 @@ async function runOne({ file, work, harness, dist, browser }) {
     await waitFor(`http://127.0.0.1:${CDP_PORT}/json/version`, 'navegador (CDP)');
 
     const r = await new Promise((done) => {
-      const p = spawn(process.execPath, [join(here, 'tests', file), OUT], { env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
+      const p = spawn(process.execPath, [join(here, 'tests', file), OUT], { env, stdio: ['ignore', 'pipe', 'pipe'] });
       let out = '';
       let err = '';
       p.stdout.on('data', (d) => (out += d));

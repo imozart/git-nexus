@@ -16,7 +16,7 @@ import { HostingService, type TokenStore } from '../../src/worker/hosting-servic
 const [, , root = 'dist/renderer', dataDir = '.harness-data', portArg = '5199'] = process.argv;
 // eventos da busca v2 (lotes e fim): a página pergunta por eles, como nos outros eventos do harness
 const searchEvents: Array<{ event: string; data: unknown }> = [];
-const handlers = createHandlers(dataDir, (e) => searchEvents.push(e));
+const handlers = createHandlers(dataDir, (e) => searchEvents.push(e), { indexRule: process.env.GN_INDEX_RULE ? JSON.parse(process.env.GN_INDEX_RULE) : {} });
 let clipboard = '';
 
 // Comandos git do harness: o navegador pergunta por eles (no app real o processo principal os envia).
@@ -222,7 +222,7 @@ api.onGitProgress = (cb) => {
 // Sondagens separadas com um ponteiro compartilhado entregavam o mesmo lote em duplicidade quando a máquina estava carregada.
 // O ponto de partida é marcado quando a página carrega (uma página recarregada não repete buscas antigas), e NÃO na primeira sondagem: uma busca que a janela
 // dispara logo ao abrir (texto lembrado) podia começar antes dessa primeira sondagem, e os lotes dela eram descartados como "antigos".
-const searchListeners = { searchBatch: new Set(), searchDone: new Set(), historyBatch: new Set(), historyDone: new Set() };
+const searchListeners = { searchBatch: new Set(), searchDone: new Set(), historyBatch: new Set(), historyDone: new Set(), searchIndex: new Set() };
 let searchSeen = -1;
 let searchBusy = false;
 const searchStart = fetch('/searchevents?since=-1').then((r) => r.json()).then((r) => { searchSeen = r.next; }).catch(() => undefined);
@@ -256,6 +256,7 @@ api.onSearchBatch = (cb) => onSearchEvent('searchBatch', cb);
 api.onSearchDone = (cb) => onSearchEvent('searchDone', cb);
 api.onHistoryBatch = (cb) => onSearchEvent('historyBatch', cb);
 api.onHistoryDone = (cb) => onSearchEvent('historyDone', cb);
+api.onSearchIndex = (cb) => onSearchEvent('searchIndex', cb);
 // -1: a primeira sondagem só marca o ponto de partida (uma página recarregada não repete pedidos antigos, como no Electron)
 let askSeen = -1;
 api.onAskpassRequest = (cb) => {

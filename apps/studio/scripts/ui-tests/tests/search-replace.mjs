@@ -66,7 +66,18 @@ const waitCount = async (re, ms = 15000) => {
   return t.until(`new RegExp(${lit(re)}).test(document.querySelector('[data-testid="sw-count"]')?.textContent ?? '')`, ms);
 };
 const waitSummary = (re, ms = 15000) => t.until(`new RegExp(${lit(re)}).test(document.querySelector('[data-testid="sw-rsummary"]')?.textContent.replace(/\\s+/g, ' ') ?? '')`, ms);
-const newRows = () => t.ev(`[...document.querySelectorAll('[data-testid="sw-new-row"]')].map((r) => (r.querySelector('.sw__ln').textContent + ' ' + r.querySelector('.sw__text').textContent).replace(/\\s+/g, ' ').trim())`);
+const newRowsHere = () => t.ev(`[...document.querySelectorAll('[data-testid="sw-new-row"]')].map((r) => (r.querySelector('.sw__ln').textContent + ' ' + r.querySelector('.sw__text').textContent).replace(/\\s+/g, ' ').trim())`);
+/** As linhas "depois" de TODA a lista: ela é virtualizada (só as da janela estão no DOM), então olha o topo e o fim. */
+const newRows = async () => {
+  const list = lit(q('sw-list'));
+  const seen = new Set(await newRowsHere());
+  await t.ev(`document.querySelector(${list}).scrollTop = document.querySelector(${list}).scrollHeight`);
+  await sleep(250);
+  for (const r of await newRowsHere()) seen.add(r);
+  await t.ev(`document.querySelector(${list}).scrollTop = 0`);
+  await sleep(250);
+  return [...seen];
+};
 /** O id da n-ésima ocorrência do arquivo (as linhas "depois" não contam). */
 const hitId = (file, nth = 0) =>
   t.ev(`(() => { const rows = [...document.querySelectorAll('[data-testid="sw-file-row"], [data-testid="sw-row"]')]; let on = false; let k = 0; for (const r of rows) { if (r.dataset.testid === 'sw-file-row') { on = r.textContent.includes(${lit(file)}); k = 0; } else if (on && k++ === ${nth}) return r.id; } return null; })()`);

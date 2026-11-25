@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { AskpassRequest, CommitPolicy, ConventionalCommitInput, GitCommandEvent, GitInstallProgress, GitNexusApi, GitProgressEvent, HistoryBatchEvent, HistoryDone, SearchBatchEvent, SearchDone, UpdateProgress } from '@git-nexus/git-core/pure';
+import type { AskpassRequest, CommitPolicy, ConventionalCommitInput, GitCommandEvent, GitInstallProgress, GitNexusApi, GitProgressEvent, HistoryBatchEvent, HistoryDone, SearchBatchEvent, SearchDone, SearchIndexInfo, UpdateProgress } from '@git-nexus/git-core/pure';
 import { validateCommitMessage } from '@git-nexus/governance-policy';
 import { MAIN_METHODS, WORKER_METHODS, channel } from '../shared/channels';
 import { titleBarModeFromArgv } from '../shared/title-bar';
@@ -57,6 +57,12 @@ const api = {
     const handler = (_e: unknown, p: HistoryDone) => cb(p);
     ipcRenderer.on(channel('historyDone'), handler);
     return () => ipcRenderer.removeListener(channel('historyDone'), handler);
+  },
+  // Evento: o índice de busca de um repositório mudou de estado ou andou (fase 10 da #233).
+  onSearchIndex: (cb: (e: SearchIndexInfo) => void) => {
+    const handler = (_e: unknown, p: SearchIndexInfo) => cb(p);
+    ipcRenderer.on(channel('searchIndex'), handler);
+    return () => ipcRenderer.removeListener(channel('searchIndex'), handler);
   },
   // Evento: o git/ssh precisa de uma credencial (usuário, senha, token, frase-senha): a interface mostra o diálogo.
   onAskpassRequest: (cb: (r: AskpassRequest) => void) => {
