@@ -4,6 +4,55 @@ Tudo o que mudou no GitNexus, por versão. As versões seguem o [SemVer](https:/
 
 Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada release estável, no mesmo commit `chore(release)` que grava a versão: não é preciso editá-lo à mão. Cada versão lista **todos** os commits entre a estável anterior e ela, agrupados por tipo (novidades, correções, testes, CI…); só o commit de registro da própria release fica de fora. Os pacotes para baixar estão em cada [release](https://github.com/imozart/git-nexus/releases).
 
+## [1.26.0] - 2026-11-25
+
+### ✨ Novidades
+
+- **studio:** índice de busca persistente na janela de pesquisa, com proposta, diálogo e carga manual ([`1aaf03d`](https://github.com/imozart/git-nexus/commit/1aaf03d2c88049a9a9b7ec580b4cb8cc51e5e2fd))
+- **git-core:** índice de busca por trigramas que só encurta a lista de arquivos do git grep ([`3948a0b`](https://github.com/imozart/git-nexus/commit/3948a0be67075a542cd194720895ca1f06cd3318))
+- **studio:** buscar na história a partir da pesquisa e do editor (fase 9 de #233) ([`8dd1b4f`](https://github.com/imozart/git-nexus/commit/8dd1b4f7e084256e696bcbbda9b7b07d9d7806d9))
+- **git-core:** busca na história com o selo entrou, saiu ou mudou (fase 9 de #233) ([`7438383`](https://github.com/imozart/git-nexus/commit/74383837fd2221cc548253dfa01321880eab78e1))
+- **studio:** buscar em vários repositórios ao mesmo tempo (fase 8 de #233) ([`d273bb4`](https://github.com/imozart/git-nexus/commit/d273bb42c4acf9b4761c7c879b91a10e67536ab0))
+- **studio:** orquestrador e modelo da busca em vários repositórios (fase 8 de #233) ([`734afd6`](https://github.com/imozart/git-nexus/commit/734afd6f2003c0638b55b734d56d5ace7b292283))
+- **studio:** acessibilidade, medição e documentação da pesquisa (fase 7 de #233) ([`e72f30f`](https://github.com/imozart/git-nexus/commit/e72f30f394ab00c513c58e852b5c9b19df03942f))
+- **studio:** substituir em vários arquivos com prévia, exclusão, cópia de segurança e desfazer ([`6513754`](https://github.com/imozart/git-nexus/commit/651375422b9de3ecc9d7d86fddbda459d3bae843))
+- **studio:** filtros, escopos, histórico de pesquisas e linhas de contexto na janela de pesquisa ([`dcfca46`](https://github.com/imozart/git-nexus/commit/dcfca46174a00d368c205b2907229d4872edc2ee))
+- **studio:** janela Pesquisar no repositório (Ctrl+F) com edição segura do arquivo ([`451bf05`](https://github.com/imozart/git-nexus/commit/451bf0517b0cc20f32326ceb98b0655a1567fd55))
+- **studio:** substituir no arquivo com grupos, manter a caixa e vários cursores (Ctrl+H) ([`4d4e1c1`](https://github.com/imozart/git-nexus/commit/4d4e1c1bddd1a93b80562e6fab4f68f842168289))
+- **studio:** campo de pesquisa do kit e barra de busca no arquivo (Ctrl+F) ([`9f90a26`](https://github.com/imozart/git-nexus/commit/9f90a2666001d9719ae1dfbf3393ccd4b7f0d852))
+- **studio:** busca v2 pelo IPC com startSearch, cancelSearch e eventos em lote ([`e31765d`](https://github.com/imozart/git-nexus/commit/e31765d223110599f5c42edcdcc2758dcb8f3091))
+- **git-core:** núcleo de busca v2 com escopos, máscaras, colunas, contexto, várias linhas, lotes e cancelamento ([`4801ae1`](https://github.com/imozart/git-nexus/commit/4801ae14178bc2ef463f9ae72f1b865e422de475))
+
+### 🐛 Correções
+
+- **git-core:** uma reconstrução por defeito do índice e sem apagar o índice novo por erro do velho ([`754a445`](https://github.com/imozart/git-nexus/commit/754a4453cc3a947833b13040df0a8729f3417c3d))
+- **git-core:** índice quebrado ao abrir recomeça sozinho; testes sem corrida com a reconstrução ([`8fa6d6f`](https://github.com/imozart/git-nexus/commit/8fa6d6fb692c2f7d61f09a50921207c9f6b92383))
+- **git-core:** atualização do índice não depende de outra busca, e o que está corrompido recomeça ([`83adda1`](https://github.com/imozart/git-nexus/commit/83adda127a06a176a447be709dc3669377c41d64))
+- **git-core:** cleanFolder sem expressão regular nas barras das pontas (alerta do CodeQL) ([`c3ee454`](https://github.com/imozart/git-nexus/commit/c3ee454fa66d6458bcb5b856bae5bcb8531b6ada))
+- **studio:** harness de interface marca o ponto de partida dos lotes de pesquisa ao carregar a página ([`352d00d`](https://github.com/imozart/git-nexus/commit/352d00d74f55c5c26e39474fd3341f6d827313f0))
+- **studio:** chaves sw.ro.* contam como dinâmicas e o teste de edição não depende do foco direto no editor ([`fa9fac5`](https://github.com/imozart/git-nexus/commit/fa9fac57400dd0387982a5da65c58cc32addfa34))
+- **studio:** apaga o perfil do navegador logo após cada teste de interface ([`0a1c5f0`](https://github.com/imozart/git-nexus/commit/0a1c5f0e134d8f7f5ce73eb93d17bc6acdf99103))
+- **studio:** teste de desempenho da busca tolera a instrumentação da cobertura ([`e3ac070`](https://github.com/imozart/git-nexus/commit/e3ac070bd67d6d48b6bf6d675027ad75ade3047b))
+- **studio:** testes de interface não deixam pastas gn-* nem navegadores para trás ([`0cf5a3c`](https://github.com/imozart/git-nexus/commit/0cf5a3c622be8085634ea58da2e7fa061fd25665))
+- **studio:** o script injetado pelo harness de interface é JavaScript puro, sem anotações de tipo ([`d65430e`](https://github.com/imozart/git-nexus/commit/d65430e35c069a942f52b27807ac9cf209017325))
+- **git-core:** leitor do git grep sai do pure.ts, que também é compilado sem os tipos do node ([`453de75`](https://github.com/imozart/git-nexus/commit/453de75e0c8bba23581b93d9dba4095e1978b409))
+
+### 📚 Documentação
+
+- **pesquisa:** aponta a captura da janela para um arquivo que existe ([`d178e64`](https://github.com/imozart/git-nexus/commit/d178e64da7fae9cb6aad165b979b7a392f94b3b9))
+- **pesquisa:** capturas reais da substituição em vários arquivos ([`7fd33ea`](https://github.com/imozart/git-nexus/commit/7fd33ea357dc75dd84d413506386e88f69720975))
+- **pesquisa:** capturas reais dos filtros, histórico e mensagens da janela de pesquisa ([`a8dd00a`](https://github.com/imozart/git-nexus/commit/a8dd00a964157a8eb0a85cb7940f524706712c2a))
+- **studio:** mockups do layout sugerido para a pesquisa no repositório ([#233](https://github.com/imozart/git-nexus/pull/233)) ([`b3ba552`](https://github.com/imozart/git-nexus/commit/b3ba55207c9f3243466660a96fb2555d2918189e))
+- **studio:** como a busca v2 funciona e como medi-la ([`54dc20a`](https://github.com/imozart/git-nexus/commit/54dc20a6c1f0260466f81ba5d74e4c0b8c974ba4))
+
+### 🧪 Testes
+
+- **git-core:** a medição de cancelar não exige cancelamento quando a varredura é rápida demais ([`32bcb36`](https://github.com/imozart/git-nexus/commit/32bcb369e59f6ad70a9c2851b2d934951d882309))
+- **studio:** capturas da pesquisa sem o caminho do repositório ([`b2a2287`](https://github.com/imozart/git-nexus/commit/b2a2287373b68d44b00ec31ce03e82b1cc6bd0a1))
+- **studio:** diagnóstico do search-window sem JSON.stringify dentro de template ([`fd57252`](https://github.com/imozart/git-nexus/commit/fd5725241cb53774241a29551799618744d3bd90))
+- **studio:** search-window mostra a lista quando a linha do arquivo não aparece ([`a5b020c`](https://github.com/imozart/git-nexus/commit/a5b020c4b09ebd5548f86b1c972e926f585f670b))
+- **git-core:** busca v2 com repositório real, oráculo, cancelamento e medição de 20 mil arquivos ([`ce883d2`](https://github.com/imozart/git-nexus/commit/ce883d25ff239b27b94af5e3ec79faff41975e90))
+
 ## [1.25.0] - 2026-11-23
 
 ### ✨ Novidades
@@ -511,6 +560,7 @@ Este arquivo é **gerado a partir dos commits (Conventional Commits)** a cada re
 
 - Initial commit ([`3836781`](https://github.com/imozart/git-nexus/commit/3836781649b234584ffc6d07731856ed0a7d186a))
 
+[1.26.0]: https://github.com/imozart/git-nexus/compare/v1.25.0...v1.26.0
 [1.25.0]: https://github.com/imozart/git-nexus/compare/v1.24.0...v1.25.0
 [1.24.0]: https://github.com/imozart/git-nexus/compare/v1.23.0...v1.24.0
 [1.23.0]: https://github.com/imozart/git-nexus/compare/v1.22.0...v1.23.0
