@@ -1,12 +1,14 @@
 // Busca v2 no conteúdo dos arquivos: dispara o `git grep` (o motor), lê o resultado em lotes, devolve o destaque nas colunas que o próprio Git achou e
 // cancela de verdade. A busca de várias linhas escolhe os candidatos com o `git grep -l` e varre o conteúdo aqui, no núcleo (nunca na interface).
 import { randomUUID } from 'node:crypto';
-import { lstat, readFile } from 'node:fs/promises';
-import { cpus } from 'node:os';
+import { lstat, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cpus, tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { decodeText, detectEncoding } from './encoding.js';
 import { tm } from './messages.js';
 import { resolveInsideRepo } from './paths.js';
 import { runGit } from './runner.js';
+import { sortGitPaths } from './trigram-index-pure.js';
 import { GrepParser, byteColToIndex, type RawHit } from './search-parse.js';
 import {
   SEARCH_MAX_FILE_BYTES,
@@ -33,6 +35,82 @@ export interface SearchHooks {
   signal?: AbortSignal;
   /** Chamado com cada lote de ocorrências assim que ele fica pronto (o primeiro sai logo). */
   onBatch?: (hits: SearchHit[]) => void;
+  /** Índice de busca (fase 10): encurta a lista de arquivos que o `git grep` lê, sem mudar o resultado. */
+  accelerator?: SearchAccelerator;
+}
+
+/** Os arquivos que o índice manda o `git grep` conferir, já na ordem do Git: primeiro os rastreados, depois os novos. */
+export interface AccelCandidates {
+  tracked: string[];
+  untracked: string[];
+  /** Arquivos que a busca cobre (para o "N arquivos olhados"). */
+  filesLooked: number;
+  builtAt: number;
+  updatedAt: number;
+}
+
+export interface SearchAccelerator {
+  /** Os candidatos, ou `null` quando não há índice utilizável para este pedido: aí a busca roda como sempre. `literal` = o trecho fixo da busca de várias linhas. */
+  candidates(repoPath: string, q: NormalizedQuery, literal: string | undefined, signal: AbortSignal): Promise<AccelCandidates | null>;
+  /** Chamado no fim de cada busca (para a regra "mediana das últimas buscas"). */
+  record?(repoPath: string, done: SearchDone, accelerated: boolean): void;
+}
+
+/**
+ * Em que ordem o `git grep --untracked` lista os arquivos: `merged` = tudo junto, por caminho (o Git de hoje); `tracked-first` = primeiro os rastreados, depois os novos
+ * (Git mais antigo). O índice monta a lista de candidatos na mesma ordem, senão a paginação (`offset`) trocaria resultados de lugar. Medido uma vez por Git, num
+ * repositório descartável; `null` (não deu para medir) desliga o índice.
+ */
+export type UntrackedOrder = 'merged' | 'tracked-first';
+let orderProbe: { git: string; order: Promise<UntrackedOrder | null> } | null = null;
+export function untrackedOrder(): Promise<UntrackedOrder | null> {
+  const git = process.env.GITNEXUS_GIT_PATH || 'git';
+  if (!orderProbe || orderProbe.git !== git) {
+    orderProbe = {
+      git,
+      order: (async () => {
+        const tmp = await mkdtemp(join(tmpdir(), 'gn-order-'));
+        try {
+          const c = ['-c', 'core.fsmonitor=false', '-c', 'core.autocrlf=false'];
+          await runGit(tmp, [...c, 'init', '-q']);
+          await writeFile(join(tmp, 'b.txt'), 'x\n');
+          await runGit(tmp, [...c, 'add', 'b.txt']);
+          await writeFile(join(tmp, 'a.txt'), 'x\n');
+          const r = await runGit(tmp, [...c, 'grep', '--untracked', '-l', '-z', '-e', 'x'], { check: false, env: GREP_ENV });
+          const first = r.stdout.split('\0')[0];
+          return first === 'a.txt' ? 'merged' : first === 'b.txt' ? 'tracked-first' : null;
+        } catch {
+          return null;
+        } finally {
+          await rm(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }).catch(() => undefined);
+        }
+      })(),
+    };
+  }
+  return orderProbe.order;
+}
+
+/** Os candidatos do índice em grupos, na ordem em que o `git grep` os listaria. */
+function accelGroups(accel: AccelCandidates, order: UntrackedOrder): string[][] {
+  return order === 'merged' ? [sortGitPaths([...accel.tracked, ...accel.untracked])] : [accel.tracked, accel.untracked];
+}
+
+/** Quebra a lista de caminhos em execuções do `git grep` que cabem na linha de comando (o Windows aceita ~32 mil caracteres). */
+export function chunkByLength(items: string[], budget = 24_000, maxItems = 2000): string[][] {
+  const out: string[][] = [];
+  let cur: string[] = [];
+  let size = 0;
+  for (const it of items) {
+    if (cur.length && (size + it.length + 1 > budget || cur.length >= maxItems)) {
+      out.push(cur);
+      cur = [];
+      size = 0;
+    }
+    cur.push(it);
+    size += it.length + 1;
+  }
+  if (cur.length) out.push(cur);
+  return out;
 }
 
 export interface SearchOutcome {
@@ -174,17 +252,32 @@ export async function searchRepository(repoPath: string, query: SearchQuery, hoo
       if (skipped.length < SKIPPED_CAP && !skipped.some((s) => s.file === file)) skipped.push({ file, reason });
     };
 
+    // índice de busca: quais arquivos podem conter o texto (a busca de várias linhas só entra com um trecho fixo para procurar)
+    let accel: AccelCandidates | null = null;
+    if (hooks.accelerator && q.scope === 'worktree' && stop === null) {
+      const literal = q.multiline ? (candidateLiteral(q.pattern, q.regex) ?? undefined) : undefined;
+      if (!q.multiline || literal) {
+        try {
+          const cand = await hooks.accelerator.candidates(repoPath, q, literal, ctl.signal);
+          // a ordem do Git só importa (e só é medida, uma vez por processo) quando há índice para usar: a busca sem índice não paga por isso
+          accel = cand && (await untrackedOrder()) ? cand : null;
+        } catch {
+          accel = null; // o índice nunca derruba a busca
+        }
+      }
+    }
+
     // arquivos olhados (estimativa): em paralelo com a busca
-    const looked = listScopeFiles(repoPath, q, ctl.signal).then((f) => f.length, () => undefined);
+    const looked = accel ? Promise.resolve(accel.filesLooked) : listScopeFiles(repoPath, q, ctl.signal).then((f) => f.length, () => undefined);
 
     let failure: string | undefined;
-    if (q.multiline) failure = await multilineSearch(repoPath, q, pcre, ctl.signal, emit, skip, () => stop !== null);
-    else failure = await grepSearch(repoPath, q, pcre, dialect as Dialect, ctl.signal, emit, skip, () => stop !== null);
+    if (q.multiline) failure = await multilineSearch(repoPath, q, pcre, ctl.signal, emit, skip, () => stop !== null, accel);
+    else failure = await grepSearch(repoPath, q, pcre, dialect as Dialect, ctl.signal, emit, skip, () => stop !== null, accel);
     flush();
 
     if (failure && !stop) return finish({ ok: false, message: failure, dialect }, []);
     const filesLooked = await looked;
-    return finish(
+    const outcome = finish(
       {
         dialect,
         hits: hits.length,
@@ -196,9 +289,16 @@ export async function searchRepository(repoPath: string, query: SearchQuery, hoo
         ...(stop === 'limit' || stop === 'time' ? { truncatedReason: stop } : {}),
         ...(stop === 'limit' && nextOffset !== undefined ? { nextOffset } : {}),
         ...(stop === 'time' ? { message: tm('search.timeout', { s: Math.round(q.timeoutMs / 1000) }) } : {}),
+        ...(accel ? { accelerated: { candidates: accel.tracked.length + accel.untracked.length, builtAt: accel.builtAt, updatedAt: accel.updatedAt } } : {}),
       },
       hits,
     );
+    try {
+      hooks.accelerator?.record?.(repoPath, outcome.done, !!accel);
+    } catch {
+      /* a medição não derruba a busca */
+    }
+    return outcome;
   } finally {
     clearTimeout(timer);
   }
@@ -214,10 +314,13 @@ interface LineHit {
 type Emit = (h: SearchHit) => boolean;
 type Skip = (file: string, reason: SearchSkipped['reason']) => void;
 
-async function grepSearch(repoPath: string, q: NormalizedQuery, pcre: boolean, dialect: Dialect, signal: AbortSignal, emit: Emit, skip: Skip, stopped: () => boolean): Promise<string | undefined> {
-  // o `changed` passa os arquivos ao git em pedaços; os demais escopos são uma execução só
+async function grepSearch(repoPath: string, q: NormalizedQuery, pcre: boolean, dialect: Dialect, signal: AbortSignal, emit: Emit, skip: Skip, stopped: () => boolean, accel: AccelCandidates | null = null): Promise<string | undefined> {
+  // o `changed` passa os arquivos ao git em pedaços; com o índice, os candidatos também (rastreados antes dos novos, como o Git lista); os demais escopos são uma execução só
   const runs: Array<string[] | undefined> = [undefined];
-  if (q.scope === 'changed') {
+  if (accel) {
+    runs.length = 0;
+    for (const group of accelGroups(accel, (await untrackedOrder())!)) for (const chunk of chunkByLength(group.map(literalPathspec))) runs.push(chunk);
+  } else if (q.scope === 'changed') {
     const files = await listScopeFiles(repoPath, q, signal);
     if (!files.length) return undefined;
     runs.length = 0;
@@ -303,7 +406,7 @@ async function grepSearch(repoPath: string, q: NormalizedQuery, pcre: boolean, d
       }
     };
     const parser = new GrepParser((h) => pending.push(h), { before: q.contextBefore, after: q.contextAfter }, q.scope === 'revision' ? `${q.revision}:` : '');
-    const args = buildGrepArgs(q, { pcre, threads: Math.min(8, Math.max(1, cpus().length)), ...(files ? { files } : {}) });
+    const args = buildGrepArgs(q, { pcre, threads: Math.min(8, Math.max(1, cpus().length)), ...(files ? { files } : {}), ...(accel ? { skipMasks: true } : {}) });
     const r = await runGit(repoPath, args, {
       check: false,
       env: GREP_ENV,
@@ -334,7 +437,7 @@ const stripLen = (b: Buffer): number => b.toString('utf8').replace(/\r$/, '').le
 
 // ---------------------------------------------------------------- busca de várias linhas (candidatos do git + varredura no núcleo)
 
-async function multilineSearch(repoPath: string, q: NormalizedQuery, pcre: boolean, signal: AbortSignal, emit: Emit, skip: Skip, stopped: () => boolean): Promise<string | undefined> {
+async function multilineSearch(repoPath: string, q: NormalizedQuery, pcre: boolean, signal: AbortSignal, emit: Emit, skip: Skip, stopped: () => boolean, accel: AccelCandidates | null = null): Promise<string | undefined> {
   const compiled = compileJsRegex(q, 'ms');
   if ('error' in compiled) return tm('search.badRegex', { detail: compiled.error });
   const re = compiled.re;
@@ -342,7 +445,18 @@ async function multilineSearch(repoPath: string, q: NormalizedQuery, pcre: boole
   // 1) candidatos: o `git grep -l` com o trecho fixo mais longo da pergunta; sem trecho fixo, todos os arquivos do escopo
   let candidates: string[];
   const literal = candidateLiteral(q.pattern, q.regex);
-  if (literal && q.scope !== 'changed') {
+  if (accel && literal) {
+    // os candidatos do índice, conferidos pelo `git grep -l` (um binário que só parecia candidato não pode aparecer como ignorado)
+    candidates = [];
+    for (const group of accelGroups(accel, (await untrackedOrder())!)) {
+      for (const chunk of chunkByLength(group.map(literalPathspec))) {
+        const args = buildGrepArgs(q, { pcre, threads: Math.min(8, Math.max(1, cpus().length)), listFiles: true, pattern: literal, fixed: true, files: chunk, skipMasks: true });
+        const r = await runGit(repoPath, args, { check: false, env: GREP_ENV, signal });
+        if (!r.aborted && r.code > 1) return r.stderr.trim().split('\n').find((l) => l.trim()) || tm('search.failed');
+        candidates.push(...r.stdout.split('\0').filter(Boolean));
+      }
+    }
+  } else if (literal && q.scope !== 'changed') {
     const args = buildGrepArgs(q, { pcre, threads: Math.min(8, Math.max(1, cpus().length)), listFiles: true, pattern: literal, fixed: true });
     const r = await runGit(repoPath, args, { check: false, env: GREP_ENV, signal });
     if (!r.aborted && r.code > 1) return r.stderr.trim().split('\n').find((l) => l.trim()) || tm('search.failed');

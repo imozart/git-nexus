@@ -145,6 +145,8 @@ export interface GrepOptions {
   pattern?: string;
   /** Esse texto é fixo, não expressão regular. */
   fixed?: boolean;
+  /** Não acrescenta as máscaras aos caminhos: `files` já vem filtrado (um caminho literal e uma máscara de inclusão se SOMAM no Git, não se cruzam). */
+  skipMasks?: boolean;
 }
 
 export type Dialect = 'fixed' | 'pcre' | 'extended';
@@ -179,7 +181,7 @@ export function buildGrepArgs(q: NormalizedQuery, o: GrepOptions): string[] {
   if (o.threads > 1) args.push(`--threads=${o.threads}`);
   args.push('-e', o.pattern ?? q.pattern);
   if (q.scope === 'revision') args.push(q.revision);
-  args.push('--', ...(o.files ?? []), ...maskPathspecs(q.masks));
+  args.push('--', ...(o.files ?? []), ...(o.skipMasks ? [] : maskPathspecs(q.masks)));
   return args;
 }
 

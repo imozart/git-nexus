@@ -15,6 +15,13 @@ const messages: Partial<Record<MessageKey, string>> = {
   'search.badRevision': 'Invalid revision: {rev}',
   'search.noRevision': 'The revision "{rev}" does not exist in this repository.',
   'search.timeout': 'The search ran past {s} s and was stopped: narrow the text or the filters.',
+  // search index (search-index.ts)
+  'searchIndex.limit': 'The index went over the disk limit ({mb} MB) and stopped: raise the limit or delete the index.',
+  'searchIndex.failed': 'The index could not be built: {detail}',
+  'searchIndex.corrupt': 'The index was corrupted: it was deleted and will be rebuilt. Searches run without it meanwhile.',
+  'searchIndex.wsl': 'Repositories in WSL do not use the search index.',
+  'searchIndex.noList': 'Git did not list the repository files.',
+  'searchIndex.badPaths': 'The repository has file names outside UTF-8: the index cannot see them properly, so searches go on without it.',
   'history.emptyQuery': 'Type the text to look for or use a filter (author, period, file).',
   'history.multiline': 'In this mode the text must fit on one line: use "When it came in or went out" for multi-line text.',
   'history.badFollow': 'Following renames only works with one file (no mask or folder).',
