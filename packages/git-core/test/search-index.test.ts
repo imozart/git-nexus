@@ -35,11 +35,15 @@ const ready = async () => {
   await waitFor(async () => !(await idx.info(dir)).progress);
 };
 
-/** Depois de uma corrupção a reconstrução corre em segundo plano (e o estado ainda diz "pronto" por um instante): continua pesquisando, como o usuário, até o índice voltar a ser usado. */
-const untilAccelerated = async (pattern: string, ms = 30_000): Promise<boolean> => {
+/** Quantas vezes o índice deste repositório foi apagado por defeito (o `meta.json` guarda). */
+const invalidations = (): number => (JSON.parse(readFileSync(join(data, indexKey(dir), 'meta.json'), 'utf8')) as { invalidations: number }).invalidations;
+
+/** Espera o índice ser apagado por defeito (uma vez) e refeito: estado pronto, sem andamento, e usado pela busca. */
+const untilRebuilt = async (before: number, pattern: string, ms = 30_000): Promise<boolean> => {
   const end = Date.now() + ms;
   while (Date.now() < end) {
-    if ((await fast({ pattern })).done.accelerated) return true;
+    const i = await idx.info(dir);
+    if (invalidations() > before && i.state === 'ready' && !i.progress && (await fast({ pattern })).done.accelerated) return true;
     await sleep(100);
   }
   return false;
@@ -317,12 +321,15 @@ describe('estado, controle e robustez', () => {
       for (let i = 8; i < b.length; i++) b[i] = b[i]! ^ 0xff; // todos os bytes: o defeito é pego por qualquer consulta que leia a lista
       writeFileSync(p, b);
     }
-    const first = await fast({ pattern: 'ALVO' });
-    expect(shape(first)).toEqual(shape(await plain({ pattern: 'ALVO' })));
-    expect(await untilAccelerated('ALVO')).toBe(true);
-    await ready();
+    const before = invalidations();
+    // várias buscas ao mesmo tempo dão de cara com o defeito: uma reconstrução só, e todas dão o resultado certo
+    const want = shape(await plain({ pattern: 'ALVO' }));
+    const together = await Promise.all(Array.from({ length: 8 }, () => fast({ pattern: 'ALVO' })));
+    for (const r of together) expect(shape(r)).toEqual(want);
+    expect(await untilRebuilt(before, 'ALVO')).toBe(true);
     expect(await same({ pattern: 'ALVO' })).toBe(true);
     expect((await idx.info(dir)).state).toBe('ready');
+    expect(invalidations()).toBe(before + 1); // uma reconstrução só, nenhuma a mais depois
   }, 60_000);
 
   it('arquivo de segmento truncado ou apagado também é reconstruído', async () => {
