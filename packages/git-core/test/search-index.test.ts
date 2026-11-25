@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, truncateSync, unlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, truncateSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -29,7 +29,8 @@ const waitFor = async (cond: () => Promise<boolean> | boolean, ms = 30_000): Pro
 };
 const state = async () => (await idx.info(dir)).state;
 const ready = async () => {
-  expect(await waitFor(async () => (await state()) === 'ready')).toBe(true);
+  const ok = await waitFor(async () => (await state()) === 'ready');
+  expect(ok, JSON.stringify(await idx.info(dir))).toBe(true);
   // a atualização em segundo plano também termina: nada mais a fazer
   await waitFor(async () => !(await idx.info(dir)).progress);
 };
@@ -87,7 +88,7 @@ beforeAll(async () => {
   w('ign.txt', 'timeout no ignorado\n'); // ignorado
   w('src.txt', 'timeout fora da pasta src\n'); // "." vem antes de "/" nos bytes: confere a ordem entre arquivo novo e pasta rastreada
   w('src-extra.txt', 'timeout com hífen\n');
-  idx = new SearchIndexes(data, (i) => events.push(i));
+  idx = new SearchIndexes(data, (i) => events.push(i), {}, 300);
   await idx.control(dir, 'build');
   await ready();
 }, 120_000);
@@ -279,6 +280,7 @@ describe('o repositório muda e o resultado continua igual', () => {
 
 describe('estado, controle e robustez', () => {
   it('informa o tamanho, os arquivos e a idade', async () => {
+    await ready(); // uma atualização em segundo plano pode estar terminando
     const i = await idx.info(dir);
     expect(i).toMatchObject({ state: 'ready', mode: 'auto' });
     expect(i.files).toBeGreaterThan(5);
@@ -302,7 +304,7 @@ describe('estado, controle e robustez', () => {
       const p = join(base, f);
       const { readFileSync } = await import('node:fs');
       const b = readFileSync(p);
-      for (let i = 8; i < b.length; i += 7) b[i] = (b[i]! + 1) & 0xff;
+      for (let i = 8; i < b.length; i++) b[i] = b[i]! ^ 0xff; // todos os bytes: o defeito é pego por qualquer consulta que leia a lista
       writeFileSync(p, b);
     }
     const first = await fast({ pattern: 'ALVO' });
@@ -322,9 +324,11 @@ describe('estado, controle e robustez', () => {
   }, 60_000);
 
   it('manifesto ilegível: o índice é descartado e reconstruído', async () => {
-    const base = join(data, indexKey(dir));
-    await idx.release(dir);
-    const idx2 = new SearchIndexes(data);
+    // uma CÓPIA do índice, lida por outro gerenciador (dois gerenciadores na mesma pasta se atrapalhariam)
+    const data2 = join(root, 'data2');
+    cpSync(join(data, indexKey(dir)), join(data2, indexKey(dir)), { recursive: true });
+    const base = join(data2, indexKey(dir));
+    const idx2 = new SearchIndexes(data2);
     const mf = readdirSync(base).find((f) => f.startsWith('manifest-'))!;
     writeFileSync(join(base, mf), '{ não é json');
     // o novo gerenciador lê o disco: o manifesto não confere

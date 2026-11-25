@@ -47,6 +47,8 @@ const SAMPLE_EVERY_MS = 60_000;
 const SAMPLE_FILES = 6;
 const OBSOLETE_DELAY_MS = 60_000;
 const MEASURE_DELAY_MS = 3000;
+/** Intervalo mínimo (padrão) entre o começo de duas atualizações: uma busca atrás da outra não faz uma atualização para cada. */
+const SYNC_MIN_GAP_MS = 5000;
 /** Linha de comando do Windows: ~32 mil caracteres no total; os arquivos de uma execução do `git grep` ficam abaixo disto. */
 
 
@@ -196,6 +198,9 @@ class RepoIndex {
   private metaTimer: NodeJS.Timeout | null = null;
   private treeMeasuring = false;
   private measureTimer: NodeJS.Timeout | null = null;
+  private syncTimer: NodeJS.Timeout | null = null;
+  /** Sobe quando juntar segmentos troca os arquivos e renumera o manifesto: uma consulta que começou antes não pode misturar os dois estados. */
+  private gen = 0;
   private lastSuggest: string | undefined;
   /** Trabalhos soltos (amostragem, medição, reconstrução): `dispose` espera por eles antes de soltar a pasta do repositório. */
   private readonly bg = new Set<Promise<unknown>>();
@@ -338,7 +343,8 @@ class RepoIndex {
 
   /** Esquece o índice (arquivos e memória). O modo escolhido fica. */
   private async reset(why?: 'corrupt' | 'delete'): Promise<void> {
-    const keep = { mode: this.meta.mode, limitMB: this.meta.limitMB, recent: this.meta.recent, treeFiles: this.meta.treeFiles, treeBytes: this.meta.treeBytes, treeAt: this.meta.treeAt, dismissedAt: this.meta.dismissedAt, invalidations: this.meta.invalidations + (why === 'corrupt' ? 1 : 0) };
+    // `nextSeg` NÃO volta ao começo: um segmento novo com o nome de um velho seria apagado pelo `retire` (minuto de atraso) do velho, ou lido com o dicionário velho do cache
+    const keep = { nextSeg: this.meta.nextSeg, mode: this.meta.mode, limitMB: this.meta.limitMB, recent: this.meta.recent, treeFiles: this.meta.treeFiles, treeBytes: this.meta.treeBytes, treeAt: this.meta.treeAt, dismissedAt: this.meta.dismissedAt, invalidations: this.meta.invalidations + (why === 'corrupt' ? 1 : 0) };
     for (const s of this.segs) await s.remove();
     this.segs = [];
     this.manifest = null;
@@ -496,6 +502,7 @@ class RepoIndex {
 
   private start(): void {
     if (this.task || this.meta.mode === 'never') return;
+    let restart = false;
     const ctl = new AbortController();
     this.ctl = ctl;
     this.meta.state = 'building';
@@ -505,7 +512,9 @@ class RepoIndex {
     this.task = this.runSync(ctl.signal)
       .catch(async (e: unknown) => {
         if (e instanceof CorruptIndexError) {
+          // o que estava sendo lido ou juntado não prestava: apaga e recomeça (no `finally`, quando a tarefa já saiu)
           await this.reset('corrupt');
+          restart = true;
           return;
         }
         this.meta.state = 'error';
@@ -515,6 +524,7 @@ class RepoIndex {
       .finally(() => {
         this.task = null;
         this.ctl = null;
+        if (restart) this.start();
         this.emit(true);
       });
   }
@@ -538,6 +548,8 @@ class RepoIndex {
   async dispose(): Promise<void> {
     if (this.measureTimer) clearTimeout(this.measureTimer);
     this.measureTimer = null;
+    if (this.syncTimer) clearTimeout(this.syncTimer);
+    this.syncTimer = null;
     await this.stopAndWait('dispose');
     await Promise.all([...this.bg]);
     await this.writeMeta();
@@ -548,6 +560,8 @@ class RepoIndex {
   async drop(): Promise<void> {
     if (this.measureTimer) clearTimeout(this.measureTimer);
     this.measureTimer = null;
+    if (this.syncTimer) clearTimeout(this.syncTimer);
+    this.syncTimer = null;
     await this.stopAndWait('cancel');
     await Promise.all([...this.bg]);
     if (this.metaTimer) clearTimeout(this.metaTimer);
@@ -726,6 +740,7 @@ class RepoIndex {
       this.segs = this.segs.filter((s) => !pick.includes(s));
       this.segs.push(segment);
       this.docs.clear();
+      this.gen++;
       this.retire(pick);
       await this.checkpoint();
     }
@@ -802,8 +817,14 @@ class RepoIndex {
       if (!dirty || dirty.unsafe || signal.aborted) return null;
 
       // 2) o índice: arquivos de cada alternativa (E dos trigramas) e a união delas
-      const hit = new Set<string>();
-      for (const branch of plan) for (const p of await this.lookup(branch)) hit.add(p);
+      let hit = new Set<string>();
+      for (let attempt = 0; ; attempt++) {
+        const g = this.gen;
+        hit = new Set<string>();
+        for (const branch of plan) for (const p of await this.lookup(branch)) hit.add(p);
+        if (g === this.gen) break; // nenhuma junta de segmentos no meio da consulta
+        if (attempt >= 2) return null;
+      }
 
       // 3) os candidatos, na ordem do Git: os rastreados primeiro, depois os novos
       const cand = new Set<string>(hit);
@@ -888,11 +909,22 @@ class RepoIndex {
     if (this.meta.mode !== 'never' && !this.task) {
       let clean = 0;
       for (const p of stale) if (!dirty.tracked.has(p)) clean++;
-      if (clean > 0 && now - this.lastSync > 5000) this.start();
+      if (clean > 0) {
+        const wait = this.owner.syncGapMs - (now - this.lastSync);
+        if (wait <= 0) this.start();
+        else if (!this.syncTimer) {
+          // muito cedo depois da última atualização: marca uma para já, em vez de depender de outra busca
+          this.syncTimer = setTimeout(() => {
+            this.syncTimer = null;
+            if (!this.task && this.meta.mode !== 'never') this.start();
+          }, wait);
+          this.syncTimer.unref?.();
+        }
+      }
     }
     if (now - this.lastSample >= SAMPLE_EVERY_MS && !this.task) {
       this.lastSample = now;
-      this.track(this.sample(dirty));
+      this.track(this.sample(dirty, stale));
     }
   }
 
@@ -900,10 +932,10 @@ class RepoIndex {
    * Amostragem: relê alguns arquivos que o Git diz estarem limpos e compara com o resumo guardado. Se algum difere (e continua limpo), o índice não reflete mais o
    * disco (um filtro mudou, um arquivo foi trocado sem o Git ver): é apagado e reconstruído.
    */
-  private async sample(dirty: Dirty): Promise<void> {
+  private async sample(dirty: Dirty, stale: Set<string>): Promise<void> {
     const manifest = this.manifest;
     if (!manifest || this.meta.state !== 'ready') return;
-    const pool = [...manifest].filter(([p, e]) => !e[3] && e[1] >= 0 && !dirty.tracked.has(p));
+    const pool = [...manifest].filter(([p, e]) => !e[3] && e[1] >= 0 && !dirty.tracked.has(p) && !stale.has(p)); // o que o Git já mudou (blob novo) tem resumo velho: não é defeito
     if (!pool.length) return;
     for (let i = 0; i < Math.min(SAMPLE_FILES, pool.length); i++) {
       const [p, e] = pool[randomInt(pool.length)]!;
@@ -916,6 +948,9 @@ class RepoIndex {
       if (hashOf(bytes) === e[4]) continue;
       const again = await dirtyPaths(this.repoPath);
       if (!again || again.tracked.has(p)) continue; // estava sendo editado
+      // e o Git não pode ter trocado o blob (um commit no meio) desde que a busca começou
+      const now = await listIndex(this.repoPath);
+      if (!now || now.files.get(p)?.blob !== e[2]) continue;
       await this.rebuildAfterCorruption();
       return;
     }
@@ -944,6 +979,8 @@ export class SearchIndexes implements SearchAccelerator {
     private readonly root: string,
     private readonly onChange: (info: SearchIndexInfo) => void = () => undefined,
     rule: Partial<IndexRule> = {},
+    /** Intervalo mínimo entre atualizações (os testes baixam para não esperar 5 s a cada commit). */
+    readonly syncGapMs: number = SYNC_MIN_GAP_MS,
   ) {
     this.rule = { ...INDEX_RULE, ...rule };
   }

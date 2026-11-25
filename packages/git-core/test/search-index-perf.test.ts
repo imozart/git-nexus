@@ -167,6 +167,7 @@ describe(`índice de busca em ${N} arquivos`, () => {
     for (;;) {
       const i = await idx.info(repo);
       if (i.state === 'ready' && !i.progress && (i.updatedAt ?? 0) > (before.updatedAt ?? 0)) break;
+      void searchRepository(repo, { pattern: 'UNICO7', caseSensitive: true }, { accelerator: idx }); // como o usuário: a atualização acompanha as buscas
       if (Date.now() - t0 > 600_000) throw new Error('atualização não terminou');
       await new Promise((rr) => setTimeout(rr, 50));
     }
