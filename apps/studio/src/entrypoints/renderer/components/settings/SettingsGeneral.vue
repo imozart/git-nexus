@@ -4,10 +4,20 @@
 import { computed } from 'vue';
 import { autoFetchEnabled } from '../../auto-fetch';
 import { LOCALES, locale, localePref, setLocalePref, t, type LocalePref } from '../../i18n';
+import { useSettingsStore } from '../../stores/settings';
+import { useTourStore } from '../../stores/tour';
 import { useUpdateStore } from '../../stores/update';
+import { GnButton } from '@git-nexus/ui-kit';
 import ComboBox from '../ComboBox.vue';
 
 const upd = useUpdateStore();
+const settings = useSettingsStore();
+const tour = useTourStore();
+/** Fecha as Configurações e roda o passeio do começo (o passeio destaca controles da tela, que o diálogo cobriria). */
+function replayTour(): void {
+  settings.close();
+  tour.start(true);
+}
 // "Sistema" segue o idioma do sistema a cada abertura (o idioma que vale agora aparece como texto auxiliar); os outros são o catálogo, com o nome nativo
 const localeOptions = computed(() => [
   { value: 'system', label: t('lang.system'), hint: LOCALES.find((l) => l.id === locale.value)?.label },
@@ -30,5 +40,10 @@ const localeOptions = computed(() => [
       {{ t('settings.autoFetch') }}
     </label>
     <p class="sd__hint">{{ t('settings.autoFetchHint') }}</p>
+    <div class="sd__field" data-setting="tour">
+      <span>{{ t('settings.tour') }}</span>
+      <div><GnButton size="sm" data-testid="settings-tour" @click="replayTour">{{ t('settings.tourBtn') }}</GnButton></div>
+      <small class="sd__hint sd__hint--field">{{ t('settings.tourHint') }}</small>
+    </div>
   </div>
 </template>

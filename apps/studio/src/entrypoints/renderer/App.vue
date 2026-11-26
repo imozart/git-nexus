@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AskpassDialog from './components/AskpassDialog.vue';
 import ConfettiRain from './components/ConfettiRain.vue';
 import GitGate from './components/GitGate.vue';
 import CoreInterface from './CoreInterface.vue';
 import CommandPalette from './components/CommandPalette.vue';
 import LocaleWelcome from './components/LocaleWelcome.vue';
+import ShortcutsSheet from './components/ShortcutsSheet.vue';
+import TourOverlay from './components/TourOverlay.vue';
 import SearchWindow from './components/SearchWindow.vue';
 import SettingsDialog from './components/SettingsDialog.vue';
 import { LOCALE_ASKED_KEY, shouldAskLocale } from './i18n/core';
@@ -21,6 +23,9 @@ import { useRepositoriesStore } from './stores/repositories';
 import { useSearchStore } from './stores/search';
 import { useSettingsStore } from './stores/settings';
 import { seedFromSelection } from './search-window-core';
+import { questionMarkOpensSheet } from './shortcuts-sheet-core';
+import { shouldAutoStart } from './tour-core';
+import { useTourStore } from './stores/tour';
 import { enteredQuery, linesQuery } from './history-search-core';
 import { useGitLogStore } from './stores/gitlog';
 import { useGitInstallStore } from './stores/git-install';
@@ -36,6 +41,7 @@ const gitLog = useGitLogStore();
 const settings = useSettingsStore();
 const search = useSearchStore();
 const gitInstall = useGitInstallStore();
+const tour = useTourStore();
 // primeira abertura: pergunta o idioma antes da primeira tela (só sem preferência guardada)
 const askLocale = ref(shouldAskLocale(localStorage.getItem('gitnexus.locale'), localStorage.getItem(LOCALE_ASKED_KEY)));
 
@@ -51,6 +57,11 @@ function globalCommands(): Command[] {
   const app = t('cmd.group.app');
   // palavras-chave em português e inglês: a busca acha o comando em qualquer um dos idiomas
   const list: Command[] = [
+    // a paleta e a folha de atalhos entram no registro para aparecerem na própria folha e nas Configurações > Atalhos (e para avisar de conflito ao remapear);
+    // o Ctrl+K em si é tratado em onKeydown (antes de qualquer comando), então o atalho abaixo nunca chega a disparar por aqui
+    { id: 'app.palette', title: t('cmd.palette'), group: app, shortcut: 'Mod+K', alias: 'Mod+Shift+P', keywords: 'paleta comandos buscar command palette search', when: () => !cmds.isOpen, run: () => cmds.toggle() },
+    { id: 'app.shortcuts', title: t('cmd.shortcuts'), group: app, shortcut: 'Mod+/', keywords: 'atalhos teclado teclas ajuda folha cheat sheet keyboard shortcuts help', run: () => (cmds.sheetOpen = true) },
+    { id: 'app.tour', title: t('cmd.tour'), group: app, keywords: 'passeio guia primeiro uso tutorial ajuda tour guide onboarding first run help', run: () => tour.start(true) },
     { id: 'go.home', title: t('cmd.home'), group: nav, shortcut: 'Mod+1', keywords: 'inicio home lista repositorios start', run: () => (ws.activeId = HOME_TAB) },
     { id: 'tab.next', title: t('cmd.nextTab'), group: nav, shortcut: 'Mod+PageDown', run: () => step(1) },
     { id: 'tab.prev', title: t('cmd.prevTab'), group: nav, shortcut: 'Mod+PageUp', run: () => step(-1) },
@@ -288,6 +299,12 @@ function onKeydown(ev: KeyboardEvent): void {
     return;
   }
   if (cmds.isOpen) return; // a paleta cuida das próprias teclas
+  // "?" abre a folha de atalhos, mas só fora dos campos de texto e do editor (onde é um caractere comum)
+  if (questionMarkOpensSheet(ev)) {
+    ev.preventDefault();
+    cmds.sheetOpen = true;
+    return;
+  }
   const c = cmds.byShortcut(ev);
   if (c) {
     ev.preventDefault();
@@ -298,6 +315,20 @@ function onKeydown(ev: KeyboardEvent): void {
 let off: (() => void) | undefined;
 let stopGit: (() => void) | undefined;
 let updTimers: ReturnType<typeof setTimeout>[] = [];
+/** Primeiro uso: só para quem chega (sem repositórios e que ainda não terminou nem pulou o passeio), depois da escolha do idioma e de o catálogo ser lido. */
+let tourTimer: ReturnType<typeof setTimeout> | undefined;
+watch(
+  () => [askLocale.value, repos.loaded, repos.repos.length] as const,
+  ([asking, loaded, count]) => {
+    clearTimeout(tourTimer);
+    if (shouldAutoStart({ state: tour.saved, askingLocale: asking, catalogLoaded: loaded, repoCount: count }) && !tour.active) {
+      tourTimer = setTimeout(() => {
+        if (!isDialogOpen() && !tour.active) tour.start();
+      }, 700);
+    }
+  },
+  { immediate: true },
+);
 onMounted(() => {
   off = cmds.register(globalCommands);
   gitLog.start();
@@ -310,6 +341,7 @@ onMounted(() => {
   window.addEventListener('keydown', onKeydown);
 });
 onBeforeUnmount(() => {
+  clearTimeout(tourTimer);
   off?.();
   stopGit?.();
   updTimers.forEach((t) => clearTimeout(t));
@@ -323,6 +355,8 @@ onBeforeUnmount(() => {
   <SettingsDialog v-if="settings.isOpen" @close="settings.close()" />
   <SearchWindow v-if="search.isOpen && search.repo" :repo="search.repo" :seed="search.seed" :preset="search.preset ?? undefined" :replace="search.replace" :open-n="search.n" @close="search.close()" />
   <LocaleWelcome v-if="askLocale" @done="askLocale = false" />
+  <ShortcutsSheet v-if="cmds.sheetOpen" @close="cmds.sheetOpen = false" />
+  <TourOverlay />
   <AskpassDialog />
   <GitGate />
   <ConfettiRain v-if="upd.celebrating" @done="upd.celebrating = false" />

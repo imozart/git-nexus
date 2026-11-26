@@ -221,6 +221,14 @@ A lista de repositórios (`views/ConnectionInterface.vue`) tem **um só HTML** p
 - **Segredos:** a máscara está no núcleo (`redactSecrets` no comando e na saída de cada evento); `git-origin.test.ts` roda comandos de verdade com token na URL e em cabeçalho e confere que nada chega ao evento.
 - **Teste de interface:** `gitlog-origem.mjs`. O harness só entrega os comandos para a página numa sondagem por vez (duas sondagens com o mesmo `since` duplicavam eventos sob carga).
 
+## Primeiro uso: passeio, folha de atalhos, dicas e "Novidades"
+
+- **Passeio** (`TourOverlay.vue`, `stores/tour.ts`, `tour-core.ts`): os cinco passos têm um alvo `data-tour="…"` no HTML (`repos`, `views`, `commit`, `palette`, `settings`); um controle novo só entra no passeio ganhando o atributo e um passo em `TOUR_STEPS`. O cartão é um `role="dialog"` com `aria-modal="false"` (não bloqueia): o fundo é `pointer-events: none`, só o cartão recebe o mouse; o Tab circula entre os botões dele; Esc pula; o foco volta a quem o tinha. O estado é `gitnexus.tour` (`{ done, step }`). Começa sozinho só com `shouldAutoStart` (catálogo lido e vazio, idioma escolhido, não terminado). **No harness** (`lib.mjs`) o passeio vem marcado como visto, senão apareceria em todo teste; `primeiro-uso.mjs` liga `gitnexus.testTour` para vê-lo de verdade.
+- **Folha de atalhos** (`ShortcutsSheet.vue`, `shortcuts-sheet-core.ts`): lê `useCommandsStore().listed()`, o mesmo registro da paleta e de Configurações > Atalhos. A paleta e a folha são comandos (`app.palette`, `app.shortcuts`) para aparecerem na própria folha e entrarem na checagem de conflito ao remapear. `?` abre fora de `input`, `textarea`, editores de código e conteúdo editável (`questionMarkOpensSheet`). Comando novo aparece na folha sozinho.
+- **Dicas** (`stores/tips.ts`, `tips-core.ts`, `TipNote.vue`): `offer()` só mostra se a dica não foi dispensada (`gitnexus.tipsDismissed`) e se ainda não houve uma na sessão. Dica nova = uma avaliação em `evaluate` (barata: sem Git quando não há o que mostrar) e um id.
+- **Novidades** (`changelog-new-core.ts`): `gitnexus.changelogSeen` guarda a última versão cujas notas foram vistas; `newVersions` compara versões (pré-lançamento antes da estável).
+- Testes: `primeiro-uso-core.test.ts` (unidade), `primeiro-uso.mjs`, `atalhos-folha.mjs`, `dicas-contextuais.mjs`.
+
 ## Como criar um componente do kit
 
 1. Nome `Gn` + substantivo, em `apps/ui-kit/src/components/`, exportado em `src/index.ts`.

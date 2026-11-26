@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { GnBadge, GnButton, GnDialog, GnIcon, GnTooltip } from '@git-nexus/ui-kit';
 import type { ChangelogData } from '@git-nexus/git-core/pure';
 import { CHANGELOG_URL, parseChangelog, releaseUrl, withCurrentVersion } from '../../../shared/changelog';
 import { isAllowedUpdateUrl } from '../../../shared/update';
 import { api, errMsg } from '../api';
+import { CHANGELOG_SEEN_KEY, newVersions } from '../changelog-new-core';
 import { dateLocale, t } from '../i18n';
 import GitHubButton from './GitHubButton.vue';
 
@@ -15,6 +16,12 @@ const loading = ref(true);
 const error = ref('');
 
 const versions = computed(() => withCurrentVersion(parseChangelog(data.value?.markdown ?? ''), data.value?.version ?? ''));
+/** O que é novo desde a última vez que se viram as notas (o selo "novo"); na primeira vez só se marca o ponto de partida. */
+const seenBefore = localStorage.getItem(CHANGELOG_SEEN_KEY);
+const fresh = computed(() => newVersions(versions.value.map((v) => v.version), seenBefore, data.value?.version ?? ''));
+onBeforeUnmount(() => {
+  if (data.value?.version) localStorage.setItem(CHANGELOG_SEEN_KEY, data.value.version);
+});
 const isCurrent = (v: string) => v.replace(/^v/, '') === data.value?.version;
 const fmtDate = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString(dateLocale.value, { day: '2-digit', month: 'long', year: 'numeric' });
 
@@ -53,12 +60,13 @@ onMounted(async () => {
           <p v-else-if="error" class="cl__err">{{ error }}</p>
           <p v-else-if="!versions.length" class="muted">{{ t('changelog.empty') }}</p>
 
-          <details v-for="(v, i) in versions" :key="v.version" class="ver" :open="i === 0 || isCurrent(v.version)">
+          <details v-for="(v, i) in versions" :key="v.version" class="ver" :open="i === 0 || isCurrent(v.version) || fresh.has(v.version)" :data-new="fresh.has(v.version) || undefined">
             <summary>
               <GnIcon class="ver__chev" name="chevron-right" />
               <strong>v{{ v.version }}</strong>
               <span v-if="v.date" class="muted">{{ fmtDate(v.date) }}</span>
               <GnBadge v-if="isCurrent(v.version)" tone="accent">{{ t('changelog.current') }}</GnBadge>
+              <GnBadge v-if="fresh.has(v.version)" tone="success" data-testid="changelog-new">{{ t('changelog.new') }}</GnBadge>
             </summary>
             <section v-for="(s, si) in v.sections" :key="si">
               <h4 v-if="s.title">{{ s.title }}</h4>

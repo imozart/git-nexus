@@ -127,7 +127,7 @@ export async function connect(OUT, results) {
   };
   await send('Page.enable');
   // a escolha de idioma da primeira abertura cobriria a tela de todos os testes: marca como já mostrada, a menos que o teste dela peça o contrário (gitnexus.testNoSeed)
-  const SEED = "try { if (localStorage.getItem('gitnexus.testNoSeed') === null) localStorage.setItem('gitnexus.localeAsked', '1'); } catch {}";
+  const SEED = "try { if (localStorage.getItem('gitnexus.testNoSeed') === null) localStorage.setItem('gitnexus.localeAsked', '1'); if (localStorage.getItem('gitnexus.testTour') === null) localStorage.setItem('gitnexus.tour', '{\"done\":true,\"step\":0}'); } catch {}";
   await send('Page.addScriptToEvaluateOnNewDocument', { source: SEED });
   await send('Runtime.evaluate', { expression: SEED + "; document.querySelector('[data-testid=\"locale-welcome-skip\"]')?.click()" });
   await send('Runtime.enable');

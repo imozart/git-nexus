@@ -261,7 +261,7 @@ async function saveTeamPolicy(): Promise<void> {
 </script>
 
 <template>
-  <form class="cf" @submit.prevent="submit" @keydown.ctrl.enter.prevent="submit" @keydown.meta.enter.prevent="submit">
+  <form class="cf" data-tour="commit" @submit.prevent="submit" @keydown.ctrl.enter.prevent="submit" @keydown.meta.enter.prevent="submit">
     <div class="cf__title">
       <h3>{{ t('commit.title') }}</h3>
       <GnButton size="sm" type="button" @click="showPolicy = !showPolicy">{{ t('commit.policy') }}</GnButton>

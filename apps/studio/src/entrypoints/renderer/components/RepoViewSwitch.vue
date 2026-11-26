@@ -33,7 +33,7 @@ defineExpose({ panelId });
 </script>
 
 <template>
-  <div class="rvs" role="tablist" :aria-label="t('rvs.label')" data-testid="repo-views">
+  <div class="rvs" role="tablist" :aria-label="t('rvs.label')" data-tour="views" data-testid="repo-views">
     <GnButton
       v-for="(it, i) in items"
       :id="tabId(it.view)"

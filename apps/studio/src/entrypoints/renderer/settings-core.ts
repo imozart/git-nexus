@@ -18,6 +18,7 @@ export interface SettingMeta {
 
 export const SETTINGS_INDEX: readonly SettingMeta[] = [
   { id: 'language', section: 'general', label: 'settings.language', keywords: 'idioma língua linguagem language locale português inglês english' },
+  { id: 'tour', section: 'general', label: 'settings.tour', keywords: 'passeio guia primeiro uso tutorial boas-vindas ajuda tour guide welcome onboarding help' },
   { id: 'auto-update', section: 'general', label: 'settings.autoUpdate', keywords: 'atualização atualizar versão update upgrade release' },
   { id: 'auto-fetch', section: 'general', label: 'settings.autoFetch', keywords: 'buscar fetch automático remoto origin sincronizar sync' },
   { id: 'theme', section: 'appearance', label: 'settings.theme', keywords: 'tema escuro claro dark light sistema cores aparência theme color' },
