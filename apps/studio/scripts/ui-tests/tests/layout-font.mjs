@@ -129,9 +129,10 @@ async function pass(locale, fontUi) {
       await sleep(1200);
       await audit(screen, locale, w, h, fontUi);
       if (screen === 'ferramentas') {
-        const sections = await t.ev(`[...document.querySelectorAll('.tools .gn-tab')].map((b) => b.textContent.trim())`);
+        await t.ev(`document.querySelector('[data-testid="tools-more-toggle"][aria-expanded="false"]')?.click()`); // as ferramentas que o repositório não usa ficam recolhidas
+        const sections = await t.ev(`[...document.querySelectorAll('.tools__nav [role="tab"]')].map((b) => b.textContent.trim())`);
         for (let i = 0; i < (sections?.length ?? 0); i++) {
-          await t.ev(`[...document.querySelectorAll('.tools .gn-tab')][${i}]?.click()`);
+          await t.ev(`[...document.querySelectorAll('.tools__nav [role="tab"]')][${i}]?.click()`);
           await sleep(700);
           await audit(`ferramentas-${i}`, locale, w, h, fontUi);
         }

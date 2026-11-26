@@ -29,6 +29,7 @@ export * from './history-search.js';
 export * from './askpass.js';
 export * from './submodules.js';
 export * from './lfs.js';
+export * from './tools-usage.js';
 export * from './signing.js';
 export * from './git-config.js';
 export * from './no-prompt.js';

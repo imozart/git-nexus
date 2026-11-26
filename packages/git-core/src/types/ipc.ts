@@ -134,6 +134,8 @@ export interface GitNexusIPC {
   setGitConfig(repoPath: string | null, scope: GitConfigScope, key: GitConfigKey, value: string | null): Promise<void>;
   /** Situação do Git LFS: se o repositório usa, quais arquivos e se estão baixados ou só como ponteiro. */
   getLfsInfo(repoPath: string): Promise<LfsInfo>;
+  /** O que o repositório usa (LFS, submódulos) e os contadores das Ferramentas (stash, submódulos pendentes). */
+  getToolsUsage(repoPath: string): Promise<ToolsUsage>;
   /** `git lfs pull`: baixa os arquivos LFS que são só ponteiro (todos, ou só os `paths`). */
   pullLfs(repoPath: string, paths?: string[]): Promise<BranchActionResult>;
   /** Submódulos do repositório com o estado de cada um (vazio se não há). */
@@ -743,6 +745,18 @@ export interface SubmoduleInfo {
   describe?: string;
   /** Tem alterações locais não commitadas. */
   dirty: boolean;
+}
+
+/** O que o repositório usa, para a visão Ferramentas decidir o que mostrar e o que recolher (barato: arquivos, nada de rede). */
+export interface ToolsUsage {
+  /** Algum `.gitattributes` tem `filter=lfs`. */
+  lfs: boolean;
+  /** Existe `.gitmodules`. */
+  submodules: boolean;
+  /** Quantos submódulos não estão em dia (não inicializados, desatualizados ou em conflito). */
+  submodulesPending: number;
+  /** Quantos stashes há. */
+  stash: number;
 }
 
 /** Um arquivo controlado pelo Git LFS: `pointer` = só o ponteiro (conteúdo ainda não baixado), `downloaded` = conteúdo na pasta, `missing` = não está na pasta. */
