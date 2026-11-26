@@ -205,6 +205,8 @@ class RepoIndex {
   private rebuilding: Promise<void> | null = null;
   /** Sobe cada vez que o índice é apagado: o defeito achado por uma consulta que começou ANTES (com os arquivos velhos) não é do índice novo e não o apaga. */
   private epoch = 0;
+  /** Sobe a cada mudança do manifesto (arquivo tirado, trocado ou acrescentado): a consulta calcula o que está "atrasado" ANTES de ler o índice e, se o manifesto mudou no meio, não confia no resultado. */
+  private mver = 0;
   private lastSuggest: string | undefined;
   /** Trabalhos soltos (amostragem, medição, reconstrução): `dispose` espera por eles antes de soltar a pasta do repositório. */
   private readonly bg = new Set<Promise<unknown>>();
@@ -606,7 +608,7 @@ class RepoIndex {
       return;
     }
     const manifest = (this.manifest ??= new Map());
-    for (const p of [...manifest.keys()]) if (!listed.files.has(p)) manifest.delete(p);
+    for (const p of [...manifest.keys()]) if (!listed.files.has(p)) (this.mver++, manifest.delete(p));
     const dirty = await dirtyP;
     if (!dirty) {
       if (signal.aborted) return this.finishAborted(signal);
@@ -671,6 +673,7 @@ class RepoIndex {
         for (const a of adds) if (a.doc >= 0) a.entry[0] = id;
       }
       for (const a of adds) {
+        this.mver++;
         manifest.set(a.path, a.entry);
         fresh.push(a.path);
       }
@@ -681,7 +684,7 @@ class RepoIndex {
     // o que estava sujo logo depois de ler pode ter sido lido no meio de uma edição: sai do índice (volta quando estiver limpo)
     if (fresh.length) {
       const after = await dirtyPaths(this.repoPath, signal);
-      if (after) for (const p of fresh) if (after.tracked.has(p)) manifest.delete(p);
+      if (after) for (const p of fresh) if (after.tracked.has(p)) (this.mver++, manifest.delete(p));
     }
     this.dropEmptySegments();
 
@@ -799,6 +802,7 @@ class RepoIndex {
       this.resumeRebuild();
       if (this.rebuilding) return null;
       epoch = this.epoch;
+      const mv = this.mver;
       if (this.meta.mode === 'never' || this.meta.state === 'none' || this.meta.state === 'error' || !this.manifest || !this.segs.length) {
         if (this.meta.mode === 'always' && this.meta.state === 'none') this.start();
         return null;
@@ -840,6 +844,8 @@ class RepoIndex {
         const g = this.gen;
         hit = new Set<string>();
         for (const branch of plan) for (const p of await this.lookup(branch)) hit.add(p);
+        // o índice foi apagado no meio da consulta: o que ela leu (segmentos já sem arquivos) está vazio e NÃO vale, senão o arquivo que casa ficaria de fora
+        if (epoch !== this.epoch) return null;
         if (g === this.gen) break; // nenhuma junta de segmentos no meio da consulta
         if (attempt >= 2) return null;
       }
@@ -858,6 +864,8 @@ class RepoIndex {
       const total = allow ? [...tracked].filter(allow).length : tracked.size;
       if (trackedList.length + untrackedList.length > Math.max(MAX_CANDIDATES_FLOOR, total * MAX_CANDIDATES_FRACTION)) return null; // o índice não ajuda: busca como sempre
 
+      // idem, se foi apagado depois da leitura ou se o manifesto mudou no meio (uma atualização em andamento tirou ou trocou um arquivo depois de calculado o que estava atrasado)
+      if (epoch !== this.epoch || this.rebuilding || mv !== this.mver) return null;
       this.afterQuery(stale, dirty);
       return {
         tracked: sortGitPaths(trackedList),
