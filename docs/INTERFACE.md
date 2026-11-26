@@ -229,6 +229,13 @@ A lista de repositórios (`views/ConnectionInterface.vue`) tem **um só HTML** p
 - **Novidades** (`changelog-new-core.ts`): `gitnexus.changelogSeen` guarda a última versão cujas notas foram vistas; `newVersions` compara versões (pré-lançamento antes da estável).
 - Testes: `primeiro-uso-core.test.ts` (unidade), `primeiro-uso.mjs`, `atalhos-folha.mjs`, `dicas-contextuais.mjs`.
 
+## Grafo: a lista de commits
+
+- **Contas puras** em `graph-core.ts` (com `graph-core.test.ts`): colunas gravadas (`parseColumnPrefs`), `fitColumns` (quais colunas cabem), `laneMetrics`, `parseRefs`/`abbreviateChips` (a classe do chip depende da lista de remotos: `feat/x` é local e `origin/x` é remota), `avatarOf`, `commitState`, `visibleRange` e `scrollToRow` (lista virtual). `LANE_COLORS` tem uma paleta por tema, com o contraste medido no teste contra os fundos de `tokens.scss`.
+- **Dados** (git-core): `getHistory(repo, limit, skip)` devolve uma página `--topo-order` com `authorEmail` e, se há remotos, `local` (o commit que nenhum remoto alcança). `createGraphBuilder()` calcula as lanes **aos poucos** (`append` por página) e dá o mesmo desenho que `buildGraph` de uma vez; um teste monta 100 mil commits em páginas de 2000 e confere que cada página é rápida.
+- **A lista** (`views/GraphView.vue`) é um `listbox` com `aria-activedescendant`, uma grade CSS compartilhada pelo cabeçalho e pelas linhas, e janela virtual (`transform: translateY`). A rolagem atualiza a janela **no próprio evento** (sem `requestAnimationFrame`, que o navegador pausa com a página em segundo plano). Nos testes de interface, a lista é virtual: só as linhas da janela existem no DOM (`search-historia.mjs` percorre a rolagem para juntar todas).
+- Teste de interface: `grafo-lista.mjs`. **Não medido nesta entrega:** a rolagem de 100 mil commits num repositório real a 60 quadros por segundo e a primeira página em 300 ms (o custo de `--topo-order` num repositório enorme depende do `commit-graph`); a parte de cálculo está medida em unidade.
+
 ## Como criar um componente do kit
 
 1. Nome `Gn` + substantivo, em `apps/ui-kit/src/components/`, exportado em `src/index.ts`.
