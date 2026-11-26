@@ -4,6 +4,9 @@ import { runGit } from './runner.js';
 const FS = '\x1f';
 const RS = '\x1e';
 
+/** O formato do `git log` que `parseLog` lê (hash, pais, autor, e-mail, data, referências, assunto). Quem chama `parseLog` usa ESTE formato, para os campos não se deslocarem. */
+export const LOG_FORMAT = ['%H', '%P', '%an', '%ae', '%at', '%D', '%s'].join('%x1f') + '%x1e';
+
 export function parseLog(raw: string): CommitInfo[] {
   return raw
     .split(RS)
@@ -34,8 +37,7 @@ async function localOnlyCommits(repoPath: string): Promise<Set<string> | null> {
 
 /** Uma página do histórico (`--topo-order`: filhos antes dos pais, como o desenho de lanes precisa). `skip` pula os já carregados (a lista pede mais ao rolar). */
 export async function getHistory(repoPath: string, limit = 300, skip = 0): Promise<CommitInfo[]> {
-  const format = ['%H', '%P', '%an', '%ae', '%at', '%D', '%s'].join('%x1f') + '%x1e';
-  const args = ['log', '--all', '--topo-order', `-n${limit}`, ...(skip > 0 ? [`--skip=${Math.floor(skip)}`] : []), `--format=${format}`];
+  const args = ['log', '--all', '--topo-order', `-n${limit}`, ...(skip > 0 ? [`--skip=${Math.floor(skip)}`] : []), `--format=${LOG_FORMAT}`];
   const [r, local] = await Promise.all([runGit(repoPath, args, { check: false }), localOnlyCommits(repoPath)]);
   if (r.code !== 0) return []; // repositório sem commits
   const list = parseLog(r.stdout);

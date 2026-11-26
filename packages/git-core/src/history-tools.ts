@@ -1,10 +1,9 @@
-import { parseLog } from './history.js';
+import { LOG_FORMAT, parseLog } from './history.js';
 import { resolveInsideRepo } from './conflicts.js';
 import { runGit } from './runner.js';
 import type { BlameLine, CommitDetail, CommitFile, CommitInfo, FileAtRevision, HistorySearch } from './types/ipc.js';
 import { tm } from './messages.js';
 
-const LOG_FORMAT = ['%H', '%P', '%an', '%at', '%D', '%s'].join('%x1f') + '%x1e';
 
 /** Busca no histórico: mensagem, conteúdo (adição/remoção de um texto ou regex), autor, caminho e período. */
 export async function searchHistory(repoPath: string, q: HistorySearch, limit = 300): Promise<CommitInfo[]> {
