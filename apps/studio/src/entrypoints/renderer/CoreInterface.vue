@@ -14,6 +14,7 @@ import { useUpdateStore } from './stores/update';
 import { HOME_TAB, useWorkspaceStore } from './stores/workspace';
 import ConnectionInterface from './views/ConnectionInterface.vue';
 import RepoViewSwitch from './components/RepoViewSwitch.vue';
+import RepoOperationBar from './components/RepoOperationBar.vue';
 import RepoView from './views/RepoView.vue';
 import GraphView from './views/GraphView.vue';
 import MergeView from './views/MergeView.vue';
@@ -54,11 +55,17 @@ function pickEnc(choice: EncodingChoice): void {
 }
 watch(openFile, (f) => f || (encOpen.value = null)); // trocou de aba ou fechou o arquivo: a lista fecha
 
+/** " · Conflitos 2" no título da aba (fora da visão de conflitos, onde o seletor já mostra a contagem). */
+const conflictBadge = (tab: { repo?: { id: string }; view?: string }): string => {
+  const n = ws.ops[tab.repo?.id ?? '']?.conflicts ?? 0;
+  return n > 0 && tab.view !== 'merge' ? ` · ${t('ops.tabBadge', { n })}` : '';
+};
+
 const tabs = computed<GnTab[]>(() =>
   ws.tabs.map((tab) =>
     tab.kind === 'home'
       ? { id: tab.id, title: t('tab.home') }
-      : { id: tab.id, title: tab.repo?.name ?? '?', subtitle: LABEL.value[tab.view ?? 'repo'], closable: true },
+      : { id: tab.id, title: tab.repo?.name ?? '?', subtitle: LABEL.value[tab.view ?? 'repo'] + conflictBadge(tab), closable: true },
   ),
 );
 </script>
@@ -128,7 +135,8 @@ const tabs = computed<GnTab[]>(() =>
         <ConnectionInterface v-if="t.id === HOME_TAB" />
         <!-- uma aba por repositório: o seletor troca a visão e cada visão só monta na primeira visita (depois guarda o estado) -->
         <div v-else-if="t.repo" class="core__repo">
-          <RepoViewSwitch :repo="t.repo" :view="t.view ?? 'repo'" :conflicts="ws.conflicts[t.repo.id] ?? 0" @select="ws.open($event, t.repo)" />
+          <RepoViewSwitch :repo="t.repo" :view="t.view ?? 'repo'" :conflicts="ws.ops[t.repo.id]?.conflicts ?? 0" :with-conflicts="ws.hasConflictView(t.repo.id)" @select="ws.open($event, t.repo)" />
+          <RepoOperationBar :repo="t.repo" :view="t.view ?? 'repo'" />
           <div class="core__views">
             <div v-if="t.visited?.includes('repo')" v-show="t.view === 'repo'" :id="`rvp-${t.repo.id}-repo`" class="core__view" role="tabpanel" :aria-labelledby="`rvt-${t.repo.id}-repo`"><RepoView :repo="t.repo" /></div>
             <div v-if="t.visited?.includes('graph')" v-show="t.view === 'graph'" :id="`rvp-${t.repo.id}-graph`" class="core__view" role="tabpanel" :aria-labelledby="`rvt-${t.repo.id}-graph`"><GraphView :repo="t.repo" /></div>

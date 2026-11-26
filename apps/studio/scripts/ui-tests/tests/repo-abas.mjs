@@ -49,7 +49,7 @@ t.check('abrir três repositórios dá três abas de repositório (mais a inicia
 // A: troca de visão por dentro da aba
 await t.ev(`[...document.querySelectorAll('.gn-tab')].find((x) => /abas-a/.test(x.textContent))?.click()`);
 await sleep(500);
-t.check('o seletor de visão é um tablist nomeado com as quatro visões', (await t.ev(`(() => { const l = document.querySelector('.core__pane:not([style*="display: none"]) [data-testid="repo-views"]'); return l?.getAttribute('role') === 'tablist' && !!l.getAttribute('aria-label') && l.querySelectorAll('[role="tab"]').length === 4; })()`)) === true);
+t.check('o seletor de visão é um tablist nomeado com as três visões (sem operação, "Conflitos" não existe)', (await t.ev(`(() => { const l = document.querySelector('.core__pane:not([style*="display: none"]) [data-testid="repo-views"]'); return l?.getAttribute('role') === 'tablist' && !!l.getAttribute('aria-label') && l.querySelectorAll('[role="tab"]').length === 3; })()`)) === true);
 t.check('começa no Staging, com uma só aba selecionada e só ela na ordem do Tab', (await viewOf()) === 'repo' && (await t.ev(`document.querySelectorAll('.core__pane:not([style*="display: none"]) [data-testid="repo-view-tab"][tabindex="0"]').length`)) === 1);
 
 await switchTo('graph');
@@ -57,9 +57,8 @@ await t.until(`document.querySelector('[data-testid="gv-row"]')`, 20000);
 t.check('trocar para o Grafo não cria aba nova (o subtítulo da aba mostra a visão)', (await tabs()).length === 4 && /abas-a\s*Grafo/.test((await tabs()).find((x) => x.startsWith('abas-a')) ?? ''), await tabs());
 await switchTo('tools');
 await t.until(`document.querySelector('[role="tablist"][aria-label]')`, 10000);
-t.check('Ferramentas e Conflitos também trocam dentro da aba', (await viewOf()) === 'tools' && (await tabs()).length === 4, [await viewOf(), await tabs()]);
-await switchTo('merge');
-t.check('Conflitos idem, e o painel visível é o da visão escolhida', (await viewOf()) === 'merge' && (await t.ev(`document.querySelector('.core__pane:not([style*="display: none"]) [role="tabpanel"]:not([style*="display: none"])')?.id`)) === (await t.ev(`document.querySelector('.core__pane:not([style*="display: none"]) [data-view="merge"]').getAttribute('aria-controls')`)));
+t.check('Ferramentas também troca dentro da aba', (await viewOf()) === 'tools' && (await tabs()).length === 4, [await viewOf(), await tabs()]);
+t.check('Ferramentas idem, e o painel visível é o da visão escolhida', (await viewOf()) === 'tools' && (await t.ev(`document.querySelector('.core__pane:not([style*="display: none"]) [role="tabpanel"]:not([style*="display: none"])')?.id`)) === (await t.ev(`document.querySelector('.core__pane:not([style*="display: none"]) [data-view="tools"]').getAttribute('aria-controls')`)));
 
 // B: estado das visões (o Grafo montado continua montado ao voltar)
 await t.ev(`window.__marca = document.querySelector('[data-testid="gv-row"]')`);

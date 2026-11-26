@@ -7,7 +7,7 @@ import type { RepositoryMeta } from '@git-nexus/git-core/pure';
 import { t } from '../i18n';
 import { REPO_VIEWS, type RepoViewKind } from '../stores/workspace';
 
-const props = defineProps<{ repo: RepositoryMeta; view: RepoViewKind; conflicts: number }>();
+const props = defineProps<{ repo: RepositoryMeta; view: RepoViewKind; conflicts: number; /** Há operação em andamento ou conflito: só então a visão "Conflitos" aparece. */ withConflicts: boolean }>();
 const emit = defineEmits<{ select: [view: RepoViewKind] }>();
 
 /** O id do painel de cada visão (o `aria-controls` do botão e o `aria-labelledby` do painel usam o mesmo). */
@@ -15,7 +15,7 @@ const panelId = (v: RepoViewKind): string => `rvp-${props.repo.id}-${v}`;
 const tabId = (v: RepoViewKind): string => `rvt-${props.repo.id}-${v}`;
 
 const items = computed(() =>
-  REPO_VIEWS.map((v) => ({
+  REPO_VIEWS.filter((v) => v !== 'merge' || props.withConflicts).map((v) => ({
     view: v,
     label: v === 'repo' ? t('tab.staging') : v === 'graph' ? t('rv.graph') : v === 'tools' ? t('rv.tools') : t('rv.conflicts'),
   })),
@@ -42,7 +42,7 @@ defineExpose({ panelId });
       variant="ghost"
       role="tab"
       class="rvs__tab"
-      :class="{ 'rvs__tab--on': it.view === view, 'rvs__tab--warn': it.view === 'merge' && conflicts > 0 }"
+      :class="{ 'rvs__tab--on': it.view === view, 'rvs__tab--warn': it.view === 'merge' }"
       :aria-selected="it.view === view"
       :aria-controls="panelId(it.view)"
       :tabindex="it.view === view ? 0 : -1"
