@@ -10,7 +10,10 @@ import { realpathSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 import { tm } from './messages.js';
 import { resolveInsideRepo } from './paths.js';
-import { runGit } from './runner.js';
+import { runGit as runGitCmd, withGitOrigin, type GitRunOptions } from './runner.js';
+
+/** O índice nunca é uma ação da pessoa, mesmo quando uma busca dela o põe para andar: seus comandos entram no log como segundo plano. */
+const runGit = (repoPath: string, args: string[], opts?: GitRunOptions) => withGitOrigin('background', () => runGitCmd(repoPath, args, opts));
 import type { NormalizedQuery } from './search-pure.js';
 import { untrackedOrder, type AccelCandidates, type SearchAccelerator } from './search-run.js';
 import { INDEX_RULE, suggestIndex, type IndexRule } from './search-index-pure.js';

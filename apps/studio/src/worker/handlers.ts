@@ -1,4 +1,5 @@
 // Handlers do processo utilitário (sem dependência do Electron: testáveis em Node puro).
+import { withOrigins } from './origin';
 import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import {
@@ -241,7 +242,7 @@ export function createHandlers(dataDir: string, emit: (e: HandlerEvent) => void 
     return meta;
   }
 
-  return {
+  const methods = {
     scanDirectories: async (roots: string[]) => {
       const found = await scanDirectories(roots);
       await upsert(found);
@@ -452,4 +453,5 @@ export function createHandlers(dataDir: string, emit: (e: HandlerEvent) => void 
     rebaseOntoBranch: (repoPath: string, ref: string) => rebaseOntoBranch(repoPath, ref),
     pullBranch: (repoPath: string, remoteRef: string, mode: PullMode) => pullBranch(repoPath, remoteRef, mode),
   };
+  return withOrigins(methods);
 }

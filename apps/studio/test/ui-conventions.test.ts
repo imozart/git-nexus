@@ -22,7 +22,6 @@ const RAW_BUTTONS: Record<string, { max: number; why: string }> = {
   'components/ToolStripe.vue': { max: 1, why: 'aba vertical das barras laterais' },
   'components/ChangesTree.vue': { max: 1, why: 'seta de expandir/recolher do grupo (ícone dentro de um alvo de 16px)' },
   'components/CommitForm.vue': { max: 1, why: 'chip de tipo de commit (candidato a GnChip)' },
-  'components/GitLogPanel.vue': { max: 3, why: 'alternância do painel e os dois botões em pílula (candidatos a GnButton)' },
   'components/MergeConflictResolver.vue': { max: 1, why: 'atalho de bloco dentro da lista de conflitos' },
   'components/SideBySideDiff.vue': { max: 5, why: 'controles compactos por linha do diff (candidatos a GnIconButton size="xs") e a dobra de linhas' },
   'components/tools/StashPanel.vue': { max: 1, why: 'link-botão de "guardar só alguns arquivos"' },

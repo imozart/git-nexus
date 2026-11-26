@@ -96,8 +96,29 @@ A tela inicial mostra, para cada repositório catalogado: **branch**, o **indica
   **Integridade:** abrir o diff só lê. Quando o app grava (descartar linha/bloco, incluir linha/bloco no stage, resolver conflito), regrava **na mesma codificação em que leu**, com o mesmo BOM, de modo que os bytes que você não editou não mudam (antes tudo era regravado como UTF-8 e trocava "ç", "ã" por "�" em arquivos Windows-1252). Se o arquivo tem bytes que não existem na codificação em uso (por exemplo, um arquivo Windows-1252 lido como UTF-8, que mostra "�"), o rodapé avisa e as ações que gravam ficam **desligadas** até você escolher a codificação certa. E se o texto tiver um caractere que a codificação não representa, a gravação é **recusada** com a explicação, em vez de trocá-lo por "?". O fim de linha (CRLF/LF) é tratado à parte e não depende da codificação.
 - **Abrir no terminal e no editor:** os botões **Terminal** e **Editor** do cabeçalho (e os comandos *Abrir o repositório no terminal / no editor* da paleta) abrem a pasta do repositório fora do app. Terminal: Windows Terminal, depois PowerShell e Prompt de Comando (Windows); Terminal (macOS); o emulador padrão, GNOME Terminal, Konsole, xfce4-terminal ou xterm (Linux). Editor: VS Code ou VSCodium, se instalados (no Windows o app procura o `Code.exe`; instalações só pelo `code.cmd` do PATH não são usadas). Nada passa pelo shell: o caminho vai como argumento, então pastas com `&` ou aspas no nome são seguras. Só abre pastas que são repositórios (têm `.git`). Se não achar o programa, o app avisa.
 - **Painéis laterais recolhíveis, com nome:** as faixas finas nas bordas (*Alterações* à esquerda, *Commit* à direita; *Conflitos* na tela de merge) mostram o nome de cada painel, com um contador (arquivos pendentes / arquivos no commit). Clique na faixa para recolher ou reabrir o painel e dar mais espaço ao diff; o estado é lembrado.
-- **Log do Git** (parte de baixo da tela, recolhível como no IntelliJ): cada comando `git` que o app executa naquele repositório, com horário, resultado (✓/✗) e duração. Consultas (`status`, `log`, `diff`…) aparecem em cinza; o filtro *Só alterações* mostra apenas o que modifica o repositório; comando que falhou já mostra o motivo; dá para copiar a lista e limpar. A altura se ajusta arrastando a borda de cima. Senhas e tokens em endereços ou cabeçalhos são mascarados (`https://***@…`) e nada é gravado em disco: o log vive só na memória (últimos 500 comandos por repositório).
+- **Log do Git** (parte de baixo da tela, recolhível como no IntelliJ): cada comando `git` que o app executa naquele repositório, com horário, resultado (✓/✗) e duração. Veja [Log do Git: o que você fez e o que o app faz sozinho](#log-do-git-o-que-você-fez-e-o-que-o-app-faz-sozinho).
 - **Stage por linha e por bloco:** o seletor *Tudo | Pendente | No commit* escolhe o que comparar. Em **Pendente** (índice x disco) cada linha tem **+** e cada bloco **⊕** para incluir no commit só aquele trecho; em **No commit** (HEAD x índice) **−** e **⊖** tiram o trecho do commit. Só o índice é alterado (o disco não muda), há *Desfazer* no aviso, e o commit parcial deixa o resto pendente. Funciona também em arquivos novos.
+
+## Log do Git: o que você fez e o que o app faz sozinho
+
+![O log com "Minhas ações": o stage, o commit e a busca do remoto](media/interface/log-minhas-escuro.png)
+
+O log (parte de baixo da tela, **Ctrl+Shift+L**) guarda cada comando `git` do repositório, e cada um sabe **quem o pediu**: você (um botão, comando da paleta ou atalho) ou o app por conta própria (atualizar o status, as listas dos painéis, o resumo da tela inicial, as buscas e o índice de busca). Sem essa separação, um repositório aberto por alguns minutos passava de cem comandos e o que você fez se perdia no meio.
+
+- **Minhas ações** (padrão): o que você pediu **e todo comando que altera o repositório**, mesmo vindo do app (a busca automática, por exemplo, tem a marca *segundo plano*). Aberto o repositório e deixado em paz, a lista continua vazia.
+- **Tudo:** inclui as consultas do app, com a marca *segundo plano*. **Só leitura:** as consultas (`status`, `log`, `diff`…), de quem for. **Erros:** o que falhou e importa (veja abaixo).
+- O rodapé mostra **quantas ações são suas** e, discreto, quantos comandos o app fez em segundo plano. Um **ponto vermelho** acende no rodapé recolhido quando chega um erro novo e some ao abrir o log. Um comando de consulta do app que "falha" como parte do funcionamento (uma sonda, uma chave de configuração que não existe) não conta como erro; um erro seu, ou de um comando que altera o repositório, conta, e já aparece com o motivo aberto.
+- **Buscar no log** pelo texto do comando ou da saída. Em cada linha, **copiar o comando** e **copiar a saída** (aparecem ao passar o mouse ou com o foco na linha; a saída também abre e fecha por um botão, por teclado). **Copiar** leva o que está na tela; **Limpar** esvazia.
+- **Exportar** baixa o log da sessão inteira num `.txt` (hora, origem, resultado, duração, comando e a saída recuada) para anexar a um relato de problema. **Mascarar caminhos** troca a pasta do repositório por `<repo>` e a sua pasta pessoal por `~`.
+- **Privacidade:** senhas e tokens em endereços (`https://usuario:token@…`) e cabeçalhos de autorização são mascarados **antes** de o comando entrar no log (testado), e nada é gravado em disco: o log vive só na memória. O limite (padrão **500 comandos por repositório**; 200, 1000, 2000 ou 5000) se muda em **Configurações > Avançado**.
+
+![Tudo: as consultas do app com a marca "segundo plano" e as ações em destaque](media/interface/log-tudo-escuro.png)
+
+![Um erro novo: ponto vermelho no rodapé recolhido](media/interface/log-ponto-escuro.png)
+
+![Erros com a saída aberta](media/interface/log-erro-escuro.png)
+
+Tema claro: [Minhas ações](media/interface/log-minhas-claro.png), [Tudo](media/interface/log-tudo-claro.png), [o ponto de erro](media/interface/log-ponto-claro.png) e [Erros](media/interface/log-erro-claro.png).
 
 ## Seletor de branch
 

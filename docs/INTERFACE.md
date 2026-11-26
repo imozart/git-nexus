@@ -212,6 +212,15 @@ A lista de repositórios (`views/ConnectionInterface.vue`) tem **um só HTML** p
 - **Nomes longos quebram em duas linhas** no menu; nada de reticências. O painel tem largura de leitura (`.tools__panel`, 1280 px).
 - Teste de interface: `ferramentas-grupos.mjs` (os painéis individuais seguem nos seus testes, que abrem pela paleta).
 
+## Log do Git: origem dos comandos
+
+- **Origem:** cada `GitCommandEvent` leva `origin: 'user' | 'background'`. O runner (`git-core/runner.ts`) a lê de um `AsyncLocalStorage` (`withGitOrigin`), então vale para tudo o que uma chamada inicia, inclusive depois de `await` e em chamadas paralelas; sem contexto, o comando é de segundo plano. Quem decide é o worker: `worker/origin.ts` (`BACKGROUND_METHODS`, mais `fetchRepo`/`pullRepo` com `silent`) e `createHandlers` envolve cada método com `withOrigins`. O índice de busca marca os seus comandos como segundo plano por conta própria, mesmo posto para andar por uma busca sua.
+- **Método novo no worker:** se o app o chama sozinho (atualiza o que se vê, responde enquanto se digita), ponha-o em `BACKGROUND_METHODS`; o teste `worker-origin.test.ts` falha se um nome da lista não existir.
+- **"Minhas ações" e "erro" são contas puras** (`gitlog-core.ts`, `gitlog.test.ts`): `isMine` = origem `user` ou comando que altera; `isError` = falhou e é meu (código -1 sem saída é cancelamento, não erro). A store (`stores/gitlog.ts`) conta ações, segundo plano e erros novos por repositório.
+- **Painel** (`components/GitLogPanel.vue`): filtro `GnSegmented` (lembrado em `gitnexus.gitLogFilter`), busca por texto, ações por linha com `GnIconButton` (o botão que abre a saída tem `aria-expanded`; o status ✓/✗ é `role="img"` com texto), exportar por `<a download>` (o mesmo caminho da exportação das Configurações) e o limite em `gitnexus.gitLogMax` (Configurações > Avançado).
+- **Segredos:** a máscara está no núcleo (`redactSecrets` no comando e na saída de cada evento); `git-origin.test.ts` roda comandos de verdade com token na URL e em cabeçalho e confere que nada chega ao evento.
+- **Teste de interface:** `gitlog-origem.mjs`. O harness só entrega os comandos para a página numa sondagem por vez (duas sondagens com o mesmo `since` duplicavam eventos sob carga).
+
 ## Como criar um componente do kit
 
 1. Nome `Gn` + substantivo, em `apps/ui-kit/src/components/`, exportado em `src/index.ts`.
