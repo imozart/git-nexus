@@ -38,6 +38,7 @@ export const SETTINGS_INDEX: readonly SettingMeta[] = [
   { id: 'conflict-style', section: 'conflicts', label: 'settings.conflicts.style', keywords: 'estilo marcadores conflito diff3 zdiff3 base merge.conflictstyle conflict style markers' },
   { id: 'shortcuts', section: 'shortcuts', label: 'settings.sec.shortcuts', keywords: 'atalhos teclado teclas remapear comandos shortcuts keyboard keys remap hotkeys keybindings' },
   { id: 'data-folder', section: 'advanced', label: 'settings.adv.data', keywords: 'pasta dados armazenamento data folder storage userdata' },
+  { id: 'gitlog-max', section: 'advanced', label: 'settings.adv.logMax', keywords: 'log git comandos histórico limite guardados commands history limit console' },
   { id: 'logs', section: 'advanced', label: 'settings.adv.logs', keywords: 'logs registro registros diagnóstico log diagnostics' },
   { id: 'export', section: 'advanced', label: 'settings.adv.export', keywords: 'exportar backup salvar configurações export save settings json' },
   { id: 'import', section: 'advanced', label: 'settings.adv.import', keywords: 'importar restaurar configurações import restore settings json' },
@@ -107,7 +108,7 @@ const PREFIX = 'gitnexus.';
  * de propósito: não são configuração e não devem viajar para outra máquina.
  */
 export const PREF_KEYS: readonly string[] = [
-  'autoFetch', 'collapseUnchanged', 'commitPolicy', 'diffMode', 'diffSource', 'fontCode', 'fontUi', 'gitLogOnlyChanges', 'ligatures', 'locale', 'mergeView.ignoreSpace',
+  'autoFetch', 'collapseUnchanged', 'commitPolicy', 'diffMode', 'diffSource', 'fontCode', 'fontUi', 'gitLogFilter', 'gitLogMask', 'gitLogMax', 'ligatures', 'locale', 'mergeView.ignoreSpace',
   'mergeView.invisibles', 'mergeView.sideBySide', 'motion', 'newConflictResolver', 'notifications', 'shortcuts', 'showCommitPanel', 'showConflictList', 'showFilesPanel',
   'showGitLog', 'theme', 'updateCheck',
 ].map((k) => PREFIX + k);

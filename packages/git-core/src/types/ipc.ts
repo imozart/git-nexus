@@ -1038,9 +1038,14 @@ export interface GitProgressEvent {
   percent: number | null;
 }
 
+/** Quem pediu o comando: `user` (um botão, comando ou atalho) ou `background` (o app por conta própria: status, busca automática, índice de busca...). */
+export type GitOrigin = 'user' | 'background';
+
 /** Um comando git executado pelo app (alimenta a aba "Log"). Sem segredos: o texto já passou por `redactSecrets`. */
 export interface GitCommandEvent {
   id: number;
+  /** Quem pediu. Sem informação (quem executa não disse), vale `background`. */
+  origin: GitOrigin;
   /** Caminho do repositório em que rodou, como o app o recebeu. */
   repoPath: string;
   /** Ex.: `git status --porcelain=v2 -z`. */

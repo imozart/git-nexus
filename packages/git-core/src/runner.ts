@@ -1,9 +1,13 @@
 import { spawn } from 'node:child_process';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { formatGitCommand, isReadOnlyGit, readOnlyEnv, trimOutput } from './git-command.js';
-import type { GitCommandEvent } from './types/ipc.js';
+import type { GitCommandEvent, GitOrigin } from './types/ipc.js';
 import { parseWslPath } from './wsl.js';
 
 const listeners = new Set<(e: GitCommandEvent) => void>();
+/** Quem pediu o comando que está rodando: vale para tudo o que `fn` inicia (inclusive depois de `await`). Fora de `withGitOrigin`, o comando é de segundo plano. */
+const origins = new AsyncLocalStorage<GitOrigin>();
+export const withGitOrigin = <T>(origin: GitOrigin, fn: () => T): T => origins.run(origin, fn);
 let nextEventId = 1;
 
 /** Observa todo comando git executado por `runGit` (a aba "Log" do app). Devolve a função que cancela. */
@@ -18,6 +22,7 @@ function emit(repoPath: string, args: string[], startedAt: number, code: number,
   const output = trimOutput([stderr, stdout].filter((s) => s.trim()).join('\n'));
   const e: GitCommandEvent = {
     id: nextEventId++,
+    origin: origins.getStore() ?? 'background',
     repoPath,
     command: formatGitCommand(args),
     readOnly,

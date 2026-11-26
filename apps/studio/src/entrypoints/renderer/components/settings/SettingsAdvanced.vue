@@ -1,17 +1,27 @@
 <script setup lang="ts">
 // Configurações > Avançado: abrir a pasta de dados e a dos logs, exportar e importar as preferências do app (JSON versionado, `settings-core.ts`) e redefinir.
 // Exportar não inclui repositórios, credenciais nem a configuração do Git (essa é do `git config`).
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { GnButton } from '@git-nexus/ui-kit';
 import { api, errMsg } from '../../api';
-import { t } from '../../i18n';
+import { dateLocale, t } from '../../i18n';
 import { PREF_KEYS, buildExport, collectPrefs, parseImport } from '../../settings-core';
+import { MAX_ENTRIES_CHOICES, parseMax } from '../../gitlog-core';
+import { MAX_KEY } from '../../stores/gitlog';
+import ComboBox from '../ComboBox.vue';
 import ConfirmDialog from '../ConfirmDialog.vue';
 
 const error = ref('');
 const info = ref('');
 const fileEl = ref<HTMLInputElement>();
 const askReset = ref(false);
+// quantos comandos o Log do Git guarda por repositório (vale a partir dos próximos comandos)
+const logMax = ref(String(parseMax(localStorage.getItem(MAX_KEY))));
+const logMaxOptions = computed(() => MAX_ENTRIES_CHOICES.map((n) => ({ value: String(n), label: n.toLocaleString(dateLocale.value) })));
+function setLogMax(v: string): void {
+  logMax.value = String(parseMax(v));
+  localStorage.setItem(MAX_KEY, logMax.value);
+}
 
 async function openFolder(which: 'data' | 'logs'): Promise<void> {
   error.value = '';
@@ -69,6 +79,11 @@ function reset(): void {
       <span>{{ t('settings.adv.data') }}</span>
       <div><GnButton size="sm" data-testid="settings-open-data" @click="openFolder('data')">{{ t('settings.adv.open') }}</GnButton></div>
       <small class="sd__hint sd__hint--field">{{ t('settings.adv.dataHint') }}</small>
+    </div>
+    <div class="sd__field" data-setting="gitlog-max">
+      <span>{{ t('settings.adv.logMax') }}</span>
+      <ComboBox class="sd__combo" :options="logMaxOptions" :model-value="logMax" :aria-label="t('settings.adv.logMax')" data-testid="settings-log-max" @update:model-value="setLogMax" />
+      <small class="sd__hint sd__hint--field">{{ t('settings.adv.logMaxHint') }}</small>
     </div>
     <div class="sd__field" data-setting="logs">
       <span>{{ t('settings.adv.logs') }}</span>

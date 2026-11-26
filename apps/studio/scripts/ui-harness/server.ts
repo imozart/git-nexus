@@ -203,10 +203,18 @@ api.onGitInstallProgress = (cb) => {
 };
 let gitSeen = 0;
 api.onGitCommand = (cb) => {
+  // uma sondagem por vez: com o servidor ocupado a resposta demora mais que o intervalo, e duas sondagens com o mesmo "since" entregariam os mesmos comandos duas vezes
+  let polling = false;
   const iv = setInterval(async () => {
-    const r = await (await fetch('/gitlog?since=' + gitSeen)).json();
-    gitSeen = r.next;
-    if (r.events.length) cb(r.events);
+    if (polling) return;
+    polling = true;
+    try {
+      const r = await (await fetch('/gitlog?since=' + gitSeen)).json();
+      gitSeen = r.next;
+      if (r.events.length) cb(r.events);
+    } finally {
+      polling = false;
+    }
   }, 150);
   return () => clearInterval(iv);
 };
