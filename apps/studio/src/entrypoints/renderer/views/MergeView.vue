@@ -230,7 +230,6 @@ watch(() => ws.versions[props.repo.id], load);
           <GnButton size="sm" :disabled="loading" @click="load">{{ t('rv.refresh') }}</GnButton>
         </span>
       </div>
-      <OperationBanner v-if="inProgress && conflicts.length" :repo-path="repo.path" :kind="inProgress" :conflicts="conflicts.length" @done="onOpDone" @failed="error = $event" />
       <label v-if="newConflictResolver" class="mv__rerere" data-testid="mv-rerere-label">
         <input type="checkbox" :checked="rerere.enabled" data-testid="mv-rerere" @change="toggleRerere(($event.target as HTMLInputElement).checked)" />
         <span>{{ t('mv.rerere') }}</span>

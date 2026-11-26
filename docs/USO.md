@@ -33,6 +33,14 @@ Cada repositório aberto ocupa **uma aba** (o nome do repositório e, ao lado, a
 
 ![Três repositórios abertos, uma aba cada, e o seletor de visão](media/interface/repo-abas.png)
 
+### Conflitos só quando existem
+
+A visão **Conflitos** só aparece no seletor (e na paleta) **enquanto há um merge, rebase, cherry-pick ou revert parado**, ou arquivo em conflito, e leva a contagem ("Conflitos (2)"; o título da aba também ganha "Conflitos 2"). Sem pendência ela não existe, e o atalho `Ctrl+Alt+4` não faz nada. Enquanto a operação durar, uma **faixa** no topo da aba, em **todas as visões**, mostra o tipo ("Merge em andamento", "Rebase em andamento: passo 1 de 3"), quantos arquivos faltam e as ações: **Abrir conflitos**, **Continuar** (só sem pendência), **Abortar** (pede confirmação) e, no rebase, **Pular**. Quando a operação termina, a visão some e o app volta para a visão em que você estava.
+
+Um conflito criado **fora** do app (no terminal) é detectado ao **recarregar** ou quando a janela volta a ter o foco.
+
+![A faixa de operação no Grafo, com o seletor mostrando Conflitos (1)](media/interface/conflitos-faixa-no-grafo.png)
+
 ### O cabeçalho do repositório
 
 Em cima da tela do repositório ficam, à esquerda, a **identidade** (nome, branch, sincronização e a marca WSL2) e, à direita, as **ações**: **Recarregar** (`F5`), **Terminal**, **Editor**, **Copiar caminho** e **Abrir a pasta** (no gerenciador de arquivos do sistema). Abaixo, numa linha própria, o **caminho completo** do repositório: quando não cabe, o app corta o **começo** (o fim é o que identifica o repositório), o tooltip mostra o caminho inteiro e **clicar nele copia** ("Caminho copiado" é anunciado ao leitor de tela). As ações também estão na paleta (**Copiar o caminho do repositório**, **Abrir a pasta do repositório**).

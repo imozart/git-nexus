@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { GnBadge, GnButton, GnButtonGroup, GnIcon, GnIconButton, GnSegmented, GnTooltip } from '@git-nexus/ui-kit';
-import type { BaseComparison, FileEntry, FileSides, InProgressKind, RebaseState, RepoSummary, RepositoryMeta } from '@git-nexus/git-core/pure';
+import type { BaseComparison, FileEntry, FileSides, RebaseState, RepoSummary, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { AUTO_FETCH_TICK_MS, autoFetch } from '../auto-fetch';
 import { newCommitsFromFetch } from '../notifications-core';
@@ -18,7 +18,6 @@ import SyncButton from '../components/SyncButton.vue';
 import ChangesTree from '../components/ChangesTree.vue';
 import CommitForm from '../components/CommitForm.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
-import OperationBanner from '../components/OperationBanner.vue';
 import ContextMenu, { type MenuItem } from '../components/ContextMenu.vue';
 import DiffView from '../components/DiffView.vue';
 import GitLogPanel from '../components/GitLogPanel.vue';
@@ -38,12 +37,8 @@ const sync = ref<RepoSummary | null>(null);
 const base = ref<BaseComparison | null>(null);
 const syncBtn = ref<InstanceType<typeof SyncButton> | null>(null);
 const rebase = ref<RebaseState | null>(null);
-/** Merge, cherry-pick ou revert parado no meio (o rebase tem a faixa própria): a faixa compartilhada `OperationBanner` cuida de continuar e abortar. */
-const inProgress = ref<InProgressKind | null>(null);
 const entries = ref<FileEntry[]>([]);
 const conflicted = ref<string[]>([]);
-// o seletor de visão da aba mostra "Conflitos (N)": a tela publica a contagem
-watch(conflicted, (c) => (ws.conflicts[props.repo.id] = c.length), { immediate: true });
 const error = ref('');
 const loading = ref(false);
 const rootEl = ref<HTMLElement>();
@@ -160,7 +155,8 @@ async function refresh(keepError = false): Promise<void> {
       api.getInProgress(props.repo.path).catch(() => null),
     ]);
     rebase.value = rb;
-    inProgress.value = op;
+    // a faixa de operação, o seletor de visão e o título da aba leem isto (`RepoOperationBar`)
+    ws.ops[props.repo.id] = { kind: rb?.inProgress ? 'rebase' : op, conflicts: new Set(conflicts.map((c) => c.filePath)).size, step: rb?.step, total: rb?.total, branch: rb?.branch };
     sync.value = summary;
     base.value = cmp;
     const bad = new Set(conflicts.map((c) => c.filePath));
@@ -506,13 +502,6 @@ async function onStageLines(p: { content: string; what: 'linha' | 'bloco'; direc
 // --- descarte de arquivos inteiros -----------------------------------------------------------
 const confirm = ref<{ title: string; lines: string[]; label: string; run: () => Promise<void> } | null>(null);
 
-// --- merge / cherry-pick / revert parado: a faixa avisa o desfecho; aqui só se recarrega a tela ---------------
-async function onOpDone(message: string): Promise<void> {
-  showNotice(message);
-  ws.bump(props.repo.id);
-  await refresh();
-}
-
 function askDiscard(paths: string[]): void {
   const files = paths.map((p) => byPath.value.get(p)).filter((e): e is FileEntry => !!e);
   const n = files.length;
@@ -717,11 +706,6 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
       </div>
     </header>
 
-    <div v-if="rebase?.inProgress" class="rv__rebase">
-      <span>⇅ {{ t('rv.rebaseRunning', { step: rebase.step, total: rebase.total }) }}{{ rebase.conflicted.length ? t('rv.rebaseConflicts', { n: rebase.conflicted.length }) : '' }}.</span>
-      <GnButton size="sm" variant="primary" tone="warn" @click="ws.openTools(repo, 'rebase')">{{ t('rv.openRebase') }}</GnButton>
-    </div>
-    <OperationBanner v-if="inProgress" :repo-path="repo.path" :kind="inProgress" :conflicts="conflicted.length" @done="onOpDone" @failed="error = $event" />
     <p v-if="error" class="rv__error">{{ error }}</p>
     <div v-if="notice" class="rv__notice">
       <span>{{ notice.text }}</span>
@@ -863,7 +847,6 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
     border-bottom: 1px solid var(--gn-border); background: var(--gn-surface);
     :deep(.gn-btn) { min-width: 28px; justify-content: center; font-weight: 700; }
   }
-  &__rebase { display: flex; align-items: center; gap: 12px; padding: 7px 14px; background: rgba(224, 169, 59, 0.14); border-bottom: 1px solid var(--gn-warn); color: var(--gn-warn); }
   &__difftitle {
     display: flex; align-items: center; gap: 8px; padding: 5px 12px;
     border-bottom: 1px solid var(--gn-border); background: var(--gn-bg);

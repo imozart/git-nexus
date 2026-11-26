@@ -1,6 +1,16 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import type { HistoryQuery, RepositoryMeta } from '@git-nexus/git-core/pure';
+import type { HistoryQuery, InProgressKind, RepositoryMeta } from '@git-nexus/git-core/pure';
+
+/** A operação parada no meio de um repositório (a tela do repositório publica depois de cada leitura do status). */
+export interface RepoOp {
+  kind: InProgressKind | 'rebase' | null;
+  /** Arquivos em conflito agora. */
+  conflicts: number;
+  step?: number;
+  total?: number;
+  branch?: string;
+}
 
 /** Uma aba é a tela inicial ou UM repositório; as visões do repositório ficam dentro da aba (`RepoViewKind`). */
 export type TabKind = 'home' | 'repo';
@@ -14,6 +24,8 @@ export interface WorkspaceTab {
   repo?: RepositoryMeta;
   /** A visão que está na tela (só nas abas de repositório). */
   view?: RepoViewKind;
+  /** A visão de antes da atual (para onde voltar quando "Conflitos" some). */
+  prev?: RepoViewKind;
   /** As visões já abertas nesta aba: cada uma só é montada na primeira visita e depois mantém o estado (v-show). */
   visited?: RepoViewKind[];
 }
@@ -25,7 +37,7 @@ const VIEW_KEY = 'gitnexus.repoView.';
 export function rememberedView(repoId: string): RepoViewKind {
   try {
     const v = localStorage.getItem(VIEW_KEY + repoId);
-    return v === 'graph' || v === 'tools' || v === 'merge' ? v : 'repo';
+    return v === 'graph' || v === 'tools' ? v : 'repo'; // "Conflitos" só existe enquanto há operação ou conflito: nunca é a visão lembrada
   } catch {
     return 'repo';
   }
@@ -38,8 +50,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const activeId = ref(HOME_TAB);
   /** Contador por repositório: incrementar força as abas daquele repo a recarregar. */
   const versions = ref<Record<string, number>>({});
-  /** Conflitos pendentes por repositório (a tela do repositório publica; o seletor de visão mostra a contagem). */
-  const conflicts = ref<Record<string, number>>({});
+  /** Operação em andamento e conflitos por repositório (a tela do repositório publica; o seletor, a faixa e o título da aba leem). */
+  const ops = ref<Record<string, RepoOp>>({});
+  /** A visão "Conflitos" existe só enquanto há operação parada (merge, rebase, cherry-pick, revert) ou arquivo em conflito. */
+  const hasConflictView = (repoId: string): boolean => !!ops.value[repoId]?.kind || (ops.value[repoId]?.conflicts ?? 0) > 0;
 
   /** Pedido para a aba Ferramentas abrir numa seção (e arquivo) específicos, ex.: "Blame" a partir do menu. */
   const toolsTarget = ref<{ repoId: string; section: string; file?: string; mode?: string; n: number } | null>(null);
@@ -57,8 +71,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   /** Põe a visão na tela da aba do repositório (cria a aba se preciso). Uma aba por repositório: trocar de visão nunca abre outra aba. */
   function open(view: RepoViewKind, repo: RepositoryMeta): void {
     const id = tabIdOf(repo.id);
-    if (!tabs.value.some((t) => t.id === id)) tabs.value.push({ id, kind: 'repo', repo, view, visited: [] });
+    // a visão Staging sempre monta (mesmo escondida): é ela que lê o status e publica a operação em andamento, então um conflito criado fora do app aparece já na abertura
+    if (!tabs.value.some((t) => t.id === id)) tabs.value.push({ id, kind: 'repo', repo, view, visited: ['repo'] });
     const tab = tabs.value.find((t) => t.id === id)!; // a versão reativa
+    if (tab.view && tab.view !== view) tab.prev = tab.view;
     tab.view = view;
     if (!tab.visited!.includes(view)) tab.visited!.push(view);
     activeId.value = id;
@@ -96,6 +112,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (id === HOME_TAB) return;
     const idx = tabs.value.findIndex((t) => t.id === id);
     if (idx === -1) return;
+    delete ops.value[tabs.value[idx]!.repo?.id ?? ''];
     tabs.value.splice(idx, 1);
     if (activeId.value === id) activeId.value = tabs.value[Math.min(idx, tabs.value.length - 1)]?.id ?? HOME_TAB;
   }
@@ -109,5 +126,5 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     versions.value[repoId] = (versions.value[repoId] ?? 0) + 1;
   }
 
-  return { tabs, activeId, active, activeView, versions, conflicts, toolsTarget, historyTarget, isViewActive, open, openRepo, openTools, openHistory, setView, close, closeRepo, bump };
+  return { tabs, activeId, active, activeView, versions, ops, hasConflictView, toolsTarget, historyTarget, isViewActive, open, openRepo, openTools, openHistory, setView, close, closeRepo, bump };
 });
