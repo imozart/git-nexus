@@ -656,7 +656,7 @@ const SHORTCUTS = {
 } as const;
 const sc = (k: keyof typeof SHORTCUTS) => shortcutLabel(SHORTCUTS[k]);
 
-const isActiveTab = () => ws.activeId === `merge:${props.repoId}`;
+const isActiveTab = () => ws.isViewActive(props.repoId, 'merge');
 /** Digitando num campo de texto, Ctrl+Z é do campo (a edição à mão), não do histórico de escolhas. */
 const typing = () => {
   const el = document.activeElement as HTMLElement | null;

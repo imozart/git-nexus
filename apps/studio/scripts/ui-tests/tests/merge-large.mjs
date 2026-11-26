@@ -60,7 +60,7 @@ const q = (js) => t.ev(`(() => { ${js} })()`);
 metrics.leituraGitMs = await t.ev(`(async () => { const t0 = performance.now(); await window.gitNexus.getMergeConflicts(${lit(repo)}); return Math.round(performance.now() - t0); })()`);
 
 // --- abrir: do clique em "Conflitos" até a tela mostrar o primeiro conflito pronto ------------------------------------------------------------------
-await q(`window.__t0 = performance.now(); [...document.querySelectorAll('.rv__btns button')].find((b) => /Conflitos/.test(b.textContent))?.click()`);
+await q(`window.__t0 = performance.now(); [...document.querySelectorAll('[data-testid="repo-view-tab"]')].find((b) => /Conflitos/.test(b.textContent))?.click()`);
 await t.until(`document.querySelector('[data-testid="mr-card"]')`, 60000);
 const openMs = await q(`return Math.round(performance.now() - window.__t0)`);
 metrics.abrirMs = openMs;

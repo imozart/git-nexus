@@ -60,7 +60,7 @@ t.check('Continuar fica desligado enquanto há conflito', (await t.ev(`document.
 await t.shot('merge-em-andamento');
 
 // a mesma faixa na tela de conflitos
-await t.ev(`[...document.querySelectorAll('.rv__btns button')].find((b) => /Conflitos/.test(b.textContent))?.click()`);
+await t.ev(`[...document.querySelectorAll('[data-testid="repo-view-tab"]')].find((b) => /Conflitos/.test(b.textContent))?.click()`);
 await sleep(1200);
 t.check('a tela de conflitos também mostra a faixa (dá para abortar de lá)', (await t.count('[data-testid="op-banner"]')) >= 1);
 

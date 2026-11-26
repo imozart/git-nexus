@@ -13,6 +13,7 @@ import { useSettingsStore } from './stores/settings';
 import { useUpdateStore } from './stores/update';
 import { HOME_TAB, useWorkspaceStore } from './stores/workspace';
 import ConnectionInterface from './views/ConnectionInterface.vue';
+import RepoViewSwitch from './components/RepoViewSwitch.vue';
 import RepoView from './views/RepoView.vue';
 import GraphView from './views/GraphView.vue';
 import MergeView from './views/MergeView.vue';
@@ -30,7 +31,7 @@ const mb = (bytes: number) => (bytes / 1048576).toFixed(1);
 const LABEL = computed(() => ({ repo: t('tab.staging'), graph: t('tab.graph'), merge: t('tab.merge'), tools: t('tab.tools') }));
 
 // --- rodapé: codificação do arquivo aberto no diff da aba ativa (clicar abre a lista para escolher outra) ---
-const openFile = computed(() => (ws.active?.kind === 'repo' && ws.active.repo ? fileEnc.open[ws.active.repo.id] ?? null : null));
+const openFile = computed(() => (ws.active?.kind === 'repo' && ws.active.view === 'repo' && ws.active.repo ? fileEnc.open[ws.active.repo.id] ?? null : null));
 const isAuto = computed(() => !openFile.value || fileEnc.choiceFor(openFile.value.repoPath, openFile.value.path) === 'auto');
 const encTip = computed(() => {
   const f = openFile.value;
@@ -57,7 +58,7 @@ const tabs = computed<GnTab[]>(() =>
   ws.tabs.map((tab) =>
     tab.kind === 'home'
       ? { id: tab.id, title: t('tab.home') }
-      : { id: tab.id, title: tab.repo?.name ?? '?', subtitle: LABEL.value[tab.kind], closable: true },
+      : { id: tab.id, title: tab.repo?.name ?? '?', subtitle: LABEL.value[tab.view ?? 'repo'], closable: true },
   ),
 );
 </script>
@@ -125,10 +126,16 @@ const tabs = computed<GnTab[]>(() =>
       <!-- v-show: mantém o estado (editor, seleção, rascunho do commit) ao alternar entre abas -->
       <section v-for="t in ws.tabs" v-show="t.id === ws.activeId" :key="t.id" class="core__pane">
         <ConnectionInterface v-if="t.id === HOME_TAB" />
-        <RepoView v-else-if="t.kind === 'repo' && t.repo" :repo="t.repo" />
-        <GraphView v-else-if="t.kind === 'graph' && t.repo" :repo="t.repo" />
-        <MergeView v-else-if="t.kind === 'merge' && t.repo" :repo="t.repo" />
-        <ToolsView v-else-if="t.kind === 'tools' && t.repo" :repo="t.repo" />
+        <!-- uma aba por repositório: o seletor troca a visão e cada visão só monta na primeira visita (depois guarda o estado) -->
+        <div v-else-if="t.repo" class="core__repo">
+          <RepoViewSwitch :repo="t.repo" :view="t.view ?? 'repo'" :conflicts="ws.conflicts[t.repo.id] ?? 0" @select="ws.open($event, t.repo)" />
+          <div class="core__views">
+            <div v-if="t.visited?.includes('repo')" v-show="t.view === 'repo'" :id="`rvp-${t.repo.id}-repo`" class="core__view" role="tabpanel" :aria-labelledby="`rvt-${t.repo.id}-repo`"><RepoView :repo="t.repo" /></div>
+            <div v-if="t.visited?.includes('graph')" v-show="t.view === 'graph'" :id="`rvp-${t.repo.id}-graph`" class="core__view" role="tabpanel" :aria-labelledby="`rvt-${t.repo.id}-graph`"><GraphView :repo="t.repo" /></div>
+            <div v-if="t.visited?.includes('tools')" v-show="t.view === 'tools'" :id="`rvp-${t.repo.id}-tools`" class="core__view" role="tabpanel" :aria-labelledby="`rvt-${t.repo.id}-tools`"><ToolsView :repo="t.repo" /></div>
+            <div v-if="t.visited?.includes('merge')" v-show="t.view === 'merge'" :id="`rvp-${t.repo.id}-merge`" class="core__view" role="tabpanel" :aria-labelledby="`rvt-${t.repo.id}-merge`"><MergeView :repo="t.repo" /></div>
+          </div>
+        </div>
       </section>
     </div>
     <footer v-if="openFile" class="core__foot" data-testid="statusbar">
@@ -153,6 +160,9 @@ const tabs = computed<GnTab[]>(() =>
   &__cmd { margin: 6px 10px; padding: 0 10px; display: inline-flex; align-items: center; gap: 8px; font: inherit; font-size: 12px; color: var(--gn-muted); background: var(--gn-surface); border: 1px solid var(--gn-border); border-radius: var(--gn-radius); cursor: pointer; &:hover { color: var(--gn-text); border-color: var(--gn-accent); } kbd { font-family: var(--gn-mono); font-size: 11px; } }
   &__panes { flex: 1; min-height: 0; background: var(--gn-surface); }
   &__pane { height: 100%; overflow: auto; }
+  &__repo { display: flex; flex-direction: column; height: 100%; }
+  &__views { flex: 1; min-height: 0; }
+  &__view { height: 100%; overflow: auto; }
   &__foot { display: flex; align-items: center; gap: 10px; padding: 3px 10px; background: var(--gn-bg); border-top: 1px solid var(--gn-border); font-size: 12px; color: var(--gn-muted); }
   &__file { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   &__encwarn { color: var(--gn-warn, #d6a23a); }

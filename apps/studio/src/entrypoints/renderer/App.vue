@@ -160,7 +160,7 @@ function globalCommands(): Command[] {
       group: reposGroup,
       keywords: r.path,
       run: async () => {
-        ws.open('repo', r);
+        ws.openRepo(r);
         await repos.touch(r.id);
       },
     });
@@ -233,9 +233,10 @@ function globalCommands(): Command[] {
           ws.openHistory(c.repo, linesQuery(c.file, c));
         },
       },
-      { id: 'view.staging', title: t('cmd.staging'), group: nav, keywords: 'commit alterações changes', when: inRepo, run: () => ws.open('repo', repo) },
-      { id: 'view.graph', title: t('cmd.graph'), group: nav, keywords: 'log commits busca history search', when: inRepo, run: () => ws.open('graph', repo) },
-      { id: 'view.merge', title: t('cmd.merge'), group: nav, keywords: 'merge resolver conflicts resolve', when: inRepo, run: () => ws.open('merge', repo) },
+      { id: 'view.staging', title: t('cmd.staging'), group: nav, shortcut: 'Mod+Alt+1', keywords: 'commit alterações changes', when: inRepo, run: () => ws.open('repo', repo) },
+      { id: 'view.graph', title: t('cmd.graph'), group: nav, shortcut: 'Mod+Alt+2', keywords: 'log commits busca history search', when: inRepo, run: () => ws.open('graph', repo) },
+      { id: 'view.tools', title: t('cmd.tools'), group: nav, shortcut: 'Mod+Alt+3', keywords: 'ferramentas stash tags rebase tools', when: inRepo, run: () => ws.open('tools', repo) },
+      { id: 'view.merge', title: t('cmd.merge'), group: nav, shortcut: 'Mod+Alt+4', keywords: 'merge resolver conflicts resolve', when: inRepo, run: () => ws.open('merge', repo) },
       { id: 'tools.ops', title: t('cmd.ops'), group: toolsGroup, keywords: 'undo reflog desfazer', when: inRepo, run: () => ws.openTools(repo, 'ops') },
       { id: 'tools.stash', title: t('cmd.stash'), group: toolsGroup, keywords: 'guardar shelf', when: inRepo, run: () => ws.openTools(repo, 'stash') },
       { id: 'tools.hosting', title: t('cmd.hosting'), group: toolsGroup, keywords: 'github gitlab pr mr pipeline criar create', when: inRepo, run: () => ws.openTools(repo, 'hosting') },

@@ -487,6 +487,8 @@ const en: Partial<Record<MessageKey, string>> = {
   'cmd.staging': 'Open Staging',
   'cmd.graph': 'Open Graph / History',
   'cmd.merge': 'Open Conflicts',
+  'cmd.tools': 'Open Tools',
+  'rvs.label': 'Repository views',
   'cmd.ops': 'Tools: operation history (undo)',
   'cmd.stash': 'Tools: stash',
   'cmd.file': 'Tools: file history and blame',

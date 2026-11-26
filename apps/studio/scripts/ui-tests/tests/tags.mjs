@@ -42,7 +42,7 @@ const confirmDialog = async () => {
 };
 
 // abre Ferramentas (a seção Tags já vem escolhida)
-await t.ev(`[...document.querySelectorAll('.rv__btns button')].find((b) => /Ferramentas/.test(b.textContent))?.click()`);
+await t.ev(`[...document.querySelectorAll('[data-testid="repo-view-tab"]')].find((b) => /Ferramentas/.test(b.textContent))?.click()`);
 await t.until(`document.querySelector('[data-testid="tag-form"]')`, 15000);
 await t.until(`/ainda não tem tags/.test(document.body.innerText)`, 10000);
 t.check('sem tags: mostra o estado vazio', (await t.ev(`/ainda não tem tags/.test(document.body.innerText)`)) === true);
@@ -106,7 +106,7 @@ git(repo, 'checkout', '-q', 'main');
 // --- Criar tag aqui (grafo) ------------------------------------------------------------------------------------------------------------
 await t.ev(`[...document.querySelectorAll('.gn-tab')].find((e) => /Staging/.test(e.textContent))?.click()`);
 await sleep(500);
-await t.ev(`[...document.querySelectorAll('.rv__btns button')].find((b) => /Grafo/.test(b.textContent))?.click()`);
+await t.ev(`[...document.querySelectorAll('[data-testid="repo-view-tab"]')].find((b) => /Grafo/.test(b.textContent))?.click()`);
 await t.until(`document.querySelector('.row')`, 15000);
 await t.ev(`[...document.querySelectorAll('.row')].find((r) => r.textContent.includes('feat: segundo commit')).click()`);
 await t.until(`document.querySelector('[data-testid="tag-here"]')`, 8000);

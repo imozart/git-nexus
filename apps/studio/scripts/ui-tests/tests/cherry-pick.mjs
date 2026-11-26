@@ -32,7 +32,7 @@ await t.ev(`document.querySelector('li.repo .repo__btns button').click()`);
 await t.until(`document.querySelector('.rv__btns')`, 20000);
 
 const openGraph = async () => {
-  await t.ev(`[...document.querySelectorAll('.rv__btns button')].find((b) => /Grafo/.test(b.textContent))?.click()`);
+  await t.ev(`[...document.querySelectorAll('[data-testid="repo-view-tab"]')].find((b) => /Grafo/.test(b.textContent))?.click()`);
   await t.until(`document.querySelector('.gv__detail, .row')`, 15000);
   await sleep(500);
 };

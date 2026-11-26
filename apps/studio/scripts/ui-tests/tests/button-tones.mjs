@@ -35,16 +35,10 @@ const success = await token('--gn-success');
 
 // --- tela do repositório ----------------------------------------------------------------------------------------------------
 t.check('Recarregar: neutro (recarregar o status local não pede destaque)', await btnHas('Recarregar', 'gn-btn--tone-neutral'));
-for (const [label, name] of [['Grafo', 'Grafo'], ['Ferramentas', 'Ferramentas']]) {
-  t.check(`${label}: tom accent`, await btnHas(name, 'gn-btn--tone-accent'));
-  t.check(`${label}: texto clareado na cor do tom (não é o texto neutro)`, (await btnCss(name, 'color')) !== (await token('--gn-text')));
-}
-t.check('Conflitos sem conflito: neutro', await btnHas('Conflitos', 'gn-btn--tone-neutral'));
 t.check('Commit: tom success sólido', (await t.ev(`!!document.querySelector('button.gn-btn--solid.gn-btn--tone-success')`)) === true);
 t.check('Commit: fundo é o verde do tema', (await css('button.gn-btn--solid.gn-btn--tone-success', 'backgroundColor')) === success, [await css('button.gn-btn--solid.gn-btn--tone-success', 'backgroundColor'), success]);
 t.check('Commit: texto escuro sobre o verde (contraste)', (await css('button.gn-btn--solid.gn-btn--tone-success', 'color')) !== 'rgb(255, 255, 255)');
 t.check('há um único botão de commit verde', (await t.count('button.gn-btn--solid.gn-btn--tone-success')) === 1);
-t.check('os botões de navegação têm contorno na cor do accent, não cinza', (await btnCss('Grafo', 'borderTopColor')) !== (await token('--gn-border')));
 
 // --- navegação do diff e seletores (GnButtonGroup, GnIconButton, GnSegmented) ----------------------------------------------------
 const groups = await t.ev(`[...document.querySelectorAll('.rv__toolbar .gn-btn-group')].map((g) => g.getAttribute('aria-label'))`);

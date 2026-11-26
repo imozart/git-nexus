@@ -11,7 +11,8 @@ O que o GitNexus faz e como usar cada parte. Para instalar, veja o [README](../R
 | Ctrl+K / Ctrl+Shift+P | Paleta de comandos |
 | Ctrl+1 | Ir para Repositórios |
 | Ctrl+PageDown / Ctrl+PageUp | Próxima / anterior aba |
-| Alt+W | Fechar aba |
+| Ctrl+Alt+1 a Ctrl+Alt+4 | Trocar a visão do repositório: Staging, Grafo / Histórico, Ferramentas e Conflitos |
+| Alt+W | Fechar aba (fecha o repositório inteiro) |
 | F5 | Recarregar o status do repositório (só relê o local; quem fala com o remoto é o botão de sincronização) |
 | Ctrl+Shift+A / Ctrl+Shift+U | Incluir tudo / remover tudo do commit |
 | Ctrl+Shift+C | Ir para o título do commit |
@@ -25,6 +26,12 @@ O que o GitNexus faz e como usar cada parte. Para instalar, veja o [README](../R
 | Alt+→ / Alt+← | Próximo / arquivo anterior |
 
 Os atalhos só usam Ctrl/⌘/Alt (ou teclas F), então nunca atrapalham a digitação. No app empacotado (Windows/Linux) o menu padrão do Electron é removido, porque reservaria Ctrl+W, Ctrl+R e o DevTools.
+
+## Uma aba por repositório
+
+Cada repositório aberto ocupa **uma aba** (o nome do repositório e, ao lado, a visão atual). Dentro dela, o **seletor de visão** logo abaixo da barra de abas troca entre **Staging**, **Grafo / Histórico**, **Ferramentas** e **Conflitos** (com a contagem quando há conflito): pelo clique, pelas setas (`←` `→`, `Home` e `End` levam o foco), por **`Ctrl+Alt+1` a `Ctrl+Alt+4`** (`⌘⌥` no macOS; o `Alt+1..3` continua sendo o das escolhas do resolvedor de conflitos) ou pela paleta (**Abrir Staging**, **Abrir Grafo / Histórico**, **Abrir Ferramentas**, **Abrir Conflitos**). Trocar de visão **não** abre outra aba e **não descarta** o estado das outras (o arquivo aberto no Staging, o commit aberto no Grafo, a seção das Ferramentas ficam como estavam). O app lembra a última visão de cada repositório e reabre nela. Fechar a aba (`Alt+W`) fecha o repositório inteiro.
+
+![Três repositórios abertos, uma aba cada, e o seletor de visão](media/interface/repo-abas.png)
 
 ## Painel de repositórios
 

@@ -17,7 +17,7 @@ const showChangelog = ref(false);
 onMounted(() => store.load());
 
 async function open(repo: RepositoryMeta): Promise<void> {
-  ws.open('repo', repo);
+  ws.openRepo(repo);
   await store.touch(repo.id);
 }
 

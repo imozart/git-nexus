@@ -47,7 +47,7 @@ async function openConflicts(label) {
   await t.until(`[...document.querySelectorAll('li.repo')].every((r) => !/carregando/i.test(r.textContent))`, 30000);
   await t.ev(`document.querySelector('li.repo .repo__btns button').click()`);
   await t.until(`document.querySelector('[data-testid="op-banner"]')`, 20000);
-  await t.ev(`[...document.querySelectorAll('.rv__btns button')].find((b) => new RegExp(${lit(label)}).test(b.textContent))?.click()`);
+  await t.ev(`[...document.querySelectorAll('[data-testid="repo-view-tab"]')].find((b) => new RegExp(${lit(label)}).test(b.textContent))?.click()`);
   await t.until(`document.querySelectorAll('.mcr__result .cm-content').length === 1 && document.querySelectorAll('.mcr__top .cm-content').length === 3`, 60000);
   await sleep(800);
 }

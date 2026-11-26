@@ -67,8 +67,12 @@ export function normalizeHistoryQuery(q: HistoryQuery): { query: NormalizedHisto
   if (text.length > SEARCH_MAX_PATTERN) return { error: { code: 'tooLong', max: SEARCH_MAX_PATTERN } };
   if ((mode === 'lines' || mode === 'message') && /[\r\n]/.test(text)) return { error: { code: 'multiline' } };
   const author = (q.author ?? '').trim();
-  const since = (q.since ?? '').trim();
-  const until = (q.until ?? '').trim();
+  // data sem hora ("2026-01-07"): o Git a lê com a hora de AGORA, então o dia inteiro só entrava a partir de certa hora do relógio; `desde` vale do começo do dia e `até` do fim dele
+  const bareDay = /^\d{4}-\d{2}-\d{2}$/;
+  const sinceRaw = (q.since ?? '').trim();
+  const untilRaw = (q.until ?? '').trim();
+  const since = bareDay.test(sinceRaw) ? `${sinceRaw} 00:00:00` : sinceRaw;
+  const until = bareDay.test(untilRaw) ? `${untilRaw} 23:59:59` : untilRaw;
   for (const d of [since, until]) if (d && (hasControl(d) || d.length > 80)) return { error: { code: 'badDate', value: d.slice(0, 40) } };
   if (hasControl(author)) return { error: { code: 'emptyQuery' } };
 
