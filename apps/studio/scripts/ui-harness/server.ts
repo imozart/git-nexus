@@ -103,6 +103,7 @@ const MAIN_STUBS: Record<string, (...a: any[]) => unknown> = {
   copyText: (t: string) => void (clipboard = t),
   showItemInFolder: () => undefined,
   openPath: () => '',
+  openAppFolder: () => '',
   // Atualização: usa o código real de verificação com uma "release" simulada pela variável GN_FAKE_RELEASE (JSON).
   checkForUpdate: () =>
     checkForUpdate({

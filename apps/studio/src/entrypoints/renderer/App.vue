@@ -66,6 +66,20 @@ function globalCommands(): Command[] {
       keywords: 'configurações preferências opções ajustes fonte aparência settings preferences options appearance font',
       run: () => settings.open(),
     },
+    {
+      id: 'app.settings.git',
+      title: t('cmd.settingsGit'),
+      group: app,
+      keywords: 'git identidade nome e-mail assinatura assinar commit gpg ssh identity signing',
+      run: () => settings.open('git'),
+    },
+    {
+      id: 'app.settings.shortcuts',
+      title: t('cmd.settingsShortcuts'),
+      group: app,
+      keywords: 'atalhos teclado remapear teclas shortcuts keyboard remap',
+      run: () => settings.open('shortcuts'),
+    },
     ...THEME_PREFS.filter((p) => p !== themePref.value).map((p) => ({
       id: `app.theme.${p}`,
       title: t('cmd.theme', { name: t(`theme.${p}`) }),

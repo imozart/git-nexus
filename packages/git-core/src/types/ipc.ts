@@ -128,6 +128,10 @@ export interface GitNexusIPC {
   addRepositoryPath(path: string): Promise<RepositoryMeta>;
   /** Como os commits deste repositório são assinados (commit.gpgsign, gpg.format, user.signingkey). */
   getSigningInfo(repoPath: string): Promise<SigningInfo>;
+  /** As chaves editáveis do `git config` nos escopos global e do repositório (`repoPath` null: só o global). */
+  getGitConfig(repoPath: string | null): Promise<GitConfigEntry[]>;
+  /** Grava (ou remove, com `value` null) uma chave do `git config`; recusa chaves fora da lista e valores inválidos. */
+  setGitConfig(repoPath: string | null, scope: GitConfigScope, key: GitConfigKey, value: string | null): Promise<void>;
   /** Situação do Git LFS: se o repositório usa, quais arquivos e se estão baixados ou só como ponteiro. */
   getLfsInfo(repoPath: string): Promise<LfsInfo>;
   /** `git lfs pull`: baixa os arquivos LFS que são só ponteiro (todos, ou só os `paths`). */
@@ -772,6 +776,17 @@ export interface SigningInfo {
   format: SigningFormat;
   /** `user.signingkey` (id da chave GPG, ou caminho/conteúdo da chave SSH), se configurada. */
   key: string | null;
+}
+
+/** As chaves do `git config` que as Configurações do app editam (lista fixa; veja `git-config.ts`). */
+export type GitConfigKey = 'user.name' | 'user.email' | 'user.signingkey' | 'gpg.format' | 'commit.gpgsign' | 'pull.rebase' | 'init.defaultBranch' | 'core.autocrlf' | 'rerere.enabled' | 'merge.conflictStyle';
+export type GitConfigScope = 'global' | 'local';
+/** Uma chave nos dois escopos e o valor efetivo (o que o Git usa naquele repositório); `null` = não definida. */
+export interface GitConfigEntry {
+  key: GitConfigKey;
+  global: string | null;
+  local: string | null;
+  value: string | null;
 }
 
 /** Onde a busca v2 procura. */
@@ -1481,4 +1496,6 @@ export interface GitNexusApi extends GitNexusIPC {
   logRendererError(message: string, stack?: string): Promise<{ logFile: string }>;
   showItemInFolder(repoPath: string, file: string): Promise<void>;
   openPath(repoPath: string, file: string): Promise<string>;
+  /** Abre a pasta de dados do app ou a dos logs no gerenciador de arquivos; devolve a mensagem de erro (vazia se abriu). */
+  openAppFolder(which: 'data' | 'logs'): Promise<string>;
 }
