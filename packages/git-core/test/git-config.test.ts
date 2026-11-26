@@ -69,6 +69,14 @@ describe('git config das Configurações', () => {
     expect(() => validateGitConfigValue('init.defaultBranch', 'principal')).not.toThrow();
   });
 
+  it('a validação do e-mail é linear: texto longo de "!@" repetido termina rápido (ReDoS) e os e-mails de sempre seguem iguais', () => {
+    const t0 = Date.now();
+    expect(() => validateGitConfigValue('user.email', '!@'.repeat(50_000) + ' ')).toThrow(GitConfigError);
+    expect(Date.now() - t0).toBeLessThan(1000);
+    for (const ok of ['a@b.co', 'nome.sobrenome+tag@exemplo.com.br', 'x@y']) expect(() => validateGitConfigValue('user.email', ok)).not.toThrow();
+    for (const bad of ['sem-arroba', 'a@@b', '@b.co', 'a@', 'a b@c.d', 'a@b c']) expect(() => validateGitConfigValue('user.email', bad)).toThrow(GitConfigError);
+  });
+
   it('só devolve as chaves da lista (uma chave estranha pedida é ignorada)', async () => {
     const r = await getGitConfig(repo, ['user.name', 'core.sshCommand']);
     expect(r.map((e) => e.key)).toEqual(['user.name']);
