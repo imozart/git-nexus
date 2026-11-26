@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { GnBadge, GnButton, GnButtonGroup, GnIconButton, GnSegmented, GnTooltip } from '@git-nexus/ui-kit';
+import { GnBadge, GnButton, GnButtonGroup, GnIcon, GnIconButton, GnSegmented, GnTooltip } from '@git-nexus/ui-kit';
 import type { BaseComparison, FileEntry, FileSides, InProgressKind, RebaseState, RepoSummary, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { AUTO_FETCH_TICK_MS, autoFetch } from '../auto-fetch';
@@ -298,6 +298,8 @@ function repoCommands(): Command[] {
   const gFile = t('rv.group.file');
   return [
     { id: 'rv.terminal', title: t('rv.cmd.terminal'), group: gStaging, keywords: 'terminal shell prompt powershell console bash abrir open', when, run: () => openTool('terminal') },
+    { id: 'rv.copyRepoPath', title: t('rv.cmd.copyRepoPath'), group: gStaging, keywords: 'copiar caminho pasta path copy repositório repository', when, run: () => void copyRepoPath() },
+    { id: 'rv.openFolder', title: t('rv.cmd.openFolder'), group: gStaging, keywords: 'abrir pasta explorer finder gerenciador de arquivos open folder', when, run: () => void openRepoFolder() },
     { id: 'rv.editor', title: t('rv.cmd.editor'), group: gStaging, keywords: 'editor vscode code ide abrir open', when, run: () => openTool('editor') },
     { id: 'rv.lfs', title: t('rv.cmd.lfs'), group: gStaging, keywords: 'lfs large file storage arquivos grandes ponteiro pointer', when, run: () => ws.openTools(props.repo, 'lfs') },
     { id: 'rv.submodules', title: t('rv.cmd.submodules'), group: gStaging, keywords: 'submódulos submodulos submodule init update', when, run: () => ws.openTools(props.repo, 'submodules') },
@@ -411,6 +413,45 @@ async function openTool(which: 'terminal' | 'editor'): Promise<void> {
     error.value = errMsg(e);
   }
 }
+
+// --- caminho do repositório: copiar e abrir a pasta; menu "mais ações" da janela estreita --------------------
+/** "Caminho copiado" (região viva) por 2 s depois de copiar. */
+const pathCopied = ref(false);
+let pathTimer: ReturnType<typeof setTimeout> | undefined;
+async function copyRepoPath(): Promise<void> {
+  try {
+    await api.copyText(props.repo.path);
+    pathCopied.value = true;
+    clearTimeout(pathTimer);
+    pathTimer = setTimeout(() => (pathCopied.value = false), 2000);
+  } catch (e) {
+    error.value = errMsg(e);
+  }
+}
+async function openRepoFolder(): Promise<void> {
+  const err = await api.openPath(props.repo.path, '');
+  if (err) error.value = err;
+}
+const more = ref<{ x: number; y: number } | null>(null);
+const moreItems = computed<MenuItem[]>(() => [
+  { id: 'refresh', label: t('rv.refresh') },
+  { id: 'terminal', label: t('rv.terminal') },
+  { id: 'editor', label: t('rv.editor') },
+  { id: 'copy', label: t('rv.copyPath') },
+  { id: 'folder', label: t('rv.openFolder') },
+]);
+function openMore(ev: MouseEvent): void {
+  const r = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+  more.value = { x: Math.max(8, r.right - 200), y: r.bottom + 4 };
+}
+function onMore(id: string): void {
+  more.value = null;
+  if (id === 'refresh') void refresh();
+  else if (id === 'terminal' || id === 'editor') void openTool(id);
+  else if (id === 'copy') void copyRepoPath();
+  else if (id === 'folder') void openRepoFolder();
+}
+onBeforeUnmount(() => clearTimeout(pathTimer));
 
 // --- aviso com "Desfazer" -------------------------------------------------------------------
 /** A branch mudou (troca, criação, merge, pull...): recarrega tudo e avisa o grafo e as ferramentas. */
@@ -649,17 +690,30 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
 <template>
   <div ref="rootEl" class="rv">
     <header class="rv__head">
-      <div class="rv__id">
-        <strong>{{ repo.name }}</strong>
-        <BranchPicker :repo="repo" :branch="branch" :sync="sync" :base="base" @changed="onBranchChanged" @notice="showNotice($event)" @conflict="onBranchConflict" />
-        <SyncButton ref="syncBtn" :repo="repo" :sync="sync" :base="base" @changed="onBranchChanged" @notice="showNotice($event)" @conflict="onBranchConflict" />
-        <GnBadge v-if="repo.isWsl">WSL2</GnBadge>
-        <span class="muted rv__path">{{ repo.path }}</span>
+      <div class="rv__top">
+        <div class="rv__id">
+          <strong>{{ repo.name }}</strong>
+          <BranchPicker :repo="repo" :branch="branch" :sync="sync" :base="base" @changed="onBranchChanged" @notice="showNotice($event)" @conflict="onBranchConflict" />
+          <SyncButton ref="syncBtn" :repo="repo" :sync="sync" :base="base" @changed="onBranchChanged" @notice="showNotice($event)" @conflict="onBranchConflict" />
+          <GnBadge v-if="repo.isWsl">WSL2</GnBadge>
+        </div>
+        <!-- ações do repositório: ícone + texto (o texto some visualmente abaixo de 1100 px e o grupo vira o menu "mais" abaixo de 800 px) -->
+        <div class="rv__btns" role="toolbar" :aria-label="t('rv.actions')" data-testid="repo-actions">
+          <GnButton size="sm" :disabled="loading" :aria-label="t('rv.refresh')" @click="refresh()"><GnIcon name="refresh" /><span class="rv__lbl">{{ t('rv.refresh') }}</span><GnTooltip :text="t('rv.refreshTip')" /></GnButton>
+          <GnButton size="sm" variant="ghost" data-testid="open-terminal" :aria-label="t('rv.terminal')" @click="openTool('terminal')"><GnIcon name="terminal" /><span class="rv__lbl">{{ t('rv.terminal') }}</span><GnTooltip :text="t('rv.terminalTip')" /></GnButton>
+          <GnButton size="sm" variant="ghost" data-testid="open-editor" :aria-label="t('rv.editor')" @click="openTool('editor')"><GnIcon name="code" /><span class="rv__lbl">{{ t('rv.editor') }}</span><GnTooltip :text="t('rv.editorTip')" /></GnButton>
+          <span class="rv__sep" aria-hidden="true" />
+          <GnIconButton icon="copy" :label="t('rv.copyPath')" data-testid="copy-path" @click="copyRepoPath" />
+          <GnIconButton icon="folder" :label="t('rv.openFolder')" data-testid="open-folder" @click="openRepoFolder" />
+        </div>
+        <GnIconButton class="rv__more" icon="more" :label="t('rv.moreActions')" aria-haspopup="menu" data-testid="more-actions" @click="openMore" />
       </div>
-      <div class="rv__btns">
-        <GnButton size="sm" :disabled="loading" @click="refresh()">{{ t('rv.refresh') }}</GnButton>
-        <GnButton size="sm" variant="ghost" data-testid="open-terminal" @click="openTool('terminal')">{{ t('rv.terminal') }}<GnTooltip :text="t('rv.terminalTip')" /></GnButton>
-        <GnButton size="sm" variant="ghost" data-testid="open-editor" @click="openTool('editor')">{{ t('rv.editor') }}<GnTooltip :text="t('rv.editorTip')" /></GnButton>
+      <!-- o caminho inteiro, cortado no COMEÇO quando não cabe (o fim identifica o repositório); clicar copia -->
+      <div class="rv__pathbar">
+        <GnButton variant="ghost" size="sm" class="rv__path" data-testid="repo-path" :aria-label="t('rv.pathCopyAria', { path: repo.path })" @click="copyRepoPath">
+          <span class="rv__pathtxt"><bdi>{{ repo.path }}</bdi></span><GnTooltip :text="repo.path" />
+        </GnButton>
+        <span class="rv__copied" role="status" data-testid="path-copied">{{ pathCopied ? t('rv.pathCopied') : '' }}</span>
       </div>
     </header>
 
@@ -757,6 +811,7 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
     <GitLogPanel v-model:open="showLog" :repo-path="repo.path" />
 
     <ContextMenu v-if="menu" :x="menu.x" :y="menu.y" :items="menuItems" @select="onMenu" @close="menu = null" />
+    <ContextMenu v-if="more" :x="more.x" :y="more.y" :items="moreItems" @select="onMore" @close="more = null" />
     <ConfirmDialog
       v-if="confirm"
       :title="confirm.title"
@@ -774,18 +829,25 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
   display: flex;
   flex-direction: column;
   height: 100%;
-  &__head {
-    display: flex; justify-content: space-between; align-items: center; gap: 6px 12px; flex-wrap: wrap; /* wrap: se nem a branch cabe, os botões descem para a linha de baixo */
-    padding: 8px 14px; border-bottom: 1px solid var(--gn-border);
-  }
+  &__head { display: flex; flex-direction: column; gap: 2px; padding: 8px 14px 4px; border-bottom: 1px solid var(--gn-border); }
+  &__top { display: flex; align-items: center; gap: 6px 12px; min-width: 0; }
   &__id {
     display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 380px;
     // na janela mínima o que não cabe é a branch (reticências) e o caminho; o nome do repositório, o botão de sincronização e a marca WSL2 ficam inteiros
     > strong, > :deep(.gn-badge) { flex-shrink: 0; }
     > :deep(.ss) { flex-shrink: 0; }
   }
-  &__path { font-family: var(--gn-mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  &__btns { display: flex; gap: 6px; flex-shrink: 0; margin-left: auto; }
+  &__btns { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: auto; }
+  &__sep { width: 1px; height: 18px; margin: 0 2px; background: var(--gn-border); }
+  &__more { display: none; margin-left: auto; }
+  &__pathbar { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  // caminho: corta o começo (direção da direita para a esquerda só no contêiner; o texto interno segue a própria direção, então "C:\\Users" não embaralha)
+  &__path.gn-btn { min-width: 0; max-width: 100%; justify-content: flex-start; padding: 0 4px; height: 20px; font-family: var(--gn-mono); font-size: 11px; font-weight: 400; color: var(--gn-muted); }
+  &__pathtxt { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; bdi { unicode-bidi: plaintext; } }
+  &__copied { font-size: 11px; color: var(--gn-success, #4fb477); min-height: 1em; }
+  // abaixo de 1100 px os botões ficam só com o ícone (o nome continua no `aria-label` e no tooltip); abaixo de 800 px viram o menu "mais"
+  @media (max-width: 1100px) { &__lbl { display: none; } }
+  @media (max-width: 800px) { &__btns { display: none; } &__more { display: inline-flex; } }
   &__error { margin: 0; padding: 6px 14px; color: var(--gn-danger); background: rgba(239, 106, 98, 0.1); white-space: pre-wrap; }
   &__notice {
     display: flex; align-items: center; gap: 8px; padding: 5px 14px;
