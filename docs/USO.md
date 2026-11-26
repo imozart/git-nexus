@@ -53,12 +53,34 @@ Em janela estreita o cabeçalho se adapta sem quebrar: abaixo de **1100 px** os 
 
 ## Painel de repositórios
 
+![A tela inicial: um cartão por repositório, com o último commit, as setas de sincronização, o stash e o conflito](media/interface/inicio-confortavel-escuro.png)
+
+Cada repositório é um **cartão** em três linhas: nome, branch e selos (alterações, **↓ atrás / ↑ à frente** do remoto, **stash**, **conflito**, "sem upstream", "em dia"); o **último commit** (assunto, autor e há quanto tempo, com o texto completo na dica); e o caminho inteiro (cortado no começo, copiável) com a **última busca no remoto**. Os dados são os do Git, lidos em lotes de seis repositórios por vez: os cartões aparecem logo e os selos chegam em seguida, sem travar a rolagem.
+
+**Densidade.** O seletor ao lado da ordem escolhe entre **Confortável** (os cartões acima), **Compacto** (uma linha por repositório) e **Tabela** (colunas alinhadas, cujo cabeçalho ordena: clique no nome da coluna; clicar de novo inverte). A escolha fica lembrada, como a ordem e os filtros.
+
+![Modo compacto](media/interface/inicio-compacto-escuro.png)
+
+![Modo tabela](media/interface/inicio-tabela-escuro.png)
+
+**Ordem.** Última abertura (padrão), nome, branch, mais alterações, **mais atrasado** (mais commits a receber) e última atividade (data do último commit). O botão ao lado inverte a direção. Quem ainda não tem dados (carregando ou com erro) fica no fim, em qualquer ordem, para a lista não pular enquanto os resumos chegam.
+
+**Filtros** (valem juntos, e o contador "Mostrando N de M" diz o resultado): **Só com pendências** (alterações, commits para enviar ou receber, remota apagada), **Atrás do remoto**, **Sem upstream** e **Com conflito**. A busca por nome ou caminho continua.
+
+**Catálogo vazio.** Sem nenhum repositório, a tela explica as três formas de começar, cada uma com o botão: adicionar uma pasta que já é repositório, clonar de um endereço e varrer uma pasta raiz.
+
+![Catálogo vazio: as três formas de começar](media/interface/inicio-vazio-claro.png)
+
+**Tema claro:** [confortável](media/interface/inicio-confortavel-claro.png), [compacto](media/interface/inicio-compacto-claro.png), [tabela](media/interface/inicio-tabela-claro.png) e [o menu "mais"](media/interface/inicio-menu-mais-claro.png).
+
+**Desempenho.** Medido com 200 repositórios (`home-200.mjs`): o primeiro cartão aparece em cerca de meio segundo depois do app abrir, os resumos dos 200 chegam em poucas dezenas de segundos sem quadro travado e a rolagem fica a 60 quadros por segundo nos modos Confortável e Tabela (o navegador só desenha os cartões que estão na tela). O resumo de cada repositório roda dois processos curtos do Git; o stash e a última busca vêm de arquivos, sem processo.
+
 A tela inicial mostra, para cada repositório catalogado: **branch**, o **indicador de sincronização** (veja [Sincronização com o remoto](#sincronização-com-o-remoto): ↓ commits para receber, ↑ commits para enviar, divergida, remota apagada), **alterações locais**, **conflitos** ou "em dia" (só quando está mesmo em dia: uma branch cuja remota foi apagada não diz "em dia"). O status carrega em segundo plano (4 por vez).
 
 - **Buscar todos:** `git fetch --all --prune` em todos, com relatório de sucessos e falhas (remoto inacessível, credencial necessária…). Em lote nunca abre diálogo de credencial (seriam vários de uma vez): o repositório que pede senha falha com a explicação "o servidor recusou o acesso"; busque nele pelo botão **Buscar** da linha (ou dentro do repositório) para digitar as credenciais.
 - **Atualizar seguros:** pull **somente por fast-forward**, e só onde é seguro: há upstream, o repositório está atrás, não divergiu e a árvore está limpa. Nada de merge automático nem reescrita de histórico; o relatório diz quantos foram atualizados.
 - **Buscar / Pull** individuais em cada linha (o pull recusa quando a branch divergiu e explica o motivo).
-- **Só com pendências:** esconde os repositórios em dia.
+- **Mais ações** (o botão **⋯** de cada cartão, também pelo teclado: Enter abre, setas percorrem, Esc fecha e devolve o foco): **Mostrar a pasta**, **Abrir no terminal**, **Copiar o caminho** e **Remover do catálogo** (só tira da lista; os arquivos não são tocados).
 - **Clonar…** (`git clone`): informe o endereço (`https://…` ou `git@servidor:grupo/projeto.git`), a pasta onde o repositório será criado e, se quiser, o nome da pasta (o padrão é o nome do projeto no endereço) e uma branch. O diálogo mostra o caminho final antes de você confirmar, mostra o andamento do `git` (porcentagem) e, ao terminar, abre o repositório numa aba. Se o clone falhar, a mensagem diz a causa (não encontrado, sem acesso, sem conexão, pasta já existe) e a pasta que ele tinha começado a criar é apagada; uma pasta que já tinha arquivos nunca é tocada. Para endereços privados o app **pergunta usuário e senha** (veja [Credenciais](#credenciais-usuário-senha-token-e-chaves-ssh)). Endereços do tipo `ext::` (que executam comandos) são recusados.
 - **Novo…** (`git init`): escolha a pasta, um nome de subpasta (opcional; vazio usa a própria pasta), a **branch inicial** (padrão `main`) e um modelo de `.gitignore` (Node.js, Java, Python, .NET, Go, Rust ou só IDEs e sistema). Um `.gitignore` que já exista na pasta é mantido. Os dois também estão na paleta (Ctrl+K, "clonar" e "novo repositório").
 

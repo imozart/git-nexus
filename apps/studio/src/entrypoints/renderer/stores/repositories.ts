@@ -1,26 +1,49 @@
 import { defineStore } from 'pinia';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import type { RepoSummary, RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { t } from '../i18n';
+import { filterRepos, needsAttention as summaryNeedsAttention, nextSort, parseHomePrefs, sortRepos, type HomeDensity, type HomeFilter, type HomeSort } from '../home-core';
+
+const HOME_PREFS_KEY = 'gitnexus.home';
+/** Quantos repositórios resumem ao mesmo tempo (cada resumo roda dois processos curtos do git): com 200 repositórios, 6 por vez mantém a tela fluida. */
+const SUMMARY_CONCURRENCY = 6;
 
 export const useRepositoriesStore = defineStore('repositories', () => {
   const repos = ref<RepositoryMeta[]>([]);
   const query = ref('');
+  /** A primeira leitura do catálogo terminou (antes disso, "catálogo vazio" seria um falso aviso). */
+  const loaded = ref(false);
   const busy = ref(false);
   const message = ref<{ kind: 'info' | 'error'; text: string } | null>(null);
   /** Diálogo de clonar / criar repositório aberto na tela inicial (a paleta de comandos também o abre). */
   const createDialog = ref<'clone' | 'init' | null>(null);
 
-  const filtered = computed(() => {
-    const q = query.value.trim().toLowerCase();
-    const base = onlyPending.value ? repos.value.filter(needsAttention) : repos.value;
-    if (!q) return base;
-    return base.filter((r) => r.name.toLowerCase().includes(q) || r.path.toLowerCase().includes(q));
+  // Como a lista aparece (ordem, filtros e densidade): lembrado entre as aberturas, como as demais preferências.
+  const saved = parseHomePrefs(typeof localStorage === 'undefined' ? null : localStorage.getItem(HOME_PREFS_KEY));
+  const sort = ref<HomeSort>(saved.sort);
+  const dir = ref(saved.dir);
+  const density = ref<HomeDensity>(saved.density);
+  const filters = ref<HomeFilter[]>(saved.filters);
+  watch([sort, dir, density, filters], () => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(HOME_PREFS_KEY, JSON.stringify({ sort: sort.value, dir: dir.value, density: density.value, filters: filters.value }));
   });
+  /** Escolhe a ordenação (a mesma de novo inverte a direção). */
+  function setSort(s: HomeSort): void {
+    const n = nextSort({ sort: sort.value, dir: dir.value }, s);
+    sort.value = n.sort;
+    dir.value = n.dir;
+  }
+  function toggleFilter(f: HomeFilter): void {
+    filters.value = filters.value.includes(f) ? filters.value.filter((x) => x !== f) : [...filters.value, f];
+  }
+
+  /** A lista como aparece: filtrada e ordenada. */
+  const filtered = computed(() => sortRepos(filterRepos(repos.value, summaries.value, filters.value, query.value), summaries.value, sort.value, dir.value));
 
   async function load(): Promise<void> {
     repos.value = await api.getKnownRepositories();
+    loaded.value = true;
     void refreshSummaries();
   }
 
@@ -31,7 +54,6 @@ export const useRepositoriesStore = defineStore('repositories', () => {
   const working = ref<Record<string, string>>({});
   const progress = ref<{ label: string; done: number; total: number } | null>(null);
   const report = ref<{ title: string; items: { name: string; ok: boolean; text: string }[] } | null>(null);
-  const onlyPending = ref(false);
 
   /** Roda `fn` sobre os itens, `n` por vez. */
   async function pool<T>(items: T[], n: number, fn: (x: T) => Promise<void>): Promise<void> {
@@ -52,16 +74,13 @@ export const useRepositoriesStore = defineStore('repositories', () => {
   }
 
   async function refreshSummaries(): Promise<void> {
-    await pool([...repos.value], 4, summarize);
+    await pool([...repos.value], SUMMARY_CONCURRENCY, summarize);
   }
 
   const isOk = (s: Summary | undefined): s is RepoSummary => !!s && !('error' in s);
   const isDirty = (s: RepoSummary) => s.staged + s.unstaged + s.conflicted > 0;
   /** Precisa de atenção: alterações locais, commits para enviar/receber ou conflitos. */
-  const needsAttention = (r: RepositoryMeta) => {
-    const s = summaries.value[r.id];
-    return !s || !isOk(s) || isDirty(s) || s.untracked > 0 || s.ahead > 0 || s.behind > 0 || s.gone;
-  };
+  const needsAttention = (r: RepositoryMeta) => summaryNeedsAttention(summaries.value[r.id]);
 
   /** `silent`: em lote (vários repositórios) nunca abre diálogo de credencial; o botão da linha, sim. */
   async function syncOne(r: RepositoryMeta, kind: 'fetch' | 'pull', silent = false): Promise<{ ok: boolean; message: string }> {
@@ -153,5 +172,5 @@ export const useRepositoriesStore = defineStore('repositories', () => {
     await load();
   }
 
-  return { createDialog, summaries, working, progress, report, onlyPending, needsAttention, refreshSummaries, fetchAll, pullSafe, syncOne, repos, query, busy, message, filtered, load, scanRoots, scanPaths, addRepository, addPath, remove, touch };
+  return { loaded, createDialog, summaries, working, progress, report, sort, dir, density, filters, setSort, toggleFilter, needsAttention, refreshSummaries, fetchAll, pullSafe, syncOne, repos, query, busy, message, filtered, load, scanRoots, scanPaths, addRepository, addPath, remove, touch };
 });

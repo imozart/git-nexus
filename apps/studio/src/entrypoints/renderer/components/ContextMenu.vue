@@ -9,8 +9,12 @@ export interface MenuItem {
   separator?: boolean;
 }
 
-/** `above`: o menu abre de dentro de um diálogo (acima dele, na camada dos diálogos). */
-const props = defineProps<{ x: number; y: number; items: MenuItem[]; above?: boolean }>();
+/**
+ * `above`: o menu abre de dentro de um diálogo (acima dele, na camada dos diálogos).
+ * `focusFirst`: menu aberto por um botão (não pelo botão direito): o foco vai para o primeiro item, e volta ao botão ao fechar. As setas, Home e End
+ * percorrem os itens habilitados em qualquer menu em que o foco já esteja.
+ */
+const props = defineProps<{ x: number; y: number; items: MenuItem[]; above?: boolean; focusFirst?: boolean }>();
 const emit = defineEmits<{ (e: 'select', id: string): void; (e: 'close'): void }>();
 
 const el = ref<HTMLDivElement>();
@@ -19,8 +23,18 @@ const pos = ref({ left: props.x, top: props.y });
 function onOutside(ev: MouseEvent) {
   if (el.value && !el.value.contains(ev.target as Node)) emit('close');
 }
+const enabled = () => [...(el.value?.querySelectorAll<HTMLButtonElement>('button.ctx__item:not(:disabled)') ?? [])];
+const opener = document.activeElement as HTMLElement | null;
 function onKey(ev: KeyboardEvent) {
   if (ev.key === 'Escape') emit('close');
+  else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(ev.key) && el.value?.contains(document.activeElement)) {
+    const list = enabled();
+    if (!list.length) return;
+    ev.preventDefault();
+    const i = list.indexOf(document.activeElement as HTMLButtonElement);
+    const next = ev.key === 'Home' ? 0 : ev.key === 'End' ? list.length - 1 : ev.key === 'ArrowDown' ? (i + 1) % list.length : (i - 1 + list.length) % list.length;
+    list[next]!.focus();
+  }
 }
 const close = () => emit('close');
 
@@ -34,8 +48,10 @@ onMounted(async () => {
   // mantém o menu dentro da janela
   const r = el.value?.getBoundingClientRect();
   if (r) pos.value = { left: Math.max(4, Math.min(props.x, innerWidth - r.width - 4)), top: Math.max(4, Math.min(props.y, innerHeight - r.height - 4)) };
+  if (props.focusFirst) enabled()[0]?.focus();
 });
 onBeforeUnmount(() => {
+  if (props.focusFirst && el.value?.contains(document.activeElement)) opener?.focus?.();
   document.removeEventListener('mousedown', onOutside, true);
   document.removeEventListener('keydown', onKey);
   window.removeEventListener('blur', close);

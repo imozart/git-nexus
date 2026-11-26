@@ -1,4 +1,4 @@
-import { stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { remoteErrorText } from './askpass-pure.js';
 import { remoteEnv } from './askpass.js';
@@ -21,6 +21,8 @@ export function parseSummary(raw: string): RepoSummary {
     unstaged: 0,
     untracked: 0,
     conflicted: 0,
+    lastCommit: null,
+    stash: 0,
   };
   const parts = raw.split('\0').filter(Boolean);
   let sawAb = false;
@@ -52,23 +54,77 @@ export function parseSummary(raw: string): RepoSummary {
 }
 
 /**
- * Quando o repositório falou com o remoto pela última vez (ms desde 1970): a data de `FETCH_HEAD`, que todo fetch e todo pull reescrevem,
- * inclusive os feitos fora do app. `null` se nunca buscou ou se não der para ler (por exemplo, repositório dentro do WSL).
+ * Onde ficam o `FETCH_HEAD` e o registro do stash. Repositório comum (`.git` é uma pasta): os caminhos são conhecidos, sem rodar o git (a tela inicial
+ * resume centenas de repositórios, e cada processo do git custa caro no Windows). Worktree e submódulo (`.git` é um arquivo): pergunta ao git, que sabe
+ * onde ficam. `null` se não der para saber.
  */
-export async function getLastFetch(repoPath: string): Promise<number | null> {
+type GitFiles = { fetchHead: string; stashLog: string };
+async function gitFiles(repoPath: string): Promise<GitFiles | null> {
   try {
-    const r = await runGit(repoPath, ['rev-parse', '--git-path', 'FETCH_HEAD'], { check: false });
-    const rel = r.stdout.trim();
-    if (r.code !== 0 || !rel) return null;
-    return (await stat(isAbsolute(rel) ? rel : join(repoPath, rel))).mtimeMs;
+    const dotGit = join(repoPath, '.git');
+    if ((await stat(dotGit)).isDirectory()) return { fetchHead: join(dotGit, 'FETCH_HEAD'), stashLog: join(dotGit, 'logs', 'refs', 'stash') };
+  } catch {
+    /* sem .git aqui (pasta dentro do repositório, repositório nu, WSL): pergunta ao git */
+  }
+  try {
+    const r = await runGit(repoPath, ['rev-parse', '--git-path', 'FETCH_HEAD', '--git-path', 'logs/refs/stash'], { check: false });
+    const [fetchHead, stashLog] = r.stdout.split('\n').map((l) => l.trim());
+    if (r.code !== 0 || !fetchHead || !stashLog) return null;
+    const abs = (p: string) => (isAbsolute(p) ? p : join(repoPath, p));
+    return { fetchHead: abs(fetchHead), stashLog: abs(stashLog) };
   } catch {
     return null;
   }
 }
 
+/**
+ * Quando o repositório falou com o remoto pela última vez (ms desde 1970): a data de `FETCH_HEAD`, que todo fetch e todo pull reescrevem,
+ * inclusive os feitos fora do app. `null` se nunca buscou ou se não der para ler (por exemplo, repositório dentro do WSL).
+ */
+export async function getLastFetch(repoPath: string): Promise<number | null> {
+  return fetchTime(await gitFiles(repoPath));
+}
+
+async function fetchTime(f: GitFiles | null): Promise<number | null> {
+  try {
+    return f ? (await stat(f.fetchHead)).mtimeMs : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Parse de `git log -1 --format=%ct%x00%an%x00%s`: o último commit do HEAD, ou null (repositório sem commits, saída vazia ou torta). */
+export function parseLastCommit(raw: string): RepoSummary['lastCommit'] {
+  const [ct, author, ...subject] = raw.replace(/\r?\n$/, '').split('\0');
+  const secs = Number(ct);
+  if (!ct || !Number.isFinite(secs) || author === undefined) return null;
+  return { subject: subject.join('\0'), author, date: secs * 1000 };
+}
+
+/** O commit do HEAD (null se não há commits). Um processo curto: lê só o último commit, qualquer que seja o tamanho do histórico. */
+async function getLastCommit(repoPath: string): Promise<RepoSummary['lastCommit']> {
+  const r = await runGit(repoPath, ['log', '-1', '--format=%ct%x00%an%x00%s'], { check: false });
+  return r.code === 0 ? parseLastCommit(r.stdout) : null;
+}
+
+/** Quantos stashes há: o git guarda um registro por stash em `logs/refs/stash` (uma linha cada); sem o arquivo, não há stash. */
+async function stashCount(f: GitFiles | null): Promise<number> {
+  try {
+    return f ? (await readFile(f.stashLog, 'utf8')).split('\n').filter((l) => l.trim()).length : 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function getRepoSummary(repoPath: string): Promise<RepoSummary> {
-  const [r, lastFetch] = await Promise.all([runGit(repoPath, ['status', '--porcelain=v2', '--branch', '-z']), getLastFetch(repoPath)]);
-  return { ...parseSummary(r.stdout), lastFetch };
+  const files = gitFiles(repoPath);
+  const [r, lastFetch, lastCommit, stash] = await Promise.all([
+    runGit(repoPath, ['status', '--porcelain=v2', '--branch', '-z']),
+    files.then(fetchTime),
+    getLastCommit(repoPath),
+    files.then(stashCount),
+  ]);
+  return { ...parseSummary(r.stdout), lastFetch, lastCommit, stash };
 }
 
 export { NO_PROMPT } from './no-prompt.js';
