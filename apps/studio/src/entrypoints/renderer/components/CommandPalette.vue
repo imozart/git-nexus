@@ -69,7 +69,7 @@ const showGroup = (i: number) => !query.value.trim() && (i === 0 || results.valu
             >
               <span class="cp__title">{{ c.title }}</span>
               <span v-if="query.trim()" class="cp__gr">{{ c.group }}</span>
-              <kbd v-if="c.shortcut" class="cp__kbd">{{ shortcutLabel(c.shortcut) }}</kbd>
+              <kbd v-if="store.shortcutOf(c)" class="cp__kbd">{{ shortcutLabel(store.shortcutOf(c)!) }}</kbd>
             </div>
           </template>
           <p v-if="!results.length" class="cp__empty">{{ t('palette.empty') }}</p>

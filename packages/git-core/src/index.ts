@@ -30,5 +30,6 @@ export * from './askpass.js';
 export * from './submodules.js';
 export * from './lfs.js';
 export * from './signing.js';
+export * from './git-config.js';
 export * from './no-prompt.js';
 export * from './work-file.js';

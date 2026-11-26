@@ -397,6 +397,8 @@ ipcMain.handle(
   needsGit((_e: unknown, repoPath: string, file: string) => shell.openPath(join(repoPath, file.replace(/\/$/, '')))),
 );
 
+ipcMain.handle(channel('openAppFolder'), (_e, which: 'data' | 'logs') => shell.openPath(which === 'logs' ? join(dataDir, 'logs') : dataDir));
+
 // --- Janela ---------------------------------------------------------------------------
 /** Ícone da janela (barra de tarefas no Linux e execução em desenvolvimento). No Windows/macOS o do executável já vale. */
 function windowIcon(): string | undefined {

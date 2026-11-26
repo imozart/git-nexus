@@ -363,12 +363,24 @@ O que isso mudou no app:
 
 O diálogo de **Configurações** reúne as preferências do app em um lugar só. Abra com **Ctrl+,** (⌘+, no macOS), pela **engrenagem** na barra superior (depois de "Comandos") ou pela paleta (Ctrl+K, "configurações"). **Esc**, clique fora ou **Fechar** fecham, e o foco volta a onde estava.
 
-O diálogo tem **duas abas** (setas, Home e End trocam de aba):
+O diálogo tem um **menu lateral** com seis seções (setas para cima e para baixo, Home e End trocam de seção) e um campo **Buscar nas configurações** no topo: digite "assinar", "e-mail" ou "tema escuro" (em português ou inglês) e clique no resultado, ou **Enter** para ir ao primeiro; o foco vai direto ao campo. **Esc** limpa a busca; um segundo **Esc** fecha.
+
+![A busca nas configurações: "assinar" leva às três opções de assinatura](media/interface/config-busca.png)
 
 - **Geral:** **Idioma** (lista com a bandeira), **Verificar atualizações automaticamente** e **Buscar automaticamente** (a busca em segundo plano, a cada 5 minutos, sem alterar seus arquivos).
-- **Aparência:** **Tema** (lista: Sistema, Escuro ou Claro), **Fonte da interface** e **Fonte do código** (JetBrains Mono ou Sistema) e **Ligaduras de código** (por exemplo `!==` ou `=>` viram um símbolo só). Uma **pré-visualização** mostra um trecho de código e uma linha de texto com a escolha feita.
+- **Aparência:** **Tema** (lista: Sistema, Escuro ou Claro), **Movimento**, **Fonte da interface** e **Fonte do código** (JetBrains Mono ou Sistema) e **Ligaduras de código** (por exemplo `!==` ou `=>` viram um símbolo só). Uma **pré-visualização** mostra um trecho de código e uma linha de texto com a escolha feita.
+- **Git:** **identidade** (nome e e-mail), **assinatura de commits** (assinar todos, formato OpenPGP, SSH ou X.509, chave), **ao puxar** (merge ou rebase), **nome do ramo inicial** e **quebras de linha** (`core.autocrlf`, com a explicação). Tudo é gravado com o próprio `git config`, no escopo que você escolhe em **Onde gravar**: **Global** ou **Só este repositório** (o da aba ativa); o que o Git mostra no terminal é o que está aqui, e o valor herdado do global aparece como dica. Texto vazio ou **Remover** tira o valor daquele escopo. O e-mail inválido e os demais erros aparecem em um aviso, sem gravar.
+- **Conflitos:** o **novo resolvedor** (experimental), **lembrar resoluções** (`rerere`) e o **estilo dos marcadores** (`merge`, `diff3` ou `zdiff3`).
+- **Atalhos:** a lista de **todos os comandos** com o atalho de cada um, filtrável. **Alterar** captura a nova combinação (Esc cancela), avisa se outro comando já a usa (ou se é da paleta, `Ctrl+K`) e guarda; vale **na hora**. **Sem atalho** e **Restaurar** (por comando) e **Restaurar todos os atalhos** desfazem. Só valem combinações com Ctrl (Cmd no macOS), Alt ou uma tecla de função, para não atrapalhar a digitação.
+- **Avançado:** abrir a **pasta de dados** e a dos **logs**; **Exportar** e **Importar** as preferências do app (um JSON versionado: idioma, tema, fontes, atalhos…, sem repositórios, credenciais nem a configuração do Git; importar substitui as preferências e recarrega); **Redefinir tudo** (pede confirmação; não mexe em repositórios nem no `git config`).
+
+![A seção Git, gravando no escopo do repositório](media/interface/config-git.png)
+
+![Atalhos: remapear com captura e aviso de conflito](media/interface/config-atalhos.png)
+
+- **Abertura direta:** a paleta tem **Configurações: identidade e assinatura do Git** e **Configurações: atalhos de teclado**, que abrem já na seção.
 - **A mudança vale na hora** e fica guardada: não há "Salvar" nem "Cancelar". Os campos são os **mesmos** controles de antes (seletor de idioma da barra, caixa do seletor de branch, comandos da paleta): mudar em um lugar muda nos outros.
-- **Restaurar padrões** (na aba Aparência) volta as fontes e as ligaduras ao início: **JetBrains Mono** na interface e no código, com as ligaduras **desligadas** (para o diff mostrar exatamente o que foi digitado).
+- **Restaurar padrões** (na seção Aparência) volta as fontes e as ligaduras ao início: **JetBrains Mono** na interface e no código, com as ligaduras **desligadas** (para o diff mostrar exatamente o que foi digitado).
 
 ## Credenciais: usuário, senha, token e chaves SSH
 
