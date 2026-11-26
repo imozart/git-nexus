@@ -9,6 +9,7 @@ O que o GitNexus faz e como usar cada parte. Para instalar, veja o [README](../R
 | Atalho | Ação |
 |---|---|
 | Ctrl+K / Ctrl+Shift+P | Paleta de comandos |
+| Ctrl+/ ou a tecla ? | Folha de atalhos: todos os comandos, por área, com a tecla de cada um (veja [Primeiro uso, atalhos e dicas](#primeiro-uso-atalhos-e-dicas)) |
 | Ctrl+1 | Ir para Repositórios |
 | Ctrl+PageDown / Ctrl+PageUp | Próxima / anterior aba |
 | Ctrl+Alt+1 a Ctrl+Alt+4 | Trocar a visão do repositório: Staging, Grafo / Histórico, Ferramentas e Conflitos |
@@ -408,6 +409,44 @@ O que isso mudou no app:
 - **Filtro de arquivos** (aparece com mais de 30 alterações): filtra por parte do caminho; o checkbox do grupo passa a valer para o que está filtrado.
 - **Incluir/remover do commit em lotes:** antes, "incluir tudo" com milhares de arquivos estourava o limite de ~32 mil caracteres da linha de comando do Windows e simplesmente não funcionava; agora vai em lotes e com `--literal-pathspecs` (um arquivo chamado `a[1].txt` ou `*.md` não vira curinga).
 - **Detecção de conflitos pelo índice** (`git ls-files --unmerged`), em vez de `git diff`, que comparava o conteúdo de todos os arquivos alterados a cada atualização da tela.
+
+## Primeiro uso, atalhos e dicas
+
+### O passeio de boas-vindas
+
+Quem está chegando (nenhum repositório catalogado e o passeio ainda não terminado) vê, depois da escolha do idioma, um **passeio de cinco passos** sobre a tela de verdade, não um tutorial à parte: (1) onde começar (adicionar, clonar, varrer uma pasta raiz), (2) uma aba por repositório e as visões, (3) o commit com o linter, (4) a paleta (**Ctrl+K**) e (5) as Configurações. Cada passo **destaca o controle real** e leva um cartão com **Voltar, Próximo e Pular**; o fundo só escurece (não captura cliques, o controle destacado segue utilizável) e **Esc pula**. Passo cujo controle não está na tela naquele momento (as visões, sem repositório aberto) só explica e avisa.
+
+![Passo 1: os botões para começar, destacados](media/interface/uso-passeio-1-escuro.png)
+
+- **Retomável:** o passo fica gravado; se o app for fechado no meio, continua dali. **Pular** ou **Concluir** marca como visto e ele não volta sozinho.
+- **Só para quem chega:** com repositórios catalogados o passeio não começa sozinho (uma atualização não interrompe quem já usa o app).
+- **Rever o passeio:** em **Configurações > Geral** ou na paleta (*Rever o passeio de boas-vindas*); começa do passo 1, e dentro de um repositório os passos 2 e 3 destacam as telas de verdade.
+
+![Passo 2 num repositório: o seletor de visões, destacado](media/interface/uso-passeio-2-visoes-escuro.png)
+
+![Passo 3: o formulário de commit](media/interface/uso-passeio-3-commit-claro.png)
+
+### A folha de atalhos
+
+**Ctrl+/** (⌘/ no macOS) ou a tecla **?** (fora de campos de texto e do editor, onde é um caractere comum) abre uma folha com **todos os comandos do app**, por área, cada um com a tecla que vale agora: a que você remapeou, se houver, e **⌘ no macOS**. Vem da mesma fonte da paleta e de Configurações > Atalhos, então nunca divergem (um teste compara a folha com a lista da paleta). Busque por nome, área ou tecla; **Esc** limpa a busca e, de novo, fecha; o foco volta para onde estava. **Mudar atalhos…** abre Configurações > Atalhos.
+
+![A folha de atalhos](media/interface/uso-folha-atalhos-escuro.png)
+
+![Busca na folha, no tema claro](media/interface/uso-folha-atalhos-busca-claro.png)
+
+### Dicas contextuais
+
+Poucas, discretas e dispensáveis: uma faixa (`role="note"`) sob a barra do repositório, na primeira vez em que a situação aparece. Hoje: **um stash guardado há 30 dias ou mais** ("Há um stash guardado há 45 dias neste repositório: veja se ainda faz falta", com *Ver o stash*). Cada dica tem **Não mostrar mais** (nunca mais), e fechar (só desta vez); e há no máximo **uma dica por sessão**, para não virar ruído.
+
+![A dica do stash esquecido](media/interface/uso-dica-stash-escuro.png)
+
+### Novidades
+
+O botão **Novidades** da tela inicial abre as notas das versões e marca com **novo** (e abre) as que vieram **depois da última versão cujas notas você viu**. A primeira abertura só marca o ponto de partida; ao fechar, a versão em uso fica como vista.
+
+![Novidades com o selo "novo"](media/interface/uso-novidades-novo-escuro.png)
+
+Tema claro: [passo 1](media/interface/uso-passeio-1-claro.png), [passo 5](media/interface/uso-passeio-5-claro.png), [a folha](media/interface/uso-folha-atalhos-claro.png), [a dica](media/interface/uso-dica-stash-claro.png) e [Novidades](media/interface/uso-novidades-novo-claro.png).
 
 ## Janela e aparência
 

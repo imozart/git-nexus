@@ -163,7 +163,7 @@ async function onMenu(id: string): Promise<void> {
         <h1>{{ t('home.title') }}</h1>
         <p class="muted">{{ t('home.subtitle') }}</p>
       </div>
-      <div class="conn__actions">
+      <div class="conn__actions" data-tour="repos">
         <GnButton variant="primary" :disabled="store.busy" @click="store.addRepository()">{{ t('home.add') }}</GnButton>
         <GnButton :disabled="store.busy" data-testid="home-clone" @click="store.createDialog = 'clone'">{{ t('home.clone') }}<GnTooltip :text="t('clone.tip')" /></GnButton>
         <GnButton :disabled="store.busy" data-testid="home-new" @click="store.createDialog = 'init'">{{ t('home.new') }}<GnTooltip :text="t('create.tip')" /></GnButton>

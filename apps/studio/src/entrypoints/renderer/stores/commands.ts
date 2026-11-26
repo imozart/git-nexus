@@ -99,6 +99,8 @@ export function shortcutLabel(s: string): string {
 export const useCommandsStore = defineStore('commands', () => {
   const sources = ref<Array<() => Command[]>>([]);
   const isOpen = ref(false);
+  /** A folha de atalhos (Ctrl+/ ou ?) está aberta. */
+  const sheetOpen = ref(false);
   const recent = ref<string[]>(JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]'));
   const overrides = ref<Record<string, string>>(readOverrides());
 
@@ -191,5 +193,5 @@ export const useCommandsStore = defineStore('commands', () => {
   const toggle = () => (isOpen.value = !isOpen.value);
   const count = computed(() => available().length);
 
-  return { isOpen, recent, overrides, shortcutOf, isCustom, setShortcut, resetShortcuts, listed, conflictFor, register, search, run, byShortcut, open, close, toggle, count };
+  return { isOpen, sheetOpen, recent, overrides, shortcutOf, isCustom, setShortcut, resetShortcuts, listed, conflictFor, register, search, run, byShortcut, open, close, toggle, count };
 });

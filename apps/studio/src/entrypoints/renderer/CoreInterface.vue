@@ -15,6 +15,7 @@ import { HOME_TAB, useWorkspaceStore } from './stores/workspace';
 import ConnectionInterface from './views/ConnectionInterface.vue';
 import RepoViewSwitch from './components/RepoViewSwitch.vue';
 import RepoOperationBar from './components/RepoOperationBar.vue';
+import TipNote from './components/TipNote.vue';
 import RepoView from './views/RepoView.vue';
 import GraphView from './views/GraphView.vue';
 import MergeView from './views/MergeView.vue';
@@ -76,11 +77,11 @@ const tabs = computed<GnTab[]>(() =>
       <GnTabs class="core__tabs" :tabs="tabs" :model-value="ws.activeId" @update:model-value="ws.activeId = $event" @close="ws.close" />
       <ThemePicker />
       <LanguagePicker />
-      <button type="button" class="core__cmd" @click="cmds.open()">
+      <button type="button" class="core__cmd" data-tour="palette" data-testid="palette-open" @click="cmds.open()">
         {{ t('core.commands') }} <kbd>{{ shortcutLabel('Mod+K') }}</kbd>
         <GnTooltip :text="t('core.commandsTitle')" />
       </button>
-      <GnIconButton class="core__gear" icon="settings" :label="t('core.settings')" :title="`${t('core.settings')} (${shortcutLabel('Mod+,')})`" data-testid="settings-open" @click="settings.open()" />
+      <GnIconButton class="core__gear" icon="settings" :label="t('core.settings')" :title="`${t('core.settings')} (${shortcutLabel('Mod+,')})`" data-tour="settings" data-testid="settings-open" @click="settings.open()" />
     </div>
     <div v-if="upd.visible && upd.info" class="upd" role="status">
       <span class="upd__msg">
@@ -137,6 +138,7 @@ const tabs = computed<GnTab[]>(() =>
         <div v-else-if="t.repo" class="core__repo">
           <RepoViewSwitch :repo="t.repo" :view="t.view ?? 'repo'" :conflicts="ws.ops[t.repo.id]?.conflicts ?? 0" :with-conflicts="ws.hasConflictView(t.repo.id)" @select="ws.open($event, t.repo)" />
           <RepoOperationBar :repo="t.repo" :view="t.view ?? 'repo'" />
+          <TipNote :repo="t.repo" />
           <div class="core__views">
             <div v-if="t.visited?.includes('repo')" v-show="t.view === 'repo'" :id="`rvp-${t.repo.id}-repo`" class="core__view" role="tabpanel" :aria-labelledby="`rvt-${t.repo.id}-repo`"><RepoView :repo="t.repo" /></div>
             <div v-if="t.visited?.includes('graph')" v-show="t.view === 'graph'" :id="`rvp-${t.repo.id}-graph`" class="core__view" role="tabpanel" :aria-labelledby="`rvt-${t.repo.id}-graph`"><GraphView :repo="t.repo" /></div>
