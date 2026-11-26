@@ -37,7 +37,7 @@ t.check('as ações são uma barra de ferramentas nomeada, separada da identidad
 const names = await t.ev(`[...${q('[data-testid="repo-actions"]')}.querySelectorAll('button')].map((b) => (b.getAttribute('aria-label') || b.textContent).replace(/\\s+/g, ' ').trim())`);
 t.check('cada ação tem nome acessível (Recarregar, Terminal, Editor, Copiar caminho, Abrir a pasta)', names.length === 5 && ['Recarregar', 'Terminal', 'Editor', 'Copiar caminho', 'Abrir a pasta'].every((n, i) => names[i].startsWith(n)), names);
 t.check('larga: o texto dos botões aparece e o menu "mais" não', (await box('.rv__lbl')).w > 20 && (await box('[data-testid="more-actions"]')).shown === false);
-t.check('o caminho inteiro está numa linha própria, com o texto completo e o nome acessível', (await t.ev(`(() => { const b = ${q('[data-testid="repo-path"]')}; return b.textContent.includes(${lit(R.replace(/\\/g, '\\'))}) && b.getAttribute('aria-label').includes('Clique para copiar'); })()`)) === true || (await t.ev(`${q('[data-testid="repo-path"]')}.textContent.trim().length`)) > 20);
+t.check('o caminho inteiro está numa linha própria, com o texto completo e o nome acessível', (await t.ev(`(() => { const b = ${q('[data-testid="repo-path"]')}; return b.textContent.includes(${lit(R)}) && b.getAttribute('aria-label').includes('Clique para copiar'); })()`)) === true || (await t.ev(`${q('[data-testid="repo-path"]')}.textContent.trim().length`)) > 20);
 t.check('sem sobreposição e sem rolagem lateral a 1500 px', !overlap(await box('.rv__id'), await box('[data-testid="repo-actions"]')) && (await noScroll()) === true);
 await t.shot('cabecalho-1500');
 

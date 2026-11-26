@@ -8,7 +8,7 @@ const BOOL = ['true', 'false'] as const;
 
 export const GIT_CONFIG_RULES: Record<GitConfigKey, Rule> = {
   'user.name': { text: true },
-  'user.email': { text: true, check: (v) => (/^\S+@\S+$/.test(v) ? null : 'email') },
+  'user.email': { text: true, check: (v) => (/^[^\s@]+@[^\s@]+$/.test(v) ? null : 'email') },
   'user.signingkey': { text: true },
   'gpg.format': { values: ['openpgp', 'ssh', 'x509'] },
   'commit.gpgsign': { values: BOOL },
