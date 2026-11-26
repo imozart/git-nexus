@@ -202,6 +202,16 @@ A lista de repositórios (`views/ConnectionInterface.vue`) tem **um só HTML** p
 - **Desempenho com centenas de repositórios:** `content-visibility: auto` em cada cartão (o navegador só desenha o que está na tela), resumo em lotes de 6 (`SUMMARY_CONCURRENCY`) e nenhum processo do Git além do `status` e do `log -1` por repositório (`getRepoSummary` lê `FETCH_HEAD` e o registro do stash direto dos arquivos). `home-200.mjs` mede e grava `medidas-home-200.json`.
 - **Menu "mais":** `ContextMenu` com `focus-first` (o foco vai ao primeiro item, as setas, Home e End percorrem, Esc fecha e o foco volta ao botão). `GnSegmented` agora move o foco junto com a seleção quando se usa as setas.
 
+## Ferramentas: menu lateral com grupos
+
+`views/ToolsView.vue` tem o mesmo desenho do menu das Configurações: um `tablist` **vertical** (`aria-orientation="vertical"`) com `role="group"` por grupo, `role="tab"` por ferramenta e só a ativa no Tab (as setas, Home e End percorrem e trocam a ferramenta; o botão "Mais ferramentas" entra na ordem das setas). O painel é o `role="tabpanel"` `#tools-panel`, com o nome da ferramenta.
+
+- **Dados do repositório:** `getToolsUsage(repoPath)` (git-core, `tools-usage.ts`) responde `{ lfs, submodules, submodulesPending, stash }` sem rede: lê o `.gitattributes` da raiz (e, se ela não decide, pergunta ao Git pelos de subpastas), o `.gitmodules` e o registro do stash; só consulta `git submodule status` quando há submódulos. A visão recarrega quando `ws.versions[repo]` muda, como os painéis.
+- **Ferramenta opcional** (`optional: 'lfs' | 'submodules'` em `TOOLS`): sem uso, vai para o grupo recolhido "Mais ferramentas" (`gitnexus.toolsMore`); se for a ferramenta atual ou chegar por `ws.openTools`, o grupo abre. Sem a resposta do `getToolsUsage`, ficam recolhidas (e ao alcance).
+- **Lembrança:** `gitnexus.toolsSection.<repoId>` (cai na chave global antiga se não houver).
+- **Nomes longos quebram em duas linhas** no menu; nada de reticências. O painel tem largura de leitura (`.tools__panel`, 1280 px).
+- Teste de interface: `ferramentas-grupos.mjs` (os painéis individuais seguem nos seus testes, que abrem pela paleta).
+
 ## Como criar um componente do kit
 
 1. Nome `Gn` + substantivo, em `apps/ui-kit/src/components/`, exportado em `src/index.ts`.

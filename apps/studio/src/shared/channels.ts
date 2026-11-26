@@ -9,6 +9,7 @@ export const WORKER_METHODS = [
   'getGitConfig',
   'setGitConfig',
   'getLfsInfo',
+  'getToolsUsage',
   'pullLfs',
   'getSubmodules',
   'initSubmodules',

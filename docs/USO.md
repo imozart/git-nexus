@@ -159,6 +159,21 @@ Um arquivo `.gitnexus.json` na raiz do repositório define as regras de commit d
 
 ## Ferramentas (aba por repositório)
 
+![Ferramentas agrupadas, com o contador do stash e "Mais ferramentas" recolhido](media/interface/ferramentas-simples-escuro.png)
+
+As ferramentas ficam num **menu lateral com grupos**, sempre na mesma ordem: **Desfazer e recuperar** (Operações, Stash), **Inspecionar** (Arquivo: histórico e blame), **Reescrever a história** (Rebase interativo, Tags), **Integração** (PRs / MRs e CI, Submódulos, Git LFS) e **Publicar** (Versão e changelog). Setas, Home e End percorrem o menu e a ferramenta muda junto com o foco; a paleta (**Ctrl+K**, "Ferramentas: …") e os atalhos do grafo e do arquivo continuam levando direto a cada uma.
+
+- **Só aparece de cara o que o repositório usa.** **Git LFS** e **Submódulos** só ficam em *Integração* quando o repositório tem `filter=lfs` em algum `.gitattributes` ou um `.gitmodules`; fora disso ficam em **Mais ferramentas** (recolhido, lembrado), para não sumir de quem quer começar a usar. Se você abrir uma delas (pelo menu, pela paleta ou por um atalho), o grupo abre sozinho.
+- **Contadores discretos:** **Stash** mostra quantos stashes há e **Submódulos** quantos estão pendentes (não inicializados, desatualizados ou em conflito). Os dois se atualizam quando algo muda no repositório. (Tags sem envio ao remoto exigem consultar o servidor; ficou de fora para a aba não depender de rede.)
+- **A ferramenta escolhida é lembrada por repositório.**
+- **Largura de leitura:** o painel não se estica por toda a tela larga (até 1280 px).
+
+![Em 1100 px de largura](media/interface/ferramentas-1100-escuro.png)
+
+![Num repositório com LFS e submódulos, ambos em Integração, com o submódulo pendente contado](media/interface/ferramentas-integrado-escuro.png)
+
+Tema claro: [simples](media/interface/ferramentas-simples-claro.png), [1100 px](media/interface/ferramentas-1100-claro.png), [com "Mais ferramentas" aberto](media/interface/ferramentas-mais-aberto-claro.png) e [integrado](media/interface/ferramentas-integrado-claro.png).
+
 - **Operações (desfazer de verdade):** lista tudo o que mudou o HEAD (commits, amends, merges, pulls, rebases, resets, trocas de branch) a partir do reflog. *Desfazer* volta ao estado anterior à operação (e às mais novas), pedindo confirmação com a lista do que será revertido. Commit e amend voltam as alterações ao stage; as demais usam `reset --keep` (preserva o que você tem local e cancela se houver conflito). O próprio desfazer aparece na lista e pode ser desfeito (refazer). Trocas de branch só são desfeitas quando são a operação mais recente, porque o reflog do HEAD não registra de qual branch é cada entrada.
 - **Stash (shelf) com nome:** guarde as alterações com um nome (tudo, ou só alguns arquivos; opcionalmente os arquivos novos e mantendo o que já está no stage). Cada stash lista seus arquivos com o diff; dá para **restaurar só alguns arquivos** (recusa se já tiverem alterações locais, a menos que você confirme sobrescrever), aplicar tudo (mantendo ou removendo), **renomear** e excluir. Conflitos ao aplicar são avisados e o stash é mantido.
 - **Busca no histórico (aba Grafo):** quando um texto **entrou ou saiu** (com o selo em cada commit), linhas alteradas que casam, mensagem do commit e o **histórico de um trecho**, por branch, intervalo, autor, período e arquivo; veja [Buscar na história](#buscar-na-história). Clicar num commit mostra a mensagem completa, os arquivos alterados e o diff de cada um.

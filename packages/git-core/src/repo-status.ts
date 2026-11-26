@@ -107,6 +107,11 @@ async function getLastCommit(repoPath: string): Promise<RepoSummary['lastCommit'
   return r.code === 0 ? parseLastCommit(r.stdout) : null;
 }
 
+/** Quantos stashes o repositório guarda (sem processo do git; veja `gitFiles`). */
+export async function getStashCount(repoPath: string): Promise<number> {
+  return stashCount(await gitFiles(repoPath));
+}
+
 /** Quantos stashes há: o git guarda um registro por stash em `logs/refs/stash` (uma linha cada); sem o arquivo, não há stash. */
 async function stashCount(f: GitFiles | null): Promise<number> {
   try {
