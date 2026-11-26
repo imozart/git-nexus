@@ -2,21 +2,44 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import type { HistoryQuery, RepositoryMeta } from '@git-nexus/git-core/pure';
 
-export type TabKind = 'home' | 'repo' | 'graph' | 'merge' | 'tools';
+/** Uma aba é a tela inicial ou UM repositório; as visões do repositório ficam dentro da aba (`RepoViewKind`). */
+export type TabKind = 'home' | 'repo';
+/** As visões de um repositório: Staging (`repo`), Grafo / Histórico, Conflitos (`merge`) e Ferramentas. */
+export type RepoViewKind = 'repo' | 'graph' | 'merge' | 'tools';
+export const REPO_VIEWS: readonly RepoViewKind[] = ['repo', 'graph', 'tools', 'merge'];
 
 export interface WorkspaceTab {
   id: string;
   kind: TabKind;
   repo?: RepositoryMeta;
+  /** A visão que está na tela (só nas abas de repositório). */
+  view?: RepoViewKind;
+  /** As visões já abertas nesta aba: cada uma só é montada na primeira visita e depois mantém o estado (v-show). */
+  visited?: RepoViewKind[];
 }
 
 export const HOME_TAB = 'home';
+const VIEW_KEY = 'gitnexus.repoView.';
+
+/** A visão que o repositório tinha na última vez (lembrada entre aberturas do app); `repo` (Staging) se não houver. */
+export function rememberedView(repoId: string): RepoViewKind {
+  try {
+    const v = localStorage.getItem(VIEW_KEY + repoId);
+    return v === 'graph' || v === 'tools' || v === 'merge' ? v : 'repo';
+  } catch {
+    return 'repo';
+  }
+}
+
+export const tabIdOf = (repoId: string): string => `repo:${repoId}`;
 
 export const useWorkspaceStore = defineStore('workspace', () => {
   const tabs = ref<WorkspaceTab[]>([{ id: HOME_TAB, kind: 'home' }]);
   const activeId = ref(HOME_TAB);
   /** Contador por repositório: incrementar força as abas daquele repo a recarregar. */
   const versions = ref<Record<string, number>>({});
+  /** Conflitos pendentes por repositório (a tela do repositório publica; o seletor de visão mostra a contagem). */
+  const conflicts = ref<Record<string, number>>({});
 
   /** Pedido para a aba Ferramentas abrir numa seção (e arquivo) específicos, ex.: "Blame" a partir do menu. */
   const toolsTarget = ref<{ repoId: string; section: string; file?: string; mode?: string; n: number } | null>(null);
@@ -25,11 +48,31 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const historyTarget = ref<{ repoId: string; query: HistoryQuery; n: number } | null>(null);
 
   const active = computed(() => tabs.value.find((t) => t.id === activeId.value));
+  /** A visão do repositório da aba ativa (`undefined` na tela inicial). */
+  const activeView = computed(() => active.value?.view);
 
-  function open(kind: Exclude<TabKind, 'home'>, repo: RepositoryMeta): void {
-    const id = `${kind}:${repo.id}`;
-    if (!tabs.value.some((t) => t.id === id)) tabs.value.push({ id, kind, repo });
+  /** Está na tela agora a visão `view` do repositório `repoId`? (as telas que reagem só quando visíveis usam isto) */
+  const isViewActive = (repoId: string, view: RepoViewKind): boolean => activeId.value === tabIdOf(repoId) && tabs.value.find((t) => t.id === activeId.value)?.view === view;
+
+  /** Põe a visão na tela da aba do repositório (cria a aba se preciso). Uma aba por repositório: trocar de visão nunca abre outra aba. */
+  function open(view: RepoViewKind, repo: RepositoryMeta): void {
+    const id = tabIdOf(repo.id);
+    if (!tabs.value.some((t) => t.id === id)) tabs.value.push({ id, kind: 'repo', repo, view, visited: [] });
+    const tab = tabs.value.find((t) => t.id === id)!; // a versão reativa
+    tab.view = view;
+    if (!tab.visited!.includes(view)) tab.visited!.push(view);
     activeId.value = id;
+    try {
+      localStorage.setItem(VIEW_KEY + repo.id, view);
+    } catch {
+      /* sem armazenamento: só não lembra */
+    }
+  }
+
+  /** Abre o repositório (da tela inicial ou da paleta) na visão em que ele estava da última vez. */
+  function openRepo(repo: RepositoryMeta): void {
+    const existing = tabs.value.find((t) => t.id === tabIdOf(repo.id));
+    open(existing?.view ?? rememberedView(repo.id), repo);
   }
 
   function openTools(repo: RepositoryMeta, section?: string, file?: string, mode?: string): void {
@@ -43,6 +86,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     open('graph', repo);
   }
 
+  /** Troca a visão dentro da aba ativa (atalhos e seletor). */
+  function setView(view: RepoViewKind): void {
+    const repo = active.value?.repo;
+    if (repo) open(view, repo);
+  }
+
   function close(id: string): void {
     if (id === HOME_TAB) return;
     const idx = tabs.value.findIndex((t) => t.id === id);
@@ -51,14 +100,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (activeId.value === id) activeId.value = tabs.value[Math.min(idx, tabs.value.length - 1)]?.id ?? HOME_TAB;
   }
 
-  /** Fecha todas as abas de um repositório (ex.: ao removê-lo do catálogo). */
+  /** Fecha a aba de um repositório (ex.: ao removê-lo do catálogo). */
   function closeRepo(repoId: string): void {
-    for (const t of [...tabs.value]) if (t.repo?.id === repoId) close(t.id);
+    close(tabIdOf(repoId));
   }
 
   function bump(repoId: string): void {
     versions.value[repoId] = (versions.value[repoId] ?? 0) + 1;
   }
 
-  return { tabs, activeId, active, versions, toolsTarget, historyTarget, open, openTools, openHistory, close, closeRepo, bump };
+  return { tabs, activeId, active, activeView, versions, conflicts, toolsTarget, historyTarget, isViewActive, open, openRepo, openTools, openHistory, setView, close, closeRepo, bump };
 });

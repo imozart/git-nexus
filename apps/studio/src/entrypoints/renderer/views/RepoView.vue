@@ -42,6 +42,8 @@ const rebase = ref<RebaseState | null>(null);
 const inProgress = ref<InProgressKind | null>(null);
 const entries = ref<FileEntry[]>([]);
 const conflicted = ref<string[]>([]);
+// o seletor de visão da aba mostra "Conflitos (N)": a tela publica a contagem
+watch(conflicted, (c) => (ws.conflicts[props.repo.id] = c.length), { immediate: true });
 const error = ref('');
 const loading = ref(false);
 const rootEl = ref<HTMLElement>();
@@ -283,7 +285,7 @@ const nav = computed(() => {
 
 // --- comandos / atalhos (paleta Ctrl+K) -----------------------------------------------------------
 /** Só vale na aba ativa deste repositório (as abas ficam montadas com v-show). */
-const isActiveTab = () => ws.activeId === `repo:${props.repo.id}`;
+const isActiveTab = () => ws.isViewActive(props.repo.id, 'repo');
 
 function repoCommands(): Command[] {
   const when = isActiveTab;
@@ -658,11 +660,6 @@ watch(() => ws.versions[props.repo.id], () => void refresh());
         <GnButton size="sm" :disabled="loading" @click="refresh()">{{ t('rv.refresh') }}</GnButton>
         <GnButton size="sm" variant="ghost" data-testid="open-terminal" @click="openTool('terminal')">{{ t('rv.terminal') }}<GnTooltip :text="t('rv.terminalTip')" /></GnButton>
         <GnButton size="sm" variant="ghost" data-testid="open-editor" @click="openTool('editor')">{{ t('rv.editor') }}<GnTooltip :text="t('rv.editorTip')" /></GnButton>
-        <GnButton size="sm" tone="accent" @click="ws.open('graph', repo)">{{ t('rv.graph') }}</GnButton>
-        <GnButton size="sm" tone="accent" @click="ws.open('tools', repo)">{{ t('rv.tools') }}</GnButton>
-        <GnButton size="sm" :tone="conflicted.length ? 'warn' : 'neutral'" :variant="conflicted.length ? 'primary' : 'ghost'" @click="ws.open('merge', repo)">
-          {{ t('rv.conflicts') }}{{ conflicted.length ? ` (${conflicted.length})` : '' }}
-        </GnButton>
       </div>
     </header>
 

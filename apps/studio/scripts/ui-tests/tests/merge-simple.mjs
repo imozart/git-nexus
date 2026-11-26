@@ -71,7 +71,7 @@ await t.until(`document.querySelectorAll('li.repo').length >= 1`, 20000);
 await t.until(`[...document.querySelectorAll('li.repo')].every((r) => !/carregando/i.test(r.textContent))`, 30000);
 await t.ev(`document.querySelector('li.repo .repo__btns button').click()`);
 await t.until(`document.querySelector('[data-testid="op-banner"]')`, 20000);
-await t.ev(`[...document.querySelectorAll('.rv__btns button')].find((b) => /Conflitos/.test(b.textContent))?.click()`);
+await t.ev(`[...document.querySelectorAll('[data-testid="repo-view-tab"]')].find((b) => /Conflitos/.test(b.textContent))?.click()`);
 await t.until(`document.querySelector('[data-testid="merge-resolver"]')`, 15000);
 await t.until(`document.querySelectorAll('[data-testid="mr-card"]').length === 5`, 15000);
 await sleep(500);

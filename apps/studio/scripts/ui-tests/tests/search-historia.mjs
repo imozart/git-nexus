@@ -251,7 +251,7 @@ t.check('a linha do resultado é um botão: Enter a seleciona', (await rows())[0
 // ---- páginas de 200 -----------------------------------------------------------------------------------------------------------------------------------------------------
 await closeTabs();
 await openRepoByName('hs-pages');
-await t.ev(`[...document.querySelectorAll('.rv__btns button')].find((b) => /Grafo/.test(b.textContent) && b.offsetParent)?.click()`);
+await t.ev(`[...document.querySelectorAll('[data-testid="repo-view-tab"]')].find((b) => /Grafo/.test(b.textContent) && b.offsetParent)?.click()`);
 await t.until(`document.querySelector(${lit(P)})`, 15000);
 await typeInto(`${P} [data-testid="sf-input"]`, 'alvo');
 await pick('hs-mode', 'Linhas alteradas');

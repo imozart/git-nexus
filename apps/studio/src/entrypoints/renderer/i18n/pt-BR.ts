@@ -487,6 +487,8 @@ const ptBR = {
   'cmd.staging': 'Abrir Staging',
   'cmd.graph': 'Abrir Grafo / Histórico',
   'cmd.merge': 'Abrir Conflitos',
+  'cmd.tools': 'Abrir Ferramentas',
+  'rvs.label': 'Visões do repositório',
   'cmd.ops': 'Ferramentas: histórico de operações (desfazer)',
   'cmd.stash': 'Ferramentas: stash',
   'cmd.file': 'Ferramentas: histórico de arquivo e blame',
