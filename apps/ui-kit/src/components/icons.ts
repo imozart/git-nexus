@@ -29,6 +29,10 @@ export const ICONS = {
     'M12 9a3 3 0 100 6 3 3 0 000-6z',
   ],
   folder: ['M3 7a1 1 0 011-1h5l2 2h9a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1z'],
+  terminal: ['M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z', 'M7 10l3 2-3 2M12 15h5'],
+  code: ['M9 7l-5 5 5 5', 'M15 7l5 5-5 5'],
+  copy: ['M9 9h11v11H9z', 'M5 15V5a1 1 0 011-1h10'],
+  more: ['M5 12v.01M12 12v.01M19 12v.01'],
 } as const satisfies Record<string, readonly string[]>;
 
 export type GnIconName = keyof typeof ICONS;

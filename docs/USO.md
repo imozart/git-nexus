@@ -33,6 +33,16 @@ Cada repositório aberto ocupa **uma aba** (o nome do repositório e, ao lado, a
 
 ![Três repositórios abertos, uma aba cada, e o seletor de visão](media/interface/repo-abas.png)
 
+### O cabeçalho do repositório
+
+Em cima da tela do repositório ficam, à esquerda, a **identidade** (nome, branch, sincronização e a marca WSL2) e, à direita, as **ações**: **Recarregar** (`F5`), **Terminal**, **Editor**, **Copiar caminho** e **Abrir a pasta** (no gerenciador de arquivos do sistema). Abaixo, numa linha própria, o **caminho completo** do repositório: quando não cabe, o app corta o **começo** (o fim é o que identifica o repositório), o tooltip mostra o caminho inteiro e **clicar nele copia** ("Caminho copiado" é anunciado ao leitor de tela). As ações também estão na paleta (**Copiar o caminho do repositório**, **Abrir a pasta do repositório**).
+
+Em janela estreita o cabeçalho se adapta sem quebrar: abaixo de **1100 px** os botões ficam só com o ícone (o nome continua no tooltip e no leitor de tela) e abaixo de **800 px** viram o botão **Mais ações**.
+
+![O cabeçalho do repositório: identidade, ações e o caminho completo](media/interface/cabecalho-1500.png)
+
+![Em janela estreita, o menu "Mais ações"](media/interface/cabecalho-760.png)
+
 ## Painel de repositórios
 
 A tela inicial mostra, para cada repositório catalogado: **branch**, o **indicador de sincronização** (veja [Sincronização com o remoto](#sincronização-com-o-remoto): ↓ commits para receber, ↑ commits para enviar, divergida, remota apagada), **alterações locais**, **conflitos** ou "em dia" (só quando está mesmo em dia: uma branch cuja remota foi apagada não diz "em dia"). O status carrega em segundo plano (4 por vez).
