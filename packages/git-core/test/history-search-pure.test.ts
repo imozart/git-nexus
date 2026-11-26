@@ -107,7 +107,7 @@ describe('buildHistoryArgs', () => {
   });
   it('autor sem diferenciar maiúsculas e sem metacaractere; período; pular', () => {
     const a = buildHistoryArgs(norm({ text: 'x', author: 'a.b', since: '2026-01-01', until: 'yesterday', skip: 200 }));
-    expect(a).toEqual(expect.arrayContaining(['--author=[aA]\\.[bB]', '--since=2026-01-01', '--until=yesterday']));
+    expect(a).toEqual(expect.arrayContaining(['--author=[aA]\\.[bB]', '--since=2026-01-01 00:00:00', '--until=yesterday']));
     expect(a.some((x) => x.startsWith('--skip') || x.startsWith('-n'))).toBe(false); // o Git conta candidatos antes do -S: o núcleo pula os achados
   });
   it('arquivo, máscara e seguir renomeação vão depois do --', () => {

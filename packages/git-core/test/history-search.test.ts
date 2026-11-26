@@ -184,7 +184,7 @@ describe('escopo', () => {
   it('autor, período e arquivo', async () => {
     expect((await run({ text: 'needle', author: 'caio' })).hits.map(subject)).toEqual(['c8 binário', 'f1 needle no feat']);
     const since = await run({ text: 'needle', since: '2026-01-05', until: '2026-01-07' });
-    expect(since.hits.map((h) => h.subject.split(' ')[0])).toEqual(['f1', 'c6']); // o dia 07 inteiro entra (o Git lê a data sem hora como "agora" naquele dia)
+    expect(since.hits.map((h) => h.subject.split(' ')[0])).toEqual(['f1', 'c6']); // o dia 07 inteiro entra, a qualquer hora do relógio (data sem hora vale do começo ao fim do dia)
     const mask = await run({ text: 'needle', include: '*.txt, !dir/**' });
     expect(mask.ids).toEqual(await direct('-i', '-Sneedle', 'HEAD', '--', ':(glob)**/*.txt', ':(exclude,glob)dir/**'));
     const onlyFilters = await run({ text: '', author: 'Caio' });

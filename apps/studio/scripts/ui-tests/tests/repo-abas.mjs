@@ -1,4 +1,4 @@
-// Uma aba por repositório (#282): abrir três repositórios dá três abas (não doze), as visões trocam por dentro da aba (seletor, Alt+1..4 e paleta) sem abrir
+// Uma aba por repositório (#282): abrir três repositórios dá três abas (não doze), as visões trocam por dentro da aba (seletor, Ctrl+Alt+1..4 e paleta) sem abrir
 // outra, o estado de cada visão sobrevive à troca, a visão fica lembrada por repositório e fechar a aba fecha o repositório.
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -72,12 +72,12 @@ await t.ev(`document.querySelector('.core__pane:not([style*="display: none"]) [d
 await t.key('ArrowRight');
 await sleep(400);
 t.check('seta para a direita no seletor troca para a visão seguinte e leva o foco', (await viewOf()) === 'tools' && (await t.ev(`document.activeElement?.dataset?.view`)) === 'tools');
-await t.key('1', 1); // Alt+1
+await t.key('1', 3); // Ctrl+Alt+1
 await sleep(400);
-t.check('Alt+1 volta ao Staging e Alt+2 vai ao Grafo, sem abrir aba', (await viewOf()) === 'repo');
-await t.key('2', 1);
+t.check('Ctrl+Alt+1 volta ao Staging, sem abrir aba', (await viewOf()) === 'repo');
+await t.key('2', 3);
 await sleep(400);
-t.check('Alt+2 vai ao Grafo', (await viewOf()) === 'graph' && (await tabs()).length === 4, [await viewOf(), await tabs()]);
+t.check('Ctrl+Alt+2 vai ao Grafo', (await viewOf()) === 'graph' && (await tabs()).length === 4, [await viewOf(), await tabs()]);
 
 // D: paleta
 await t.key('k', 2);
