@@ -840,6 +840,8 @@ class RepoIndex {
         const g = this.gen;
         hit = new Set<string>();
         for (const branch of plan) for (const p of await this.lookup(branch)) hit.add(p);
+        // o índice foi apagado no meio da consulta: o que ela leu (segmentos já sem arquivos) está vazio e NÃO vale, senão o arquivo que casa ficaria de fora
+        if (epoch !== this.epoch) return null;
         if (g === this.gen) break; // nenhuma junta de segmentos no meio da consulta
         if (attempt >= 2) return null;
       }
@@ -858,6 +860,7 @@ class RepoIndex {
       const total = allow ? [...tracked].filter(allow).length : tracked.size;
       if (trackedList.length + untrackedList.length > Math.max(MAX_CANDIDATES_FLOOR, total * MAX_CANDIDATES_FRACTION)) return null; // o índice não ajuda: busca como sempre
 
+      if (epoch !== this.epoch || this.rebuilding) return null; // idem, se foi apagado depois da leitura
       this.afterQuery(stale, dirty);
       return {
         tracked: sortGitPaths(trackedList),
