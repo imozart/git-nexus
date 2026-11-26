@@ -36,7 +36,13 @@ const ready = async () => {
 };
 
 /** Quantas vezes o índice deste repositório foi apagado por defeito (o `meta.json` guarda). */
-const invalidations = (): number => (JSON.parse(readFileSync(join(data, indexKey(dir), 'meta.json'), 'utf8')) as { invalidations: number }).invalidations;
+const invalidations = (): number => {
+  try {
+    return (JSON.parse(readFileSync(join(data, indexKey(dir), 'meta.json'), 'utf8')) as { invalidations: number }).invalidations;
+  } catch {
+    return -1; // o índice está sendo apagado agora (a pasta fica sem o meta.json por um instante)
+  }
+};
 
 /** Espera o índice ser apagado por defeito (uma vez) e refeito: estado pronto, sem andamento, e usado pela busca. */
 const untilRebuilt = async (before: number, pattern: string, ms = 30_000): Promise<boolean> => {
