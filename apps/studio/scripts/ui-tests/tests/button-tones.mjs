@@ -66,10 +66,13 @@ t.check('Buscar todos: tom accent', await btnHas('Buscar todos', 'gn-btn--tone-a
 t.check('Atualizar seguros: primary, fundo no azul sólido acessível', (await btnCss('Atualizar seguros', 'backgroundColor')) === accentSolid, [await btnCss('Atualizar seguros', 'backgroundColor'), accentSolid]);
 t.check('Abrir (linha): azul de contorno, não sólido (20 linhas não competem com o botão principal)', (await btnHas('Abrir', 'gn-btn--tone-accent')) && !(await btnHas('Abrir', 'gn-btn--solid')));
 t.check('Buscar (linha): neutro', (await t.ev(`[...document.querySelectorAll('button.gn-btn')].find((b) => b.textContent.trim() === 'Buscar').classList.contains('gn-btn--tone-neutral')`)) === true);
-t.check('Remover: só ícone, leve e vermelho (GnIconButton ghost + danger)', (await ibtnHas('Remover', 'gn-btn--tone-danger')) && (await ibtnHas('Remover', 'gn-btn--ghost-tone')));
-t.check('Remover: sem texto, com aria-label e tooltip', (await t.ev(`(() => { const b = ${ibtn('Remover')}; return !b.textContent.trim() && !!b.dataset.tooltip && !b.hasAttribute('title') && !!b.querySelector('svg'); })()`)) === true);
-t.check('Remover: sem borda em repouso (não enche a lista de vermelho)', (await ibtnCss('Remover', 'borderTopColor')) === 'rgba(0, 0, 0, 0)');
-t.check('Remover: ícone na cor do perigo', (await ibtnCss('Remover', 'color')) !== (await token('--gn-text')));
+t.check('Mais ações: só ícone, leve e neutro (GnIconButton ghost)', (await ibtnHas('Mais ações', 'gn-btn--ghost')) && !(await ibtnHas('Mais ações', 'gn-btn--tone-danger')));
+t.check('Mais ações: sem texto, com aria-label e tooltip', (await t.ev(`(() => { const b = ${ibtn('Mais ações')}; return !b.textContent.trim() && !!b.dataset.tooltip && !b.hasAttribute('title') && !!b.querySelector('svg'); })()`)) === true);
+await t.ev(`${ibtn('Mais ações')}.click()`);
+await t.until(`document.querySelector('.ctx__item--danger')`, 5000);
+t.check('o menu tem "Remover do catálogo" como ação destrutiva (vermelha), separada das outras', (await t.ev(`document.querySelector('.ctx__item--danger')?.textContent.trim()`)) === 'Remover do catálogo' && (await t.ev(`!!document.querySelector('.ctx__sep')`)) === true);
+await t.key('Escape');
+await sleep(200);
 t.check('botão neutro continua neutro (Adicionar caminho)', await btnHas('Adicionar caminho', 'gn-btn--tone-neutral'));
 await t.shot('botoes-lista');
 t.close();

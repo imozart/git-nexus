@@ -192,6 +192,16 @@ Regras de acessibilidade que valem para essa tela (e para qualquer lista de resu
 - **Vários repositórios:** cada repositório tem um **cabeçalho** na lista (`role="option"` como as outras linhas, com o nome acessível "Repositório api, 12 ocorrências, concluído"), e o **estado vai em texto** no selo (buscando, concluído, erro, indisponível, sem Git, sem a revisão X), nunca só na cor. O **Parar** de cada repositório é um botão da linha (`tabindex="-1"`, com nome "Parar a busca em api"); o **Parar** geral da janela continua sendo o caminho do teclado. A lista de repositórios vem do catálogo, nunca de um campo de texto.
 - **Medir antes de declarar pronto:** `search-window-perf.mjs` (5 mil resultados, rolagem, tarefas longas, 30 mil linhas) e `packages/git-core/test/search-run.test.ts` (20 mil arquivos); a tabela com os tempos está em `docs/USO.md`, seção "Pesquisar no repositório".
 
+## Tela inicial: cartões, ordem e densidade
+
+A lista de repositórios (`views/ConnectionInterface.vue`) tem **um só HTML** para as três densidades (`comfortable`, `compact`, `table`); o CSS de `.conn__list--<densidade>` muda o desenho. Quem escreve teste de interface conta com `li.repo`, `strong` (nome) e `.repo__btns button` (o primeiro é **Abrir**) em qualquer densidade.
+
+- **As contas ficam em `home-core.ts`** (sem Vue, com `home-core.test.ts`): `sortRepos`, `filterRepos`, `nextSort`, `parseHomePrefs`. A ordem é estável (empate pelo nome) e o que ainda não tem resumo vai para o fim em qualquer direção. A escolha (ordem, direção, densidade, filtros) fica em `localStorage` (`gitnexus.home`), lida campo a campo: valor desconhecido volta ao padrão.
+- **Estado em texto, nunca só cor ou ícone:** selos com texto ("1 alteração", "⚠ 1 conflito", "2 stash", "sem upstream", "em dia"), o indicador de sincronização é um `img` com o texto por extenso, e a lista tem nome acessível. Os filtros são botões com `aria-pressed`; o contador é `role="status"`.
+- **Tabela:** o cabeçalho de cada coluna ordenável é um `GnButton` ghost (`aria-description` = ascending/descending). A ordem das colunas no CSS (`order`) difere da ordem do HTML, que lê melhor no cartão.
+- **Desempenho com centenas de repositórios:** `content-visibility: auto` em cada cartão (o navegador só desenha o que está na tela), resumo em lotes de 6 (`SUMMARY_CONCURRENCY`) e nenhum processo do Git além do `status` e do `log -1` por repositório (`getRepoSummary` lê `FETCH_HEAD` e o registro do stash direto dos arquivos). `home-200.mjs` mede e grava `medidas-home-200.json`.
+- **Menu "mais":** `ContextMenu` com `focus-first` (o foco vai ao primeiro item, as setas, Home e End percorrem, Esc fecha e o foco volta ao botão). `GnSegmented` agora move o foco junto com a seleção quando se usa as setas.
+
 ## Como criar um componente do kit
 
 1. Nome `Gn` + substantivo, em `apps/ui-kit/src/components/`, exportado em `src/index.ts`.

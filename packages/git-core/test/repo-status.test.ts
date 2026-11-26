@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { fetchRepo, getRepoSummary, parseSummary, pullRepo, runGit } from '../src/index.js';
+import { fetchRepo, getRepoSummary, parseLastCommit, parseSummary, pullRepo, runGit } from '../src/index.js';
 
 let root: string;
 let remote: string;
@@ -65,7 +65,16 @@ describe('parseSummary', () => {
       unstaged: 2,
       untracked: 1,
       conflicted: 1,
+      lastCommit: null,
+      stash: 0,
     });
+  });
+
+  it('último commit: lê a data, o autor e o assunto (com NUL e quebra final); vazio ou torto vira null', () => {
+    expect(parseLastCommit('1700000000\0Ana Souza\0feat: algo | com barra\n')).toEqual({ subject: 'feat: algo | com barra', author: 'Ana Souza', date: 1_700_000_000_000 });
+    expect(parseLastCommit('1700000000\0Ana\0')).toEqual({ subject: '', author: 'Ana', date: 1_700_000_000_000 });
+    expect(parseLastCommit('')).toBeNull();
+    expect(parseLastCommit('abc\0Ana\0x')).toBeNull();
   });
 
   it('HEAD desanexado e sem upstream', () => {
@@ -94,6 +103,28 @@ describe('painel (repositórios reais com remoto)', () => {
     expect(last).not.toBeNull();
     expect(last!).toBeGreaterThanOrEqual(before - 2000); // folga: a resolução da data do arquivo varia por sistema
     expect(last!).toBeLessThanOrEqual(Date.now() + 2000);
+  });
+
+  it('último commit e stash: o commit do HEAD (assunto, autor, quando) e quantos stashes há; repositório sem commits dá null', async () => {
+    const s0 = await getRepoSummary(a);
+    expect(s0.lastCommit).toMatchObject({ subject: 'init', author: 'T' });
+    expect(Math.abs(s0.lastCommit!.date - Date.now())).toBeLessThan(10 * 60_000);
+    expect(s0.stash).toBe(0);
+    writeFileSync(join(a, 'f.txt'), 'no stash\n');
+    await g(a, 'stash', 'push', '-m', 'um');
+    writeFileSync(join(a, 'f.txt'), 'no stash 2\n');
+    await g(a, 'stash', 'push', '-m', 'dois');
+    expect((await getRepoSummary(a)).stash).toBe(2);
+    // worktree: o `.git` dele é um arquivo e o stash e o FETCH_HEAD ficam no repositório principal (o git é quem sabe onde)
+    const wt = join(root, 'wt');
+    await g(a, 'worktree', 'add', '-q', '-b', 'wt-branch', wt);
+    expect(await getRepoSummary(wt)).toMatchObject({ branch: 'wt-branch', stash: 2, lastCommit: { subject: 'init' } });
+    await g(a, 'worktree', 'remove', '--force', wt);
+    await g(a, 'branch', '-D', 'wt-branch');
+    await g(a, 'stash', 'clear');
+    const vazio = join(root, 'vazio');
+    await runGit(root, ['init', '-q', '-b', 'main', vazio]);
+    expect(await getRepoSummary(vazio)).toMatchObject({ lastCommit: null, stash: 0 });
   });
 
   it('limpo e sincronizado', async () => {

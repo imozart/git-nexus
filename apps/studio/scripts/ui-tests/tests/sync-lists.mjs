@@ -80,7 +80,7 @@ t.check('o indicador é um img com o texto por extenso (leitor de tela)', (await
 await t.shot('sync-lista');
 
 // "Só com pendências" não esconde a branch cuja remota foi apagada
-await t.ev(`[...document.querySelectorAll('input[type=checkbox]')].find((i) => /pend/i.test(i.closest('label')?.textContent ?? ''))?.click()`);
+await t.ev(`document.querySelector('[data-filter="pending"]')?.click()`);
 await sleep(300);
 const shown = await t.ev(`[...document.querySelectorAll('li.repo strong')].map((s) => s.textContent.trim()).sort().join(',')`);
 t.check('"Só com pendências" mostra atrás, divergida e remota apagada, e esconde o que está em dia', shown === 'listbehind,listdiv,listgone', shown);

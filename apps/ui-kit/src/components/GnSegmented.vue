@@ -10,12 +10,15 @@ export interface GnSegment<V = string | number> {
   disabled?: boolean;
 }
 
+import { nextTick, ref } from 'vue';
 import GnTooltip from './GnTooltip.vue';
 
 const props = defineProps<{ modelValue: T; options: GnSegment<T>[]; ariaLabel?: string; title?: string }>();
 const emit = defineEmits<{ (e: 'update:modelValue', value: T): void }>();
 
-/** Setas movem a seleção para a opção vizinha habilitada (padrão de grupo de rádio). */
+const root = ref<HTMLElement>();
+
+/** Setas movem a seleção para a opção vizinha habilitada (padrão de grupo de rádio); o foco acompanha a seleção, para a seta seguinte continuar dali. */
 function onKey(e: KeyboardEvent, i: number) {
   const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
   if (!step) return;
@@ -25,6 +28,7 @@ function onKey(e: KeyboardEvent, i: number) {
     const next = props.options[(i + step * k + n * k) % n];
     if (next && !next.disabled) {
       emit('update:modelValue', next.value);
+      void nextTick(() => root.value?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus());
       return;
     }
   }
@@ -32,7 +36,7 @@ function onKey(e: KeyboardEvent, i: number) {
 </script>
 
 <template>
-  <span class="gn-seg" role="radiogroup" :aria-label="ariaLabel">
+  <span ref="root" class="gn-seg" role="radiogroup" :aria-label="ariaLabel">
     <button
       v-for="(o, i) in options"
       :key="String(o.value)"

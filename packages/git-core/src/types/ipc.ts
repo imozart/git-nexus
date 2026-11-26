@@ -493,6 +493,10 @@ export interface RepoSummary {
   unstaged: number;
   untracked: number;
   conflicted: number;
+  /** O commit do HEAD (assunto, autor, quando em ms desde 1970); null num repositório sem commits. */
+  lastCommit: { subject: string; author: string; date: number } | null;
+  /** Quantos stashes o repositório guarda. */
+  stash: number;
 }
 
 export interface SyncResult {
