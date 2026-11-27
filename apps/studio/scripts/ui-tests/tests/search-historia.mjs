@@ -158,7 +158,7 @@ await shot('historia-resultados');
 await clickRow('c4: tira o alvo');
 await t.until(`document.querySelector('[data-testid="gv-file"]')`, 8000);
 t.check('o detalhe repete o selo do commit', /saiu −3/.test((await t.text('[data-testid="gv-hit"]')) ?? ''));
-const fileRow = await t.ev(`(() => { const li = document.querySelector('[data-testid="gv-file"]'); return { path: li.querySelector('.gv__fpath').textContent.trim(), count: li.querySelector('[data-testid="gv-file-count"]')?.textContent.trim() ?? null, touched: li.classList.contains('touched') }; })()`);
+const fileRow = await t.ev(`(() => { const li = document.querySelector('[data-testid="gv-file"]'); return { path: li.querySelector('.cf__path').textContent.trim(), count: li.querySelector('[data-testid="gv-file-count"]')?.textContent.trim() ?? null, touched: li.classList.contains('touched') }; })()`);
 t.check('o arquivo tocado vem com a contagem (−3) e em destaque', fileRow.path.startsWith('src/app.ts') && fileRow.count === '−3' && fileRow.touched, fileRow);
 await t.ev(`document.querySelector('[data-testid="gv-file"]').click()`);
 await t.until(`document.querySelectorAll('[data-testid="gv-diff"] mark').length >= 3`, 8000);

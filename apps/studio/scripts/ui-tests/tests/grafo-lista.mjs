@@ -192,7 +192,7 @@ await t.ev(`${q('[data-testid="gv-list"]')}.focus()`);
 await t.key('F10', 8);
 await t.until(`document.querySelector('.ctx')`, 4000);
 const items = await t.ev(`[...document.querySelectorAll('.ctx__item')].map((b) => b.textContent.trim())`);
-t.check('Shift+F10 abre o menu da linha, com o foco no primeiro item', JSON.stringify(items) === JSON.stringify(['Copiar hash', 'Copiar a mensagem', 'Criar branch aqui…', 'Criar tag aqui', 'Rebase interativo a partir daqui', 'Cherry-pick', 'Reverter']) && (await t.ev(`document.activeElement?.textContent.trim()`)) === 'Copiar hash', [items, await t.ev(`document.activeElement?.textContent.trim()`)]);
+t.check('Shift+F10 abre o menu da linha, com o foco no primeiro item', JSON.stringify(items) === JSON.stringify(['Copiar hash', 'Copiar a mensagem', 'Criar branch aqui…', 'Criar tag aqui', 'Rebase interativo a partir daqui', 'Comparar com o HEAD', 'Comparar com…', 'Cherry-pick', 'Reverter']) && (await t.ev(`document.activeElement?.textContent.trim()`)) === 'Copiar hash', [items, await t.ev(`document.activeElement?.textContent.trim()`)]);
 await t.key('ArrowDown');
 await t.key('Enter');
 await sleep(400);

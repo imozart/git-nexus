@@ -11,6 +11,8 @@ const messages: Partial<Record<MessageKey, string>> = {
   'search.tooLong': 'The search text is longer than {max} characters.',
   'search.badRegex': 'Invalid regular expression: {detail}',
   'search.failed': 'The search failed.',
+  'compare.badHash': 'Invalid commit hash: {hash}',
+  'compare.diffCut': '… (diff truncated: file too large)',
   'search.badMask': 'Invalid file mask: {mask}',
   'search.badRevision': 'Invalid revision: {rev}',
   'search.noRevision': 'The revision "{rev}" does not exist in this repository.',

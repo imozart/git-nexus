@@ -14,6 +14,7 @@ export * from './secrets.js';
 export * from './operations.js';
 export * from './stash.js';
 export * from './history-tools.js';
+export * from './compare.js';
 export * from './repo-status.js';
 export * from './history-filter.js';
 export * from './rebase.js';
