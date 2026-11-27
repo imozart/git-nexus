@@ -80,6 +80,12 @@ const closeTabs = async () => {
   await sleep(400);
 };
 
+/** No Grafo o Ctrl+F é da busca na história (#292): a janela de pesquisa do repositório abre a partir das outras visões. */
+const openSearch = async () => {
+  await t.ev(`document.querySelector('.core__pane:not([style*="display: none"]) [data-view="repo"]')?.click()`);
+  await sleep(300);
+  await t.key('f', 2);
+};
 const W = '[data-testid="search-window"]';
 const P = '[data-testid="hs-panel"]';
 const wq = (id) => `${W} [data-testid="${id}"]`;
@@ -277,6 +283,8 @@ t.check('depois da última página o contador diz 450 de 450 examinados', /^450 
 // ---- do editor: botões, menu de contexto -------------------------------------------------------------------------------------------------------------------------
 await closeTabs();
 await openRepoByName('hs-main');
+await t.ev(`document.querySelector('.core__pane:not([style*="display: none"]) [data-view="repo"]')?.click()`); // no Grafo o Ctrl+F é da busca na história (#292); a janela de pesquisa abre das outras visões
+await sleep(300);
 await t.key('f', 2);
 await t.until(`document.querySelector(${lit(W)})`, 6000);
 await typeInto(`${W} [data-testid="sf-input"]`, 'alvo');
@@ -294,7 +302,7 @@ t.check('"Quando isto entrou ou saiu?" leva o texto selecionado ao histórico, c
 t.check('e já mostra os commits (os mesmos do `git log -S alvo`, sem diferenciar nada)', same(await subjects(), direct('-Salvo', 'HEAD')), await subjects());
 
 // "Histórico destas linhas"
-await t.key('f', 2);
+await openSearch();
 await t.until(`document.querySelector(${lit(W)})`, 6000);
 await t.until(`document.querySelector('.sw__row[data-testid="sw-row"]')`, 20000);
 await sleep(400);
@@ -323,7 +331,7 @@ await sleep(300);
 t.check('sair do trecho volta ao campo de texto', (await t.count(pq('hs-range'))) === 0 && (await t.count(pq('sf-input'))) === 1);
 
 // menu de contexto do editor
-await t.key('f', 2);
+await openSearch();
 await t.until(`document.querySelector(${lit(W)})`, 6000);
 await t.until(`document.querySelector('.sw__row[data-testid="sw-row"]')`, 20000);
 await sleep(400);
@@ -358,7 +366,7 @@ await t.ev(`localStorage.setItem('gitnexus.locale', 'en'); localStorage.setItem(
 await t.ev('location.reload()');
 await t.until(`[...document.querySelectorAll('li.repo')].some((x) => x.querySelector('strong')?.textContent.trim() === 'hs-main')`, 25000);
 await openRepoByName('hs-main');
-await t.key('f', 2);
+await openSearch();
 await t.until(`document.querySelector(${lit(W)})`, 6000);
 await typeInto(`${W} [data-testid="sf-input"]`, 'alvo');
 await sleep(700);

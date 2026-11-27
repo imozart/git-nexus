@@ -45,12 +45,12 @@ commit('Ana Souza', 'ana@e.com', 'feat: ainda local um', dias(0.2));
 commit('Dani Rocha', 'dani@e.com', 'feat: ainda local dois', dias(0.05));
 git(R, 'tag', '-a', 'v0.2', '-m', 'segunda');
 
-const fmt = () => git(R, 'log', '--topo-order', '--all', '--abbrev=7', '--format=%H|%h|%an|%ae|%s|%P').trim().split('\n').map((l) => {
+const fmt = () => git(R, 'log', '--topo-order', 'HEAD', '--abbrev=7', '--format=%H|%h|%an|%ae|%s|%P').trim().split('\n').map((l) => {
   const [hash, short, author, email, subject, parents] = l.split('|');
   return { hash, short, author, email, subject, parents: parents ? parents.split(' ') : [] };
 });
 const log = fmt();
-const unpublished = new Set(git(R, 'rev-list', '--all', '--not', '--remotes').trim().split('\n').filter(Boolean));
+const unpublished = new Set(git(R, 'rev-list', 'HEAD', '--not', '--remotes').trim().split('\n').filter(Boolean));
 
 await t.ev(`window.gitNexus.addRepositoryPath(${lit(R)})`);
 await t.ev('location.reload()');

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, triggerRef, watch } from 'vue';
 import { GnBadge, GnButton, GnDialog, GnIcon, GnIconButton, GnSegmented, GnTooltip } from '@git-nexus/ui-kit';
-import { createGraphBuilder, type CiStatus, type CommitDetail, type CommitInfo, type FileAtRevision, type GraphRow, type HistoryHit, type HistoryQuery, type RepoSummary, type RepositoryMeta } from '@git-nexus/git-core/pure';
+import { createGraphBuilder, filterBreaksGraph, type HistoryFilter, type CiStatus, type CommitDetail, type CommitInfo, type FileAtRevision, type GraphRow, type HistoryHit, type HistoryQuery, type RepoSummary, type RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { useWorkspaceStore } from '../stores/workspace';
 import { dateLocale, t, type MessageKey } from '../i18n';
@@ -11,11 +11,13 @@ import {
   abbreviateChips, avatarOf, clampWidth, commitState, fitColumns, gridTemplate, laneMetrics, nearEnd, parseColumnPrefs, parseDensity, parseRefs, scrollToRow, visibleRange,
   type ColumnId, type ColumnPrefs, type Density, type RefChip,
 } from '../graph-core';
+import { parseGraphFilter } from '../graph-filter-core';
 import { agoText } from '../sync';
 import { theme } from '../theme';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import CodeEditor from '../components/CodeEditor.vue';
 import ContextMenu, { type MenuItem } from '../components/ContextMenu.vue';
+import GraphFilters from '../components/GraphFilters.vue';
 import HistorySearch from '../components/HistorySearch.vue';
 import SyncIndicator from '../components/SyncIndicator.vue';
 
@@ -34,6 +36,15 @@ const hasMore = ref(false);
 const error = ref('');
 const loading = ref(false);
 const selectedHash = ref('');
+/** O filtro do Grafo (branches, autor, período, pasta, merges...), lembrado por repositório. Vale no Git, não aqui: a lista é recarregada com ele. */
+const FILTER_KEY = `gitnexus.graphFilter.${props.repo.id}`;
+const filter = ref<HistoryFilter>(parseGraphFilter(localStorage.getItem(FILTER_KEY)));
+/** Autor e "sem merges" tiram commits do meio sem religar os pais: a lista os mostra sem o traçado (como o resultado de uma busca). */
+const broken = computed(() => filterBreaksGraph(filter.value));
+/** Quantos commits o filtro mostra e quantos o repositório tem ("N de M"). */
+const counts = ref<{ count: number; total: number } | null>(null);
+/** O filtro como objeto simples (o IPC não leva o proxy reativo). */
+const plainFilter = (): HistoryFilter => JSON.parse(JSON.stringify(filter.value)) as HistoryFilter;
 let builder = createGraphBuilder();
 let generation = 0;
 let loadingMore = false;
@@ -42,22 +53,23 @@ let loadingMore = false;
 const remotes = ref<string[]>(['origin']);
 const summary = ref<RepoSummary | null>(null);
 
-async function load(): Promise<void> {
+async function load(reset = false): Promise<void> {
   const mine = ++generation;
   loading.value = true;
   error.value = '';
   try {
     // recarregar depois de uma ação não joga a pessoa de volta ao topo: refaz o que já estava carregado (até um limite), a primeira vez só a primeira página
-    const want = Math.min(Math.max(commits.value.length, PAGE_FIRST), RELOAD_MAX);
-    const page = await api.getHistory(props.repo.path, want, 0);
+    const want = reset ? PAGE_FIRST : Math.min(Math.max(commits.value.length, PAGE_FIRST), RELOAD_MAX);
+    const page = await api.getHistory(props.repo.path, want, 0, plainFilter());
     if (mine !== generation) return;
     builder = createGraphBuilder();
-    builder.append(page);
+    if (!broken.value) builder.append(page);
     commits.value = page;
     rows.value = builder.rows;
     lanes.value = builder.lanes;
     hasMore.value = page.length >= want;
     triggerRef(rows);
+    void api.getHistoryCount(props.repo.path, plainFilter()).then((c) => mine === generation && (counts.value = c)).catch(() => (counts.value = null));
     void api.listBranches(props.repo.path).then((b) => b.remoteNames.length && (remotes.value = b.remoteNames)).catch(() => undefined);
     void api.getRepoSummary(props.repo.path).then((s) => (summary.value = s)).catch(() => (summary.value = null));
   } catch (e) {
@@ -73,13 +85,13 @@ async function loadMore(): Promise<void> {
   loadingMore = true;
   const mine = generation;
   try {
-    const page = await api.getHistory(props.repo.path, PAGE, commits.value.length);
+    const page = await api.getHistory(props.repo.path, PAGE, commits.value.length, plainFilter());
     if (mine !== generation) return;
     if (!page.length) {
       hasMore.value = false;
       return;
     }
-    builder.append(page);
+    if (!broken.value) builder.append(page);
     for (const c of page) commits.value.push(c);
     lanes.value = builder.lanes;
     hasMore.value = page.length >= PAGE;
@@ -121,7 +133,7 @@ watch(density, (d) => localStorage.setItem(DENSITY_KEY, d));
 const rowH = computed(() => ROW_HEIGHT[density.value]);
 const metrics = computed(() => laneMetrics(lanes.value));
 /** Sem traçado numa busca (o conjunto achado não forma linhas contínuas): a coluna some. */
-const graphW = computed(() => (hits.value ? 0 : metrics.value.graphW));
+const graphW = computed(() => (hits.value || broken.value ? 0 : metrics.value.graphW));
 /** Largura da área da lista (muda com a janela e com o detalhe aberto ao lado): as colunas que não cabem saem da direita para a esquerda. */
 const mainW = ref(1000);
 const visible = computed(() => fitColumns(colPrefs.value, graphW.value, mainW.value));
@@ -184,7 +196,18 @@ onMounted(() => {
 onBeforeUnmount(() => {
   ro?.disconnect();
 });
-watch(() => ws.versions[props.repo.id], load);
+watch(() => ws.versions[props.repo.id], () => load());
+// mudar o filtro: grava e recomeça da primeira página
+watch(
+  filter,
+  (v) => {
+    if (Object.keys(v).length) localStorage.setItem(FILTER_KEY, JSON.stringify(v));
+    else localStorage.removeItem(FILTER_KEY);
+    selectedHash.value = '';
+    void load(true);
+  },
+  { deep: true },
+);
 // mudar a lista (busca na história ou voltar dela) começa do topo
 watch(hits, () => {
   if (listEl.value) listEl.value.scrollTop = 0;
@@ -446,7 +469,8 @@ async function createBranchHere(): Promise<void> {
   <div class="gv">
     <header class="gv__head">
       <strong>{{ repo.name }}</strong>
-      <span class="muted" data-testid="gv-count">{{ hits ? t('gv.results', { n: hits.length }) : t('gv.commitsAll', { n: commits.length }) }}{{ !hits && hasMore ? '+' : '' }}</span>
+      <span class="muted" data-testid="gv-count">{{ hits ? t('gv.results', { n: hits.length }) : counts ? t('gv.commitsOf', { n: counts.count, total: counts.total }) : t('gv.commitsAll', { n: commits.length }) }}{{ !hits && !counts && hasMore ? '+' : '' }}</span>
+      <GraphFilters v-model="filter" :repo-path="repo.path" :repo-id="repo.id" />
       <span v-if="note" class="gv__note" role="status">{{ note }}</span>
       <span class="spacer" />
       <GnSegmented v-model="density" :options="densityOptions" :aria-label="t('gv.density')" :title="t('gv.density')" data-testid="gv-density" />

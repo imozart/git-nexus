@@ -30,6 +30,8 @@ export const WORKER_METHODS = [
   'unstageFiles',
   'getFileDiff',
   'getHistory',
+  'getHistoryCount',
+  'getAuthors',
   'getFileSides',
   'getFileEncoding',
   'writeWorkingFile',

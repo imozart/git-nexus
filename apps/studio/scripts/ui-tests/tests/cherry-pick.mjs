@@ -35,6 +35,12 @@ const openGraph = async () => {
   await t.ev(`[...document.querySelectorAll('[data-testid="repo-view-tab"]')].find((b) => /Grafo/.test(b.textContent))?.click()`);
   await t.until(`document.querySelector('.gv__detail, .row')`, 15000);
   await sleep(500);
+  // o Grafo mostra o branch atual por padrão (#294); o commit a aplicar está noutro branch: "Todos"
+  await t.ev(`document.querySelector('[data-testid="gf-btn"]').click()`);
+  await t.until(`document.querySelector('[data-testid="gf-scope"]')`, 5000);
+  await t.ev(`[...document.querySelector('[data-testid="gf-scope"]').querySelectorAll('button')].find((b) => b.textContent.trim() === 'Todos').click()`);
+  await t.ev(`document.querySelector('[data-testid="gf-close"]').click()`);
+  await sleep(900);
 };
 const selectCommit = async (subject) => {
   await t.until(`[...document.querySelectorAll('.row')].some((r) => r.textContent.includes(${lit(subject)}))`, 15000);

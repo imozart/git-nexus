@@ -42,6 +42,9 @@ export const emptyForm = (): HistoryForm => ({
   lines: null,
 });
 
+/** A última busca e os filtros de cada repositório, lembrados enquanto o app está aberto (fechar e reabrir a aba do repositório não os perde). */
+export const historyMemory = new Map<string, HistoryForm>();
+
 /** O pedido ao núcleo; `skip` só no "carregar mais". */
 export function toQuery(f: HistoryForm, skip = 0): HistoryQuery {
   const q: HistoryQuery = {

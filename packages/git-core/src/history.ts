@@ -1,5 +1,6 @@
 import type { CommitInfo } from './types/ipc.js';
 import { runGit } from './runner.js';
+import { buildLogArgs, type HistoryFilter } from './history-filter.js';
 
 const FS = '\x1f';
 const RS = '\x1e';
@@ -35,11 +36,47 @@ async function localOnlyCommits(repoPath: string): Promise<Set<string> | null> {
   return r.code === 0 ? new Set(r.stdout.split('\n').filter(Boolean)) : null;
 }
 
-/** Uma página do histórico (`--topo-order`: filhos antes dos pais, como o desenho de lanes precisa). `skip` pula os já carregados (a lista pede mais ao rolar). */
-export async function getHistory(repoPath: string, limit = 300, skip = 0): Promise<CommitInfo[]> {
-  const args = ['log', '--all', '--topo-order', `-n${limit}`, ...(skip > 0 ? [`--skip=${Math.floor(skip)}`] : []), `--format=${LOG_FORMAT}`];
+/** Sem filtro (quem chama sem escolher), a história de sempre: todas as referências. A lista do Grafo passa o filtro dela (por padrão, só o branch atual). */
+const ALL: HistoryFilter = { scope: 'all' };
+
+/** Uma página do histórico (`--topo-order`: filhos antes dos pais, como o desenho de lanes precisa). `skip` pula os já carregados (a lista pede mais ao rolar). `filter` é traduzido para o `git log` (veja `history-filter.ts`). */
+export async function getHistory(repoPath: string, limit = 300, skip = 0, filter?: HistoryFilter): Promise<CommitInfo[]> {
+  const built = buildLogArgs(filter ?? ALL);
+  if ('error' in built) throw new Error(`Filtro inválido: ${built.error.code}${'value' in built.error ? ` (${built.error.value})` : ''}`);
+  const args = ['log', ...built.args, `-n${Math.max(1, Math.floor(limit))}`, ...(skip > 0 ? [`--skip=${Math.floor(skip)}`] : []), `--format=${LOG_FORMAT}`, '--', ...built.pathspec];
   const [r, local] = await Promise.all([runGit(repoPath, args, { check: false }), localOnlyCommits(repoPath)]);
   if (r.code !== 0) return []; // repositório sem commits
   const list = parseLog(r.stdout);
   return local ? list.map((c) => ({ ...c, local: local.has(c.hash) })) : list;
+}
+
+/** Quantos commits o filtro mostra e quantos o repositório tem ao todo (todas as referências): o "N de M commits" do Grafo. Dois processos curtos, sem trazer os commits. */
+export async function getHistoryCount(repoPath: string, filter?: HistoryFilter): Promise<{ count: number; total: number }> {
+  const built = buildLogArgs(filter ?? ALL);
+  if ('error' in built) throw new Error(`Filtro inválido: ${built.error.code}`);
+  const strip = built.args.filter((a) => a !== '--topo-order' && a !== '--date-order' && a !== '--parents');
+  const num = async (args: string[]) => {
+    const r = await runGit(repoPath, ['rev-list', '--count', ...args], { check: false });
+    return r.code === 0 ? Number(r.stdout.trim()) || 0 : 0;
+  };
+  const [count, total] = await Promise.all([num([...strip, '--', ...built.pathspec]), num(['--all'])]);
+  return { count, total };
+}
+
+export interface AuthorCount {
+  name: string;
+  email: string;
+  count: number;
+}
+
+/** Os autores do repositório (mais ativos primeiro, no máximo 200), para o autocompletar do filtro de autor. */
+export async function getAuthors(repoPath: string): Promise<AuthorCount[]> {
+  const r = await runGit(repoPath, ['shortlog', '-sne', '--all'], { check: false });
+  if (r.code !== 0) return [];
+  const out: AuthorCount[] = [];
+  for (const line of r.stdout.split('\n')) {
+    const m = /^\s*(\d+)\t(.*?)\s*<([^>]*)>\s*$/.exec(line);
+    if (m) out.push({ count: Number(m[1]), name: m[2]!, email: m[3]! });
+  }
+  return out.sort((a, b) => b.count - a.count).slice(0, 200);
 }
