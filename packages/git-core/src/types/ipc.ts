@@ -456,16 +456,55 @@ export interface FileAtRevision {
 }
 
 export interface CommitFile {
-  /** A, M, D, T… */
+  /** A, M, D, T, R (renomeado), C (copiado)… */
   status: string;
   path: string;
+  /** O nome antigo, quando renomeado ou copiado. */
+  oldPath?: string;
+  /** Linhas acrescentadas e removidas (ausentes quando o Git não contou). */
+  added?: number;
+  removed?: number;
+  binary?: boolean;
 }
+
+/** Assinatura do commit: `good` (verificada), `bad` (inválida, expirada ou revogada), `unknown` (não deu para verificar) ou `none` (sem assinatura). */
+export type CommitSignature = 'good' | 'bad' | 'unknown' | 'none';
 
 export interface CommitDetail {
   hash: string;
   /** Mensagem completa (assunto + corpo). */
   message: string;
   files: CommitFile[];
+  signature: CommitSignature;
+}
+
+export type CompareMode = 'three' | 'two';
+
+export interface CompareOk {
+  ok: true;
+  base: string;
+  target: string;
+  baseHash: string;
+  targetHash: string;
+  /** O ancestral comum (`null` se os dois não têm história em comum). */
+  mergeBase: string | null;
+  /** O que o alvo tem a mais (`base..alvo`) e a menos (`alvo..base`). */
+  ahead: CommitInfo[];
+  behind: CommitInfo[];
+  aheadCount: number;
+  behindCount: number;
+  files: CommitFile[];
+  filesTotal: number;
+  filesTruncated: boolean;
+  mode: CompareMode;
+}
+export type CompareResult = CompareOk | { ok: false; error: { code: 'badRevision' | 'notFound'; value: string } };
+
+/** Os branches e as tags que contêm um commit. */
+export interface CommitRefs {
+  branches: string[];
+  tags: string[];
+  truncated: boolean;
 }
 
 /** Uma linha do blame: quem alterou por último e em qual commit. */
@@ -1440,6 +1479,12 @@ export interface GitNexusApi extends GitNexusIPC {
   getFileHistory(repoPath: string, file: string, limit?: number): Promise<CommitInfo[]>;
   listTrackedFiles(repoPath: string): Promise<string[]>;
   getCommitDetail(repoPath: string, hash: string): Promise<CommitDetail>;
+  /** Branches e tags que contêm o commit (sob demanda). */
+  getCommitRefs(repoPath: string, hash: string): Promise<CommitRefs>;
+  /** Compara duas revisões (#295): commits a mais e a menos, arquivos e contagem. Revisão inválida volta como `ok: false`, sem lançar. */
+  compareRevisions(repoPath: string, base: string, target: string, mode?: CompareMode): Promise<CompareResult>;
+  /** O diff de um arquivo da comparação (pelos hashes que `compareRevisions` devolveu). */
+  getCompareFileDiff(repoPath: string, baseHash: string, targetHash: string, mode: CompareMode, file: string, oldPath?: string): Promise<string>;
   getCommitFileDiff(repoPath: string, hash: string, file: string): Promise<string>;
   /** Autoria linha a linha (`rev` opcional; padrão: arquivo no disco). */
   getBlame(repoPath: string, file: string, rev?: string): Promise<BlameLine[]>;

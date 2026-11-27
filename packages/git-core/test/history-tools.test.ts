@@ -73,7 +73,7 @@ describe('histórico de arquivo e detalhe de commit', () => {
   it('lista os arquivos do commit e o diff de um deles', async () => {
     const d = await getCommitDetail(repo, hashes['fix: ajusta a']!);
     expect(d.message).toBe('fix: ajusta a');
-    expect(d.files).toEqual([{ status: 'M', path: 'a.txt' }]);
+    expect(d.files).toMatchObject([{ status: 'M', path: 'a.txt' }]);
     const diff = await getCommitFileDiff(repo, hashes['fix: ajusta a']!, 'a.txt');
     expect(diff).toContain('+DOIS');
     expect(diff).toContain('+tres');

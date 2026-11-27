@@ -1,7 +1,8 @@
 import { LOG_FORMAT, parseLog } from './history.js';
 import { resolveInsideRepo } from './conflicts.js';
 import { runGit } from './runner.js';
-import type { BlameLine, CommitDetail, CommitFile, CommitInfo, FileAtRevision, HistorySearch } from './types/ipc.js';
+import { fileChanges } from './compare.js';
+import type { BlameLine, CommitDetail, CommitInfo, CommitRefs, CommitSignature, FileAtRevision, HistorySearch } from './types/ipc.js';
 import { tm } from './messages.js';
 
 
@@ -48,15 +49,28 @@ function assertHash(h: string): void {
   if (!hex.test(h)) throw new Error(tm(`Hash de commit inválido: ${h}`, `Invalid commit hash: ${h}`));
 }
 
-/** Mensagem completa e arquivos alterados de um commit (o primeiro pai, em merges). */
+const SIGNATURE: Record<string, CommitSignature> = { G: 'good', U: 'good', B: 'bad', X: 'bad', Y: 'bad', R: 'bad', E: 'unknown', N: 'none' };
+
+/** Mensagem completa, estado da assinatura e arquivos alterados de um commit (o primeiro pai, em merges), com renomeação (caminho antigo) e contagem +/- por arquivo. */
 export async function getCommitDetail(repoPath: string, hash: string): Promise<CommitDetail> {
   assertHash(hash);
-  const body = await runGit(repoPath, ['show', '-s', '--format=%B', hash]);
-  const ns = await runGit(repoPath, ['show', '--format=', '--name-status', '-z', '--no-renames', '-m', '--first-parent', hash]);
-  const parts = ns.stdout.split('\0').filter(Boolean);
-  const files: CommitFile[] = [];
-  for (let i = 0; i + 1 < parts.length; i += 2) files.push({ status: parts[i]!.charAt(0), path: parts[i + 1]! });
-  return { hash, message: body.stdout.trim(), files };
+  const [head, files] = await Promise.all([runGit(repoPath, ['show', '-s', '--format=%G?%x00%B', hash]), fileChanges(repoPath, 'show', [hash])]);
+  const nul = head.stdout.indexOf('\0');
+  const flag = nul > 0 ? head.stdout.slice(0, nul).trim() : 'N';
+  return { hash, message: (nul >= 0 ? head.stdout.slice(nul + 1) : head.stdout).trim(), files, signature: SIGNATURE[flag] ?? 'none' };
+}
+
+/** Os branches e as tags que contêm o commit (sob demanda: em repositório grande o Git leva um instante). */
+export async function getCommitRefs(repoPath: string, hash: string, max = 40): Promise<CommitRefs> {
+  assertHash(hash);
+  const [br, tg] = await Promise.all([
+    runGit(repoPath, ['branch', '-a', '--contains', hash, '--format=%(refname:short)'], { check: false }),
+    runGit(repoPath, ['tag', '--contains', hash], { check: false }),
+  ]);
+  const lines = (s: string) => s.split('\n').map((x) => x.trim()).filter((x) => x && !x.includes('HEAD detached') && !/\/HEAD$/.test(x));
+  const branches = lines(br.code === 0 ? br.stdout : '');
+  const tags = lines(tg.code === 0 ? tg.stdout : '');
+  return { branches: branches.slice(0, max), tags: tags.slice(0, max), truncated: branches.length > max || tags.length > max };
 }
 
 export async function getCommitFileDiff(repoPath: string, hash: string, file: string): Promise<string> {

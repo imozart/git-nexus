@@ -1,19 +1,23 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, triggerRef, watch } from 'vue';
 import { GnBadge, GnButton, GnDialog, GnIcon, GnIconButton, GnSegmented, GnTooltip } from '@git-nexus/ui-kit';
-import { createGraphBuilder, filterBreaksGraph, type HistoryFilter, type CiStatus, type CommitDetail, type CommitInfo, type FileAtRevision, type GraphRow, type HistoryHit, type HistoryQuery, type RepoSummary, type RepositoryMeta } from '@git-nexus/git-core/pure';
+import { createGraphBuilder, filterBreaksGraph, type HistoryFilter, type CommitInfo, type FileAtRevision, type GraphRow, type HistoryHit, type HistoryQuery, type RepoSummary, type RepositoryMeta } from '@git-nexus/git-core/pure';
 import { api, errMsg } from '../api';
 import { useWorkspaceStore } from '../stores/workspace';
 import { dateLocale, t, type MessageKey } from '../i18n';
-import { KIND_KEY, KIND_TONE, diffLines, kindNumbers, rangerFor } from '../history-search-core';
+import { KIND_KEY, KIND_TONE, kindNumbers, rangerFor } from '../history-search-core';
 import {
   COLUMN_DEFAULT, COLUMN_IDS, COLUMN_MAX, COLUMN_MIN, LANE_COLORS, ROW_HEIGHT,
   abbreviateChips, avatarOf, clampWidth, commitState, fitColumns, gridTemplate, laneMetrics, nearEnd, parseColumnPrefs, parseDensity, parseRefs, scrollToRow, visibleRange,
   type ColumnId, type ColumnPrefs, type Density, type RefChip,
 } from '../graph-core';
 import { parseGraphFilter } from '../graph-filter-core';
+import { SPLIT_LIMITS, Visited, clampSize, parseSplit, resized, withOrient, type SplitPrefs } from '../commit-detail-core';
+import { useCommandsStore } from '../stores/commands';
 import { agoText } from '../sync';
 import { theme } from '../theme';
+import CommitDetailPane from '../components/CommitDetailPane.vue';
+import ComparePanel from '../components/ComparePanel.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import CodeEditor from '../components/CodeEditor.vue';
 import ContextMenu, { type MenuItem } from '../components/ContextMenu.vue';
@@ -240,7 +244,18 @@ function onListKey(e: KeyboardEvent): void {
     e.preventDefault();
     void select(to);
   };
-  if (e.key === 'ArrowDown') move(i < 0 ? 0 : i + 1);
+  if (e.altKey && e.key === 'ArrowLeft') {
+    e.preventDefault();
+    goBack();
+  } else if (e.key === 'Escape' && (marked.value || (split.value.open && selected.value))) {
+    e.preventDefault();
+    if (marked.value) marked.value = '';
+    else split.value.open = false;
+  } else if (e.key === 'Tab' && !e.shiftKey && split.value.open && document.querySelector<HTMLElement>('.gv__detail [data-testid="cf-list"]')) {
+    e.preventDefault();
+    document.querySelector<HTMLElement>('.gv__detail [data-testid="cf-list"]')?.focus();
+  } else if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'j' || e.key === 'k')) move(i < 0 ? 0 : i + (e.key === 'j' ? 1 : -1));
+  else if (e.key === 'ArrowDown') move(i < 0 ? 0 : i + 1);
   else if (e.key === 'ArrowUp') move(i < 0 ? 0 : i - 1);
   else if (e.key === 'PageDown') move(i + page);
   else if (e.key === 'PageUp') move(i - page);
@@ -283,42 +298,95 @@ function rowAria(c: CommitInfo): string {
 }
 const avatarStyle = (c: CommitInfo) => ({ background: `hsl(${avatarOf(c.author, c.authorEmail).hue} 52% 36%)` });
 
-// --- detalhe do commit: mensagem completa, arquivos e diff ---------------------------------------
-const detail = ref<CommitDetail | null>(null);
-/** Status de CI do commit selecionado (só aparece com uma conta GitHub/GitLab conectada em Ferramentas). */
-const ci = ref<CiStatus | null>(null);
-const CI_TEXT: Record<CiStatus['state'], MessageKey> = { success: 'gv.ci.success', failure: 'gv.ci.failure', pending: 'gv.ci.pending', none: 'gv.ci.none' };
-const CI_TONE = { success: 'success', failure: 'danger', pending: 'warn', none: 'neutral' } as const;
-let hostingReady: Promise<boolean> | null = null;
-const canCi = () => (hostingReady ??= api.hostingInfo(props.repo.path).then((i) => i.supported && i.hasToken).catch(() => false));
-const failUrl = computed(() => ci.value?.checks.find((c) => c.state === 'failure')?.url);
-const diffFile = ref('');
-const diffText = ref('');
-/** O diff do arquivo escolhido, linha a linha, com o que a busca procurou marcado nas linhas + e −. */
-const diffRows = computed(() => diffLines(diffText.value, ranger.value));
-const patchRows = computed(() => (selectedHit.value?.patch ? diffLines(selectedHit.value.patch, null) : []));
-watch(selectedHash, async (h) => {
-  ci.value = null;
-  if (h && (await canCi())) api.getCiStatus(props.repo.path, h).then((s) => h === selectedHash.value && (ci.value = s)).catch(() => undefined);
-  detail.value = null;
-  diffFile.value = '';
-  diffText.value = '';
-  if (!h) return;
-  try {
-    const d = await api.getCommitDetail(props.repo.path, h);
-    if (h === selectedHash.value) detail.value = d;
-  } catch (e) {
-    error.value = errMsg(e);
-  }
-});
-async function showFile(f: string): Promise<void> {
-  diffFile.value = f;
-  diffText.value = await api.getCommitFileDiff(props.repo.path, selectedHash.value, f);
+// --- detalhe fixo ao lado da lista (#293): divisão arrastável, lembrada por repositório -----------------------------------------------------------
+const SPLIT_KEY = `gitnexus.graphSplit.${props.repo.id}`;
+const split = ref<SplitPrefs>(parseSplit(localStorage.getItem(SPLIT_KEY)));
+watch(split, (p) => localStorage.setItem(SPLIT_KEY, JSON.stringify(p)), { deep: true });
+const splitOptions = computed(() => [
+  { value: 'side', label: t('gv.split.side') },
+  { value: 'bottom', label: t('gv.split.bottom') },
+]);
+const detailStyle = computed(() => (split.value.orient === 'side' ? { width: split.value.size + 'px' } : { height: split.value.size + 'px' }));
+let sepFrom: { pos: number; size: number } | null = null;
+const sepPos = (e: PointerEvent): number => (split.value.orient === 'side' ? e.clientX : e.clientY);
+function sepDown(e: PointerEvent): void {
+  sepFrom = { pos: sepPos(e), size: split.value.size };
+  (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 }
-const STATUS: Record<string, MessageKey> = { A: 'gv.st.A', M: 'gv.st.M', D: 'gv.st.D', T: 'gv.st.T' };
-/** O que a busca contou neste arquivo do commit (`null` = a busca não tocou nele). */
-const touched = (path: string) => selectedHit.value?.files.find((f) => f.path === path || f.oldPath === path) ?? null;
-const countText = (f: { added: number; removed: number }) => [f.removed ? `−${f.removed}` : '', f.added ? `+${f.added}` : ''].filter(Boolean).join(' ');
+function sepMove(e: PointerEvent): void {
+  if (sepFrom) split.value = { ...split.value, size: clampSize(split.value.orient, sepFrom.size + (sepFrom.pos - sepPos(e))) };
+}
+const sepUp = (): void => void (sepFrom = null);
+/** Setas movem a divisória (Shift de 32 em 32), Enter ou duplo clique voltam ao padrão. */
+function sepKey(e: KeyboardEvent): void {
+  const step = e.shiftKey ? 32 : 16;
+  const grow = split.value.orient === 'side' ? 'ArrowLeft' : 'ArrowUp';
+  const shrink = split.value.orient === 'side' ? 'ArrowRight' : 'ArrowDown';
+  if (e.key === grow) split.value = resized(split.value, step);
+  else if (e.key === shrink) split.value = resized(split.value, -step);
+  else if (e.key === 'Enter') split.value = { ...split.value, size: SPLIT_LIMITS[split.value.orient].def };
+  else return;
+  e.preventDefault();
+}
+const sepReset = (): void => void (split.value = { ...split.value, size: SPLIT_LIMITS[split.value.orient].def });
+
+// os commits visitados (Alt+← volta ao anterior) e o detalhe reabre ao escolher outro commit
+const visited = new Visited();
+watch(selectedHash, (h) => {
+  if (!h) return;
+  if (!split.value.open) split.value.open = true;
+  visited.visit(h);
+});
+function goBack(): void {
+  const h = visited.back();
+  const i = h ? shown.value.findIndex((c) => c.hash === h) : -1;
+  if (i >= 0) void select(i);
+}
+/** Ir ao commit pai pelo detalhe; se o filtro esconde o pai, avisa em vez de ficar parado. */
+function jump(h: string): void {
+  const i = shown.value.findIndex((c) => c.hash === h);
+  if (i >= 0) void select(i);
+  else {
+    note.value = t('gv.parentHidden');
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(() => (note.value = ''), 2600);
+  }
+}
+
+// --- comparar duas revisões (#295) -----------------------------------------------------------------------------------------------------------------------------------------
+const compare = ref<{ base: string; target: string } | null>(null);
+/** O primeiro commit marcado com Ctrl+clique: o segundo Ctrl+clique abre a comparação entre os dois. */
+const marked = ref('');
+function onRowClick(e: MouseEvent, c: CommitInfo): void {
+  if (!(e.ctrlKey || e.metaKey)) {
+    selectedHash.value = c.hash;
+    return;
+  }
+  e.preventDefault();
+  if (!marked.value) {
+    marked.value = c.hash;
+    note.value = t('gv.marked', { hash: c.shortHash });
+  } else if (marked.value === c.hash) {
+    marked.value = '';
+    note.value = '';
+  } else {
+    compare.value = { base: marked.value, target: c.hash };
+    marked.value = '';
+    note.value = '';
+  }
+}
+const cmds = useCommandsStore();
+const offCmds = cmds.register(() => [
+  {
+    id: 'gv.compare',
+    title: t('cmp.cmd'),
+    group: t('rv.graph'),
+    keywords: 'comparar compare diff revisões branches tags',
+    when: () => ws.isViewActive(props.repo.id, 'graph'),
+    run: () => (compare.value = { base: 'HEAD', target: selected.value?.shortHash ?? '' }),
+  },
+]);
+onBeforeUnmount(() => offCmds());
 
 // --- copiar ------------------------------------------------------------------------------------------------------------------------------------------------------------------
 /** Aviso curto ("Hash copiado ✓") que some sozinho. */
@@ -340,8 +408,8 @@ async function copyHash(): Promise<void> {
 
 // --- arquivo nesta versão -----------------------------------------------------------------------
 const fileAt = ref<{ hash: string; file: string; data: FileAtRevision | null; error: string } | null>(null);
-async function openFileAt(file: string): Promise<void> {
-  const hash = selectedHash.value;
+async function openFileAt(file: string, at?: string): Promise<void> {
+  const hash = at ?? selectedHash.value;
   fileAt.value = { hash, file, data: null, error: '' };
   try {
     const data = await api.getFileAtRevision(props.repo.path, hash, file);
@@ -401,6 +469,9 @@ const menuItems = computed<MenuItem[]>(() => [
   { id: 'tag', label: t('gv.tagHere') },
   { id: 'rebase', label: t('gv.rebaseHere') },
   { id: 'sep2', separator: true },
+  { id: 'cmpHead', label: t('gv.cmpHead') },
+  { id: 'cmpWith', label: t('gv.cmpWith') },
+  { id: 'sep3', separator: true },
   { id: 'cherry', label: t('gv.cherryPick') },
   { id: 'revert', label: t('gv.revert') },
 ]);
@@ -428,6 +499,8 @@ async function onMenu(id: string): Promise<void> {
   } else if (id === 'branch') branchAsk.value = { commit: c, name: '', error: '', busy: false };
   else if (id === 'tag') ws.openTools(props.repo, 'tags', c.hash);
   else if (id === 'rebase') ws.openTools(props.repo, 'rebase', c.hash);
+  else if (id === 'cmpHead') compare.value = { base: 'HEAD', target: c.hash };
+  else if (id === 'cmpWith') compare.value = { base: c.hash, target: '' };
   else if (id === 'cherry') ask.value = { kind: 'cherry-pick', hash: c.hash, subject: c.subject };
   else if (id === 'revert') ask.value = { kind: 'revert', hash: c.hash, subject: c.subject };
 }
@@ -473,6 +546,9 @@ async function createBranchHere(): Promise<void> {
       <GraphFilters v-model="filter" :repo-path="repo.path" :repo-id="repo.id" />
       <span v-if="note" class="gv__note" role="status">{{ note }}</span>
       <span class="spacer" />
+      <GnButton size="sm" data-testid="gv-compare" @click="compare = { base: 'HEAD', target: selected?.shortHash ?? '' }">{{ t('cmp.open') }}<GnTooltip :text="t('cmp.openTip')" /></GnButton>
+      <GnSegmented :model-value="split.orient" :options="splitOptions" :aria-label="t('gv.split')" data-testid="gv-split" @update:model-value="split = withOrient(split, $event as 'side' | 'bottom')" />
+      <GnButton size="sm" :aria-pressed="split.open" data-testid="gv-detail-toggle" @click="split.open = !split.open">{{ split.open ? t('gv.detailHide') : t('gv.detailShow') }}</GnButton>
       <GnSegmented v-model="density" :options="densityOptions" :aria-label="t('gv.density')" :title="t('gv.density')" data-testid="gv-density" />
       <GnButton size="sm" :disabled="loading" @click="load">{{ t('rv.refresh') }}</GnButton>
       <GnButton size="sm" tone="accent" @click="ws.open('repo', repo)">{{ t('gv.backToStaging') }}</GnButton>
@@ -482,7 +558,19 @@ async function createBranchHere(): Promise<void> {
     <p v-else-if="hits && !hits.length && !searching" class="muted empty" data-testid="gv-nomatch">{{ t('gv.noMatch') }}</p>
     <p v-else-if="!commits.length && !loading && !hits" class="muted empty">{{ t('gv.noCommits') }}</p>
 
-    <div class="gv__body">
+    <ComparePanel
+      v-if="compare"
+      :repo="repo"
+      :base="compare.base"
+      :target="compare.target"
+      @close="compare = null"
+      @cherry-pick="(h: string, sub: string) => (ask = { kind: 'cherry-pick', hash: h, subject: sub })"
+      @revert="(h: string, sub: string) => (ask = { kind: 'revert', hash: h, subject: sub })"
+      @file-at="(h: string, p: string) => openFileAt(p, h)"
+      @file-history="(p: string) => ws.openTools(repo, 'file', p, 'history')"
+      @blame="(p: string) => ws.openTools(repo, 'file', p, 'blame')"
+    />
+    <div v-show="!compare" class="gv__body" :class="`gv__body--${split.orient}`">
       <div class="gv__main">
         <!-- cabeçalho das colunas: as divisórias redimensionam (arrastar, setas, duplo clique) e o menu liga e desliga colunas -->
         <div class="gv__cols" :style="{ gridTemplateColumns: grid }" data-testid="gv-cols" @contextmenu.prevent="openColMenu">
@@ -529,14 +617,14 @@ async function createBranchHere(): Promise<void> {
                 :id="`gv-opt-${c.hash}`"
                 :key="c.hash"
                 class="row"
-                :class="{ 'row--on': c.hash === selectedHash, 'row--head': isHeadRow(c), 'row--local': commitState(c).published === false }"
+                :class="{ 'row--on': c.hash === selectedHash, 'row--head': isHeadRow(c), 'row--local': commitState(c).published === false, 'row--mark': c.hash === marked }"
                 :style="{ height: rowH + 'px', gridTemplateColumns: grid }"
                 role="option"
                 :aria-selected="c.hash === selectedHash"
                 :aria-label="rowAria(c)"
                 data-testid="gv-row"
                 :data-hash="c.hash"
-                @click="selectedHash = c.hash"
+                @click="onRowClick($event, c)"
                 @contextmenu.prevent="openRowMenu($event, c)"
               >
                 <span class="row__g">
@@ -590,56 +678,45 @@ async function createBranchHere(): Promise<void> {
         </div>
       </div>
 
-      <aside v-if="selected" class="gv__detail" data-testid="gv-detail" tabindex="-1">
-        <h3>{{ selected.subject }}</h3>
-        <dl>
-          <dt>{{ t('gv.hash') }}</dt><dd class="mono">{{ selected.hash }}</dd>
-          <dt>{{ t('gv.author') }}</dt><dd>{{ selected.author }}</dd>
-          <dt>{{ t('gv.date') }}</dt><dd>{{ fullDate(selected.date) }}</dd>
-          <dt>{{ t('gv.parents') }}</dt><dd class="mono">{{ selected.parents.map((p) => p.slice(0, 7)).join(', ') || '—' }}</dd>
-        </dl>
-        <div v-if="selectedHit && showKind(selectedHit)" class="gv__hit" data-testid="gv-hit">
-          <GnBadge :tone="KIND_TONE[selectedHit.kind]">{{ kindText(selectedHit) }}<GnTooltip :text="t(KIND_TIP[selectedHit.kind])" /></GnBadge>
-        </div>
-        <GnButton size="sm" class="gv__rb" data-testid="gv-copy-hash" @click="copyHash">{{ t('hs.copyHash') }}</GnButton>
-        <div v-if="ci" class="gv__ci">
-          <GnBadge :tone="CI_TONE[ci.state]">{{ t(CI_TEXT[ci.state]) }}<GnTooltip :text="ci.checks.map((c) => `${c.name}: ${c.state}`).join('\n')" /></GnBadge>
-          <GnButton v-if="failUrl" size="sm" tone="danger" @click="api.hostingOpen(repo.path, failUrl!)">{{ t('gv.seeFailure') }}</GnButton>
-        </div>
-        <GnButton size="sm" tone="warn" class="gv__rb" @click="ws.openTools(repo, 'rebase', selected.hash)">
-          {{ t('gv.rebaseHere') }}
-          <GnTooltip :text="t('gv.rebaseTip')" />
-        </GnButton>
-        <GnButton size="sm" class="gv__rb" data-testid="tag-here" @click="ws.openTools(repo, 'tags', selected.hash)">{{ t('gv.tagHere') }}<GnTooltip :text="t('gv.tagHereTip')" /></GnButton>
-        <div class="gv__ops">
-          <GnButton size="sm" tone="accent" :disabled="opBusy" data-testid="cherry-pick" @click="ask = { kind: 'cherry-pick', hash: selected.hash, subject: selected.subject }">
-            {{ t('gv.cherryPick') }}
-            <GnTooltip :text="t('gv.cherryPickTip')" />
-          </GnButton>
-          <GnButton size="sm" tone="warn" :disabled="opBusy" data-testid="revert" @click="ask = { kind: 'revert', hash: selected.hash, subject: selected.subject }">
-            {{ t('gv.revert') }}
-            <GnTooltip :text="t('gv.revertTip')" />
-          </GnButton>
-        </div>
-        <p v-if="opNotice" class="gv__opnote" :class="opNotice.ok ? 'gv__opnote--ok' : 'gv__opnote--err'" role="status" data-testid="gv-op-notice">{{ opNotice.text }}</p>
-        <pre v-if="detail && detail.message.includes('\n')" class="gv__msg">{{ detail.message }}</pre>
-        <template v-if="patchRows.length">
-          <h4>{{ t('hs.showPatch') }}</h4>
-          <pre class="gv__diff" data-testid="gv-patch"><template v-for="(l, i) in patchRows" :key="i"><span :class="l.kind === 'add' ? 'a' : l.kind === 'del' ? 'd' : l.kind === 'hunk' ? 'h' : ''">{{ l.segments.map((s) => s.text).join('') }}{{ '\n' }}</span></template></pre>
-        </template>
-        <h4 v-if="detail">{{ t('gv.filesChanged', { n: detail.files.length }) }}</h4>
-        <ul v-if="detail" class="gv__files">
-          <li v-for="f in detail.files" :key="f.path" :class="{ on: diffFile === f.path, touched: !!touched(f.path) }" data-testid="gv-file" @click="showFile(f.path)">
-            <GnBadge :tone="f.status === 'D' ? 'danger' : f.status === 'A' ? 'success' : 'accent'">{{ STATUS[f.status] ? t(STATUS[f.status]!) : f.status }}</GnBadge>
-            <span class="gv__fpath">{{ f.path }}<GnTooltip :text="f.path" /></span>
-            <span v-if="touched(f.path)" class="gv__cnt" data-testid="gv-file-count">{{ touched(f.path)!.binary ? t('hs.binary') : countText(touched(f.path)!) }}</span>
-            <GnIconButton icon="external" :label="t('hs.fileAt')" data-testid="gv-file-at" @click.stop="openFileAt(f.path)" />
-            <GnIconButton icon="history" :label="t('gv.fileHistory')" @click.stop="ws.openTools(repo, 'file', f.path, 'history')" />
-            <GnIconButton icon="person" :label="t('gv.blame')" @click.stop="ws.openTools(repo, 'file', f.path, 'blame')" />
-          </li>
-        </ul>
-        <pre v-if="diffFile" class="gv__diff" data-testid="gv-diff"><template v-for="(l, i) in diffRows" :key="i"><span :class="l.kind === 'add' ? 'a' : l.kind === 'del' ? 'd' : l.kind === 'hunk' ? 'h' : ''"><template v-for="(s, j) in l.segments" :key="j"><mark v-if="s.hit" class="gv__m">{{ s.text }}</mark><template v-else>{{ s.text }}</template></template>{{ '\n' }}</span></template></pre>
-      </aside>
+      <div
+        v-if="split.open"
+        class="gv__sep"
+        role="separator"
+        :aria-orientation="split.orient === 'side' ? 'vertical' : 'horizontal'"
+        tabindex="0"
+        :aria-label="t('gv.splitResize')"
+        :aria-valuenow="split.size"
+        :aria-valuemin="SPLIT_LIMITS[split.orient].min"
+        :aria-valuemax="SPLIT_LIMITS[split.orient].max"
+        data-testid="gv-sep"
+        @pointerdown.prevent="sepDown"
+        @pointermove="sepMove"
+        @pointerup="sepUp"
+        @pointercancel="sepUp"
+        @keydown="sepKey"
+        @dblclick="sepReset"
+      />
+      <CommitDetailPane
+        v-if="split.open"
+        class="gv__detail"
+        :style="detailStyle"
+        :repo="repo"
+        :commit="selected ?? null"
+        :hit="selectedHit ?? null"
+        :active="active"
+        :busy="opBusy"
+        :notice="opNotice"
+        @jump="jump"
+        @copy-hash="copyHash"
+        @cherry-pick="selected && (ask = { kind: 'cherry-pick', hash: selected.hash, subject: selected.subject })"
+        @revert="selected && (ask = { kind: 'revert', hash: selected.hash, subject: selected.subject })"
+        @rebase="selected && ws.openTools(repo, 'rebase', selected.hash)"
+        @tag="selected && ws.openTools(repo, 'tags', selected.hash)"
+        @file-at="(p: string) => openFileAt(p)"
+        @file-history="(p: string) => ws.openTools(repo, 'file', p, 'history')"
+        @blame="(p: string) => ws.openTools(repo, 'file', p, 'blame')"
+        @error="(m: string) => (error = m)"
+      />
     </div>
     <ContextMenu v-if="menu" focus-first :x="menu.x" :y="menu.y" :items="menuItems" @select="onMenu" @close="menu = null" />
     <ContextMenu v-if="colMenu" focus-first :x="colMenu.x" :y="colMenu.y" :items="colMenuItems" @select="onColMenu" @close="colMenu = null" />
@@ -685,7 +762,7 @@ async function createBranchHere(): Promise<void> {
   display: flex; flex-direction: column; height: 100%;
   &__head { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--gn-border); }
   &__note { font-size: 11px; color: var(--gn-success); }
-  &__body { flex: 1; min-height: 0; display: flex; }
+  &__body { flex: 1; min-height: 0; display: flex; &--bottom { flex-direction: column; } }
   &__main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   // o cabeçalho tem a mesma grade da linha: as colunas alinham sem somar larguras na mão
   &__cols { position: relative; display: grid; align-items: center; column-gap: 8px; padding: 0 12px 0 0; height: 26px; flex: none; font-size: 11px; color: var(--gn-muted); background: var(--gn-surface); border-bottom: 1px solid var(--gn-border); }
@@ -708,7 +785,15 @@ async function createBranchHere(): Promise<void> {
   &__m { background: color-mix(in srgb, var(--gn-warn) 38%, transparent); color: inherit; text-decoration: underline; text-underline-offset: 2px; border-radius: 2px; }
   &__ops { display: flex; gap: 8px; margin-top: 8px; }
   &__opnote { margin: 8px 0 0; padding: 6px 10px; font-size: 12px; border-radius: var(--gn-radius); border: 1px solid var(--gn-border); &--ok { color: var(--gn-success); border-color: var(--gn-success); } &--err { color: var(--gn-warn); border-color: var(--gn-warn); } }
-  &__detail { width: 420px; border-left: 1px solid var(--gn-border); padding: 14px; overflow: auto; outline: none; h3 { margin: 0 0 10px; font-size: 14px; } &:focus-visible { box-shadow: inset 0 0 0 2px var(--gn-accent); } }
+  &__detail { flex: none; &:focus-visible { box-shadow: inset 0 0 0 2px var(--gn-accent); } }
+  &__body--side &__detail { border-left: 1px solid var(--gn-border); }
+  &__body--bottom &__detail { border-top: 1px solid var(--gn-border); }
+  // a divisória: arrasta, setas e duplo clique; acende no foco e ao passar o mouse
+  &__sep { flex: none; position: relative; touch-action: none; outline: none; background: transparent;
+    &::after { content: ''; position: absolute; background: var(--gn-border); border-radius: 1px; }
+    &:hover::after, &:focus-visible::after { background: var(--gn-accent); } }
+  &__body--side &__sep { width: 7px; margin: 0 -3px; cursor: col-resize; z-index: 1; &::after { left: 3px; top: 0; bottom: 0; width: 1px; } &:hover::after, &:focus-visible::after { width: 3px; left: 2px; } }
+  &__body--bottom &__sep { height: 7px; margin: -3px 0; cursor: row-resize; z-index: 1; &::after { top: 3px; left: 0; right: 0; height: 1px; } &:hover::after, &:focus-visible::after { height: 3px; top: 2px; } }
   &__fa { display: flex; flex-direction: column; height: 76vh; min-height: 0; }
   &__fa-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--gn-border); }
   &__fa-body { flex: 1; min-height: 0; }
@@ -724,6 +809,7 @@ async function createBranchHere(): Promise<void> {
   &:hover { background: var(--gn-surface-2); }
   &--on { background: color-mix(in srgb, var(--gn-accent) 20%, transparent); box-shadow: inset 3px 0 0 var(--gn-accent); }
   &--head .row__subject { font-weight: 600; }
+  &--mark { outline: 2px dashed var(--gn-accent); outline-offset: -2px; }
   &__g { display: block; overflow: hidden; height: 100%; }
   &__graph { display: block; }
   &__text { min-width: 0; display: flex; align-items: center; gap: 6px; overflow: hidden; }
