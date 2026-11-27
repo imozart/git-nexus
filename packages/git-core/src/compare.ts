@@ -127,10 +127,10 @@ export async function compareRevisions(repoPath: string, base: string, target: s
 
 /** O diff de um arquivo da comparação (`oldPath` quando foi renomeado). Passa do limite: vem cortado, com o aviso. */
 export async function getCompareFileDiff(repoPath: string, baseHash: string, targetHash: string, mode: CompareMode, file: string, oldPath?: string): Promise<string> {
-  for (const h of [baseHash, targetHash]) if (!/^[0-9a-f]{40,64}$/.test(h)) throw new Error(tm(`Hash de commit inválido: ${h}`, `Invalid commit hash: ${h}`));
+  for (const h of [baseHash, targetHash]) if (!/^[0-9a-f]{40,64}$/.test(h)) throw new Error(tm('compare.badHash', { hash: h }));
   const paths = [...new Set([oldPath, file].filter((p): p is string => !!p))];
   for (const p of paths) resolveInsideRepo(repoPath, p);
   const r = await runGit(repoPath, ['diff', '--no-color', '--find-renames', ...range(mode, baseHash, targetHash), '--', ...paths], { check: false });
   if (r.stdout.length <= COMPARE_MAX_DIFF) return r.stdout;
-  return r.stdout.slice(0, COMPARE_MAX_DIFF) + '\n' + tm('… (diff cortado: arquivo muito grande)', '… (diff truncated: file too large)') + '\n';
+  return r.stdout.slice(0, COMPARE_MAX_DIFF) + '\n' + tm('compare.diffCut') + '\n';
 }
