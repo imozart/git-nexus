@@ -32,7 +32,7 @@ beforeAll(() => {
   execFileSync('git', ['init', '-q', '--bare', '-b', 'main', bare]);
   R = join(root, 'r');
   execFileSync('git', ['init', '-q', '-b', 'main', R]);
-  for (const [k, v] of [['commit.gpgsign', 'false'], ['core.fsmonitor', 'false'], ['core.autocrlf', 'false']]) sh('config', k!, v!);
+  for (const [k, v] of [['commit.gpgsign', 'false'], ['core.fsmonitor', 'false'], ['core.autocrlf', 'false'], ['user.name', 'Ana'], ['user.email', 'ana@e.com']]) sh('config', k!, v!);
   sh('remote', 'add', 'origin', bare);
   commit('Ana', 'c1 raiz', 'src/a.txt', days(60));
   sh('tag', 'v1');
