@@ -2,14 +2,13 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
-import { parseLog } from './history.js';
+import { LOG_FORMAT, parseLog } from './history.js';
 import { unmergedFiles } from './conflicts.js';
 import { isWslPath } from './wsl.js';
 import { runGit } from './runner.js';
 import type { RebaseAction, RebaseItem, RebasePlan, RebaseResult, RebaseState } from './types/ipc.js';
 import { tm } from './messages.js';
 
-const LOG_FORMAT = ['%H', '%P', '%an', '%at', '%D', '%s'].join('%x1f') + '%x1e';
 const HASH = /^[0-9a-f]{7,40}$/i;
 const ACTIONS: readonly RebaseAction[] = ['pick', 'reword', 'squash', 'fixup', 'drop'];
 

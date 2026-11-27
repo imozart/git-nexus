@@ -1232,6 +1232,10 @@ export interface CommitInfo {
   parents: string[];
   refs: string[];
   author: string;
+  /** E-mail do autor (dá a cor estável do avatar na lista do Grafo). */
+  authorEmail?: string;
+  /** Só quando o repositório tem remotos: o commit ainda NÃO é alcançável de nenhum deles (não foi publicado). Sem remotos, fica de fora (não há o que comparar). */
+  local?: boolean;
   /** epoch em segundos */
   date: number;
   subject: string;
@@ -1339,7 +1343,7 @@ export interface GitNexusApi extends GitNexusIPC {
   unstageFiles(repoPath: string, files: string[]): Promise<void>;
   /** `'head'` = diff de tudo que mudou localmente (último commit x disco). */
   getFileDiff(repoPath: string, file: string, staged: boolean | 'head', encoding?: EncodingChoice): Promise<string>;
-  getHistory(repoPath: string, limit?: number): Promise<CommitInfo[]>;
+  getHistory(repoPath: string, limit?: number, skip?: number): Promise<CommitInfo[]>;
 
   // Diff lado a lado e descarte de alterações
   /** `mode` booleano é aceito por compatibilidade: false = `index`, true = `staged`. */

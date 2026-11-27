@@ -75,9 +75,9 @@ describe('WSL', () => {
 
 describe('parseLog', () => {
   it('lê registros do git log', () => {
-    const rec = ['h1', 'p1 p2', 'Ana', '1700000000', 'HEAD -> main, tag: v1', 'feat: x'].join('\x1f') + '\x1e\n';
+    const rec = ['h1', 'p1 p2', 'Ana', 'ana@e.com', '1700000000', 'HEAD -> main, tag: v1', 'feat: x'].join('\x1f') + '\x1e\n';
     const [c] = parseLog(rec);
-    expect(c).toMatchObject({ hash: 'h1', parents: ['p1', 'p2'], author: 'Ana', refs: ['HEAD -> main', 'tag: v1'], subject: 'feat: x' });
+    expect(c).toMatchObject({ hash: 'h1', parents: ['p1', 'p2'], author: 'Ana', authorEmail: 'ana@e.com', refs: ['HEAD -> main', 'tag: v1'], subject: 'feat: x' });
   });
 });
 

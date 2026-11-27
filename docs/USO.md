@@ -121,6 +121,27 @@ O log (parte de baixo da tela, **Ctrl+Shift+L**) guarda cada comando `git` do re
 
 Tema claro: [Minhas ações](media/interface/log-minhas-claro.png), [Tudo](media/interface/log-tudo-claro.png), [o ponto de erro](media/interface/log-ponto-claro.png) e [Erros](media/interface/log-erro-claro.png).
 
+## Grafo / Histórico: a lista de commits
+
+![A lista do Grafo, com o detalhe do commit ao lado](media/interface/grafo-lista-1500-escuro.png)
+
+Cada commit é uma linha com **traçado**, **mensagem** (com os chips), **autor** (avatar com iniciais; a cor é estável por e-mail), **data** (relativa até uma semana, depois `dd/mm/aa`; o tooltip traz a data inteira com o fuso) e **hash** (7 caracteres; clicar nele, ou **Ctrl+C** com a linha selecionada, copia).
+
+- **Chips com hierarquia** (a diferença não é só de cor): **HEAD** em destaque forte com o nome do branch, branches **locais** com o sinal ⎇, **remotas** tracejadas (`origin/main`) e **tags** com o ícone de etiqueta. Mais de três viram "+N" (a lista completa no tooltip). Na linha do HEAD aparece o **↑ ↓** em relação ao remoto.
+- **Estado do commit:** uma seta ↑ marca o que **ainda não foi publicado** (nenhum remoto o alcança), um ✓ o que já foi; o **merge** (dois pais) leva a marca *merge* e o nó em anel, com os pais no tooltip. Sem remotos o estado não aparece (não há com o que comparar).
+- **Traçado:** curvas nos cruzamentos, cores com contraste de pelo menos 3:1 nos dois temas, lanes que se estreitam quando são muitas, e o commit selecionado ganha traço mais grosso e nó maior.
+- **Colunas:** arraste a divisória à esquerda de *Autor*, *Data* ou *Hash* (ou use as **setas** com o foco nela, **Shift** de 32 em 32, **Enter** ou duplo clique para voltar ao padrão); o botão **⋯** do cabeçalho (ou o botão direito nele) liga e desliga colunas e restaura o padrão. Larguras e colunas ocultas ficam **lembradas por repositório**. Em janela estreita, ou com o detalhe aberto, as colunas que não cabem saem da direita para a esquerda (hash, data, autor): a mensagem nunca fica menor que 220 px, e nada se sobrepõe nem ganha rolagem lateral.
+- **Densidade:** *Compacta* (linhas de 24 px, padrão) ou *Confortável* (32 px).
+- **Listas grandes:** a lista é **virtual** (só as linhas à vista existem) e o histórico vem em **páginas**: 200 commits primeiro, o resto ao rolar (sem botão). O traçado é calculado página a página.
+- **Teclado e leitor de tela:** a lista é um `listbox` (uma tabulação) com opções; **↑ ↓ Home End PgUp PgDn** movem a seleção, **Enter** leva o foco ao detalhe, **Ctrl+C** copia o hash, **Menu** ou **Shift+F10** abre o menu da linha. O nome de cada linha diz tudo em texto: assunto, autor, quando, referências e estado ("só local, ainda não enviado", "merge de a1b2c3d, e4f5a6b").
+- **Menu da linha** (botão direito, Menu ou Shift+F10): copiar hash, copiar a mensagem, **criar branch aqui…** (nasce no commit, sem trocar a atual), criar tag aqui, rebase interativo a partir daqui, cherry-pick e reverter.
+
+![Em 800 px, com o detalhe aberto: as colunas que não cabem saem](media/interface/grafo-lista-800-claro.png)
+
+![O menu da linha, no tema claro](media/interface/grafo-lista-menu-claro.png)
+
+Tema claro: [lista](media/interface/grafo-lista-1500-claro.png). Escuro: [800 px](media/interface/grafo-lista-800-escuro.png) e [o menu](media/interface/grafo-lista-menu-escuro.png).
+
 ## Seletor de branch
 
 No cabeçalho do repositório, a branch atual é um botão (ícone de branch, nome e seta). Clicar abre o painel:

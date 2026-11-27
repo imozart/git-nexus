@@ -11,6 +11,8 @@ const OUT = process.argv[2];
 const report = {};
 process.on('exit', () => console.log(JSON.stringify(report, null, 2)));
 const t = await connect(OUT, report);
+await t.send('Page.bringToFront'); // a lista do Grafo é virtual: a rolagem só dispara eventos com a página na frente (sem tela, o navegador pausa os quadros)
+await t.send('Emulation.setFocusEmulationEnabled', { enabled: true });
 await t.ev(`localStorage.setItem('gitnexus.locale', 'pt-BR')`);
 await t.ev(`localStorage.setItem('gitnexus.autoFetch', '0')`);
 for (const k of ['searchWindow', 'searchHistory']) await t.ev(`localStorage.removeItem('gitnexus.${k}')`);
@@ -114,8 +116,11 @@ const run = async () => {
   await idle();
 };
 const rows = () =>
-  t.ev(`[...document.querySelectorAll('[data-testid="gv-row"]')].map((r) => ({ subject: r.querySelector('.row__subject').textContent.trim(), kind: r.querySelector('[data-testid="gv-kind"]')?.dataset.kind ?? null, badge: r.querySelector('[data-testid="gv-kind"]')?.textContent.replace(/\\s+/g, ' ').trim() ?? null, on: r.getAttribute('aria-pressed') === 'true' }))`);
+  t.ev(`[...document.querySelectorAll('[data-testid="gv-row"]')].map((r) => ({ subject: r.querySelector('.row__subject').textContent.trim(), kind: r.querySelector('[data-testid="gv-kind"]')?.dataset.kind ?? null, badge: r.querySelector('[data-testid="gv-kind"]')?.textContent.replace(/\\s+/g, ' ').trim() ?? null, on: r.getAttribute('aria-selected') === 'true' }))`);
 const subjects = async () => (await rows()).map((r) => r.subject);
+/** A lista é VIRTUAL (só as linhas da janela existem no DOM): percorre a rolagem de cima a baixo e junta o assunto de cada linha, na ordem. */
+const scrollAll = () =>
+  t.ev(`(async () => { const el = document.querySelector('[data-testid="gv-list"]'); const seen = new Map(); const step = Math.max(40, el.clientHeight - 20); for (let y = 0; y <= el.scrollHeight; y += step) { el.scrollTop = y; el.dispatchEvent(new Event('scroll')); await new Promise((r) => setTimeout(r, 50)); for (const r of document.querySelectorAll('[data-testid="gv-row"]')) seen.set(r.dataset.hash, r.querySelector('.row__subject').textContent.trim()); } el.scrollTop = 0; return [...seen.values()]; })()`);
 const countText = () => t.ev(`document.querySelector(${lit(pq('hs-count'))})?.textContent.replace(/\\s+/g, ' ').trim() ?? ''`);
 const clickRow = (sub) => t.ev(`[...document.querySelectorAll('[data-testid="gv-row"]')].find((r) => r.querySelector('.row__subject').textContent.includes(${lit(sub)})).click()`);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -242,11 +247,11 @@ await clickP('sf-regex');
 await setInput(pq('sf-input'), 'alvo');
 await run();
 
-// teclado: as linhas são botões
-await t.ev(`document.querySelector('[data-testid="gv-row"]').focus()`);
-await t.key('Enter');
+// teclado: a lista é um listbox e as linhas são opções; as setas selecionam
+await t.ev(`document.querySelector('[data-testid="gv-list"]').focus()`);
+await t.key('Home');
 await sleep(300);
-t.check('a linha do resultado é um botão: Enter a seleciona', (await rows())[0]?.on === true && (await t.ev(`document.querySelector('[data-testid="gv-row"]').getAttribute('role')`)) === 'button');
+t.check('o resultado é uma lista (listbox) de opções: Home seleciona a primeira linha', (await rows())[0]?.on === true && (await t.ev(`document.querySelector('[data-testid="gv-list"]').getAttribute('role')`)) === 'listbox' && (await t.ev(`document.querySelector('[data-testid="gv-row"]').getAttribute('role')`)) === 'option');
 
 // ---- páginas de 200 -----------------------------------------------------------------------------------------------------------------------------------------------------
 await closeTabs();
@@ -256,15 +261,15 @@ await t.until(`document.querySelector(${lit(P)})`, 15000);
 await typeInto(`${P} [data-testid="sf-input"]`, 'alvo');
 await pick('hs-mode', 'Linhas alteradas');
 await run();
-t.check('450 commits mexem no texto: a primeira página traz 200 e oferece "Carregar mais"', (await t.count('[data-testid="gv-row"]')) === 200 && (await t.count(pq('hs-more'))) === 1, { n: await t.count('[data-testid="gv-row"]'), c: await countText() });
+t.check('450 commits mexem no texto: a primeira página traz 200 e oferece "Carregar mais"', (await scrollAll()).length === 200 && (await t.count(pq('hs-more'))) === 1, { n: (await scrollAll()).length, c: await countText() });
 const c200 = await countText();
 t.check('o contador diz 200 commits achados e quantos foram examinados', /^200 commits achados · \d+ de 450 commits examinados$/.test(c200), c200);
 await clickP('hs-more');
 await idle();
-t.check('"Carregar mais": 400 commits, sem repetir nenhum', (await t.count('[data-testid="gv-row"]')) === 400 && new Set(await subjects()).size === 400, await t.count('[data-testid="gv-row"]'));
+t.check('"Carregar mais": 400 commits, sem repetir nenhum', (await scrollAll()).length === 400 && new Set(await scrollAll()).size === 400, (await scrollAll()).length);
 await clickP('hs-more');
 await idle();
-const all = await subjects();
+const all = await scrollAll();
 const wantAll = git(PAGES, 'log', '--format=%s', '-i', '-Galvo', 'HEAD').split('\n').filter(Boolean);
 t.check('a terceira página fecha em 450, na ordem do Git, e o botão some', all.length === 450 && same(all, wantAll) && (await t.count(pq('hs-more'))) === 0, { n: all.length });
 t.check('depois da última página o contador diz 450 de 450 examinados', /^450 commits achados · 450 de 450 commits examinados$/.test(await countText()), await countText());
