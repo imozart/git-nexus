@@ -10,7 +10,7 @@ import type { GitOrigin } from '@git-nexus/git-core/pure';
  */
 export const BACKGROUND_METHODS: ReadonlySet<string> = new Set([
   'getGitStatus', 'getInProgress', 'getRebaseState', 'getRepoSummary', 'listBranches', 'compareWithBase', 'getSyncCommits', 'getAmendInfo',
-  'getHistory', 'listStashes', 'listTags', 'getOperations', 'getRepoPolicy', 'getReleaseInfo', 'getMergeConflicts', 'getResolvedConflictFiles', 'getRerereState',
+  'getHistory', 'getHistoryCount', 'getAuthors', 'listStashes', 'listTags', 'getOperations', 'getRepoPolicy', 'getReleaseInfo', 'getMergeConflicts', 'getResolvedConflictFiles', 'getRerereState',
   'getSigningInfo', 'getGitConfig', 'getLfsInfo', 'getToolsUsage', 'getSubmodules', 'getFileEncoding', 'listTrackedFiles',
   'startSearch', 'startMultiSearch', 'startHistorySearch', 'searchHistory', 'getSearchIndex', 'controlSearchIndex', 'configureSearchIndex',
 ]);

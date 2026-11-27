@@ -16,5 +16,6 @@ export * from './search-pure.js';
 export * from './git-config-pure.js';
 export * from './search-index-pure.js';
 export * from './history-search-pure.js';
+export * from './history-filter.js';
 export * from './askpass-pure.js';
 export * from './file-encoding.js';

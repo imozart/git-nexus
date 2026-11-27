@@ -1,4 +1,5 @@
 import type { AskpassRequest } from '../askpass-pure.js';
+import type { HistoryFilter } from '../history-filter.js';
 import type { EncodingChoice, FileEncoding, FileEncodingInfo } from '../file-encoding.js';
 
 /** Operação parada no meio que o app sabe continuar ou abortar (o rebase tem o painel próprio). */
@@ -1343,7 +1344,11 @@ export interface GitNexusApi extends GitNexusIPC {
   unstageFiles(repoPath: string, files: string[]): Promise<void>;
   /** `'head'` = diff de tudo que mudou localmente (último commit x disco). */
   getFileDiff(repoPath: string, file: string, staged: boolean | 'head', encoding?: EncodingChoice): Promise<string>;
-  getHistory(repoPath: string, limit?: number, skip?: number): Promise<CommitInfo[]>;
+  getHistory(repoPath: string, limit?: number, skip?: number, filter?: HistoryFilter): Promise<CommitInfo[]>;
+  /** Quantos commits o filtro mostra e quantos o repositório tem ao todo (o "N de M" do Grafo). */
+  getHistoryCount(repoPath: string, filter?: HistoryFilter): Promise<{ count: number; total: number }>;
+  /** Os autores do repositório, mais ativos primeiro (no máximo 200), para o autocompletar do filtro de autor. */
+  getAuthors(repoPath: string): Promise<Array<{ name: string; email: string; count: number }>>;
 
   // Diff lado a lado e descarte de alterações
   /** `mode` booleano é aceito por compatibilidade: false = `index`, true = `staged`. */

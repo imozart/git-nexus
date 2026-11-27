@@ -136,6 +136,10 @@ Cada commit é uma linha com **traçado**, **mensagem** (com os chips), **autor*
 - **Teclado e leitor de tela:** a lista é um `listbox` (uma tabulação) com opções; **↑ ↓ Home End PgUp PgDn** movem a seleção, **Enter** leva o foco ao detalhe, **Ctrl+C** copia o hash, **Menu** ou **Shift+F10** abre o menu da linha. O nome de cada linha diz tudo em texto: assunto, autor, quando, referências e estado ("só local, ainda não enviado", "merge de a1b2c3d, e4f5a6b").
 - **Menu da linha** (botão direito, Menu ou Shift+F10): copiar hash, copiar a mensagem, **criar branch aqui…** (nasce no commit, sem trocar a atual), criar tag aqui, rebase interativo a partir daqui, cherry-pick e reverter.
 
+- **Filtrar o grafo:** o botão **Filtrar o grafo** abre um painel com **Branches** (*Atual*, o padrão; *Todos*; *Locais*; *Escolher…*, com a lista de branches ou tags), **Mostrar remotos**, **Mostrar tags**, **Ocultar merges**, **Só não publicados**, **Autor** (com sugestões do repositório e **Só eu**, que usa o `user.email`), **Período** (*Hoje*, *7 dias*, *30 dias* ou *Intervalo* com as datas que o Git entende, como `2026-11-01` e `7 days ago`) e **Pasta ou arquivo** (com **Resumir**, que mostra só as pontas de branch e tag). Tudo é feito pelo Git (`git log`), não na tela, então vale em históricos grandes; os filtros se **combinam**, aparecem como **chips** (cada um se remove com o ✕; **Limpar tudo** volta ao padrão) e o contador diz **"N de M commits"**. A escolha fica **lembrada por repositório**, e **Favoritos** guarda combinações com nome ("Meus commits da semana"). Com *autor* ou *sem merges* a lista segue sem o traçado de lanes (o resultado deixa de ser contínuo).
+
+![Os filtros do grafo: branches, autor, período e pasta](media/interface/grafo-filtros-popover.png)
+
 ![Em 800 px, com o detalhe aberto: as colunas que não cabem saem](media/interface/grafo-lista-800-claro.png)
 
 ![O menu da linha, no tema claro](media/interface/grafo-lista-menu-claro.png)
@@ -295,7 +299,7 @@ Para saber "onde isso aparece no meu conjunto de projetos?", o botão **Reposit�
 
 ### Buscar na história
 
-Para saber "quando isso entrou? quando saiu? quem mexeu?", a aba **Grafo** tem o painel **Buscar na história**. Ele usa o mesmo campo da pesquisa (✕, **Aa**, **ab**, **.***) e entrega commits com o **selo do que aconteceu com o texto**.
+Para saber "quando isso entrou? quando saiu? quem mexeu?", a aba **Grafo** tem a barra **Buscar na história**: uma linha só (o campo, o modo e **Buscar**), com os demais filtros (branch ou intervalo, autor, período, arquivo, seguir renomeações) atrás do botão **Filtros**, que mostra quantos estão ligados e os exibe como chips removíveis. **Ctrl+F** ou **/**, com o Grafo na tela, levam o foco ao campo (a pesquisa do repositório abre do Ctrl+F nas outras visões); o resumo "primeira vez que entrou / última que saiu" pode ser dispensado, e a última busca fica lembrada por repositório. Ele usa o mesmo campo da pesquisa (✕, **Aa**, **ab**, **.***) e entrega commits com o **selo do que aconteceu com o texto**.
 
 ![Quando o texto entrou ou saiu: cada commit com o selo e o resumo](media/pesquisa/historia-resultados.png)
 
